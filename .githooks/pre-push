@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# BFME-MAC harness — pre-push: every object the push uploads goes through the copyright gate
+# (whatever commit it sits in, so --no-verify on a past commit still gets caught here), then
+# file/line rules on the outgoing commits and the repo invariants at the pushed tip.
+set -uo pipefail
+root=$(git rev-parse --show-toplevel)
+fail=0
+
+stdin_copy=$(mktemp)
+cat > "$stdin_copy"
+
+python3 "$root/harness/harness.py" objects --pre-push < "$stdin_copy" || fail=1
+python3 "$root/harness/harness.py" diff --pre-push < "$stdin_copy" || fail=1
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+  python3 "$root/harness/harness.py" tree "$local_sha" || fail=1
+done < "$stdin_copy"
+
+rm -f "$stdin_copy"
+exit $fail

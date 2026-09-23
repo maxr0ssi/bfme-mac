@@ -1,0 +1,21 @@
+Windows Registry Editor Version 5.00
+
+; What the All-in-One Launcher writes when it installs BFME2 (see BfmeRegistryManager.cs).
+; The game is 32-bit, so in a 64-bit prefix its HKLM\SOFTWARE view lives under WOW6432Node.
+; "ergc" holds the CD key; the launcher writes a random 20-char string, replace it with your real key.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Electronic Arts\Electronic Arts\The Battle for Middle-earth II]
+"InstallPath"="C:\\Program Files (x86)\\Electronic Arts\\BFME2\\"
+"Language"="english"
+"MapPackVersion"=dword:00010000
+"UseLocalUserMaps"=dword:00000000
+"UserDataLeafName"="My Battle for Middle-earth II Files"
+"Version"=dword:00010003
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Electronic Arts\Electronic Arts\The Battle for Middle-earth II\ergc]
+@="REPLACEWITHYOURREALKEY00"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\lotrbfme2.exe]
+@="C:\\Program Files (x86)\\Electronic Arts\\BFME2\\lotrbfme2.exe"
+"Path"="C:\\Program Files (x86)\\Electronic Arts\\BFME2\\"
+"Game Registry"="SOFTWARE\\Electronic Arts\\Electronic Arts\\The Battle for Middle-earth II"

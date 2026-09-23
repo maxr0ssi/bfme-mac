@@ -1,0 +1,334 @@
+From 2324288b204235b613745534d0cd0907c73e50f3 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Tue, 22 Sep 2026 20:28:22 -0400
+Subject: [PATCH 3/3] d3d9/tests: Add tests for zero-size buffer locks.
+
+Lock a vertex buffer and an index buffer with a size of zero, both at
+offset zero and at a non-zero offset, and check that the returned pointer
+refers to the requested offset and that writes through it reach the
+buffer.
+
+The visual test draws the vertices written through such a lock, which
+additionally catches the case where the data reaches the system memory
+copy of the buffer but never the GPU copy.
+---
+ dlls/d3d9/tests/device.c | 133 ++++++++++++++++++++++++++++++++++++
+ dlls/d3d9/tests/visual.c | 144 +++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 277 insertions(+)
+
+diff --git a/dlls/d3d9/tests/device.c b/dlls/d3d9/tests/device.c
+index b782833c37d..aa4e297d9d1 100644
+--- a/dlls/d3d9/tests/device.c
++++ b/dlls/d3d9/tests/device.c
+@@ -6432,6 +6432,138 @@ static void test_vertex_buffer_alignment(void)
+     DestroyWindow(window);
+ }
+ 
++static void test_buffer_zero_lock_size(void)
++{
++    IDirect3DVertexBuffer9 *vertex_buffer;
++    IDirect3DIndexBuffer9 *index_buffer;
++    unsigned char pattern[1024], *data;
++    const unsigned int offset = 256;
++    IDirect3DDevice9 *device;
++    IDirect3D9 *d3d9;
++    unsigned int i;
++    ULONG refcount;
++    HWND window;
++    HRESULT hr;
++
++    window = create_window();
++    d3d9 = Direct3DCreate9(D3D_SDK_VERSION);
++    ok(!!d3d9, "Failed to create a D3D object.\n");
++    if (!(device = create_device(d3d9, window, NULL)))
++    {
++        skip("Failed to create a D3D device, skipping tests.\n");
++        IDirect3D9_Release(d3d9);
++        DestroyWindow(window);
++        return;
++    }
++
++    for (i = 0; i < ARRAY_SIZE(pattern); ++i)
++        pattern[i] = i + (i >> 8) + 1; /* Not periodic in 256. */
++
++    hr = IDirect3DDevice9_CreateVertexBuffer(device, sizeof(pattern), 0, 0,
++            D3DPOOL_MANAGED, &vertex_buffer, NULL);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    /* An offset and a size of zero lock the entire buffer. */
++    hr = IDirect3DVertexBuffer9_Lock(vertex_buffer, 0, 0, (void **)&data, 0);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    ok(!!data, "Got unexpected data %p.\n", data);
++    memcpy(data, pattern, sizeof(pattern));
++    hr = IDirect3DVertexBuffer9_Unlock(vertex_buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DVertexBuffer9_Lock(vertex_buffer, 0, 0, (void **)&data, D3DLOCK_READONLY);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    ok(!!data, "Got unexpected data %p.\n", data);
++    ok(!memcmp(data, pattern, sizeof(pattern)), "Got unexpected vertex buffer data.\n");
++    hr = IDirect3DVertexBuffer9_Unlock(vertex_buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    /* A size of zero locks the buffer from "offset" to its end. */
++    hr = IDirect3DVertexBuffer9_Lock(vertex_buffer, offset, 0, (void **)&data, 0);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    ok(!!data, "Got unexpected data %p.\n", data);
++    ok(!memcmp(data, pattern + offset, sizeof(pattern) - offset),
++            "Got unexpected vertex buffer data.\n");
++    memset(data, 0xaa, sizeof(pattern) - offset);
++    hr = IDirect3DVertexBuffer9_Unlock(vertex_buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    memset(pattern + offset, 0xaa, sizeof(pattern) - offset);
++    hr = IDirect3DVertexBuffer9_Lock(vertex_buffer, 0, 0, (void **)&data, D3DLOCK_READONLY);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    ok(!memcmp(data, pattern, sizeof(pattern)), "Got unexpected vertex buffer data.\n");
++    hr = IDirect3DVertexBuffer9_Unlock(vertex_buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    IDirect3DVertexBuffer9_Release(vertex_buffer);
++
++    for (i = 0; i < ARRAY_SIZE(pattern); ++i)
++        pattern[i] = i + (i >> 8) + 1; /* Not periodic in 256. */
++
++    hr = IDirect3DDevice9_CreateIndexBuffer(device, sizeof(pattern), 0,
++            D3DFMT_INDEX16, D3DPOOL_MANAGED, &index_buffer, NULL);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DIndexBuffer9_Lock(index_buffer, 0, 0, (void **)&data, 0);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    ok(!!data, "Got unexpected data %p.\n", data);
++    memcpy(data, pattern, sizeof(pattern));
++    hr = IDirect3DIndexBuffer9_Unlock(index_buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DIndexBuffer9_Lock(index_buffer, 0, 0, (void **)&data, D3DLOCK_READONLY);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    ok(!!data, "Got unexpected data %p.\n", data);
++    ok(!memcmp(data, pattern, sizeof(pattern)), "Got unexpected index buffer data.\n");
++    hr = IDirect3DIndexBuffer9_Unlock(index_buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DIndexBuffer9_Lock(index_buffer, offset, 0, (void **)&data, 0);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    ok(!!data, "Got unexpected data %p.\n", data);
++    ok(!memcmp(data, pattern + offset, sizeof(pattern) - offset),
++            "Got unexpected index buffer data.\n");
++    memset(data, 0xaa, sizeof(pattern) - offset);
++    hr = IDirect3DIndexBuffer9_Unlock(index_buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    memset(pattern + offset, 0xaa, sizeof(pattern) - offset);
++    hr = IDirect3DIndexBuffer9_Lock(index_buffer, 0, 0, (void **)&data, D3DLOCK_READONLY);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    ok(!memcmp(data, pattern, sizeof(pattern)), "Got unexpected index buffer data.\n");
++    hr = IDirect3DIndexBuffer9_Unlock(index_buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    IDirect3DIndexBuffer9_Release(index_buffer);
++
++    /* Dynamic, write-only buffers in the default pool are locked the same
++     * way; this is what Battle for Middle-earth II does. */
++    hr = IDirect3DDevice9_CreateVertexBuffer(device, sizeof(pattern),
++            D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &vertex_buffer, NULL);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DVertexBuffer9_Lock(vertex_buffer, 0, 0, (void **)&data, D3DLOCK_DISCARD);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    ok(!!data, "Got unexpected data %p.\n", data);
++    memset(data, 0x55, sizeof(pattern));
++    hr = IDirect3DVertexBuffer9_Unlock(vertex_buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DVertexBuffer9_Lock(vertex_buffer, offset, 0, (void **)&data, D3DLOCK_NOOVERWRITE);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    ok(!!data, "Got unexpected data %p.\n", data);
++    memset(data, 0x55, sizeof(pattern) - offset);
++    hr = IDirect3DVertexBuffer9_Unlock(vertex_buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    IDirect3DVertexBuffer9_Release(vertex_buffer);
++
++    refcount = IDirect3DDevice9_Release(device);
++    ok(!refcount, "Device has %lu references left.\n", refcount);
++    IDirect3D9_Release(d3d9);
++    DestroyWindow(window);
++}
++
+ static void test_query_support(void)
+ {
+     static const D3DQUERYTYPE queries[] =
+@@ -15371,6 +15503,7 @@ START_TEST(device)
+     test_volume_resource();
+     test_vb_lock_flags();
+     test_vertex_buffer_alignment();
++    test_buffer_zero_lock_size();
+     test_query_support();
+     test_occlusion_query();
+     test_timestamp_query();
+diff --git a/dlls/d3d9/tests/visual.c b/dlls/d3d9/tests/visual.c
+index ade80fbe9a1..d5b2c8dd2db 100644
+--- a/dlls/d3d9/tests/visual.c
++++ b/dlls/d3d9/tests/visual.c
+@@ -26924,6 +26924,149 @@ static void test_dynamic_map_synchronization(void)
+     DestroyWindow(window);
+ }
+ 
++static void test_zero_size_buffer_lock(void)
++{
++    static const struct
++    {
++        struct vec3 position;
++        DWORD diffuse;
++    }
++    quads[] =
++    {
++        {{-1.0f, -1.0f, 0.1f}, 0xffff0000},
++        {{-1.0f,  1.0f, 0.1f}, 0xffff0000},
++        {{ 1.0f, -1.0f, 0.1f}, 0xffff0000},
++        {{ 1.0f,  1.0f, 0.1f}, 0xffff0000},
++
++        {{-1.0f, -1.0f, 0.1f}, 0xff00ff00},
++        {{-1.0f,  1.0f, 0.1f}, 0xff00ff00},
++        {{ 1.0f, -1.0f, 0.1f}, 0xff00ff00},
++        {{ 1.0f,  1.0f, 0.1f}, 0xff00ff00},
++    };
++    IDirect3DVertexBuffer9 *buffer;
++    IDirect3DDevice9 *device;
++    unsigned int color;
++    IDirect3D9 *d3d;
++    ULONG refcount;
++    HWND window;
++    HRESULT hr;
++    void *data;
++
++    window = create_window();
++    d3d = Direct3DCreate9(D3D_SDK_VERSION);
++    ok(!!d3d, "Failed to create a D3D object.\n");
++    if (!(device = create_device(d3d, window, window, TRUE)))
++    {
++        skip("Failed to create a D3D device.\n");
++        IDirect3D9_Release(d3d);
++        DestroyWindow(window);
++        return;
++    }
++
++    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_LIGHTING, FALSE);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_SetRenderState(device, D3DRS_ZENABLE, FALSE);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_SetFVF(device, D3DFVF_XYZ | D3DFVF_DIFFUSE);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    /* A size of zero locks the buffer from "offset" to its end, so writes
++     * through the returned pointer have to reach the buffer. Draw the first
++     * quad before writing the second one, so that the data written by the
++     * first lock has been uploaded to the GPU by the time the second lock
++     * happens, and stale data shows up if the second write is not uploaded. */
++    hr = IDirect3DDevice9_CreateVertexBuffer(device, sizeof(quads), 0, 0, D3DPOOL_MANAGED, &buffer, NULL);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_SetStreamSource(device, 0, buffer, 0, sizeof(*quads));
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DVertexBuffer9_Lock(buffer, 0, sizeof(quads), &data, 0);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    memcpy(data, quads, 4 * sizeof(*quads));
++    memcpy((char *)data + 4 * sizeof(*quads), quads, 4 * sizeof(*quads));
++    hr = IDirect3DVertexBuffer9_Unlock(buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, 0xff0000ff, 0.0f, 0);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_BeginScene(device);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_DrawPrimitive(device, D3DPT_TRIANGLESTRIP, 4, 2);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_EndScene(device);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    color = getPixelColor(device, 320, 240);
++    ok(color_match(color, 0x00ff0000, 1), "Got unexpected color 0x%08x.\n", color);
++
++    hr = IDirect3DVertexBuffer9_Lock(buffer, 4 * sizeof(*quads), 0, &data, 0);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    memcpy(data, &quads[4], 4 * sizeof(*quads));
++    hr = IDirect3DVertexBuffer9_Unlock(buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, 0xff0000ff, 0.0f, 0);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_BeginScene(device);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_DrawPrimitive(device, D3DPT_TRIANGLESTRIP, 4, 2);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_EndScene(device);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    color = getPixelColor(device, 320, 240);
++    ok(color_match(color, 0x0000ff00, 1), "Got unexpected color 0x%08x.\n", color);
++
++    IDirect3DVertexBuffer9_Release(buffer);
++
++    /* The same thing on a dynamic, write-only buffer in the default pool;
++     * this is the way Battle for Middle-earth II locks its vertex buffers. */
++    hr = IDirect3DDevice9_CreateVertexBuffer(device, sizeof(quads),
++            D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &buffer, NULL);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_SetStreamSource(device, 0, buffer, 0, sizeof(*quads));
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DVertexBuffer9_Lock(buffer, 0, sizeof(quads), &data, D3DLOCK_DISCARD);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    memcpy(data, quads, 4 * sizeof(*quads));
++    memcpy((char *)data + 4 * sizeof(*quads), quads, 4 * sizeof(*quads));
++    hr = IDirect3DVertexBuffer9_Unlock(buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, 0xff0000ff, 0.0f, 0);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_BeginScene(device);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_DrawPrimitive(device, D3DPT_TRIANGLESTRIP, 4, 2);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_EndScene(device);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    color = getPixelColor(device, 320, 240);
++    ok(color_match(color, 0x00ff0000, 1), "Got unexpected color 0x%08x.\n", color);
++
++    hr = IDirect3DVertexBuffer9_Lock(buffer, 4 * sizeof(*quads), 0, &data, D3DLOCK_NOOVERWRITE);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    memcpy(data, &quads[4], 4 * sizeof(*quads));
++    hr = IDirect3DVertexBuffer9_Unlock(buffer);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++
++    hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, 0xff0000ff, 0.0f, 0);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_BeginScene(device);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_DrawPrimitive(device, D3DPT_TRIANGLESTRIP, 4, 2);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_EndScene(device);
++    ok(hr == D3D_OK, "Got unexpected hr %#lx.\n", hr);
++    color = getPixelColor(device, 320, 240);
++    ok(color_match(color, 0x0000ff00, 1), "Got unexpected color 0x%08x.\n", color);
++
++    IDirect3DVertexBuffer9_Release(buffer);
++    refcount = IDirect3DDevice9_Release(device);
++    ok(!refcount, "Device has %lu references left.\n", refcount);
++    IDirect3D9_Release(d3d);
++    DestroyWindow(window);
++}
++
+ static void test_filling_convention(void)
+ {
+     static const DWORD colour_bottom = 0x00ffff00;
+@@ -29165,6 +29308,7 @@ START_TEST(visual)
+     test_alpha_to_coverage();
+     test_sample_mask();
+     test_dynamic_map_synchronization();
++    test_zero_size_buffer_lock();
+     test_filling_convention();
+     test_managed_reset();
+     test_managed_generate_mipmap();
+-- 
+2.39.5 (Apple Git-154)
+

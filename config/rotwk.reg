@@ -1,0 +1,21 @@
+Windows Registry Editor Version 5.00
+
+; Rise of the Witch-king registry, mirroring what the All-in-One Launcher writes.
+; RotWK is an expansion: it locates BFME2's assets through BFME2's own InstallPath key (bfme2.reg).
+; "ergc" is the CD key slot; replace the placeholder with your real RotWK key.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Electronic Arts\Electronic Arts\The Lord of the Rings, The Rise of the Witch-king]
+"InstallPath"="C:\\Program Files (x86)\\Electronic Arts\\RotWK\\"
+"Language"="english"
+"MapPackVersion"=dword:00010000
+"UseLocalUserMaps"=dword:00000000
+"UserDataLeafName"="My Rise of the Witch-king Files"
+"Version"=dword:00010003
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Electronic Arts\Electronic Arts\The Lord of the Rings, The Rise of the Witch-king\ergc]
+@="REPLACEWITHYOURREALKEY00"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\lotrbfme2ep1.exe]
+@="C:\\Program Files (x86)\\Electronic Arts\\RotWK\\lotrbfme2ep1.exe"
+"Path"="C:\\Program Files (x86)\\Electronic Arts\\RotWK\\"
+"Game Registry"="SOFTWARE\\Electronic Arts\\Electronic Arts\\The Lord of the Rings, The Rise of the Witch-king"

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# BFME-MAC harness — pre-commit: copyright/binary gate, file + line rules on staged changes,
+# commit budget, repo invariants. Enable once: git config core.hooksPath .githooks
+set -uo pipefail
+root=$(git rev-parse --show-toplevel)
+fail=0
+
+python3 "$root/harness/harness.py" diff --staged || fail=1
+python3 "$root/harness/harness.py" tree --staged || fail=1
+python3 "$root/harness/harness.py" loc --staged || fail=1
+
+exit $fail

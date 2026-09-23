@@ -1,0 +1,77 @@
+From 8aa5356f132ddc935faf76072c6853614fa3cb7e Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Tue, 22 Sep 2026 20:29:10 -0400
+Subject: [PATCH] d3d8: Treat a zero lock size as the rest of the buffer.
+
+IDirect3DVertexBuffer8::Lock() and IDirect3DIndexBuffer8::Lock() lock the
+entire buffer when both OffsetToLock and SizeToLock are zero, like their
+d3d9 counterparts.
+---
+ dlls/d3d8/buffer.c | 28 ++++++++++++++++++++++++++--
+ 1 file changed, 26 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/d3d8/buffer.c b/dlls/d3d8/buffer.c
+index 9633f85..99029d1 100644
+--- a/dlls/d3d8/buffer.c
++++ b/dlls/d3d8/buffer.c
+@@ -184,6 +184,7 @@ static HRESULT WINAPI d3d8_vertexbuffer_Lock(IDirect3DVertexBuffer8 *iface, UINT
+         BYTE **data, DWORD flags)
+ {
+     struct d3d8_vertexbuffer *buffer = impl_from_IDirect3DVertexBuffer8(iface);
++    struct wined3d_resource_desc resource_desc;
+     struct wined3d_resource *wined3d_resource;
+     struct wined3d_map_desc wined3d_map_desc;
+     struct wined3d_box wined3d_box;
+@@ -200,8 +201,19 @@ static HRESULT WINAPI d3d8_vertexbuffer_Lock(IDirect3DVertexBuffer8 *iface, UINT
+     if (flags & D3DLOCK_DISCARD)
+         buffer->discarded = true;
+ 
+-    wined3d_box_set(&wined3d_box, offset, 0, offset + size, 1, 0, 1);
+     wined3d_resource = wined3d_buffer_get_resource(buffer->wined3d_buffer);
++
++    /* A size of zero locks the buffer from "offset" to its end; in particular,
++     * an offset and a size of zero lock the entire buffer. */
++    if (!size)
++    {
++        wined3d_resource_get_desc(wined3d_resource, &resource_desc);
++        if (offset < resource_desc.size)
++            size = resource_desc.size - offset;
++    }
++
++    wined3d_box_set(&wined3d_box, offset, 0, offset + size, 1, 0, 1);
++
+     hr = wined3d_resource_map(wined3d_resource, 0, &wined3d_map_desc, &wined3d_box,
+             wined3dmapflags_from_d3dmapflags(flags, buffer->usage));
+     *data = wined3d_map_desc.data;
+@@ -507,6 +519,7 @@ static HRESULT WINAPI d3d8_indexbuffer_Lock(IDirect3DIndexBuffer8 *iface, UINT o
+         BYTE **data, DWORD flags)
+ {
+     struct d3d8_indexbuffer *buffer = impl_from_IDirect3DIndexBuffer8(iface);
++    struct wined3d_resource_desc resource_desc;
+     struct wined3d_resource *wined3d_resource;
+     struct wined3d_map_desc wined3d_map_desc;
+     struct wined3d_box wined3d_box;
+@@ -523,8 +536,19 @@ static HRESULT WINAPI d3d8_indexbuffer_Lock(IDirect3DIndexBuffer8 *iface, UINT o
+     if (flags & D3DLOCK_DISCARD)
+         buffer->discarded = true;
+ 
+-    wined3d_box_set(&wined3d_box, offset, 0, offset + size, 1, 0, 1);
+     wined3d_resource = wined3d_buffer_get_resource(buffer->wined3d_buffer);
++
++    /* A size of zero locks the buffer from "offset" to its end; in particular,
++     * an offset and a size of zero lock the entire buffer. */
++    if (!size)
++    {
++        wined3d_resource_get_desc(wined3d_resource, &resource_desc);
++        if (offset < resource_desc.size)
++            size = resource_desc.size - offset;
++    }
++
++    wined3d_box_set(&wined3d_box, offset, 0, offset + size, 1, 0, 1);
++
+     hr = wined3d_resource_map(wined3d_resource, 0, &wined3d_map_desc, &wined3d_box,
+             wined3dmapflags_from_d3dmapflags(flags, buffer->usage));
+     *data = wined3d_map_desc.data;
+-- 
+2.39.5 (Apple Git-154)
+

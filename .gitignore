@@ -1,0 +1,31 @@
+# Runtime state — game data, Wine builds, prefixes, downloads, build output. Never in git:
+# copyrighted, huge, or rebuildable from the scripts. The harness refuses them even if forced.
+prefixes/
+engines/
+downloads/
+wine/
+build/
+logs/
+patches/wined3d/
+patches/nxcompat/all/
+patches/nxcompat/*.exe
+patches/nxcompat/*.dat
+*.tar.xz
+*.tar.zst
+*.tar.gz
+*.zip
+*.dmp
+*.png
+# AutoHotkey binaries and its bundled extras (ahk/*.ahk are ours)
+ahk/*.exe
+ahk/*.chm
+ahk/Compiler/
+ahk/Installer.ahk
+ahk/Template.ahk
+ahk/WindowSpy.ahk
+ahk/license.txt
+ahk/*.log
+# Local noise
+__pycache__/
+.DS_Store
+.claude/settings.local.json
