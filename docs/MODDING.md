@@ -147,3 +147,33 @@ installed and that override removed. Installing a mod's `.big` files directly wi
 `scripts/install-mod.sh` sidesteps the launcher entirely. Finally, **BFME: Reforged** is *not* a
 mod: it is a fan remake in Unreal Engine 4 (<https://github.com/BFME-Reforged>), so none of this
 pipeline applies to it.
+
+## h. Re-exporting a model from Blender — verified pipeline (2026-09-23, Dwarven fortress)
+
+Blender 4.5.9 LTS + OpenSAGE `io_mesh_w3d` 0.7.2 (installs as a legacy add-on; operators
+`import_mesh.westwood_w3d` / `export_mesh.westwood_w3d`). For a model with its own skeleton, export
+mode `HM`, and name the output file after the model in capitals (`DBFORTRESS.w3d`): the add-on takes
+the hierarchy and container names from the file name.
+
+1. **Import, edit, export** (headless works: `Blender -b --python script.py`). The fortress round
+   trip keeps every mesh, vertex and triangle count, all 37 bones and the HLOD table.
+2. **`tools/w3d_fixup.py original.w3d exported.w3d`** repairs what the add-on changes: it drops
+   `BumpScale` and renames legacy texture references to the loaded file (`.tga` -> `.dds`), writes mesh
+   version 4.2 instead of BFME2's 5.0, re-tags surface types, drops pivot fixups, and **drops the
+   AABTREE collision trees**, which BFME2 needs (the untouched fortress minus only its AABTREEs does
+   not render; Generals' loader would rebuild them, BFME2's does not). The fixer regenerates them
+   the way WW3D2's `AABTreeBuilderClass` lays them out.
+3. **`tools/asset_dat.py patch <game>/asset.dat file.w3d`**: the step that took an afternoon to
+   find. `asset.dat` caches, per model, the byte offset and size of every top-level chunk
+   (`H*<hierarchy>`, each `container.mesh`, the HLOD), and the engine reads those ranges blind. Any
+   edited model therefore changes layout and is read at stale offsets: it loads, is selectable by
+   its footprint, and draws nothing. Patch the record in the asset.dat of the game that *owns* the
+   model (the fortress is BFME2 content: `BFME2/asset.dat`, even when playing RotWK). Model and
+   record must change together; `asset_dat.py check` verifies they match, `asset.dat.orig` is the
+   untouched copy.
+4. Pack it as an override archive that sorts first (e.g. `!!!!!!!!!!!name.big` next to RotWK's
+   archives) and install with `scripts/install-mod.sh`. A RotWK-folder archive overrides BFME2's.
+
+Debugging without launching the game: `asset_dat.py check` plus the structural checks above catch
+every failure met so far; the game only needs to confirm the result. Everything that failed here
+failed silently (no crash, no log): the model is simply invisible.

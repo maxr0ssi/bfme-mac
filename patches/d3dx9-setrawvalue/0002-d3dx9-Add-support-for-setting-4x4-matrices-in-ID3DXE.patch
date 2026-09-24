@@ -1,0 +1,57 @@
+From 2f477efff922ebf248d3c0b1b268abf424aaa58e Mon Sep 17 00:00:00 2001
+From: Connor McAdams <cmcadams@codeweavers.com>
+Date: Wed, 5 Mar 2025 08:56:52 -0500
+Subject: [PATCH 2/4] d3dx9: Add support for setting 4x4 matrices in
+ ID3DXEffect::SetRawValue().
+
+Signed-off-by: Connor McAdams <cmcadams@codeweavers.com>
+(cherry picked from commit 2186df8c9365ae430f4fd886b03e9a9870a37120)
+---
+ dlls/d3dx9_36/effect.c | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/dlls/d3dx9_36/effect.c b/dlls/d3dx9_36/effect.c
+index 67eaf2b5d63..75ce872e2c4 100644
+--- a/dlls/d3dx9_36/effect.c
++++ b/dlls/d3dx9_36/effect.c
+@@ -4465,6 +4465,37 @@ static HRESULT WINAPI d3dx_effect_SetRawValue(ID3DXEffect *iface, D3DXHANDLE par
+             break;
+         }
+ 
++        case D3DXPC_MATRIX_ROWS:
++        {
++            D3DXMATRIX *dst_elem;
++            uint8_t *dst_data;
++            unsigned int i;
++
++            if (param->columns != 4 || param->rows != 4)
++            {
++                FIXME("%ux%u matrix parameters are currently unsupported.\n", param->rows, param->columns);
++                return E_NOTIMPL;
++            }
++
++            if (byte_offset & 0x3f || bytes & 0x3f)
++            {
++                FIXME("Partial matrix updates are currently unsupported.\n");
++                return E_NOTIMPL;
++            }
++
++            if ((byte_offset + bytes) > param->bytes)
++            {
++                FIXME("Writing adjacent parameters is currently unsupported.\n");
++                return E_NOTIMPL;
++            }
++
++            dst_data = param_get_data_and_dirtify(effect, param, !byte_offset ? bytes : param->bytes, TRUE);
++            dst_elem = (D3DXMATRIX *)(dst_data + byte_offset);
++            for (i = 0; i < (bytes / sizeof(D3DXMATRIX)); ++i)
++                D3DXMatrixTranspose(&dst_elem[i], &((const D3DXMATRIX *)data)[i]);
++            break;
++        }
++
+         default:
+             FIXME("Unhandled parameter class %s.\n", debug_d3dxparameter_class(param->class));
+             return E_NOTIMPL;
+-- 
+2.39.5 (Apple Git-154)
+

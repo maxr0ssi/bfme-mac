@@ -1,5 +1,26 @@
 # Loading time on the Wine 10.0 (Sikarugir) engine — findings and experiment matrix
 
+## 0. Resolved 2026-09-23 — it was Microsoft's d3dx9_27, fixed by `scripts/d3dx9-fix.sh`
+
+Everything from §1 on predates this and is kept as history; several of its conclusions are wrong
+(see the last table). What settled it:
+
+| step | finding |
+|---|---|
+| bar decoded from harness captures | RotWK: 0→~64 % within ~5 s of Play, then a linear crawl at ~0.17 %/s to 93 % (BFME2: 56 %, then ~0.08 %/s). ~35 % of the bar is ~97 % of the time |
+| CPU during the crawl | ~110 %, flat: one thread busy, the rest idle |
+| macOS `sample`, phase checked by CPU | main thread ~99 % in translated 32-bit code, 25/3287 samples in `ntdll.so`: no waits, no I/O, no spin. The `cthread_yield` spin in §1.5 is the in-game 30 FPS limiter, not loading |
+| detail level | `StaticGameLOD` VeryLow (1/16 texels): 269 s → 16 s. Cost is proportional to texels |
+| TGA → DDS pre-bake (`tools/prebake_textures.py`) | 231 s → 168 s. File format and mipmap generation are only a quarter of it |
+| in-guest profiler (`tools/eipsample.c`, reads the guest EIP) | **99.2–99.5 % of the loading thread in `d3dx9_27.dll`**, Microsoft's native copy (winetricks, `*d3dx9_27=native`), game 0.4 %, wined3d 0.3 %. The hot loop is x87 (`flds/fmuls/fcomps/fnstsw/fistpl`, 707 x87 ops in the hot 3.8 KB), which Rosetta emulates slowly |
+| Wine's builtin d3dx9_27 | **12 s** Play → map. Units invisible: `ID3DXEffect::SetRawValue` is a stub in 10.0 (~96k calls per load), and the games upload their bone palette through it |
+| `patches/d3dx9-setrawvalue/` | upstream SetRawValue + struct support: units render, 0 SetRawValue fixmes |
+
+Superseded claims below: msync is not a load lever (§2.1; its ~7 % was noise, nothing waits);
+shader compiles are not it (§1.3, right for the wrong reason); the §1.5 profile was taken in-game;
+the wined3d map/lock path (179,637 map/unmap pairs, every one on the slow synchronous path) is real
+but costs ~0.3 % of the loading thread. `csmt=0` was never measured cleanly and no longer matters.
+
 Scope: the ~3 min second half of the loading bar on `engines/w10` (`WINE_BUILD=w10`), the engine both
 games play on. Research only — nothing here has been run. Baselines from the existing harness:
 

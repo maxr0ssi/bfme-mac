@@ -1,0 +1,33 @@
+From 29a0680113391e577ff19803d2ebc1c1b995411f Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Wed, 23 Sep 2026 14:01:22 -0400
+Subject: [PATCH 3/4] d3dx9_27: Import windowscodecs directly instead of
+ delay-loading it.
+
+With the Homebrew mingw-w64 binutils toolchain the delay-load IAT lands in the
+read-only .idata section, so the first WIC call (D3DXGetImageInfoFromFileInMemory
+on a non-DDS image) faults in _delayLoadHelper2 when ntdll writes the resolved
+address. A plain import is bound by the loader at startup instead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/d3dx9_27/Makefile.in | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/dlls/d3dx9_27/Makefile.in b/dlls/d3dx9_27/Makefile.in
+index 4f2993638f3..8418360e75a 100644
+--- a/dlls/d3dx9_27/Makefile.in
++++ b/dlls/d3dx9_27/Makefile.in
+@@ -1,8 +1,7 @@
+ EXTRADEFS = -DD3DX_SDK_VERSION=27
+ MODULE    = d3dx9_27.dll
+-IMPORTS   = d3d9 d3dcompiler dxguid d3dxof ole32 gdi32 user32
++IMPORTS   = d3d9 d3dcompiler dxguid d3dxof ole32 gdi32 user32 windowscodecs
+ PARENTSRC = ../d3dx9_36
+-DELAYIMPORTS = windowscodecs
+ 
+ EXTRADLLFLAGS = -Wb,--prefer-native
+ 
+-- 
+2.39.5 (Apple Git-154)
+

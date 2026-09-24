@@ -1,0 +1,142 @@
+# State of play — 2026-09-23 morning
+
+## Update 2026-09-23 afternoon (supersedes the load-time items below)
+
+- **Skirmish loading: ~3 min → ~12 s**, units visible. The slow half of the bar was Microsoft's
+  d3dx9_27 (x87 texture code under Rosetta); `scripts/d3dx9-fix.sh` builds and installs Wine's own
+  d3dx9_27 with `patches/d3dx9-setrawvalue/` and sets `*d3dx9_27=builtin`. Installed now in
+  `engines/w10` (`d3dx9_27.dll.orig-w10` kept) and `prefixes/w10`. Story: `docs/LOAD-TIME.md` §0.
+- **Texture pre-bake: built, measured, then reverted** (2026-09-23). `tools/prebake_textures.py`
+  rewrites 12 base archives + `asset.dat`, which doesn't fit the multiplayer model (everyone runs
+  the same data, group changes and mods as add-on `.big` files over stock archives), and with the
+  d3dx9 fix it is worth seconds at most (the ~12 s load was measured with it on; unmeasured without).
+  Base archives are stock again; the tool stays for single-player Macs.
+  A buggy revert pass corrupted `_202music.big` (RotWK's 72 music tracks; same size, wrong MD5) and
+  the music stopped playing. Re-fetched from the official 2.02 package and MD5-verified on
+  2026-09-23; the damaged copy is `_202music.big.corrupt-20260923` (not loaded). Every other RotWK
+  archive matches the official MD5s except the two deliberate `.preLODfix.bak` edits.
+- **Group pack installed (RotWK):** `!!!!!!!!!!group-pack.big` from `tools/make_group_pack.py` —
+  MaxParticleCount 4000 (UltraHigh, patch 2.02's value), heat effects off, camera max height 1000;
+  EA's particle skipping below 20 FPS left as shipped. The first version (10000 particles, no
+  skipping, height 700) dropped frames badly in big battles. Overrides `__patch202.big` (first
+  sorted archive wins). Untested yet: the new values in a big battle.
+- **Blender model pipeline works (fortress, 2026-09-23):** Blender 4.5.9 LTS in /Applications with the
+  W3D add-on; export -> `tools/w3d_fixup.py` -> `tools/asset_dat.py patch` -> override archive renders
+  in game. **Currently installed as a test:** `RotWK/!!!!!!!!!!!fortress-test.big` (round-trip fortress)
+  AND a patched record in `BFME2/asset.dat` (`asset.dat.orig` = untouched). Remove both together:
+  delete the test .big and copy `asset.dat.orig` back, or the stock fortress turns invisible.
+- **Engine provenance corrected:** `engines/w10/sik10.tar.xz` is byte-for-byte
+  `WS12WineSikarugir10.0_6.tar.xz` (github.com/Sikarugir-App/Engines releases v1.0) and is
+  **wine-staging 10.0** + marzent's `msync-staging.patch` + unpublished vendor patches, built with
+  mingw GCC 15.2, not CrossOver. A rebuild is Wine 10.0 + staging (`patchinstall.py --all`) + msync;
+  test the 12-run WoW64 predicate on staging alone first.
+- **Not verified:** BFME2 with the patched d3dx9_27 (same engine and prefix, not launched since);
+  a clean load-time number for the final DLL (the ~12 s run used the unpatched builtin; the fix does
+  not touch texture loading). Friends need the patched DLL too: run the script, or ship it with the
+  engine tarball.
+- **Game-binary RE, researched not started:** edge scrolling is one `if (!m_windowed)` around the
+  edge-scroll block (`LookAtXlat.cpp` in EA's Generals source; TheSuperHackers PR #1362). `exeCRC`
+  is computed from `game.dat` **on disk**, so patch in memory at runtime (DarkAtra's bfme2-patcher is
+  a template) to stay compatible with unpatched peers; RotWK's `game.dat` still has SafeDisc. The
+  30 FPS cap is constant-folded (`LOGICFRAMES_PER_SECOND`); don't.
+- **Loose ends:** the `engines/w10-test` / `prefixes/w10-test` sandbox was moved to the Trash
+  2026-09-23; `wine/src-d3dx10` + `wine/build-d3dx10` are the script's worktree and build dir (keep). Harness runs from the Claude app get no Screen Recording, so `lswin` sees
+  no titles; time runs by CPU instead (~110 % loading, ~180 % in game).
+
+Everything below is committed and pushed (`main`). Nothing is running. This is the hand-off
+before Max's next plan.
+
+## What works
+
+- **Both games play** on the Sikarugir Wine 10.0 engine (`engines/w10`, `WINE_BUILD=w10`, the
+  play scripts' default), proven by hands-free skirmishes (BFME2 map at ~490 s, RotWK at ~190 s
+  from the loading screen with quiet logging). NX_COMPAT experiment reverted; stock binaries.
+- **Repo harness** (`harness/`, `.githooks/`, `.claude/settings.json`): copyright gate on every
+  commit and every pushed object, script hazard rules, 600-line file cap, 400/600 commit budget.
+- **Hands-free harness** `scripts/test-skirmish.sh`: drives both games' real menus, classifies
+  screenshots, refuses to start over a running game, thresholds in seconds. Loading times must only
+  be compared at equal `WINEDEBUG`.
+- **From-source WoW64 Wine builds**: `scripts/build-wine.sh <label>` (recipe and traps in
+  `patches/WINE-BUILD.md`); `engines/src-11.0` built and smoke-tested.
+- **d3d8/d3d9 Lock(offset, 0) fix** in `patches/lock-whole-buffer/`: validated by compile and run
+  on wine-11.0 (draw-based test fails without, passes with; no new suite failures). Local use only
+  by Max's choice (no merge requests); the earlier "Lock(0,0) crash" theory was wrong (§1 of
+  `patches/README.md`).
+- **Docs**: `docs/LOAD-TIME.md` (levers + measurements), `docs/MODDING.md` (Blender W3D pipeline,
+  asset.dat), `scripts/install-mod.sh`, `MULTIPLAYER.md`. Open items are GitHub issues #1–#9.
+- **Disk**: 367 GB free after the approved cleanup.
+
+## The WoW64 bug: where the bisect stopped
+
+Goal was a pinned, patched Wine 11 (revert the culprit commit, keep the d3d9 fix, ship one
+engine to friends). The bisect agent got this far (`build/bisect-logs/`, `build/bisect-run.sh`):
+
+| build (upstream source, our toolchain) | quick predicate: early aborts / 12 | boots? |
+|---|---|---|
+| wine-11.0 (`engines/src-11.0`) | **4/12** | yes |
+| wine-10.5 (f3843ea16b8) | **3/12** | yes |
+| wine-10.4 at 8fd49c4d8e9 "ntdll: Don't use private writable mappings on macOS" | **9/12** | yes |
+| its parent aae9ba21cef, and wine-10.0 | — | **no**: page faults in every process, `could not load kernel32.dll c0000135` (WineHQ bug 58008, fixed by that very commit) |
+
+Predicate = the 32-bit `d3d9_test.exe visual` from `wine/build-11.0` aborting within ~1 s with
+`err:seh:NtRaiseException Exception frame is not in stack limits` (the bug-report signature).
+
+**Conclusion (agent's final report, full detail in `docs/BISECT.md`).** Every upstream build that
+can boot on this macOS (26.3, Rosetta) shows the fault; builds older than the March-2025 macOS
+mapping fix cannot boot here at all, and that fix does not back-port. So there is no upstream
+"good" endpoint and this is **not a 10.0→11.0 regression** but a long-standing macOS/Rosetta WoW64
+race whose *probability* drifts with unrelated changes (9/12 → 3/12 across the 236 commits of
+10.4→10.5, which contain the macOS gsbase rework; `86b886788ba` "Ensure %cs is correct in
+sigcontext on x86_64 macOS" is the one commit in range about the register that is wrong in the
+dumps). ~~The Sikarugir 10.0 engine is CrossOver-derived~~ — wrong, see the 2026-09-23 afternoon
+update at the top: it is wine-staging 10.0 + msync, so the immunity comes from staging, msync or the
+vendor's unpublished macOS patches. ~3 h machine time, 5 builds. `bisect-run.sh` now guards two traps it hit:
+`WINEDEBUG=-all` hides the marker line (use `-all,err+seh`), and a dead prefix reads as "survived"
+unless 32-bit `cmd /c ver` is required to answer first.
+
+**Done 2026-09-23 10:08: the Wine 10 engine passes the predicate 0/12** (12 runs, every run
+survived the full 40 s of tests). So the quick test measures the same fault the game hits, and the
+engine both games play on is genuinely free of it, in a way no upstream build on this macOS is.
+(Running it needed a shim, `build/w10-shim/bin/wine`, because `/usr/bin/env` is SIP-protected and
+strips `DYLD_*` variables the w10 engine relies on.)
+
+| engine | aborts / 12 |
+|---|---|
+| Sikarugir Wine 10.0 (`engines/w10`, what we play on) | **0** |
+| upstream 10.4 / 10.5 / 11.0, built from source | 9 / 3 / 4 |
+
+**Routes to a pinned Wine 11**, if still wanted:
+1. Instrument `syscall_32to64` entry (%cs / gsbase at the moment of the fault) in a self-built
+   11.0 and read the answer, instead of hunting a culprit commit. Most direct.
+2. Diff CrossOver's source (the `wine-crossover` tree Sikarugir/Gcenx build from is public) against
+   upstream in `dlls/ntdll/unix/signal_x86_64.c`, `virtual.c`, `dlls/wow64cpu/`, and port the
+   macOS/WoW64 differences. Research-sized.
+3. Inverted bisect over the 236 commits of 10.4→10.5 for what halved the abort rate: a hint, not
+   a fix, ~2 h.
+4. Stay pinned on the w10 engine (works today) and revisit only if macOS breaks it.
+
+## Still open, needs Max's hands
+
+- **Edge scrolling** (`ahk/edgescroll.ahk`, Ctrl+Option+E): the "does not work" session was a
+  harness-launched game with scrolling off. Whether injected arrow keys reach the game is untested;
+  one session via `scripts/play-rotwk.sh` and `ahk/edgescroll.log` decides it (fallback:
+  `EDGESCROLL_SEND=event`).
+- **Cmd-Tab mouse rescue** (Ctrl+Option+R): untested.
+- ~~Retina 3024x1900~~ **Retina verified on w10 at 3024x1964** (2026-09-23): full screen, smooth.
+  1900 was never a mode Wine offers; the window came out 64 px short of the screen, so the Mac
+  driver didn't treat it as full screen and kept the menu bar and Dock.
+
+## Still open, needs the screen, no hands
+
+- Load-time attribution: one run with `WINEDEBUG=+timestamp,+d3d_shader` says where the ~190 s go
+  (shader compiles vs waits). All "make loading faster" work waits on this.
+- `WINEMSYNC=1`: active and ~7 % faster (inside noise); one more run + a 5-minute stability
+  watch before making it the default for the w10 engine.
+
+## Loose ends on disk (all ignored by git, all deletable)
+
+`build/engine-patched` (1.5 GB copy of src-11.0 with patched d3d8/d3d9), `build/prefix-*`
+throwaway prefixes, `wine/build-bisect` + `engines/src-bisect` (currently at aae9ba21cef, which
+does not boot), `wine/lockfix` (second Wine clone, patches already exported), an idle
+`engines/src-bisect` wineserver. ~4.7 GB of pre-reorg dead weight (cx engine+prefix, staging
+11.17, extracted tarballs, dxvk, resfix-maps) also still present by choice.

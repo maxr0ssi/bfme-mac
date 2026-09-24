@@ -1,0 +1,104 @@
+"""The on-disk layout of one building's build. Host and Blender both ask this module.
+
+    build/assets/<faction>/<building>/
+      src/     the game's originals: <model>.w3d, the atlas (.dds + its 4x upscale .png), its normal map
+      work/    stage_*.blend, bake/*.npy, tex/, export/, ref/, logs/
+      cache/   asset.dat: a pristine copy with this building's cache ops applied (and verified)
+      out/     exactly what ships, as archive paths: art/w3d/..., art/compiledtextures/...
+      renders/ comparison images
+"""
+import os
+
+from . import paths
+from .formats.textures import compiled_path
+from .formats.w3d import W3DFile
+
+
+class Workspace:
+    def __init__(self, building):
+        self.b = building
+        self.root = paths.work_dir(building.id)
+        for d in ("src", "work", "cache", "out", "renders", self.bake_dir, self.tex_dir, self.logs):
+            os.makedirs(os.path.join(self.root, d), exist_ok=True)
+
+    def path(self, *p):
+        return os.path.join(self.root, *p)
+
+    # ------------------------------------------------------------------ sources
+    @property
+    def source_model(self):
+        return self.path("src", self.b.model_file)
+
+    @property
+    def atlas_dds(self):
+        return self.path("src", self.b.style.atlas.stem.lower() + ".dds")
+
+    @property
+    def atlas_upscale(self):
+        return self.path("src", "%s_x%d.png" % (self.b.style.atlas.stem.lower(), self.b.style.atlas.upscale))
+
+    @property
+    def atlas_normal(self):
+        return self.path("src", self.b.style.atlas.normal.lower())
+
+    @property
+    def container(self):
+        """The model's container name (the exporter names it after the FILE, so exports use it)."""
+        return next(iter(W3DFile(self.source_model).meshes.values())).container
+
+    # ------------------------------------------------------------------ work
+    @property
+    def bake_dir(self):
+        return self.path("work", "bake")
+
+    @property
+    def tex_dir(self):
+        return self.path("work", "tex")
+
+    @property
+    def logs(self):
+        return self.path("work", "logs")
+
+    def stage(self, name):
+        return self.path("work", "stage_%s.blend" % name)
+
+    def tex(self, name):
+        return os.path.join(self.tex_dir, name)
+
+    @property
+    def export_model(self):
+        return self.path("work", "export", self.container + ".w3d")
+
+    @property
+    def reference_export(self):
+        return self.path("work", "ref", self.container + ".w3d")
+
+    @property
+    def reference_fixed(self):
+        return self.path("work", "ref_fixed.w3d")
+
+    @property
+    def cache(self):
+        return self.path("cache", "asset.dat")
+
+    # ------------------------------------------------------------------ what ships
+    def out(self, archive_path):
+        return self.path("out", *archive_path.split("\\"))
+
+    @property
+    def shipped_model(self):
+        return self.out("art\\w3d\\%s\\%s" % (self.b.model_file[:2], self.b.model_file))
+
+    def shipped_texture(self, name, ext):
+        return self.out(compiled_path(name, ext))
+
+    def texture_map(self):
+        """{lower-case texture name a model references: file} for rendering the shipped model."""
+        a = self.b.style.atlas
+        own = self.b.texture_names()
+        return {
+            own[a.texture].lower(): self.shipped_texture(own[a.texture], ".dds"),
+            own[a.normal].lower(): self.shipped_texture(own[a.normal], ".tga"),
+            a.texture.lower(): self.atlas_dds,
+            a.normal.lower(): self.atlas_normal,
+        }

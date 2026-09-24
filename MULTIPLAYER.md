@@ -15,14 +15,50 @@ online service. Both require *identical game data* on both machines.
   them: `*.preLODfix.bak`, `*.preCameraFix.bak`). HD Edition is cosmetic and safe to differ.
 - Keep `Maps.big` untouched on both sides (don't install `resfix-maps/` for online play).
 
-## 2. Virtual LAN
+## 1b. The group pack — everyone runs the same one
 
-- Both install **ZeroTier** (free) and join the same network, or Hamachi. Tailscale won't do:
-  the game discovers LAN games by UDP broadcast, which Tailscale doesn't forward.
-- In game: Multiplayer → LAN. The host creates the game; the guest should see it in the list.
-- If the guest sees nothing: check both are on the ZeroTier network (`zerotier-cli listnetworks`),
-  Windows firewall allows the game, and both game versions match (a "mismatch" error is
-  data, not network).
+Our tweaks (and later any mods) live in one add-on archive, `!!!!!!!!!!group-pack.big`, built by
+`tools/make_group_pack.py` and installed next to the game's own `.big` files; its name makes it
+win over them. It changes `gamedata.ini`, which multiplayer checks, so **every player needs the
+identical file**: Mac friends build or copy it and install with `scripts/install-mod.sh`; PC
+friends drop the same `.big` into their RotWK folder. Send the file itself rather than rebuilding
+it per machine, so everyone's copy is byte-identical.
+
+## 2. Virtual LAN over the internet (ZeroTier) — the route to use
+
+"LAN" in the game doesn't mean same house: ZeroTier makes everyone's machines look like one local
+network wherever they are, and the game's **Multiplayer → LAN** works over the internet. Macs and
+PCs alike, any version as long as everyone runs the same one (ours included).
+
+**Cost:** free for up to 10 devices on one network (ZeroTier's Personal plan, as of Aug 2026; each
+player's computer is one device). Beyond that it's $18/month.
+
+**Setup (~10 minutes):**
+1. Host, once: sign up at zerotier.com → *Create Network* → copy the 16-character network ID.
+2. Everyone (Mac or PC): install the ZeroTier app → *Join Network* → paste the ID.
+3. Host: in the ZeroTier web console, tick *Auth* next to each friend's device.
+4. In game: Multiplayer → LAN. One person hosts, the others see the game and join.
+
+Tailscale won't do: the game discovers LAN games by UDP broadcast, which Tailscale doesn't forward.
+
+**If a guest sees no games:** the game may be bound to Wi-Fi instead of the ZeroTier adapter —
+pick the ZeroTier address in the game's network/IP option (SAGE games have one; exact place in
+BFME2 not yet confirmed). Also check both are on the network (`zerotier-cli listnetworks`), the
+Windows firewall allows the game, and both versions match (a "mismatch" error is data, not network).
+
+**Turning it off when you're not playing:**
+- Between sessions: ZeroTier menu-bar icon → disconnect from (or leave) the network. You're off the
+  virtual network and nobody in it can reach your machine. Rejoin with the same ID to play.
+- Completely (the app keeps a small background service running otherwise):
+  `sudo launchctl unload /Library/LaunchDaemons/com.zerotier.one.plist` to stop,
+  `sudo launchctl load /Library/LaunchDaemons/com.zerotier.one.plist` to start again.
+  Windows: Services → *ZeroTier One* → Stop.
+
+**Privacy:** game traffic is end-to-end encrypted and usually goes directly between players.
+ZeroTier (the company) sees metadata while the service runs (that a device is online, its public
+IP), not content; with the service stopped, nothing. While connected, the other members can reach
+your machine as on a home network — keep System Settings → General → Sharing (File/Screen Sharing)
+off unless wanted and the macOS firewall on. Only devices you approve can join.
 
 ## 3. Community online service (later)
 

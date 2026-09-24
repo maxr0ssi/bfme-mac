@@ -1,0 +1,72 @@
+From 0f162edac7abf6a9a6a81349d38fa9f7b525115a Mon Sep 17 00:00:00 2001
+From: Connor McAdams <cmcadams@codeweavers.com>
+Date: Wed, 5 Mar 2025 08:38:43 -0500
+Subject: [PATCH 1/4] d3dx9: Partially implement ID3DXEffect::SetRawValue().
+
+Add support for setting vec4 effect parameters.
+
+Wine-Bug: https://bugs.winehq.org/show_bug.cgi?id=44795
+Wine-Bug: https://bugs.winehq.org/show_bug.cgi?id=46012
+Signed-off-by: Connor McAdams <cmcadams@codeweavers.com>
+(cherry picked from commit 76516e653ea0aedfe4af7290bfdecb3be703bfcd)
+---
+ dlls/d3dx9_36/effect.c | 42 +++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 39 insertions(+), 3 deletions(-)
+
+diff --git a/dlls/d3dx9_36/effect.c b/dlls/d3dx9_36/effect.c
+index 628d8ebc3eb..67eaf2b5d63 100644
+--- a/dlls/d3dx9_36/effect.c
++++ b/dlls/d3dx9_36/effect.c
+@@ -4431,10 +4431,46 @@ static HRESULT WINAPI d3dx_effect_CloneEffect(ID3DXEffect *iface, IDirect3DDevic
+ static HRESULT WINAPI d3dx_effect_SetRawValue(ID3DXEffect *iface, D3DXHANDLE parameter, const void *data,
+         UINT byte_offset, UINT bytes)
+ {
+-    FIXME("iface %p, parameter %p, data %p, byte_offset %u, bytes %u stub!\n",
+-            iface, parameter, data, byte_offset, bytes);
++    struct d3dx_effect *effect = impl_from_ID3DXEffect(iface);
++    struct d3dx_parameter *param = get_valid_parameter(effect, parameter);
+ 
+-    return E_NOTIMPL;
++    TRACE("iface %p, parameter %p, data %p, byte_offset %u, bytes %u.\n", iface, parameter, data, byte_offset, bytes);
++
++    if (!param)
++    {
++        WARN("Invalid parameter %p specified.\n", parameter);
++        return D3DERR_INVALIDCALL;
++    }
++
++    switch (param->class)
++    {
++        case D3DXPC_VECTOR:
++        {
++            uint8_t *dst_data;
++
++            if (param->columns != 4)
++            {
++                FIXME("Vec%u parameters are currently unsupported.\n", param->columns);
++                return E_NOTIMPL;
++            }
++
++            if ((byte_offset + bytes) > param->bytes)
++            {
++                FIXME("Writing adjacent parameters is currently unsupported.\n");
++                return E_NOTIMPL;
++            }
++
++            dst_data = param_get_data_and_dirtify(effect, param, !byte_offset ? bytes : param->bytes, TRUE);
++            memcpy(dst_data + byte_offset, data, bytes);
++            break;
++        }
++
++        default:
++            FIXME("Unhandled parameter class %s.\n", debug_d3dxparameter_class(param->class));
++            return E_NOTIMPL;
++    }
++
++    return D3D_OK;
+ }
+ #endif
+ 
+-- 
+2.39.5 (Apple Git-154)
+

@@ -14,8 +14,9 @@ defaults `WINE_BUILD` to `w10`, so `WINE_BUILD=stable` is the override, not the 
 Wine 11.0/11.17 kill RotWK's main thread at the load→play transition, and fault the same way in
 BFME2 whenever a second Wine process (the AutoHotkey helper) starts during the game's first ~8 s
 (WoW64 32→64 syscall entry executed in 32-bit mode; full analysis in `patches/WINE-BUG-REPORT.md`).
-Expect ~3 min at the loading bar's second half (WoW64/Rosetta syscall overhead + shader compiles;
-no cache possible, macOS GL has no program binaries).
+Loading a skirmish takes ~12 s once `scripts/d3dx9-fix.sh` has run (~3 min without it: the second
+half of the bar is Microsoft's d3dx9_27 converting textures in x87 code that Rosetta emulates
+slowly; the script swaps in Wine's own d3dx9_27 with the fixes units need; `docs/LOAD-TIME.md`).
 
 Both start borderless full-screen (windowed mode underneath, so alt-tab and Zoom are safe), with
 screen-edge camera scrolling emulated by `ahk/edgescroll.ahk` (Ctrl+Alt+E toggles it).
@@ -33,6 +34,8 @@ scripts (or downloaded), and the harness refuses to commit any of it.
 env.sh          sourced by every script: WINE_BUILD=<name> selects engines/<name> + prefixes/<name>
 scripts/        launch, setup and diagnostic scripts (below)
 tools/          Python helpers (.big archives, workshop downloads, dump parsing) + lswin.swift
+sagekit/        the art engine: formats, game install, taxonomy, Blender pipeline, painter, checks
+assets/         our buildings as recipes (a Style per faction, a Building per building) - assets/README.md
 config/         bfme2.reg, rotwk.reg (registry the launcher would write), options-bfme2.ini
 ahk/            portable AutoHotkey + the scripts that drive the game window and menus
 patches/        Wine bug write-ups, patches/wined3d (binary-patched DLLs), patches/nxcompat (NX_COMPAT experiment)
@@ -64,12 +67,25 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `.big` files) into a game folder: backs up everything it overwrites as `<file>.premod.bak`,
   logs to `<gamedir>/mods-installed.log`, undone with `--revert`. See `docs/MODDING.md` for the
   art pipeline (Blender → W3D → `asset.dat`).
+- `scripts/make-apps.sh` — puts "Battle for Middle-earth II.app" and "Rise of the Witch-king.app"
+  in /Applications (Launchpad, Spotlight, Dock). Each is a plain bundle whose launcher execs the
+  play script from this checkout, so a `git pull` is live in the app with nothing to rebuild;
+  re-run only if the folder moves. Icons are pulled from the games' own executables by
+  `tools/exe_icon.py`. `--remove` deletes them. They are AppleScript applets, not bare script
+  bundles, because macOS denies a Finder-launched process every read under `~/Documents` unless
+  the app can ask; the first launch shows a "access files in your Documents folder" prompt — Allow
+  it once per app. Output goes to `logs/app-<game>.log`.
 - `scripts/retina.sh on|off` — toggle Wine's Retina mode and both games' `Resolution` together.
 - `scripts/inspect-hung.sh`, `scripts/monitor_mem.sh` — diagnostics: lldb/vmmap look at a hung game,
   memory samples every 15 s.
 - `tools/fetch_game.py` — downloads any package from the community workshop (the same server the
   All-in-One Launcher uses): `BFME1|BFME2|RotWK` for base games, or a workshop GUID
   (`official-1` = BFME2 Patch 1.09, `official-2` = RotWK Patch 2.02). Verifies MD5s, resumable.
+- `tools/prebake_textures.py <gamedir> [--revert]` — converts the ~60 % of texture bytes the games
+  ship as uncompressed TGA (no mipmaps) into DDS with precomputed mip chains via `tools/tga2dds.c`
+  (`cc -O2 -o build/tga2dds tools/tga2dds.c`), and patches every `.tga` reference in W3D, INI and
+  `asset.dat` in place (same length). Each rewritten archive is kept as `.prebake.bak`. Measured
+  231 s → 168 s on RotWK with Microsoft's d3dx9; the big win is `scripts/d3dx9-fix.sh`.
 - `tools/bigtool.py` (list/extract/replace inside `.big` archives, BIGF and BIG4),
   `tools/neuter_gamelod.py` (the pre-menu crash fix), `tools/parse_minidump.py`.
 - `ahk/edgescroll.ahk` — what the play scripts launch: borderless setup (title bar off, window to
@@ -85,12 +101,37 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   clone in `wine/src` into `engines/src-<label>` (x86_64 host under Rosetta, mingw-w64 PE side;
   `patches/WINE-BUILD.md` has the toolchain, the two traps, and the 10.0→11.0 bisect recipe).
   `patches/lock-whole-buffer/` — upstream d3d8/d3d9 patches + test for zero-size buffer locks.
+- `scripts/d3dx9-fix.sh [--revert]` — the loading-time fix: builds Wine 10.0's d3dx9_27.dll with
+  `patches/d3dx9-setrawvalue/` (SetRawValue for the units' bone palette, see its README), installs it
+  into `engines/$WINE_BUILD` keeping `d3dx9_27.dll.orig-<build>`, and sets `*d3dx9_27=builtin` in the
+  prefix; `--revert` undoes both. `scripts/setup-prefix.sh` keeps the override on new prefixes.
+- `tools/eipsample.c` — in-guest sampling profiler (`i686-w64-mingw32-gcc -O2 -o build/eipsample.exe
+  tools/eipsample.c`, run with `wine build/eipsample.exe [secs] [ms]` while the game runs). Reads the
+  guest EIP of the busiest thread, so time lands on the real module and offset, which macOS `sample`
+  can't do under Rosetta. Not a debugger attach. It is how the d3dx9 load cost was found.
+- `tools/make_group_pack.py <rotwk|bfme2>` — builds the **group pack**, `!!!!!!!!!!group-pack.big`, from
+  your own install: INI copies with our tweaks (4000 particles, heat effects off, camera max
+  height 1000) that override the game's own because the name sorts first. Install with
+  `scripts/install-mod.sh rotwk build/group-pack/rotwk/install`; everyone playing together needs the
+  same pack (`MULTIPLAYER.md`). The edits are the `EDITS` list at the top of the tool.
+- `tools/w3d_fixup.py <original.w3d> <exported.w3d>` — repairs what the OpenSAGE Blender add-on drops or
+  changes on re-export (materials and texture references, mesh version 5.0, surface types, pivot
+  fixups, and it generates the AABTREE collision trees BFME2 requires). Details in `docs/MODDING.md` §h.
+- `tools/asset_dat.py show|check|patch|texture <asset.dat> ...` — `asset.dat`: BFME2 caches every
+  model's chunk offsets and sizes and reads them blind, so an edited model must have its record
+  patched to match (`check` says whether it does; the first write keeps `asset.dat.orig`); `texture`
+  registers a new texture (without a record it renders magenta). Both tools are command lines over
+  `sagekit/formats/`.
+- `python3 -m sagekit list|validate|inventory|budget|build` — builds new art for a building from
+  your install: `inventory dwarves/fortress` lists every part and lifecycle state the game draws,
+  `build dwarves/fortress` runs extract → Blender geometry/bake/paint → export → fix-up → asset
+  cache → checks → before/after renders into `build/assets/`. Rules and layout: `assets/README.md`.
 - `harness/README.md` — what the repo harness enforces and why.
 
 ## Settings that matter
 
 - `Options.ini` `Resolution`: must be a real mode. Native points are `1512 982`; with Wine's
-  Retina mode (`scripts/retina.sh on`, currently off) `3024 1900` renders
+  Retina mode (`scripts/retina.sh on`) `3024 1964` renders
   every physical pixel (4× the detail, GPU barely notices, text gets smaller).
 - Graphics tiers are all `UltraHigh`. The engine's own ceiling is defined in
   `data\ini\gamelod.ini` inside `ini.big`; it can be raised further (particle cap etc.).
@@ -159,3 +200,5 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 - Exclusive fullscreen is unusable under Wine's Mac driver (minimize + black on focus loss);
   borderless windowed is the equivalent.
 - Modified `ini.big` files (camera, LOD table) must match between multiplayer peers.
+- Multiplayer (Mac ↔ PC, over the internet): see `MULTIPLAYER.md` — ZeroTier virtual LAN, free up
+  to 10 devices, setup, turning it off, privacy.

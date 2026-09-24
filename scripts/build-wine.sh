@@ -4,6 +4,8 @@
 #
 #   scripts/build-wine.sh <label> [extra configure args...]     configure + make + make install
 #   CONFIGURE_ONLY=1 scripts/build-wine.sh <label> ...          stop after configure
+#   WINE_SRC=<tree> MAKE_TARGETS="<targets>" scripts/build-wine.sh <label> ...
+#                    build other sources (e.g. a git worktree) and only the named targets, no install
 #
 # Builds out of tree in wine/build-<label>/, installs to engines/src-<label>/ (env.sh then
 # resolves WINE_BUILD=src-<label>). The checkout in wine/src must already be on the commit you
@@ -16,7 +18,7 @@ LABEL="${1:?usage: build-wine.sh <label> [extra configure args]}"
 shift || true
 
 BFME_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WINE_SRC="$BFME_ROOT/wine/src"
+WINE_SRC="${WINE_SRC:-$BFME_ROOT/wine/src}"
 BUILD_DIR="$BFME_ROOT/wine/build-$LABEL"
 PREFIX="$BFME_ROOT/engines/src-$LABEL"
 DEPS="$BFME_ROOT/build/deps-x86_64"      # our own x86_64 freetype (see BUILD.md)
@@ -24,7 +26,7 @@ DEPS="$BFME_ROOT/build/deps-x86_64"      # our own x86_64 freetype (see BUILD.md
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
-[ -d "$WINE_SRC/.git" ] || { echo "no Wine checkout at $WINE_SRC (git clone https://gitlab.winehq.org/wine/wine.git wine/src)"; exit 1; }
+[ -e "$WINE_SRC/.git" ] || { echo "no Wine checkout at $WINE_SRC (git clone https://gitlab.winehq.org/wine/wine.git wine/src)"; exit 1; }
 [ -f "$DEPS/lib/libfreetype.6.dylib" ] || { echo "no x86_64 FreeType under $DEPS — build it first (patches/WINE-BUILD.md, Host dependencies)"; exit 1; }
 
 # Everything runs inside a Rosetta (x86_64) shell so that config.guess, the compiler default
@@ -104,6 +106,10 @@ export FLEX="/usr/bin/flex"
 # configured by hand; /usr/bin/bison 2.3 dies on tools/widl/parser.y ("invalid directive: %code").
 export PATH="/opt/homebrew/opt/bison/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 start=$(date +%s)
+if [ -n "${MAKE_TARGETS:-}" ]; then
+  arch -x86_64 make -j"$(sysctl -n hw.ncpu)" $MAKE_TARGETS
+  echo "built $MAKE_TARGETS in $(( $(date +%s) - start )) s"; exit 0
+fi
 arch -x86_64 make -j"$(sysctl -n hw.ncpu)"
 arch -x86_64 make install
 echo "built and installed $PREFIX in $(( $(date +%s) - start )) s"

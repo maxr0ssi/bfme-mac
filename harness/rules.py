@@ -22,6 +22,14 @@ MAX_FILE_BYTES = 1 * MB
 MAX_FILE_LINES = 600  # per file, every touched code file (not only new ones)
 LARGE_FILE_ALLOW = "allow-large-file"
 
+# Packages at the repo root, importable from anywhere (see sagekit/__init__.py).
+FIRST_PARTY = {"sagekit", "assets"}
+# Code that runs inside Blender's bundled Python (3.11 with numpy), never on the system python3:
+# the only places Blender's modules and numpy may be imported. Everything else stays stdlib-only,
+# which also keeps sagekit's host side (formats, pipeline, cli) runnable without Blender.
+BLENDER_ZONES = ("sagekit/blender/", "sagekit/paint/", "assets/")
+BLENDER_MODULES = {"bpy", "bmesh", "mathutils", "bpy_extras", "numpy"}
+
 # ---------------------------------------------------------------------------
 # Copyright / binary gate. No escape hatch: EA's game data and Wine binaries are
 # either copyrighted or rebuildable from the scripts, and the repo is on GitHub.
@@ -92,10 +100,11 @@ def blob_gate(path, head, size):
 
 SH = (".sh",)
 PY = (".py",)
+STDLIB_ONLY_RE = r"^\s*(import|from)\s+(requests|pefile|numpy|PIL|yaml|lief)\b"
 CODE = SH + PY
 ANY = None
 LAUNCH_RE = r"\bwine\b.*\b(lotrbfme2(ep1)?\.exe|game\.dat)\b"
-GOOD_RESOLUTIONS = {("1512", "982"), ("3024", "1900")}
+GOOD_RESOLUTIONS = {("1512", "982"), ("3024", "1964")}
 
 LINE_RULES = [
     # (extensions or None for all, regex, message)
@@ -127,7 +136,7 @@ LINE_RULES = [
     (ANY, r"^(<<<<<<<|=======|>>>>>>>)( |$)", "merge-conflict marker"),
     (PY, r"^\s*except\s*:",
      "bare except hides the crash you are diagnosing — catch the specific exception"),
-    (PY, r"^\s*(import|from)\s+(requests|pefile|numpy|PIL|yaml|lief)\b",
+    (PY, STDLIB_ONLY_RE,
      "tools must run on the system python3 — stdlib only (urllib, struct, json, subprocess)"),
     (PY, r"\bshell\s*=\s*True\b",
      "subprocess with shell=True — pass an argv list (paths here contain spaces: 'Program Files (x86)')"),
@@ -153,6 +162,9 @@ def line_rules(path, line_no, text, ext=None):
     for exts, pattern, msg in LINE_RULES:
         if exts is not None and ext not in exts:
             continue
+        if pattern == STDLIB_ONLY_RE and path.startswith(BLENDER_ZONES) and "numpy" in text \
+                and not re.search(r"\b(requests|pefile|PIL|yaml|lief)\b", text):
+            continue
         if re.search(pattern, text):
             out.append((path, line_no, msg, text.strip()))
     for pattern, what in SECRET_RULES:
@@ -168,7 +180,8 @@ def line_rules(path, line_no, text, ext=None):
         if m and (m.group(1), m.group(2)) not in GOOD_RESOLUTIONS \
                 and os.environ.get("HARNESS_ALLOW_RESOLUTION") != "1":
             out.append((path, line_no, "Resolution must be a real display mode in points: 1512 982 "
-                        "(native) or 3024 1900 (Retina). 1920 1080 gives 'DirectX Error'. "
+                        "(native) or 3024 1964 (Retina, the whole screen: anything smaller leaves the menu bar and Dock "
+                        "showing). 1920 1080 gives 'DirectX Error'. "
                         "HARNESS_ALLOW_RESOLUTION=1 for another verified mode", text.strip()))
     return out
 
@@ -229,6 +242,7 @@ def _stdlib_imports(path, content, root):
         return out
     here = os.path.dirname(os.path.join(root, path))
     local_dirs = {here, os.path.join(root, "tools")}
+    allowed = FIRST_PARTY | (BLENDER_MODULES if path.startswith(BLENDER_ZONES) else set())
     for node in ast.walk(tree):
         names = []
         if isinstance(node, ast.Import):
@@ -237,13 +251,14 @@ def _stdlib_imports(path, content, root):
             names = [node.module]
         for name in names:
             top = name.split(".")[0]
-            if top in sys.stdlib_module_names or top == "__future__":
+            if top in sys.stdlib_module_names or top == "__future__" or top in allowed:
                 continue
             if any(os.path.exists(os.path.join(d, top + ".py")) or os.path.isdir(os.path.join(d, top))
                    for d in local_dirs):
                 continue
             out.append((path, node.lineno, f"third-party import '{top}' — tools must run on the "
-                        f"system python3 with the stdlib only", ""))
+                        f"system python3 with the stdlib only (Blender's modules and numpy: only "
+                        f"under {', '.join(BLENDER_ZONES)})", ""))
     return out
 
 
@@ -309,6 +324,11 @@ def tree_rules(tracked, read):
     readme = read("README.md") or ""
     for path in tracked:
         if path.startswith(SCRIPT_DIRS_EXEMPT) or not path.endswith((".sh", ".py", ".swift")):
+            continue
+        # a Python package the README indexes ("sagekit/") documents its own modules
+        top = path.split("/")[0]
+        if "/" in path and path.endswith(".py") and (top + "/") in readme \
+                and os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), top, "__init__.py")):
             continue
         if os.path.basename(path) not in readme:
             out.append((path, 0, "not mentioned in README.md — every script gets a one-line entry "

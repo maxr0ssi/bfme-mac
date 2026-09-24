@@ -1,0 +1,130 @@
+From 37111db1c547fdda6c93047485cb9287e5012113 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Wed, 23 Sep 2026 14:10:12 -0400
+Subject: [PATCH 4/4] d3dx9: Support struct parameters in
+ ID3DXEffect::SetRawValue().
+
+Raw values use the shader constant register layout, where every scalar, vector and
+matrix row starts a new 16-byte register, while the effect stores members packed.
+Walk struct members and array elements in register order and copy each leaf into
+its packed storage; 4x4 row-major matrices keep the existing transpose.
+
+BFME2/RotWK upload their skinning palette (struct { float4 Rotation; float4
+Translation_Zero; }[90]) through SetRawValue, so without this every skinned unit
+collapses and renders invisible.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/d3dx9_36/effect.c | 89 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 89 insertions(+)
+
+diff --git a/dlls/d3dx9_36/effect.c b/dlls/d3dx9_36/effect.c
+index 75ce872e2c4..9a9e19d8c50 100644
+--- a/dlls/d3dx9_36/effect.c
++++ b/dlls/d3dx9_36/effect.c
+@@ -4428,6 +4428,80 @@ static HRESULT WINAPI d3dx_effect_CloneEffect(ID3DXEffect *iface, IDirect3DDevic
+ }
+ 
+ #if D3DX_SDK_VERSION >= 27
++/* Write the part of a raw value that falls in [start, end) into a parameter tree.
++ * Raw values use the shader constant register layout: every scalar, vector and matrix
++ * row starts a new 16-byte register, while Wine stores the same values packed. *pos is
++ * the register-layout offset of param and is advanced past it. */
++static HRESULT set_raw_value_tree(struct d3dx_effect *effect, struct d3dx_parameter *param,
++        const uint8_t *data, unsigned int start, unsigned int end, unsigned int *pos)
++{
++    unsigned int i, count, reg_bytes, row_bytes, lo, hi, reg;
++    uint8_t *dst_data;
++    HRESULT hr;
++
++    if (param->element_count || param->class == D3DXPC_STRUCT)
++    {
++        count = param->element_count ? param->element_count : param->member_count;
++        for (i = 0; i < count && *pos < end; ++i)
++        {
++            if (FAILED(hr = set_raw_value_tree(effect, &param->members[i], data, start, end, pos)))
++                return hr;
++        }
++        return D3D_OK;
++    }
++
++    switch (param->class)
++    {
++        case D3DXPC_SCALAR:
++        case D3DXPC_VECTOR:
++            reg_bytes = param->rows * 16;
++            if (*pos + reg_bytes <= start)
++                break;
++            dst_data = param_get_data_and_dirtify(effect, param, param->bytes, TRUE);
++            if (dst_data != param->data)
++                memcpy(dst_data, param->data, param->bytes);
++            row_bytes = param->columns * sizeof(float);
++            for (i = 0; i < param->rows; ++i)
++            {
++                reg = *pos + i * 16;
++                lo = max(start, reg);
++                hi = min(end, reg + row_bytes);
++                if (lo < hi)
++                    memcpy(dst_data + i * row_bytes + (lo - reg), data + (lo - start), hi - lo);
++            }
++            break;
++
++        case D3DXPC_MATRIX_ROWS:
++        {
++            D3DXMATRIX *dst_elem;
++
++            reg_bytes = param->rows * 16;
++            if (*pos + reg_bytes <= start)
++                break;
++            if (param->rows != 4 || param->columns != 4 || *pos < start || *pos + reg_bytes > end)
++            {
++                FIXME("Partial or %ux%u matrix members are currently unsupported.\n", param->rows, param->columns);
++                return E_NOTIMPL;
++            }
++            dst_data = param_get_data_and_dirtify(effect, param, param->bytes, TRUE);
++            dst_elem = (D3DXMATRIX *)dst_data;
++            D3DXMatrixTranspose(dst_elem, (const D3DXMATRIX *)(data + (*pos - start)));
++            break;
++        }
++
++        case D3DXPC_OBJECT:
++            reg_bytes = 0;
++            break;
++
++        default:
++            FIXME("Unhandled member class %s.\n", debug_d3dxparameter_class(param->class));
++            return E_NOTIMPL;
++    }
++
++    *pos += reg_bytes;
++    return D3D_OK;
++}
++
+ static HRESULT WINAPI d3dx_effect_SetRawValue(ID3DXEffect *iface, D3DXHANDLE parameter, const void *data,
+         UINT byte_offset, UINT bytes)
+ {
+@@ -4496,6 +4570,21 @@ static HRESULT WINAPI d3dx_effect_SetRawValue(ID3DXEffect *iface, D3DXHANDLE par
+             break;
+         }
+ 
++        case D3DXPC_STRUCT:
++        {
++            unsigned int pos = 0;
++            HRESULT hr;
++
++            if (FAILED(hr = set_raw_value_tree(effect, param, data, byte_offset, byte_offset + bytes, &pos)))
++                return hr;
++            if (byte_offset + bytes > pos)
++            {
++                FIXME("Writing adjacent parameters is currently unsupported.\n");
++                return E_NOTIMPL;
++            }
++            break;
++        }
++
+         default:
+             FIXME("Unhandled parameter class %s.\n", debug_d3dxparameter_class(param->class));
+             return E_NOTIMPL;
+-- 
+2.39.5 (Apple Git-154)
+
