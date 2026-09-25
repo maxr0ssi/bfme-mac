@@ -1,0 +1,326 @@
+From a3b41d29c7a1039c49ca9ac2f5f236de6c6e3f55 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 21:05:06 -0400
+Subject: [PATCH 5/7] d3dx9: Run preshader instructions through direct register
+ pointers.
+
+Preshaders are re-executed on BeginPass() and CommitChanges() whenever one of
+their inputs was set, and every component of every instruction went through
+exec_get_arg() (relative addressing and wrap checks), regstore_get_double()
+(a switch on the table type), a function pointer and regstore_set_double().
+RotWK's vertex shader preshaders (defaultw3d.fxo) are ~70 instructions reading
+camera, light, fog, material and per-object parameters, and the game re-sets
+those for every batch and the per-object ones for every mesh: interpreting them
+was ~70 % of the effect framework's main-thread time.
+
+Once the register tables exist, give every instruction whose operands are
+directly addressed float or double registers pointers to them, and run it in a
+loop with the common operations inlined. The same registers are read and
+written in the same order (inputs of component j, then component j) and every
+result comes from the same double precision operation, so the results are bit
+identical. Instructions with relative addressing, other register types or too
+many arguments keep the generic path.
+
+WINE_D3DX9_FXOPT is a bit mask of these effect shortcuts (default: all); clear
+0x1 to turn this one off.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/d3dx9_36/d3dx9_private.h |   4 +
+ dlls/d3dx9_36/preshader.c     | 220 ++++++++++++++++++++++++++++++----
+ 2 files changed, 198 insertions(+), 26 deletions(-)
+
+diff --git a/dlls/d3dx9_36/d3dx9_private.h b/dlls/d3dx9_36/d3dx9_private.h
+index 6a9b3e12b7b..ed3a228aa53 100644
+--- a/dlls/d3dx9_36/d3dx9_private.h
++++ b/dlls/d3dx9_36/d3dx9_private.h
+@@ -602,6 +602,10 @@ struct d3dx_parameter *get_parameter_by_name(struct d3dx_parameters_store *store
+         : device->lpVtbl->method(device, __VA_ARGS__))
+ #define SET_D3D_STATE(base_effect, ...) SET_D3D_STATE_(base_effect->manager, base_effect->device, __VA_ARGS__)
+ 
++/* WINE_D3DX9_FXOPT: bit mask of the effect framework shortcuts to use, all by default. */
++#define D3DX_FXOPT_FAST_PRESHADER   0x1 /* direct register access in preshader instructions */
++unsigned int d3dx_fxopt(void);
++
+ HRESULT d3dx_create_param_eval(struct d3dx_parameters_store *parameters, void *byte_code,
+         unsigned int byte_code_size, D3DXPARAMETER_TYPE type,
+         struct d3dx_param_eval **peval, ULONG64 *version_counter,
+diff --git a/dlls/d3dx9_36/preshader.c b/dlls/d3dx9_36/preshader.c
+index f8cea73aed2..2820e158c37 100644
+--- a/dlls/d3dx9_36/preshader.c
++++ b/dlls/d3dx9_36/preshader.c
+@@ -21,6 +21,7 @@
+ 
+ #include <float.h>
+ #include <math.h>
++#include <stdlib.h>
+ #include <assert.h>
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(d3dx);
+@@ -256,6 +257,15 @@ struct d3dx_pres_ins
+     unsigned int component_count;
+     struct d3dx_pres_operand inputs[MAX_INPUTS_COUNT];
+     struct d3dx_pres_operand output;
++
++    /* Set up by init_fast_instructions() once the register tables exist: direct
++     * pointers to the operands of instructions without relative addressing
++     * whose inputs are float or double registers. */
++    BOOL fast;
++    BOOL input_double[MAX_INPUTS_COUNT];
++    const void *input_ptr[MAX_INPUTS_COUNT];
++    void *output_ptr;
++    enum pres_value_type output_type;
+ };
+ 
+ struct const_upload_info
+@@ -1229,6 +1239,8 @@ static HRESULT parse_preshader(struct d3dx_preshader *pres, unsigned int *ptr, u
+     return D3D_OK;
+ }
+ 
++static void init_fast_instructions(struct d3dx_preshader *pres);
++
+ HRESULT d3dx_create_param_eval(struct d3dx_parameters_store *parameters, void *byte_code, unsigned int byte_code_size,
+         D3DXPARAMETER_TYPE type, struct d3dx_param_eval **peval_out, ULONG64 *version_counter,
+         const char **skip_constants, unsigned int skip_constants_count)
+@@ -1314,6 +1326,7 @@ HRESULT d3dx_create_param_eval(struct d3dx_parameters_store *parameters, void *b
+         if (FAILED(ret = regstore_alloc_table(&peval->pres.regs, i)))
+             goto err_out;
+     }
++    init_fast_instructions(&peval->pres);
+ 
+     if (TRACE_ON(d3dx))
+     {
+@@ -1655,49 +1668,204 @@ static void exec_set_arg(struct d3dx_regstore *rs, const struct d3dx_pres_reg *r
+ }
+ 
+ #define ARGS_ARRAY_SIZE 8
+-static HRESULT execute_preshader(struct d3dx_preshader *pres)
++
++unsigned int d3dx_fxopt(void)
+ {
+-    unsigned int i, j, k;
++    static LONG fxopt = -1;
++    const char *env;
++
++    if (fxopt == -1)
++    {
++        env = getenv("WINE_D3DX9_FXOPT");
++        fxopt = env ? strtoul(env, NULL, 0) : ~0u;
++        TRACE("WINE_D3DX9_FXOPT %#lx.\n", fxopt);
++    }
++    return fxopt;
++}
++
++static HRESULT execute_ins_generic(struct d3dx_regstore *rs, const struct d3dx_pres_ins *ins)
++{
++    const struct op_info *oi = &pres_op_info[ins->op];
+     double args[ARGS_ARRAY_SIZE];
++    unsigned int j, k;
+     double res;
+ 
+-    for (i = 0; i < pres->ins_count; ++i)
++    if (oi->func_all_comps)
+     {
+-        const struct d3dx_pres_ins *ins;
+-        const struct op_info *oi;
++        if (oi->input_count * ins->component_count > ARGS_ARRAY_SIZE)
++        {
++            FIXME("Too many arguments (%u) for one instruction.\n", oi->input_count * ins->component_count);
++            return E_FAIL;
++        }
++        for (k = 0; k < oi->input_count; ++k)
++            for (j = 0; j < ins->component_count; ++j)
++                args[k * ins->component_count + j] = exec_get_arg(rs, &ins->inputs[k],
++                        ins->scalar_op && !k ? 0 : j);
++        res = oi->func(args, ins->component_count);
+ 
+-        ins = &pres->ins[i];
+-        oi = &pres_op_info[ins->op];
+-        if (oi->func_all_comps)
++        /* only 'dot' instruction currently falls here */
++        exec_set_arg(rs, &ins->output.reg, 0, res);
++    }
++    else
++    {
++        for (j = 0; j < ins->component_count; ++j)
+         {
+-            if (oi->input_count * ins->component_count > ARGS_ARRAY_SIZE)
+-            {
+-                FIXME("Too many arguments (%u) for one instruction.\n", oi->input_count * ins->component_count);
+-                return E_FAIL;
+-            }
+             for (k = 0; k < oi->input_count; ++k)
+-                for (j = 0; j < ins->component_count; ++j)
+-                    args[k * ins->component_count + j] = exec_get_arg(&pres->regs, &ins->inputs[k],
+-                            ins->scalar_op && !k ? 0 : j);
++                args[k] = exec_get_arg(rs, &ins->inputs[k], ins->scalar_op && !k ? 0 : j);
+             res = oi->func(args, ins->component_count);
+-
+-            /* only 'dot' instruction currently falls here */
+-            exec_set_arg(&pres->regs, &ins->output.reg, 0, res);
++            exec_set_arg(rs, &ins->output.reg, j, res);
+         }
+-        else
+-        {
+-            for (j = 0; j < ins->component_count; ++j)
++    }
++    return D3D_OK;
++}
++
++/* The fast path reads and writes the same registers in the same order as
++ * exec_get_arg() / exec_set_arg() and computes every result with the same
++ * double precision operations, so the results are bit identical. */
++static inline double fast_input(const struct d3dx_pres_ins *ins, unsigned int k, unsigned int comp)
++{
++    if (ins->input_double[k])
++        return ((const double *)ins->input_ptr[k])[comp];
++    return ((const float *)ins->input_ptr[k])[comp];
++}
++
++static inline void fast_output(const struct d3dx_pres_ins *ins, unsigned int comp, double v)
++{
++    switch (ins->output_type)
++    {
++        case PRES_VT_FLOAT: ((float *)ins->output_ptr)[comp] = v; break;
++        case PRES_VT_DOUBLE: ((double *)ins->output_ptr)[comp] = v; break;
++        case PRES_VT_INT: ((int *)ins->output_ptr)[comp] = lrint(v); break;
++        case PRES_VT_BOOL: ((BOOL *)ins->output_ptr)[comp] = !!v; break;
++        default: break;
++    }
++}
++
++static void execute_ins_fast(const struct d3dx_pres_ins *ins)
++{
++    const struct op_info *oi = &pres_op_info[ins->op];
++    unsigned int j, k, n = ins->component_count, s = ins->scalar_op ? 0 : 1;
++    double args[ARGS_ARRAY_SIZE];
++
++    if (oi->func_all_comps)
++    {
++        for (k = 0; k < oi->input_count; ++k)
++            for (j = 0; j < n; ++j)
++                args[k * n + j] = fast_input(ins, k, !k ? j * s : j);
++        fast_output(ins, 0, oi->func(args, n));
++        return;
++    }
++    switch (ins->op)
++    {
++        case PRESHADER_OP_MOV:
++            for (j = 0; j < n; ++j)
++                fast_output(ins, j, fast_input(ins, 0, j * s));
++            break;
++        case PRESHADER_OP_NEG:
++            for (j = 0; j < n; ++j)
++                fast_output(ins, j, -fast_input(ins, 0, j * s));
++            break;
++        case PRESHADER_OP_RCP:
++            for (j = 0; j < n; ++j)
++                fast_output(ins, j, 1.0 / fast_input(ins, 0, j * s));
++            break;
++        case PRESHADER_OP_ADD:
++            for (j = 0; j < n; ++j)
++                fast_output(ins, j, fast_input(ins, 0, j * s) + fast_input(ins, 1, j));
++            break;
++        case PRESHADER_OP_MUL:
++            for (j = 0; j < n; ++j)
++                fast_output(ins, j, fast_input(ins, 0, j * s) * fast_input(ins, 1, j));
++            break;
++        case PRESHADER_OP_LT:
++            for (j = 0; j < n; ++j)
++                fast_output(ins, j, fast_input(ins, 0, j * s) < fast_input(ins, 1, j) ? 1.0 : 0.0);
++            break;
++        case PRESHADER_OP_GE:
++            for (j = 0; j < n; ++j)
++                fast_output(ins, j, fast_input(ins, 0, j * s) >= fast_input(ins, 1, j) ? 1.0 : 0.0);
++            break;
++        case PRESHADER_OP_CMP:
++            for (j = 0; j < n; ++j)
++                fast_output(ins, j, fast_input(ins, 0, j * s) >= 0.0
++                        ? fast_input(ins, 1, j) : fast_input(ins, 2, j));
++            break;
++        default:
++            for (j = 0; j < n; ++j)
+             {
+                 for (k = 0; k < oi->input_count; ++k)
+-                    args[k] = exec_get_arg(&pres->regs, &ins->inputs[k], ins->scalar_op && !k ? 0 : j);
+-                res = oi->func(args, ins->component_count);
+-                exec_set_arg(&pres->regs, &ins->output.reg, j, res);
++                    args[k] = fast_input(ins, k, !k ? j * s : j);
++                fast_output(ins, j, oi->func(args, n));
+             }
+-        }
++            break;
++    }
++}
++
++static HRESULT execute_ins(struct d3dx_preshader *pres, const struct d3dx_pres_ins *ins)
++{
++    if (ins->fast)
++    {
++        execute_ins_fast(ins);
++        return D3D_OK;
+     }
++    return execute_ins_generic(&pres->regs, ins);
++}
++
++static HRESULT execute_all_ins(struct d3dx_preshader *pres)
++{
++    unsigned int i;
++    HRESULT hr;
++
++    for (i = 0; i < pres->ins_count; ++i)
++        if (FAILED(hr = execute_ins(pres, &pres->ins[i])))
++            return hr;
+     return D3D_OK;
+ }
+ 
++static void init_fast_instructions(struct d3dx_preshader *pres)
++{
++    struct d3dx_regstore *rs = &pres->regs;
++    unsigned int i, k, table, last;
++
++    if (!(d3dx_fxopt() & D3DX_FXOPT_FAST_PRESHADER))
++        return;
++    for (i = 0; i < pres->ins_count; ++i)
++    {
++        struct d3dx_pres_ins *ins = &pres->ins[i];
++        const struct op_info *oi = &pres_op_info[ins->op];
++
++        if (oi->func_all_comps && oi->input_count * ins->component_count > ARGS_ARRAY_SIZE)
++            continue;
++        for (k = 0; k < oi->input_count; ++k)
++        {
++            const struct d3dx_pres_operand *opr = &ins->inputs[k];
++
++            table = opr->reg.table;
++            last = opr->reg.offset + (ins->scalar_op && !k ? 0 : ins->component_count - 1);
++            if (opr->index_reg.table != PRES_REGTAB_COUNT || !rs->tables[table]
++                    || get_reg_offset(table, last) >= rs->table_sizes[table]
++                    || (table_info[table].type != PRES_VT_FLOAT && table_info[table].type != PRES_VT_DOUBLE))
++                break;
++            ins->input_ptr[k] = (BYTE *)rs->tables[table] + table_info[table].component_size * opr->reg.offset;
++            ins->input_double[k] = table_info[table].type == PRES_VT_DOUBLE;
++        }
++        if (k < oi->input_count)
++            continue;
++        table = ins->output.reg.table;
++        last = ins->output.reg.offset + (oi->func_all_comps ? 0 : ins->component_count - 1);
++        if (!rs->tables[table] || get_reg_offset(table, last) >= rs->table_sizes[table])
++            continue;
++        ins->output_ptr = (BYTE *)rs->tables[table] + table_info[table].component_size * ins->output.reg.offset;
++        ins->output_type = table_info[table].type;
++        ins->fast = TRUE;
++    }
++}
++
++static HRESULT execute_preshader(struct d3dx_preshader *pres)
++{
++    return execute_all_ins(pres);
++}
++
+ static BOOL is_const_tab_input_dirty(struct d3dx_const_tab *ctab, ULONG64 update_version)
+ {
+     unsigned int i;
+-- 
+2.39.5 (Apple Git-154)
+

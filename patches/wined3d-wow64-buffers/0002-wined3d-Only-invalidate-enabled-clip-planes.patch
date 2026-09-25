@@ -1,0 +1,67 @@
+From da33ff71dd55a1e48dc956ca7576b426880d838b Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 09:32:37 -0400
+Subject: [PATCH 02/10] wined3d: Only invalidate enabled clip planes.
+
+Back-port of upstream 2dad2e74764 (wine-11.0-rc3) to wine-10.0, keeping the lights
+invalidation on view changes (upstream e77fc003c13). Every world-matrix change used to
+recompute all 8 clip planes: 8 view-matrix inversions on the application thread (x87 in a
+32-bit build) and 8 SET_CLIP_PLANE commands to the CS, even with clipping disabled.
+
+Wine-Bug: https://bugs.winehq.org/show_bug.cgi?id=59013
+---
+ dlls/wined3d/stateblock.c | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/dlls/wined3d/stateblock.c b/dlls/wined3d/stateblock.c
+index ce861b8cd65..54edf2cc1df 100644
+--- a/dlls/wined3d/stateblock.c
++++ b/dlls/wined3d/stateblock.c
+@@ -1647,6 +1647,14 @@ void CDECL wined3d_stateblock_set_render_state(struct wined3d_stateblock *stateb
+             stateblock->changed.ffp_ps_constants = 1;
+             break;
+ 
++        case WINED3D_RS_CLIPPING:
++        case WINED3D_RS_CLIPPLANEENABLE:
++            /* Only the enabled clip planes are recalculated when the view
++             * matrix changes, so recalculate them when they get enabled. */
++            if (stateblock->stateblock_state.rs[WINED3D_RS_CLIPPING])
++                stateblock->changed.clipplane |= stateblock->stateblock_state.rs[WINED3D_RS_CLIPPLANEENABLE];
++            break;
++
+         case WINED3D_RS_VERTEXBLEND:
+             stateblock->changed.modelview_matrices = 1;
+             stateblock->changed.ffp_vs_settings = 1;
+@@ -3032,7 +3040,8 @@ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
+         wined3d_device_context_set_shader(context, WINED3D_SHADER_TYPE_VERTEX, state->vs);
+         /* Clip planes are affected by the view matrix, but only if not using
+          * vertex shaders. */
+-        changed->clipplane = wined3d_mask_from_size(WINED3D_MAX_CLIP_DISTANCES);
++        if (state->rs[WINED3D_RS_CLIPPING])
++            changed->clipplane |= state->rs[WINED3D_RS_CLIPPLANEENABLE];
+     }
+     if (changed->pixelShader)
+         wined3d_device_context_set_shader(context, WINED3D_SHADER_TYPE_PIXEL, state->ps);
+@@ -3611,7 +3620,8 @@ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
+         if (wined3d_bitmap_is_set(changed->transform, WINED3D_TS_VIEW))
+         {
+             changed->lights = 1;
+-            changed->clipplane = wined3d_mask_from_size(WINED3D_MAX_CLIP_DISTANCES);
++            if (state->rs[WINED3D_RS_CLIPPING])
++                changed->clipplane |= state->rs[WINED3D_RS_CLIPPLANEENABLE];
+         }
+ 
+         if (wined3d_bitmap_is_set(changed->transform, WINED3D_TS_PROJECTION) || changed->position_transformed)
+@@ -3624,9 +3634,6 @@ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
+              * still need the device state to be set. */
+             wined3d_device_set_transform(device, WINED3D_TS_PROJECTION, &state->transforms[WINED3D_TS_PROJECTION]);
+         }
+-
+-        /* Clip planes are affected by the view matrix. */
+-        changed->clipplane = wined3d_mask_from_size(WINED3D_MAX_CLIP_DISTANCES);
+     }
+ 
+     if (changed->indices)
+-- 
+2.39.5 (Apple Git-154)
+

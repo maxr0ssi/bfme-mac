@@ -17,6 +17,7 @@ from bpy_extras import bmesh_utils
 from mathutils import Vector as V
 from mathutils.bvhtree import BVHTree
 
+from . import scene
 from .geometry import poly_area
 from .mapping import AtlasMapper
 
@@ -185,8 +186,7 @@ def own_layout(obj, building):
     _edit(obj, lambda: bpy.ops.uv.pack_islands(
         udim_source="CLOSEST_UDIM", rotate=True, rotate_method="AXIS_ALIGNED", scale=True, merge_overlap=False,
         margin_method="FRACTION", margin=0.001, pin=False, shape_method="CONCAVE"))
-    me.uv_layers["UVMap"].data.foreach_get("uv", buf)
-    me.uv_layers["UVMap.001"].data.foreach_set("uv", buf)
+    scene.mirror_uv(me)
     me.uv_layers.active = me.uv_layers["UVMap"]
     me.uv_layers["UVMap"].active_render = True
     return len(islands)

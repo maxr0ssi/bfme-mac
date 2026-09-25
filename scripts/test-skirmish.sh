@@ -143,7 +143,7 @@ finish() {  # finish <RESULT> <detail>
 # --- launch -------------------------------------------------------------------------------
 # Never take down someone's match: refuse to start while any game process exists unless the
 # caller says FORCE=1 (the harness's own kill_game below is what stops the previous run).
-if pgrep -f 'lotrbfme2ep1|lotrbfme2\.exe|game\.dat' >/dev/null && [[ "${FORCE:-0}" != "1" ]]; then
+if pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null && [[ "${FORCE:-0}" != "1" ]]; then
   echo "a game is already running; quit it (or FORCE=1 to kill it) before a hands-free run"; exit 3
 fi
 log "label=$LABEL GAME=$GAME WINEDEBUG=${WINEDEBUG:-} WINE_BUILD=$WINE_BUILD extra_args=(${EXTRA_ARGS[*]:-})"

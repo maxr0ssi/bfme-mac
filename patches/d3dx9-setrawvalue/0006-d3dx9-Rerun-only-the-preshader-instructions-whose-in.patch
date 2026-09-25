@@ -1,0 +1,406 @@
+From ede16659ba01de834442c77ba1fe7d64a079c5ed Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 21:05:06 -0400
+Subject: [PATCH 6/7] d3dx9: Rerun only the preshader instructions whose inputs
+ changed.
+
+A preshader that never reads a temporary or output register before writing
+it in the same run is a pure function of its constant input table. Keep a
+copy of that table as of the last run: when no input register changed, the
+outputs left in the register tables are exactly what a run would compute and
+the run is skipped; otherwise only the instructions that depend on a changed
+register run, together with the writers of the values they read (a skipped
+writer's register may have been reused since) and the last writer of every
+output component one of them writes. The rest of the outputs keep the values
+the last run computed from the same inputs.
+
+RotWK sets the camera, lights and fog again for every batch and the per-object
+parameters for every mesh, mostly to the values they already had, so most
+preshader runs become no-ops or a handful of instructions.
+
+Not used for preshaders with relative addressing outside the constant table,
+vertex inputs (tx_1), instructions that fail, or outputs sharing registers with
+constants set from parameters. Clear bit 0x2 of WINE_D3DX9_FXOPT to turn it off.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/d3dx9_36/d3dx9_private.h |   5 +
+ dlls/d3dx9_36/preshader.c     | 309 +++++++++++++++++++++++++++++++++-
+ 2 files changed, 313 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/d3dx9_36/d3dx9_private.h b/dlls/d3dx9_36/d3dx9_private.h
+index ed3a228aa53..963334f068d 100644
+--- a/dlls/d3dx9_36/d3dx9_private.h
++++ b/dlls/d3dx9_36/d3dx9_private.h
+@@ -477,6 +477,7 @@ struct d3dx_regstore
+ };
+ 
+ struct d3dx_pres_ins;
++struct d3dx_pres_plan;
+ 
+ struct d3dx_preshader
+ {
+@@ -486,6 +487,9 @@ struct d3dx_preshader
+     struct d3dx_pres_ins *ins;
+ 
+     struct d3dx_const_tab inputs;
++
++    /* Input registers each instruction depends on; NULL: always run every instruction. */
++    struct d3dx_pres_plan *plan;
+ };
+ 
+ struct d3dx_param_eval
+@@ -604,6 +608,7 @@ struct d3dx_parameter *get_parameter_by_name(struct d3dx_parameters_store *store
+ 
+ /* WINE_D3DX9_FXOPT: bit mask of the effect framework shortcuts to use, all by default. */
+ #define D3DX_FXOPT_FAST_PRESHADER   0x1 /* direct register access in preshader instructions */
++#define D3DX_FXOPT_PRESHADER_SKIP   0x2 /* rerun only preshader instructions whose inputs changed */
+ unsigned int d3dx_fxopt(void);
+ 
+ HRESULT d3dx_create_param_eval(struct d3dx_parameters_store *parameters, void *byte_code,
+diff --git a/dlls/d3dx9_36/preshader.c b/dlls/d3dx9_36/preshader.c
+index 2820e158c37..7986a5ccd6f 100644
+--- a/dlls/d3dx9_36/preshader.c
++++ b/dlls/d3dx9_36/preshader.c
+@@ -1240,6 +1240,8 @@ static HRESULT parse_preshader(struct d3dx_preshader *pres, unsigned int *ptr, u
+ }
+ 
+ static void init_fast_instructions(struct d3dx_preshader *pres);
++static void init_preshader_plan(struct d3dx_preshader *pres, const struct d3dx_const_tab *shader_inputs);
++static void free_preshader_plan(struct d3dx_pres_plan *plan);
+ 
+ HRESULT d3dx_create_param_eval(struct d3dx_parameters_store *parameters, void *byte_code, unsigned int byte_code_size,
+         D3DXPARAMETER_TYPE type, struct d3dx_param_eval **peval_out, ULONG64 *version_counter,
+@@ -1327,6 +1329,7 @@ HRESULT d3dx_create_param_eval(struct d3dx_parameters_store *parameters, void *b
+             goto err_out;
+     }
+     init_fast_instructions(&peval->pres);
++    init_preshader_plan(&peval->pres, shader ? &peval->shader_inputs : NULL);
+ 
+     if (TRACE_ON(d3dx))
+     {
+@@ -1361,6 +1364,7 @@ static void d3dx_free_const_tab(struct d3dx_const_tab *ctab)
+ 
+ static void d3dx_free_preshader(struct d3dx_preshader *pres)
+ {
++    free_preshader_plan(pres->plan);
+     free(pres->ins);
+ 
+     regstore_free_tables(&pres->regs);
+@@ -1861,9 +1865,312 @@ static void init_fast_instructions(struct d3dx_preshader *pres)
+     }
+ }
+ 
++/* Skipping unchanged work. A preshader is a pure function of its constant
++ * input table (and immediates) as long as it never reads a temporary or
++ * output register before writing it in the same run. Then, when the input
++ * registers hold the same bits as on the previous run, the outputs it left
++ * behind are exactly what a new run would compute, and when only some input
++ * registers changed, it is enough to run the instructions that depend on them,
++ * plus the instructions whose results those read (a skipped writer's register
++ * may have been reused since) and the last writer of every output component
++ * one of them writes. */
++#define PRES_PLAN_MAX_INS 256
++
++struct d3dx_pres_plan
++{
++    unsigned int const_count;       /* CONST table size in components */
++    DWORD *snapshot;                /* CONST table as of the last run */
++    BOOL valid;
++    unsigned char *reg_slot;        /* CONST register -> bit in the dependency masks */
++    ULONG64 *deps;                  /* per instruction: input registers it depends on */
++    unsigned int words;             /* per instruction bit set size; 0: no partial runs */
++    unsigned int *closure;          /* per instruction: instructions to run along with it */
++    unsigned int *run;
++};
++
++static void free_preshader_plan(struct d3dx_pres_plan *plan)
++{
++    if (!plan)
++        return;
++    free(plan->snapshot);
++    free(plan->reg_slot);
++    free(plan->deps);
++    free(plan->closure);
++    free(plan->run);
++    free(plan);
++}
++
++static BOOL is_pres_output_table(unsigned int table)
++{
++    return table == PRES_REGTAB_OCONST || table == PRES_REGTAB_OBCONST || table == PRES_REGTAB_OICONST;
++}
++
++struct plan_builder
++{
++    struct d3dx_preshader *pres;
++    struct d3dx_pres_plan *plan;
++    int *writer[PRES_REGTAB_COUNT];     /* last writer of each component so far */
++    unsigned int comps[PRES_REGTAB_COUNT];
++    unsigned int *req;                  /* per instruction: instructions it directly needs */
++};
++
++static BOOL plan_read(struct plan_builder *b, unsigned int ins_idx, unsigned int table, unsigned int comp)
++{
++    struct d3dx_pres_plan *plan = b->plan;
++    unsigned int reg;
++    int w;
++
++    switch (table)
++    {
++        case PRES_REGTAB_IMMED:
++            return TRUE;
++        case PRES_REGTAB_CONST:
++            if ((reg = get_reg_offset(table, comp)) >= b->pres->regs.table_sizes[table])
++                return FALSE;
++            plan->deps[ins_idx] |= (ULONG64)1 << plan->reg_slot[reg];
++            return TRUE;
++        case PRES_REGTAB_TEMP:
++        case PRES_REGTAB_OCONST:
++        case PRES_REGTAB_OBCONST:
++        case PRES_REGTAB_OICONST:
++            if (comp >= b->comps[table] || (w = b->writer[table][comp]) < 0)
++                return FALSE;
++            plan->deps[ins_idx] |= plan->deps[w];
++            if (plan->words)
++                b->req[ins_idx * plan->words + w / 32] |= 1u << (w % 32);
++            return TRUE;
++        default:
++            return FALSE;
++    }
++}
++
++static BOOL plan_read_operand(struct plan_builder *b, unsigned int ins_idx,
++        const struct d3dx_pres_operand *opr, unsigned int comp)
++{
++    if (opr->index_reg.table == PRES_REGTAB_COUNT)
++        return plan_read(b, ins_idx, opr->reg.table, opr->reg.offset + comp);
++    if (!plan_read(b, ins_idx, opr->index_reg.table, opr->index_reg.offset))
++        return FALSE;
++    if (opr->reg.table == PRES_REGTAB_IMMED)
++        return TRUE;
++    if (opr->reg.table != PRES_REGTAB_CONST)
++        return FALSE;
++    b->plan->deps[ins_idx] = ~(ULONG64)0;
++    return TRUE;
++}
++
++static BOOL plan_instructions(struct plan_builder *b)
++{
++    struct d3dx_preshader *pres = b->pres;
++    struct d3dx_pres_plan *plan = b->plan;
++    unsigned int i, j, k, jj, first, last, out_comps, table, comp;
++    int w;
++
++    for (i = 0; i < pres->ins_count; ++i)
++    {
++        const struct d3dx_pres_ins *ins = &pres->ins[i];
++        const struct op_info *oi = &pres_op_info[ins->op];
++
++        if (oi->func_all_comps && oi->input_count * ins->component_count > ARGS_ARRAY_SIZE)
++            return FALSE;
++        out_comps = oi->func_all_comps ? 1 : ins->component_count;
++        table = ins->output.reg.table;
++        /* Same order as execution: the inputs of component j, then component j is written. */
++        for (j = 0; j < out_comps; ++j)
++        {
++            first = oi->func_all_comps ? 0 : j;
++            last = oi->func_all_comps ? ins->component_count - 1 : j;
++            for (k = 0; k < oi->input_count; ++k)
++                for (jj = first; jj <= last; ++jj)
++                    if (!plan_read_operand(b, i, &ins->inputs[k], ins->scalar_op && !k ? 0 : jj))
++                        return FALSE;
++            comp = ins->output.reg.offset + j;
++            if (!b->writer[table] || comp >= b->comps[table])
++                return FALSE;
++            b->writer[table][comp] = i;
++        }
++    }
++    if (!plan->words)
++        return TRUE;
++    /* The last writer of an output component must run whenever an earlier one does. */
++    for (i = 0; i < pres->ins_count; ++i)
++    {
++        const struct d3dx_pres_ins *ins = &pres->ins[i];
++
++        table = ins->output.reg.table;
++        if (!is_pres_output_table(table))
++            continue;
++        out_comps = pres_op_info[ins->op].func_all_comps ? 1 : ins->component_count;
++        for (j = 0; j < out_comps; ++j)
++        {
++            w = b->writer[table][ins->output.reg.offset + j];
++            b->req[i * plan->words + w / 32] |= 1u << (w % 32);
++        }
++    }
++    return TRUE;
++}
++
++static void plan_closure(struct plan_builder *b)
++{
++    struct d3dx_pres_plan *plan = b->plan;
++    unsigned int n = b->pres->ins_count, words = plan->words, i, x, w;
++    BOOL changed;
++
++    for (i = 0; i < n; ++i)
++    {
++        for (w = 0; w < words; ++w)
++            plan->closure[i * words + w] = b->req[i * words + w];
++        plan->closure[i * words + i / 32] |= 1u << (i % 32);
++    }
++    do
++    {
++        changed = FALSE;
++        for (i = 0; i < n; ++i)
++        {
++            unsigned int *c = &plan->closure[i * words];
++
++            for (x = 0; x < n; ++x)
++            {
++                if (x == i || !(c[x / 32] & (1u << (x % 32))))
++                    continue;
++                for (w = 0; w < words; ++w)
++                {
++                    unsigned int v = c[w] | plan->closure[x * words + w];
++
++                    if (v != c[w])
++                    {
++                        c[w] = v;
++                        changed = TRUE;
++                    }
++                }
++            }
++        }
++    } while (changed);
++}
++
++static void init_preshader_plan(struct d3dx_preshader *pres, const struct d3dx_const_tab *shader_inputs)
++{
++    struct d3dx_regstore *rs = &pres->regs;
++    struct plan_builder b = {pres};
++    struct d3dx_pres_plan *plan;
++    unsigned int i, j, t, reg, const_regs;
++    BOOL ok = FALSE;
++
++    if (!(d3dx_fxopt() & D3DX_FXOPT_PRESHADER_SKIP) || !pres->ins_count || rs->table_sizes[PRES_REGTAB_INPUT])
++        return;
++    /* Shader constants set from parameters must not share registers with preshader outputs. */
++    for (i = 0; shader_inputs && i < pres->ins_count; ++i)
++    {
++        const struct d3dx_pres_reg *out = &pres->ins[i].output.reg;
++
++        if (out->table == PRES_REGTAB_TEMP)
++            continue;
++        reg = get_reg_offset(out->table, out->offset);
++        for (j = 0; j < shader_inputs->const_set_count; ++j)
++        {
++            const struct d3dx_const_param_eval_output *set = &shader_inputs->const_set[j];
++
++            if (set->param && set->table == out->table && reg >= set->register_index
++                    && reg < set->register_index + set->register_count * set->element_count)
++                return;
++        }
++    }
++
++    if (!(plan = calloc(1, sizeof(*plan))))
++        return;
++    b.plan = plan;
++    const_regs = rs->table_sizes[PRES_REGTAB_CONST];
++    plan->const_count = get_offset_reg(PRES_REGTAB_CONST, const_regs);
++    plan->words = pres->ins_count <= PRES_PLAN_MAX_INS ? (pres->ins_count + 31) / 32 : 0;
++    plan->snapshot = malloc(max(plan->const_count, 1) * sizeof(*plan->snapshot));
++    plan->reg_slot = malloc(max(const_regs, 1));
++    plan->deps = calloc(pres->ins_count, sizeof(*plan->deps));
++    if (plan->words)
++    {
++        plan->closure = calloc(pres->ins_count * plan->words, sizeof(*plan->closure));
++        plan->run = calloc(plan->words, sizeof(*plan->run));
++        b.req = calloc(pres->ins_count * plan->words, sizeof(*b.req));
++    }
++    if (!plan->snapshot || !plan->reg_slot || !plan->deps
++            || (plan->words && (!plan->closure || !plan->run || !b.req)))
++        goto done;
++    for (reg = 0; reg < const_regs; ++reg)
++        plan->reg_slot[reg] = const_regs <= 64 ? reg : reg * 64 / const_regs;
++    for (t = PRES_REGTAB_OCONST; t < PRES_REGTAB_COUNT; ++t)
++    {
++        b.comps[t] = get_offset_reg(t, rs->table_sizes[t]);
++        if (!(b.writer[t] = malloc(max(b.comps[t], 1) * sizeof(int))))
++            goto done;
++        memset(b.writer[t], 0xff, max(b.comps[t], 1) * sizeof(int));
++    }
++    if (!(ok = plan_instructions(&b)))
++        goto done;
++    if (plan->words)
++        plan_closure(&b);
++    TRACE("Preshader %p: %u instructions, %u input registers, partial runs %s.\n", pres, pres->ins_count,
++            const_regs, plan->words ? "on" : "off");
++
++done:
++    for (t = 0; t < PRES_REGTAB_COUNT; ++t)
++        free(b.writer[t]);
++    free(b.req);
++    if (ok)
++        pres->plan = plan;
++    else
++        free_preshader_plan(plan);
++}
++
+ static HRESULT execute_preshader(struct d3dx_preshader *pres)
+ {
+-    return execute_all_ins(pres);
++    struct d3dx_pres_plan *plan = pres->plan;
++    const DWORD *consts;
++    ULONG64 changed = 0;
++    unsigned int i, w;
++    HRESULT hr = D3D_OK;
++
++    if (!plan)
++        return execute_all_ins(pres);
++
++    consts = pres->regs.tables[PRES_REGTAB_CONST];
++    if (plan->valid)
++    {
++        for (i = 0; i < plan->const_count; i += 4)
++        {
++            if (consts[i] != plan->snapshot[i] || consts[i + 1] != plan->snapshot[i + 1]
++                    || consts[i + 2] != plan->snapshot[i + 2] || consts[i + 3] != plan->snapshot[i + 3])
++                changed |= (ULONG64)1 << plan->reg_slot[i / 4];
++        }
++        if (!changed)
++            return D3D_OK;
++    }
++    if (!plan->valid || !plan->words)
++    {
++        hr = execute_all_ins(pres);
++    }
++    else
++    {
++        memset(plan->run, 0, plan->words * sizeof(*plan->run));
++        for (i = 0; i < pres->ins_count; ++i)
++        {
++            if (plan->deps[i] & changed)
++                for (w = 0; w < plan->words; ++w)
++                    plan->run[w] |= plan->closure[i * plan->words + w];
++        }
++        for (i = 0; i < pres->ins_count; ++i)
++        {
++            if ((plan->run[i / 32] & (1u << (i % 32))) && FAILED(hr = execute_ins(pres, &pres->ins[i])))
++                break;
++        }
++    }
++    if (FAILED(hr))
++    {
++        plan->valid = FALSE;
++        return hr;
++    }
++    if (plan->const_count)
++        memcpy(plan->snapshot, consts, plan->const_count * sizeof(*plan->snapshot));
++    plan->valid = TRUE;
++    return D3D_OK;
+ }
+ 
+ static BOOL is_const_tab_input_dirty(struct d3dx_const_tab *ctab, ULONG64 update_version)
+-- 
+2.39.5 (Apple Git-154)
+

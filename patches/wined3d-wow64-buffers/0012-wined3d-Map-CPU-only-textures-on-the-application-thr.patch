@@ -1,0 +1,232 @@
+From b69fa00245a0c8320fbbfa0df1a0da901fe5893f Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 14:05:16 -0400
+Subject: [PATCH 12/19] wined3d: Map CPU-only textures on the application
+ thread when the CS is not using them.
+
+Mapping a texture that only the CPU can access (d3d9 managed, systemmem and scratch pools) only
+hands back its system memory, but going through the CS makes the application wait for whatever
+the CS is executing first: a present, a shader compile. EA's SAGE games lock one pixel of a
+managed radar texture per lock (hundreds of map/unmap round trips per frame) and render text
+through systemmem surfaces, whose locks took 7-50 ms when they landed behind a present. When no
+queued CS operation references such a texture and its system memory is current, map and unmap
+it on the application thread; with the wined3d lock held nothing else touches it then.
+WINED3D_CLIENT_MAPS=0 restores mapping through the CS.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/cs.c              | 42 +++++++++++++++++
+ dlls/wined3d/texture.c         | 84 ++++++++++++++++++++++++++++++++++
+ dlls/wined3d/wined3d_private.h | 27 +++++++++++
+ 3 files changed, 153 insertions(+)
+
+diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
+index 4eeba579f85..2a7bc01764c 100644
+--- a/dlls/wined3d/cs.c
++++ b/dlls/wined3d/cs.c
+@@ -2493,6 +2493,42 @@ static void wined3d_cs_exec_map(struct wined3d_cs *cs, const void *data)
+             op->sub_resource_idx, op->map_ptr, op->box, op->flags);
+ }
+ 
++/* Maps that need no GL work are done on the application thread when the CS is not using the
++ * resource (wined3d_texture_map_client()); each map through the CS costs the application a wait
++ * for whatever the CS is executing. WINED3D_CLIENT_MAPS=0 disables. */
++bool wined3d_client_maps_enabled(void)
++{
++    static int enabled = -1;
++    char value[8];
++
++    if (enabled < 0)
++    {
++        enabled = !GetEnvironmentVariableA("WINED3D_CLIENT_MAPS", value, sizeof(value)) || value[0] != '0';
++        TRACE("Application thread maps %s.\n", enabled ? "enabled" : "disabled");
++    }
++    return enabled;
++}
++
++static bool wined3d_cs_map_client(struct wined3d_device_context *context, struct wined3d_resource *resource,
++        unsigned int sub_resource_idx, struct wined3d_map_desc *map_desc, const struct wined3d_box *box, uint32_t flags)
++{
++    if (context != &context->device->cs->c || !wined3d_client_maps_enabled())
++        return false;
++    if (resource->type == WINED3D_RTYPE_BUFFER)
++        return false;
++    return wined3d_texture_map_client(texture_from_resource(resource), sub_resource_idx, map_desc, box, flags);
++}
++
++static bool wined3d_cs_unmap_client(struct wined3d_device_context *context,
++        struct wined3d_resource *resource, unsigned int sub_resource_idx)
++{
++    if (context != &context->device->cs->c || !wined3d_client_maps_enabled())
++        return false;
++    if (resource->type == WINED3D_RTYPE_BUFFER)
++        return false;
++    return wined3d_texture_unmap_client(texture_from_resource(resource), sub_resource_idx);
++}
++
+ HRESULT wined3d_device_context_emit_map(struct wined3d_device_context *context,
+         struct wined3d_resource *resource, unsigned int sub_resource_idx,
+         struct wined3d_map_desc *map_desc, const struct wined3d_box *box, unsigned int flags)
+@@ -2512,6 +2548,9 @@ HRESULT wined3d_device_context_emit_map(struct wined3d_device_context *context,
+         return WINED3D_OK;
+     }
+ 
++    if (wined3d_cs_map_client(context, resource, sub_resource_idx, map_desc, box, flags))
++        return WINED3D_OK;
++
+     TRACE_(d3d_perf)("Mapping resource %p (type %u), flags %#x through the CS.\n", resource, resource->type, flags);
+ 
+     wined3d_resource_wait_idle(resource);
+@@ -2566,6 +2605,9 @@ HRESULT wined3d_device_context_emit_unmap(struct wined3d_device_context *context
+ 
+     wined3d_not_from_cs(context->device->cs);
+ 
++    if (wined3d_cs_unmap_client(context, resource, sub_resource_idx))
++        return WINED3D_OK;
++
+     TRACE_(d3d_perf)("Unmapping resource %p (type %u) through the CS.\n", resource, resource->type);
+ 
+     if (!(op = wined3d_device_context_require_space(context, sizeof(*op), WINED3D_CS_QUEUE_MAP)))
+diff --git a/dlls/wined3d/texture.c b/dlls/wined3d/texture.c
+index 5061f0033fd..f74384012f6 100644
+--- a/dlls/wined3d/texture.c
++++ b/dlls/wined3d/texture.c
+@@ -3605,6 +3605,90 @@ static HRESULT texture_resource_sub_resource_unmap(struct wined3d_resource *reso
+     return WINED3D_OK;
+ }
+ 
++/* Textures only the CPU can access (d3d9 managed, systemmem and scratch pools) live in system memory
++ * and need no GL work to map once that memory holds their contents. */
++static bool wined3d_texture_is_client_mappable(const struct wined3d_texture *texture)
++{
++    return !(texture->resource.access & WINED3D_RESOURCE_ACCESS_GPU)
++            && texture->resource.map_binding == WINED3D_LOCATION_SYSMEM
++            && !texture->swapchain && !texture->update_map_binding
++            && !(texture->flags & WINED3D_TEXTURE_DC_IN_USE);
++}
++
++/* Map such a texture on the application thread instead of through the CS, which would otherwise
++ * make the application wait for the CS to finish whatever it is doing (a present, a shader
++ * compile) just to hand back a system memory pointer. Only done when no queued CS operation
++ * references the texture: then, with the wined3d lock held, nothing else touches it. Does exactly
++ * what texture_resource_sub_resource_map() does in that case. */
++bool wined3d_texture_map_client(struct wined3d_texture *texture, unsigned int sub_resource_idx,
++        struct wined3d_map_desc *map_desc, const struct wined3d_box *box, uint32_t flags)
++{
++    struct wined3d_resource *resource = &texture->resource;
++    struct wined3d_texture_sub_resource *sub_resource;
++    unsigned int texture_level, count, i;
++    struct wined3d_bo_address data;
++
++    if (!wined3d_texture_is_client_mappable(texture) || (flags & WINED3D_MAP_DISCARD))
++        return false;
++    if (!(sub_resource = wined3d_texture_get_sub_resource(texture, sub_resource_idx)) || sub_resource->map_count)
++        return false;
++    if (wined3d_resource_is_busy(resource))
++        return false;
++
++    /* A map of level 0 loads and invalidates every level of the layer, see
++     * texture_resource_sub_resource_map(). */
++    texture_level = sub_resource_idx % texture->level_count;
++    count = texture_level ? 1 : texture->level_count;
++    for (i = 0; i < count; ++i)
++    {
++        if (!(texture->sub_resources[sub_resource_idx + i].locations & WINED3D_LOCATION_SYSMEM))
++            return false;
++    }
++
++    TRACE("texture %p, sub_resource_idx %u, box %s, flags %#x.\n",
++            texture, sub_resource_idx, debug_box(box), flags);
++
++    if (texture->dirty_regions && (flags & WINED3D_MAP_WRITE)
++            && !(flags & WINED3D_MAP_NO_DIRTY_UPDATE) && !texture_level)
++        wined3d_texture_dirty_region_add(texture, sub_resource_idx / texture->level_count, box);
++
++    if (flags & WINED3D_MAP_WRITE)
++    {
++        for (i = 0; i < count; ++i)
++            wined3d_texture_invalidate_location(texture, sub_resource_idx + i, ~WINED3D_LOCATION_SYSMEM);
++    }
++
++    wined3d_texture_get_bo_address(texture, sub_resource_idx, &data, WINED3D_LOCATION_SYSMEM);
++    sub_resource->map_flags = flags;
++    map_desc->data = resource_offset_map_pointer(resource, sub_resource_idx, data.addr, box);
++    wined3d_resource_get_sub_resource_map_pitch(resource, sub_resource_idx,
++            &map_desc->row_pitch, &map_desc->slice_pitch);
++
++    ++resource->map_count;
++    ++sub_resource->map_count;
++
++    TRACE("Returning memory %p.\n", map_desc->data);
++    return true;
++}
++
++/* Unmapping system memory needs no GL work either (texture_resource_sub_resource_unmap()), however
++ * the texture was mapped. */
++bool wined3d_texture_unmap_client(struct wined3d_texture *texture, unsigned int sub_resource_idx)
++{
++    struct wined3d_texture_sub_resource *sub_resource;
++
++    if (!wined3d_texture_is_client_mappable(texture))
++        return false;
++    if (!(sub_resource = wined3d_texture_get_sub_resource(texture, sub_resource_idx)) || !sub_resource->map_count)
++        return false;
++
++    TRACE("texture %p, sub_resource_idx %u.\n", texture, sub_resource_idx);
++
++    --sub_resource->map_count;
++    --texture->resource.map_count;
++    return true;
++}
++
+ static const struct wined3d_resource_ops texture_resource_ops =
+ {
+     texture_resource_incref,
+diff --git a/dlls/wined3d/wined3d_private.h b/dlls/wined3d/wined3d_private.h
+index 55d61af0894..741b4afbee2 100644
+--- a/dlls/wined3d/wined3d_private.h
++++ b/dlls/wined3d/wined3d_private.h
+@@ -3513,6 +3513,9 @@ void wined3d_texture_validate_location(struct wined3d_texture *texture,
+ bool wined3d_texture_validate_sub_resource_idx(const struct wined3d_texture *texture,
+         unsigned int sub_resource_idx);
+ void wined3d_texture_clear_dirty_regions(struct wined3d_texture *texture);
++bool wined3d_texture_map_client(struct wined3d_texture *texture, unsigned int sub_resource_idx,
++        struct wined3d_map_desc *map_desc, const struct wined3d_box *box, uint32_t flags);
++bool wined3d_texture_unmap_client(struct wined3d_texture *texture, unsigned int sub_resource_idx);
+ 
+ HRESULT wined3d_texture_no3d_init(struct wined3d_texture *texture_no3d, struct wined3d_device *device,
+         const struct wined3d_resource_desc *desc, unsigned int layer_count, unsigned int level_count,
+@@ -3836,6 +3839,30 @@ static inline void wined3d_resource_wait_idle(const struct wined3d_resource *res
+     }
+ }
+ 
++/* Whether wined3d_resource_wait_idle() would wait: a queued CS operation still references the
++ * resource. When it returns false and the caller holds the wined3d lock, no CS operation touches
++ * the resource until the caller queues one. */
++static inline bool wined3d_resource_is_busy(const struct wined3d_resource *resource)
++{
++    const struct wined3d_cs *cs = resource->device->cs;
++    ULONG access_time, tail, head;
++
++    if (!cs->thread || cs->thread_id == GetCurrentThreadId())
++        return false;
++
++    access_time = resource->access_time;
++    head = cs->queue[WINED3D_CS_QUEUE_DEFAULT].head;
++    if (!wined3d_ge_wrap(head, access_time))
++        return false;
++
++    tail = *(volatile ULONG *)&cs->queue[WINED3D_CS_QUEUE_DEFAULT].tail;
++    if (head == tail)
++        return false;
++    return wined3d_ge_wrap(access_time, tail) || access_time == tail;
++}
++
++bool wined3d_client_maps_enabled(void);
++
+ struct wined3d_buffer
+ {
+     struct wined3d_resource resource;
+-- 
+2.39.5 (Apple Git-154)
+

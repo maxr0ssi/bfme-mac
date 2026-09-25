@@ -15,8 +15,14 @@
   the music stopped playing. Re-fetched from the official 2.02 package and MD5-verified on
   2026-09-23; the damaged copy is `_202music.big.corrupt-20260923` (not loaded). Every other RotWK
   archive matches the official MD5s except the two deliberate `.preLODfix.bak` edits.
+  Unit voices were silent: both games' `lang\EnglishAudio.big` (BFME2 517 MB, RotWK 474 MB) are
+  tagged "EN NL NO PL SV" in the workshop manifest and `tools/fetch_game.py` only took exact "EN",
+  so they were never downloaded. Fetched and MD5-verified 2026-09-24 (the filter is fixed).
 - **Group pack installed (RotWK):** `!!!!!!!!!!group-pack.big` from `tools/make_group_pack.py` —
-  MaxParticleCount 4000 (UltraHigh, patch 2.02's value), heat effects off, camera max height 1000;
+  MaxParticleCount 4000 (UltraHigh, patch 2.02's value), heat effects off, camera max height 700
+  (1000 was unplayable: the frame rate is bound by Wine's render thread - measured with
+  tools/eipsample.c, ~65% of it in opengl32.dll and ~25% in the WoW64 transition - and zooming
+  out multiplies draw calls);
   EA's particle skipping below 20 FPS left as shipped. The first version (10000 particles, no
   skipping, height 700) dropped frames badly in big battles. Overrides `__patch202.big` (first
   sorted archive wins). Untested yet: the new values in a big battle.

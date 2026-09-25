@@ -129,3 +129,55 @@ def parse_draws(text, defines=None):
                 draw.fields[key] = value(val)
         draws.append(draw)
     return draws
+
+
+# ------------------------------------------------------------------------------------ edits
+TEXTURE_RE = re.compile(r"^(\s*)Texture(\s*)=(\s*)(\S+)(\s+)(\S+)(.*)$", re.I)
+
+
+def add_texture_swaps(text, base, swaps):
+    """After every `Texture = <base> <variant>` line, add the same swap for a building's own
+    textures: swaps {EA variant: (own base, own variant)}. The EA line stays (other meshes still
+    use the shared sheet). Idempotent."""
+    out, lines = [], text.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        out.append(line)
+        m = TEXTURE_RE.match(line.rstrip("\r\n"))
+        if not m or m.group(4).lower() != base.lower():
+            continue
+        own = swaps.get(m.group(6)) or next((v for k, v in swaps.items() if k.lower() == m.group(6).lower()), None)
+        if not own:
+            continue
+        new = "%sTexture%s=%s%s%s%s%s" % (m.group(1), m.group(2), m.group(3), own[0], m.group(5), own[1],
+                                            line[len(line.rstrip("\r\n")):])
+        nxt = lines[i + 1] if i + 1 < len(lines) else ""
+        if nxt.strip().lower() != new.strip().lower():
+            out.append(new)
+    return "".join(out)
+
+
+def lod_off(text, obj, tag):
+    """StaticModelLODMode = No in one Draw module (so low settings do not swap in EA's <model>L)."""
+    lines = text.splitlines(keepends=True)
+    cur_obj, in_draw = None, False
+    for i, raw in enumerate(lines):
+        line = strip(raw)
+        m = OBJECT_RE.match(line)
+        if m and not raw[:1].isspace():
+            cur_obj, in_draw = m.group(2), False
+            continue
+        m = DRAW_RE.match(line)
+        if m:
+            in_draw = cur_obj == obj and m.group(2) == tag
+            continue
+        if in_draw and re.match(r"^StaticModelLODMode\s*=", line, re.I):
+            lines[i] = re.sub(r"(=\s*)\w+", r"\1No", raw, count=1)
+            in_draw = False
+    return "".join(lines)
+
+
+def apply_ops(text, ops):
+    """Apply [('swaps', base, {ea: (own, own variant)}) | ('lod_off', object, tag)] in order."""
+    for op in ops:
+        text = add_texture_swaps(text, op[1], op[2]) if op[0] == "swaps" else lod_off(text, op[1], op[2])
+    return text

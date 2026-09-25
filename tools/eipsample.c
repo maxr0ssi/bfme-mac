@@ -10,12 +10,22 @@
  * a few microseconds, reads EIP/ESP and the top of its stack, and resumes it.
  *
  *   i686-w64-mingw32-gcc -O2 -o build/eipsample.exe tools/eipsample.c
- *   WINE_BUILD=w10 . ./env.sh && wine build/eipsample.exe [seconds] [interval_ms] [exe]
- *   defaults: 20 s, 5 ms, lotrbfme2ep1.exe
+ *   WINE_BUILD=w10 . ./env.sh && wine build/eipsample.exe [seconds] [interval_ms] [exe] [thread]
+ *   defaults: 20 s, 5 ms, lotrbfme2ep1.exe, scout
+ *   thread: "scout" suspends every thread ~130 times over 3 s to find the busy one (this preceded a
+ *   game crash once, 2026-09-24: don't use it on a game you care about); "main" samples the
+ *   process's first thread (the game's main thread) and touches no other; a number is a thread id.
  *
  * Library time (memcpy, heap, ntdll) is attributed to its caller by scanning the top of
  * the stack for the first return address inside a non-system module ("owner"). That is
  * a heuristic - a stale value can occasionally win - so leaf and owner are both reported.
+ *
+ * Stack section (for inclusive / call-tree profiles): every sample also reads the stack from ESP up
+ * to the thread's stack top (at most EIPSAMPLE_STACK_KB, default 64 KB) and keeps every dword that is
+ * a plausible return address into the target exe's code section: it points just after a CALL
+ * (E8 rel32 into the code, or FF /2 in any addressing form), checked against the code as mapped in
+ * the process. Those are printed per sample ("R" lines) for tools/callstacks.py, which maps them to
+ * functions, drops stale values that do not chain, and reports inclusive time and a call tree.
  */
 #include <windows.h>
 #include <tlhelp32.h>
@@ -46,6 +56,62 @@ static int modof(DWORD a)
 
 static DWORD s_eip[MAXSAMP], s_owner_addr[MAXSAMP];
 static int s_leaf[MAXSAMP], s_owner[MAXSAMP];
+
+/* Stack return sites into the exe. */
+#define MAXRET 160                    /* per sample */
+#define RETPOOL (8 * 1024 * 1024)
+static DWORD *r_pool;                 /* pairs: stack slot (dwords above ESP), address */
+static int r_used, s_rfirst[MAXSAMP], s_rcount[MAXSAMP];
+static DWORD s_depth[MAXSAMP];
+static int exe_mod = -1;
+static BYTE *code;                    /* copy of the exe's code section */
+static DWORD code_lo, code_hi;        /* VA range of that section */
+static DWORD stack_top, stack_max = 64 * 1024;
+
+static int in_code(DWORD a) { return a >= code_lo && a < code_hi; }
+
+/* Is a a return address: does it follow a CALL instruction? */
+static int is_ret(DWORD a)
+{
+    if (a < code_lo + 7 || a >= code_hi) return 0;
+    const BYTE *p = code + (a - code_lo);
+    if (p[-5] == 0xE8) {
+        DWORD t = a + *(const DWORD *)(p - 4);
+        if (in_code(t)) return 1;
+    }
+    /* FF /2: modrm reg field 2; lengths 2 (reg / [reg]), 3 (disp8 or sib), 4 (sib+disp8),
+     * 6 (disp32 or [abs32]), 7 (sib+disp32). */
+    BYTE m;
+    m = p[-1]; if (p[-2] == 0xFF && (m & 0x38) == 0x10 && ((m >> 6) == 3 || ((m >> 6) == 0 && (m & 7) != 4 && (m & 7) != 5))) return 1;
+    m = p[-2]; if (p[-3] == 0xFF && (m & 0x38) == 0x10 && (((m >> 6) == 1 && (m & 7) != 4) || ((m >> 6) == 0 && (m & 7) == 4 && (p[-1] & 7) != 5))) return 1;
+    m = p[-3]; if (p[-4] == 0xFF && (m & 0x38) == 0x10 && (m >> 6) == 1 && (m & 7) == 4) return 1;
+    m = p[-5]; if (p[-6] == 0xFF && (m & 0x38) == 0x10 && (((m >> 6) == 2 && (m & 7) != 4) || ((m >> 6) == 0 && (m & 7) == 5))) return 1;
+    m = p[-6]; if (p[-7] == 0xFF && (m & 0x38) == 0x10 && (((m >> 6) == 2 && (m & 7) == 4) || ((m >> 6) == 0 && (m & 7) == 4 && (p[-5] & 7) == 5))) return 1;
+    return 0;
+}
+
+/* Copy the exe's first executable section out of the process (the in-memory code is what runs). */
+static void load_code(HANDLE proc, const char *target)
+{
+    for (int i = 0; i < nmods; i++) if (!_stricmp(mods[i].name, target)) exe_mod = i;
+    if (exe_mod < 0) return;
+    DWORD base = mods[exe_mod].base; BYTE hdr[4096]; SIZE_T got = 0;
+    if (!ReadProcessMemory(proc, (LPCVOID)(ULONG_PTR)base, hdr, sizeof hdr, &got) || got < sizeof hdr) return;
+    IMAGE_NT_HEADERS32 *nt = (IMAGE_NT_HEADERS32 *)(hdr + ((IMAGE_DOS_HEADER *)hdr)->e_lfanew);
+    IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
+    for (int i = 0; i < nt->FileHeader.NumberOfSections; i++, sec++) {
+        if (!(sec->Characteristics & IMAGE_SCN_MEM_EXECUTE)) continue;
+        DWORD n = sec->Misc.VirtualSize;
+        code = malloc(n);
+        if (!code || !ReadProcessMemory(proc, (LPCVOID)(ULONG_PTR)(base + sec->VirtualAddress), code, n, &got) || got != n) {
+            free(code); code = NULL; return;
+        }
+        code_lo = base + sec->VirtualAddress; code_hi = code_lo + n;
+        r_pool = malloc(RETPOOL * sizeof *r_pool);
+        if (!r_pool) { free(code); code = NULL; }
+        return;
+    }
+}
 
 static int cmp_dword(const void *a, const void *b)
 {
@@ -96,6 +162,9 @@ static void module_histogram(const char *title, const int *idx, int n)
     }
 }
 
+static int sample_thread(HANDLE proc, DWORD tid, int secs, int ms);
+static void stack_report(int n);
+
 int main(int argc, char **argv)
 {
     int secs = argc > 1 ? atoi(argv[1]) : 20;
@@ -125,12 +194,18 @@ int main(int argc, char **argv)
     }
     CloseHandle(snap);
     printf("target %s pid %lu, %d modules\n", target, (unsigned long)pid, nmods);
+    const char *kb = getenv("EIPSAMPLE_STACK_KB");
+    if (kb && atoi(kb) > 0) stack_max = (DWORD)atoi(kb) * 1024;
+    load_code(proc, target);
+    if (code) printf("stack scan: code 0x%08lx-0x%08lx, up to %lu KB of stack per sample\n",
+                     (unsigned long)code_lo, (unsigned long)code_hi, (unsigned long)(stack_max / 1024));
 
     /* Pick the busy thread. Under Wine on macOS, GetThreadTimes on another process's
      * threads returns zeros, so CPU time can't be used. Instead scout every thread for
      * 3 s at a low rate: a running thread's EIP moves between samples, a blocked one sits
      * at the same syscall return address every time. This works even if the busy
      * thread spends its time inside a system DLL such as memcpy. */
+    const char *pick = argc > 4 ? argv[4] : "scout";
     DWORD tids[1024]; int ntid = 0;
     snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     THREADENTRY32 te; te.dwSize = sizeof te;
@@ -138,6 +213,11 @@ int main(int argc, char **argv)
         if (te.th32OwnerProcessID == pid) tids[ntid++] = te.th32ThreadID;
     CloseHandle(snap);
 
+    if (strcmp(pick, "scout")) {
+        DWORD want = !strcmp(pick, "main") ? (ntid ? tids[0] : 0) : (DWORD)strtoul(pick, NULL, 0);
+        printf("thread %lu chosen without scouting (%s)\n", (unsigned long)want, pick);
+        return sample_thread(proc, want, secs, ms);
+    }
     static HANDLE th[1024]; static DWORD last[1024]; static int moved[1024], seen[1024];
     for (int i = 0; i < ntid; i++)
         th[i] = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, tids[i]);
@@ -167,20 +247,43 @@ int main(int argc, char **argv)
     for (int i = 0; i < ntid; i++) if (th[i]) CloseHandle(th[i]);
     if (busiest < 0 || moved[busiest] == 0) { fprintf(stderr, "eipsample: no running thread found\n"); return 1; }
 
-    HANDLE t = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, tids[busiest]);
+    return sample_thread(proc, tids[busiest], secs, ms);
+}
+
+static int sample_thread(HANDLE proc, DWORD tid, int secs, int ms)
+{
+    HANDLE t = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, tid);
     if (!t) { fprintf(stderr, "eipsample: OpenThread failed (%lu)\n", GetLastError()); return 1; }
-    printf("sampling tid %lu for %d s every %d ms\n", (unsigned long)tids[busiest], secs, ms);
+    printf("sampling tid %lu for %d s every %d ms\n", (unsigned long)tid, secs, ms);
 
     int n = 0;
+    LARGE_INTEGER qf, q0, q1; double susp_sum = 0, susp_max = 0;   /* how long the thread is held */
+    QueryPerformanceFrequency(&qf);
+    static DWORD deep[256 * 1024 / 4];
+    if (stack_max > sizeof deep) stack_max = sizeof deep;
     DWORD end = GetTickCount() + (DWORD)secs * 1000;
     while (GetTickCount() < end && n < MAXSAMP) {
+        QueryPerformanceCounter(&q0);
         if (SuspendThread(t) == (DWORD)-1) break;
         CONTEXT ctx; memset(&ctx, 0, sizeof ctx);
         ctx.ContextFlags = CONTEXT_CONTROL;
         BOOL ok = GetThreadContext(t, &ctx);
-        DWORD stack[STACKDW]; SIZE_T got = 0;
+        DWORD stack[STACKDW]; SIZE_T got = 0, sgot = 0, want = 0;
         if (ok) ReadProcessMemory(proc, (LPCVOID)(ULONG_PTR)ctx.Esp, stack, sizeof stack, &got);
+        if (ok && code) {
+            if (!stack_top) {   /* end of the committed region holding ESP = the stack's top */
+                MEMORY_BASIC_INFORMATION mbi;
+                if (VirtualQueryEx(proc, (LPCVOID)(ULONG_PTR)ctx.Esp, &mbi, sizeof mbi))
+                    stack_top = (DWORD)(ULONG_PTR)mbi.BaseAddress + (DWORD)mbi.RegionSize;
+            }
+            want = ctx.Esp < stack_top ? stack_top - ctx.Esp : 0;
+            if (want > stack_max) want = stack_max;
+            if (want && !ReadProcessMemory(proc, (LPCVOID)(ULONG_PTR)ctx.Esp, deep, want, &sgot)) sgot = 0;
+        }
         ResumeThread(t);
+        QueryPerformanceCounter(&q1);
+        double us = (q1.QuadPart - q0.QuadPart) * 1e6 / qf.QuadPart;
+        susp_sum += us; if (us > susp_max) susp_max = us;
         if (ok) {
             int leaf = modof(ctx.Eip);
             int owner = -1; DWORD oaddr = ctx.Eip;
@@ -192,12 +295,16 @@ int main(int argc, char **argv)
                 }
             }
             s_eip[n] = ctx.Eip; s_leaf[n] = leaf; s_owner[n] = owner; s_owner_addr[n] = oaddr;
+            s_rfirst[n] = r_used; s_rcount[n] = 0; s_depth[n] = (DWORD)sgot;
+            for (SIZE_T i = 0; i < sgot / 4 && s_rcount[n] < MAXRET && r_used + 2 <= RETPOOL; i++)
+                if (is_ret(deep[i])) { r_pool[r_used++] = (DWORD)i; r_pool[r_used++] = deep[i]; s_rcount[n]++; }
             n++;
         }
         Sleep(ms);
     }
     CloseHandle(t);
-    printf("%d samples\n", n);
+    printf("%d samples; thread held suspended %.0f us mean, %.0f us max per sample\n",
+           n, n ? susp_sum / n : 0.0, susp_max);
     if (!n) return 1;
 
     module_histogram("leaf module (where the instruction pointer was)", s_leaf, n);
@@ -242,5 +349,40 @@ int main(int argc, char **argv)
                       (unsigned long)mods[i].base, (unsigned long)mods[i].size,
                       mods[i].system ? "  (system)" : "");
     }
+    if (code) stack_report(n);
     return 0;
+}
+
+/* Return sites present anywhere on the stack (a site counts once per sample), then the raw
+ * per-sample lines for tools/callstacks.py:  R <eip> <stack bytes read> <slot>:<address> ...
+ * (slot = dword index above ESP, nearest first). */
+static void stack_report(int n)
+{
+    static DWORD keys[MAXSAMP * 8]; static Hit hits[MAXSAMP * 8];
+    int m = 0; double depth = 0;
+    for (int i = 0; i < n; i++) {
+        depth += s_depth[i];
+        DWORD *r = r_pool + s_rfirst[i];
+        for (int j = 0; j < s_rcount[i] && m < MAXSAMP * 8; j++) {
+            int dup = 0;
+            for (int k = 0; k < j; k++) if (r[2 * k + 1] == r[2 * j + 1]) dup = 1;
+            if (!dup) keys[m++] = r[2 * j + 1];
+        }
+    }
+    printf("\n== stack scan: %d return sites kept, mean %.0f bytes of stack read per sample ==\n",
+           r_used / 2, depth / n);
+    int h = tally(keys, m, hits);
+    printf("\n== return sites on the stack (share of samples containing the site; stale values included) ==\n");
+    for (int i = 0; i < h && i < 40; i++) {
+        printf("  %6.2f%%  %6d  ", 100.0 * hits[i].count / n, hits[i].count);
+        print_addr(hits[i].key); printf("\n");
+    }
+    printf("\n== raw stacks (R eip bytes slot:ret...) ==\n");
+    for (int i = 0; i < n; i++) {
+        printf("R %08lx %lu", (unsigned long)s_eip[i], (unsigned long)s_depth[i]);
+        DWORD *r = r_pool + s_rfirst[i];
+        for (int j = 0; j < s_rcount[i]; j++)
+            printf(" %lx:%lx", (unsigned long)r[2 * j], (unsigned long)r[2 * j + 1]);
+        printf("\n");
+    }
 }

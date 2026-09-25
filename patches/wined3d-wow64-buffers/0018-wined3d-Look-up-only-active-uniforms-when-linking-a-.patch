@@ -1,0 +1,397 @@
+From 1e4ab3ea2d1ecb8e1ec86c80dc35bd4cd29c3865 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 14:30:46 -0400
+Subject: [PATCH 18/19] wined3d: Look up only active uniforms when linking a
+ GLSL program.
+
+A new program looks up the location of every uniform wined3d may declare: each vs_c[i] and
+ps_c[i] up to the constant limit, the integer and boolean constants and the fixed function state,
+about 700 names for an SM1-3 shader pair, nearly all of them absent. Each lookup is a call into
+the driver, through the WoW64 thunks for a 32-bit application. List the program's active uniforms
+first (a few dozen calls) and look up only names that are in the list, array elements within the
+listed size. The first 16 programs are checked against the full lookup; a driver whose list
+misses a uniform that has a location turns the shortcut off.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/glsl_shader.c | 256 ++++++++++++++++++++++++++++---------
+ 1 file changed, 199 insertions(+), 57 deletions(-)
+
+diff --git a/dlls/wined3d/glsl_shader.c b/dlls/wined3d/glsl_shader.c
+index 69b5f2d5578..f016d09cc10 100644
+--- a/dlls/wined3d/glsl_shader.c
++++ b/dlls/wined3d/glsl_shader.c
+@@ -152,7 +152,6 @@ struct glsl_rasterizer_setup_shader
+     char source[];
+ };
+ 
+-
+ struct glsl_vs_program
+ {
+     struct list shader_entry;
+@@ -10172,8 +10171,141 @@ static struct glsl_ffp_fragment_shader *shader_glsl_find_ffp_fragment_shader(str
+ }
+ 
+ 
++/* A new program looks up the location of every uniform wined3d might declare, ~700 names for an
++ * SM1-3 vertex and pixel shader pair (every vs_c[i]/ps_c[i] up to the constant limit, the FFP
++ * state), almost all of them absent. Each lookup is a call into the driver, through the WoW64
++ * thunks for a 32-bit application. Listing the program's active uniforms first takes a few dozen
++ * calls, and only names in that list are looked up. The first programs are checked against the
++ * full lookup; a driver whose list misses a uniform that has a location disables the shortcut. */
++struct glsl_active_uniform
++{
++    const char *name;
++    GLint size;
++};
++
++struct glsl_active_uniforms
++{
++    struct glsl_active_uniform *uniforms;
++    unsigned int count;
++    char *names;
++};
++
++#define GLSL_ACTIVE_UNIFORMS_VERIFY_COUNT 16
++static LONG glsl_active_uniforms_verify = GLSL_ACTIVE_UNIFORMS_VERIFY_COUNT;
++static BOOL glsl_active_uniforms_broken;
++
++static int glsl_active_uniform_compare(const void *a, const void *b)
++{
++    return strcmp(((const struct glsl_active_uniform *)a)->name, ((const struct glsl_active_uniform *)b)->name);
++}
++
++static void shader_glsl_free_active_uniforms(struct glsl_active_uniforms *active)
++{
++    free(active->uniforms);
++    free(active->names);
++}
++
++static BOOL shader_glsl_get_active_uniforms(const struct wined3d_gl_info *gl_info, GLuint program_id,
++        struct glsl_active_uniforms *active)
++{
++    GLint count = 0, max_length = 0, size, length;
++    unsigned int i;
++    GLenum type;
++    char *name;
++
++    memset(active, 0, sizeof(*active));
++    if (glsl_active_uniforms_broken)
++        return FALSE;
++
++    GL_EXTCALL(glGetProgramiv(program_id, GL_ACTIVE_UNIFORMS, &count));
++    GL_EXTCALL(glGetProgramiv(program_id, GL_ACTIVE_UNIFORM_MAX_LENGTH, &max_length));
++    checkGLcall("query active uniforms");
++    if (count < 0 || (count && max_length <= 0))
++        return FALSE;
++    if (!count)
++        return TRUE;
++
++    active->uniforms = malloc(count * sizeof(*active->uniforms));
++    active->names = malloc((size_t)count * (max_length + 1));
++    if (!active->uniforms || !active->names)
++    {
++        shader_glsl_free_active_uniforms(active);
++        return FALSE;
++    }
++
++    for (i = 0, name = active->names; i < count; ++i, name += max_length + 1)
++    {
++        length = size = 0;
++        name[0] = 0;
++        GL_EXTCALL(glGetActiveUniform(program_id, i, max_length + 1, &length, &size, &type, name));
++        if (length < 0 || length > max_length)
++            length = strlen(name);
++        name[length] = 0;
++        /* Arrays are listed by their first element. */
++        if (length > 3 && !strcmp(name + length - 3, "[0]"))
++            name[length - 3] = 0;
++        active->uniforms[i].name = name;
++        active->uniforms[i].size = size;
++    }
++    checkGLcall("glGetActiveUniform");
++    active->count = count;
++    qsort(active->uniforms, active->count, sizeof(*active->uniforms), glsl_active_uniform_compare);
++    return TRUE;
++}
++
++static BOOL shader_glsl_uniform_is_active(const struct glsl_active_uniforms *active, const char *name)
++{
++    const struct glsl_active_uniform *uniform;
++    struct glsl_active_uniform key;
++    const char *bracket;
++    char base[64];
++    size_t length;
++
++    key.name = name;
++    if (bsearch(&key, active->uniforms, active->count, sizeof(key), glsl_active_uniform_compare))
++        return TRUE;
++
++    /* "vs_c[5]" is an element of the array "vs_c" of the listed size. */
++    length = strlen(name);
++    if (!length || name[length - 1] != ']' || !(bracket = strrchr(name, '['))
++            || strchr(bracket, '.') || bracket - name >= sizeof(base))
++        return FALSE;
++    memcpy(base, name, bracket - name);
++    base[bracket - name] = 0;
++    key.name = base;
++    if (!(uniform = bsearch(&key, active->uniforms, active->count, sizeof(key), glsl_active_uniform_compare)))
++        return FALSE;
++    return strtoul(bracket + 1, NULL, 10) < uniform->size;
++}
++
++static GLint shader_glsl_uniform_location(const struct wined3d_gl_info *gl_info, GLuint program_id,
++        const struct glsl_active_uniforms *active, const char *name)
++{
++    GLint location;
++
++    if (!active)
++        return GL_EXTCALL(glGetUniformLocation(program_id, name));
++
++    if (glsl_active_uniforms_verify > 0)
++    {
++        location = GL_EXTCALL(glGetUniformLocation(program_id, name));
++        if (location != -1 && !shader_glsl_uniform_is_active(active, name))
++        {
++            ERR("Uniform %s of program %u has location %d but is not listed as active; "
++                    "looking up every uniform from now on.\n", debugstr_a(name), program_id, location);
++            glsl_active_uniforms_broken = TRUE;
++        }
++        return location;
++    }
++
++    if (!shader_glsl_uniform_is_active(active, name))
++        return -1;
++    return GL_EXTCALL(glGetUniformLocation(program_id, name));
++}
++
+ static void shader_glsl_init_vs_uniform_locations(const struct wined3d_gl_info *gl_info,
+-        struct shader_glsl_priv *priv, GLuint program_id, struct glsl_vs_program *vs, unsigned int vs_c_count)
++        struct shader_glsl_priv *priv, GLuint program_id, const struct glsl_active_uniforms *active,
++        struct glsl_vs_program *vs, unsigned int vs_c_count)
+ {
+     unsigned int i;
+     struct wined3d_string_buffer *name = string_buffer_get(&priv->string_buffers);
+@@ -10181,77 +10313,77 @@ static void shader_glsl_init_vs_uniform_locations(const struct wined3d_gl_info *
+     for (i = 0; i < vs_c_count; ++i)
+     {
+         string_buffer_sprintf(name, "vs_c[%u]", i);
+-        vs->uniform_f_locations[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->uniform_f_locations[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+     }
+     memset(&vs->uniform_f_locations[vs_c_count], 0xff, (WINED3D_MAX_VS_CONSTS_F - vs_c_count) * sizeof(GLuint));
+ 
+     for (i = 0; i < WINED3D_MAX_CONSTS_I; ++i)
+     {
+         string_buffer_sprintf(name, "vs_i[%u]", i);
+-        vs->uniform_i_locations[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->uniform_i_locations[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+     }
+ 
+     for (i = 0; i < WINED3D_MAX_CONSTS_B; ++i)
+     {
+         string_buffer_sprintf(name, "vs_b[%u]", i);
+-        vs->uniform_b_locations[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->uniform_b_locations[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+     }
+ 
+-    vs->pos_fixup_location = GL_EXTCALL(glGetUniformLocation(program_id, "pos_fixup"));
+-    vs->base_vertex_id_location = GL_EXTCALL(glGetUniformLocation(program_id, "base_vertex_id"));
++    vs->pos_fixup_location = shader_glsl_uniform_location(gl_info, program_id, active, "pos_fixup");
++    vs->base_vertex_id_location = shader_glsl_uniform_location(gl_info, program_id, active, "base_vertex_id");
+ 
+     for (i = 0; i < MAX_VERTEX_BLENDS; ++i)
+     {
+         string_buffer_sprintf(name, "ffp_modelview_matrix[%u]", i);
+-        vs->modelview_matrix_location[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->modelview_matrix_location[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+     }
+-    vs->projection_matrix_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_projection_matrix"));
+-    vs->normal_matrix_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_normal_matrix"));
++    vs->projection_matrix_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_projection_matrix");
++    vs->normal_matrix_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_normal_matrix");
+     for (i = 0; i < WINED3D_MAX_FFP_TEXTURES; ++i)
+     {
+         string_buffer_sprintf(name, "ffp_texture_matrix[%u]", i);
+-        vs->texture_matrix_location[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
+-    }
+-    vs->material_ambient_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_material.ambient"));
+-    vs->material_diffuse_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_material.diffuse"));
+-    vs->material_specular_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_material.specular"));
+-    vs->material_emissive_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_material.emissive"));
+-    vs->material_shininess_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_material.shininess"));
+-    vs->light_ambient_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_light_ambient"));
++        vs->texture_matrix_location[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
++    }
++    vs->material_ambient_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_material.ambient");
++    vs->material_diffuse_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_material.diffuse");
++    vs->material_specular_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_material.specular");
++    vs->material_emissive_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_material.emissive");
++    vs->material_shininess_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_material.shininess");
++    vs->light_ambient_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_light_ambient");
+     for (i = 0; i < WINED3D_MAX_ACTIVE_LIGHTS; ++i)
+     {
+         string_buffer_sprintf(name, "ffp_light[%u].diffuse", i);
+-        vs->light_location[i].diffuse = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].diffuse = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].specular", i);
+-        vs->light_location[i].specular = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].specular = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].ambient", i);
+-        vs->light_location[i].ambient = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].ambient = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].position", i);
+-        vs->light_location[i].position = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].position = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].direction", i);
+-        vs->light_location[i].direction = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].direction = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].range", i);
+-        vs->light_location[i].range = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].range = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].falloff", i);
+-        vs->light_location[i].falloff = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].falloff = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].c_att", i);
+-        vs->light_location[i].c_att = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].c_att = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].l_att", i);
+-        vs->light_location[i].l_att = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].l_att = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].q_att", i);
+-        vs->light_location[i].q_att = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].q_att = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].cos_htheta", i);
+-        vs->light_location[i].cos_htheta = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].cos_htheta = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "ffp_light[%u].cos_hphi", i);
+-        vs->light_location[i].cos_hphi = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        vs->light_location[i].cos_hphi = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+     }
+-    vs->pointsize_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_point.size"));
+-    vs->pointsize_min_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_point.size_min"));
+-    vs->pointsize_max_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_point.size_max"));
+-    vs->pointsize_c_att_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_point.c_att"));
+-    vs->pointsize_l_att_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_point.l_att"));
+-    vs->pointsize_q_att_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_point.q_att"));
+-    vs->clip_planes_location = GL_EXTCALL(glGetUniformLocation(program_id, "clip_planes"));
++    vs->pointsize_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_point.size");
++    vs->pointsize_min_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_point.size_min");
++    vs->pointsize_max_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_point.size_max");
++    vs->pointsize_c_att_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_point.c_att");
++    vs->pointsize_l_att_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_point.l_att");
++    vs->pointsize_q_att_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_point.q_att");
++    vs->clip_planes_location = shader_glsl_uniform_location(gl_info, program_id, active, "clip_planes");
+ 
+     string_buffer_release(&priv->string_buffers, name);
+ }
+@@ -10269,7 +10401,8 @@ static void shader_glsl_init_gs_uniform_locations(const struct wined3d_gl_info *
+ }
+ 
+ static void shader_glsl_init_ps_uniform_locations(const struct wined3d_gl_info *gl_info,
+-        struct shader_glsl_priv *priv, GLuint program_id, struct glsl_ps_program *ps, unsigned int ps_c_count)
++        struct shader_glsl_priv *priv, GLuint program_id, const struct glsl_active_uniforms *active,
++        struct glsl_ps_program *ps, unsigned int ps_c_count)
+ {
+     unsigned int i;
+     struct wined3d_string_buffer *name = string_buffer_get(&priv->string_buffers);
+@@ -10277,45 +10410,45 @@ static void shader_glsl_init_ps_uniform_locations(const struct wined3d_gl_info *
+     for (i = 0; i < ps_c_count; ++i)
+     {
+         string_buffer_sprintf(name, "ps_c[%u]", i);
+-        ps->uniform_f_locations[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        ps->uniform_f_locations[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+     }
+     memset(&ps->uniform_f_locations[ps_c_count], 0xff, (WINED3D_MAX_PS_CONSTS_F - ps_c_count) * sizeof(GLuint));
+ 
+     for (i = 0; i < WINED3D_MAX_CONSTS_I; ++i)
+     {
+         string_buffer_sprintf(name, "ps_i[%u]", i);
+-        ps->uniform_i_locations[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        ps->uniform_i_locations[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+     }
+ 
+     for (i = 0; i < WINED3D_MAX_CONSTS_B; ++i)
+     {
+         string_buffer_sprintf(name, "ps_b[%u]", i);
+-        ps->uniform_b_locations[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        ps->uniform_b_locations[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+     }
+ 
+     for (i = 0; i < WINED3D_MAX_FFP_TEXTURES; ++i)
+     {
+         string_buffer_sprintf(name, "bumpenv_mat%u", i);
+-        ps->bumpenv_mat_location[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        ps->bumpenv_mat_location[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "bumpenv_lum_scale%u", i);
+-        ps->bumpenv_lum_scale_location[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        ps->bumpenv_lum_scale_location[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "bumpenv_lum_offset%u", i);
+-        ps->bumpenv_lum_offset_location[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        ps->bumpenv_lum_offset_location[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+         string_buffer_sprintf(name, "tss_const%u", i);
+-        ps->tss_constant_location[i] = GL_EXTCALL(glGetUniformLocation(program_id, name->buffer));
++        ps->tss_constant_location[i] = shader_glsl_uniform_location(gl_info, program_id, active, name->buffer);
+     }
+ 
+-    ps->tex_factor_location = GL_EXTCALL(glGetUniformLocation(program_id, "tex_factor"));
+-    ps->specular_enable_location = GL_EXTCALL(glGetUniformLocation(program_id, "specular_enable"));
++    ps->tex_factor_location = shader_glsl_uniform_location(gl_info, program_id, active, "tex_factor");
++    ps->specular_enable_location = shader_glsl_uniform_location(gl_info, program_id, active, "specular_enable");
+ 
+-    ps->fog_color_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_fog.color"));
+-    ps->fog_density_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_fog.density"));
+-    ps->fog_end_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_fog.end"));
+-    ps->fog_scale_location = GL_EXTCALL(glGetUniformLocation(program_id, "ffp_fog.scale"));
++    ps->fog_color_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_fog.color");
++    ps->fog_density_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_fog.density");
++    ps->fog_end_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_fog.end");
++    ps->fog_scale_location = shader_glsl_uniform_location(gl_info, program_id, active, "ffp_fog.scale");
+ 
+-    ps->alpha_test_ref_location = GL_EXTCALL(glGetUniformLocation(program_id, "alpha_test_ref"));
++    ps->alpha_test_ref_location = shader_glsl_uniform_location(gl_info, program_id, active, "alpha_test_ref");
+ 
+-    ps->color_key_location = GL_EXTCALL(glGetUniformLocation(program_id, "color_key"));
++    ps->color_key_location = shader_glsl_uniform_location(gl_info, program_id, active, "color_key");
+ 
+     string_buffer_release(&priv->string_buffers, name);
+ }
+@@ -10454,8 +10587,10 @@ static void set_glsl_shader_program(const struct wined3d_context_gl *context_gl,
+     struct glsl_shader_prog_link *entry = NULL;
+     struct wined3d_shader *vshader = NULL;
+     struct wined3d_shader *pshader = NULL;
++    struct glsl_active_uniforms active;
+     GLuint reorder_shader_id = 0;
+     struct glsl_program_key key;
++    BOOL active_listed;
+     uint32_t attribs_map;
+     GLuint program_id;
+     unsigned int i;
+@@ -10717,13 +10852,20 @@ static void set_glsl_shader_program(const struct wined3d_context_gl *context_gl,
+     GL_EXTCALL(glLinkProgram(program_id));
+     shader_glsl_validate_link(gl_info, program_id);
+ 
+-    shader_glsl_init_vs_uniform_locations(gl_info, priv, program_id, &entry->vs,
+-            vshader ? vshader->limits->constant_float : 0);
++    active_listed = shader_glsl_get_active_uniforms(gl_info, program_id, &active);
++    shader_glsl_init_vs_uniform_locations(gl_info, priv, program_id, active_listed ? &active : NULL,
++            &entry->vs, vshader ? vshader->limits->constant_float : 0);
+     shader_glsl_init_ds_uniform_locations(gl_info, priv, program_id, &entry->ds);
+     shader_glsl_init_gs_uniform_locations(gl_info, priv, program_id, &entry->gs);
+-    shader_glsl_init_ps_uniform_locations(gl_info, priv, program_id, &entry->ps,
+-            pshader ? pshader->limits->constant_float : 0);
++    shader_glsl_init_ps_uniform_locations(gl_info, priv, program_id, active_listed ? &active : NULL,
++            &entry->ps, pshader ? pshader->limits->constant_float : 0);
+     checkGLcall("find glsl program uniform locations");
++    if (active_listed)
++    {
++        if (glsl_active_uniforms_verify > 0)
++            --glsl_active_uniforms_verify;
++        shader_glsl_free_active_uniforms(&active);
++    }
+ 
+     pre_rasterization_shader = gshader ? gshader : dshader ? dshader : vshader;
+     if (pre_rasterization_shader && pre_rasterization_shader->reg_maps.shader_version.major >= 4)
+-- 
+2.39.5 (Apple Git-154)
+

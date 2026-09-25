@@ -37,6 +37,14 @@ class Painter:
             self.log("layer", type(layer).__name__)
         return np.clip(col, 0, 1)
 
+    def variant(self, col, bake_name, eps=0.02, most=4.0):
+        """Our texture in one of EA's state variants: EA's own painting (scorch, snow, stonework)
+        carried over as the per-texel ratio of their variant sheet to their base sheet, both seen
+        through the same atlas mapping - so it lands where EA's artist put it, in our colours."""
+        v = imageio.to_srgb(self.cv.load(bake_name)).astype(np.float32)
+        base = imageio.to_srgb(self.cv.load("atlas")).astype(np.float32)
+        return np.clip(col * np.clip((v + eps) / (base + eps), 0, most), 0, 1)
+
     def write_diffuse(self, col, outdir, name, sizes):
         """One DDS per size (the first is the shipped one, others fallbacks named <name>_<size>)."""
         os.makedirs(outdir, exist_ok=True)

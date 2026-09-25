@@ -1,0 +1,132 @@
+From d997c53bdfa30063089a96f06fc02692dd1ac560 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 14:06:44 -0400
+Subject: [PATCH 13/19] wined3d: Map system memory buffers on the application
+ thread when the CS is not using them.
+
+The same for buffers whose map only returns their system memory copy: managed, software vertex
+processing and systemmem pool buffers, and write maps without DISCARD or NOOVERWRITE while the
+system memory copy is current. EA's SAGE games relock managed vertex and index buffers with no
+flags every frame; d3d9 reads systemmem index buffers through a map for every indexed draw.
+Only the dirty range bookkeeping that buffer_resource_sub_resource_map() does is needed, and the
+unmap has nothing to do unless the CS mapped the buffer object.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/buffer.c          | 51 ++++++++++++++++++++++++++++++++++
+ dlls/wined3d/cs.c              |  8 +++---
+ dlls/wined3d/wined3d_private.h |  3 ++
+ 3 files changed, 58 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/wined3d/buffer.c b/dlls/wined3d/buffer.c
+index d777b9535bb..d32dd96eabd 100644
+--- a/dlls/wined3d/buffer.c
++++ b/dlls/wined3d/buffer.c
+@@ -722,6 +722,57 @@ static HRESULT buffer_resource_sub_resource_unmap(struct wined3d_resource *resou
+     return WINED3D_OK;
+ }
+ 
++/* Map a buffer on the application thread when buffer_resource_sub_resource_map() would only return
++ * its system memory (managed, software vertex processing and systemmem pool buffers, or a plain
++ * write-only map with the system memory copy current) and no queued CS operation references it, so
++ * that nothing else touches the buffer while the wined3d lock is held. Same bookkeeping as there. */
++bool wined3d_buffer_map_client(struct wined3d_buffer *buffer, struct wined3d_map_desc *map_desc,
++        const struct wined3d_box *box, uint32_t flags)
++{
++    struct wined3d_resource *resource = &buffer->resource;
++    unsigned int offset, dirty_offset, dirty_size;
++
++    if (!(((flags & WINED3D_MAP_WRITE) && !(flags & (WINED3D_MAP_NOOVERWRITE | WINED3D_MAP_DISCARD)))
++            || !(flags & WINED3D_MAP_WRITE) || resource->pin_sysmem || !(buffer->flags & WINED3D_BUFFER_USE_BO)))
++        return false;
++    if (buffer->map_ptr || !resource->heap_memory)
++        return false;
++    if (wined3d_resource_is_busy(resource))
++        return false;
++    if (!(buffer->locations & WINED3D_LOCATION_SYSMEM))
++        return false;
++
++    TRACE("buffer %p, box %s, flags %#x.\n", buffer, debug_box(box), flags);
++
++    dirty_offset = offset = box->left;
++    dirty_size = box->right - box->left;
++    if (!dirty_size && dirty_offset)
++        dirty_size = resource->size - dirty_offset;
++    if (flags & WINED3D_MAP_DISCARD)
++        dirty_offset = dirty_size = 0;
++
++    ++resource->map_count;
++    if (flags & WINED3D_MAP_WRITE)
++        wined3d_buffer_invalidate_range(buffer, ~WINED3D_LOCATION_SYSMEM, dirty_offset, dirty_size);
++
++    map_desc->data = (uint8_t *)resource->heap_memory + offset;
++    map_desc->row_pitch = map_desc->slice_pitch = resource->size;
++    return true;
++}
++
++/* buffer_resource_sub_resource_unmap() has nothing to do but count unless the CS mapped the
++ * buffer object. */
++bool wined3d_buffer_unmap_client(struct wined3d_buffer *buffer)
++{
++    if (!buffer->resource.map_count || buffer->map_ptr)
++        return false;
++
++    TRACE("buffer %p.\n", buffer);
++
++    --buffer->resource.map_count;
++    return true;
++}
++
+ static void wined3d_buffer_set_bo(struct wined3d_buffer *buffer, struct wined3d_context *context, struct wined3d_bo *bo)
+ {
+     struct wined3d_bo *prev_bo = buffer->buffer_object;
+diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
+index 2a7bc01764c..f1066a09fb5 100644
+--- a/dlls/wined3d/cs.c
++++ b/dlls/wined3d/cs.c
+@@ -2494,8 +2494,8 @@ static void wined3d_cs_exec_map(struct wined3d_cs *cs, const void *data)
+ }
+ 
+ /* Maps that need no GL work are done on the application thread when the CS is not using the
+- * resource (wined3d_texture_map_client()); each map through the CS costs the application a wait
+- * for whatever the CS is executing. WINED3D_CLIENT_MAPS=0 disables. */
++ * resource (wined3d_texture_map_client(), wined3d_buffer_map_client()); each map through the CS
++ * costs the application a wait for whatever the CS is executing. WINED3D_CLIENT_MAPS=0 disables. */
+ bool wined3d_client_maps_enabled(void)
+ {
+     static int enabled = -1;
+@@ -2515,7 +2515,7 @@ static bool wined3d_cs_map_client(struct wined3d_device_context *context, struct
+     if (context != &context->device->cs->c || !wined3d_client_maps_enabled())
+         return false;
+     if (resource->type == WINED3D_RTYPE_BUFFER)
+-        return false;
++        return wined3d_buffer_map_client(buffer_from_resource(resource), map_desc, box, flags);
+     return wined3d_texture_map_client(texture_from_resource(resource), sub_resource_idx, map_desc, box, flags);
+ }
+ 
+@@ -2525,7 +2525,7 @@ static bool wined3d_cs_unmap_client(struct wined3d_device_context *context,
+     if (context != &context->device->cs->c || !wined3d_client_maps_enabled())
+         return false;
+     if (resource->type == WINED3D_RTYPE_BUFFER)
+-        return false;
++        return !sub_resource_idx && wined3d_buffer_unmap_client(buffer_from_resource(resource));
+     return wined3d_texture_unmap_client(texture_from_resource(resource), sub_resource_idx);
+ }
+ 
+diff --git a/dlls/wined3d/wined3d_private.h b/dlls/wined3d/wined3d_private.h
+index 741b4afbee2..31f5585b93f 100644
+--- a/dlls/wined3d/wined3d_private.h
++++ b/dlls/wined3d/wined3d_private.h
+@@ -3917,6 +3917,9 @@ BOOL wined3d_buffer_prepare_location(struct wined3d_buffer *buffer,
+ void wined3d_buffer_update_sub_resource(struct wined3d_buffer *buffer, struct wined3d_context *context,
+         const struct upload_bo *upload_bo, unsigned int offset, unsigned int size);
+ void wined3d_buffer_validate_location(struct wined3d_buffer *buffer, uint32_t location);
++bool wined3d_buffer_map_client(struct wined3d_buffer *buffer, struct wined3d_map_desc *map_desc,
++        const struct wined3d_box *box, uint32_t flags);
++bool wined3d_buffer_unmap_client(struct wined3d_buffer *buffer);
+ 
+ HRESULT wined3d_buffer_no3d_init(struct wined3d_buffer *buffer_no3d, struct wined3d_device *device,
+         const struct wined3d_buffer_desc *desc, const struct wined3d_sub_resource_data *data,
+-- 
+2.39.5 (Apple Git-154)
+

@@ -27,9 +27,12 @@ TOWER_HEAD_TAGS = ["trim", "stoneB", "trim", "hex", "trim", None, "stoneA", "sto
 CROWN = [(-2.9, 110.8), (2.3, 110.8), (1.6, 114.8), (1.6, 115.3), (0.6, 115.3), (0.2, 117.4), (-0.6, 117.4),
          (-1.6, 116.2), (-2.9, 116.2)]
 CROWN_TAGS = [None, "stoneB", "trim", "top", "stoneA", "top", "top", "top", "stoneA"]
-# the gate: axis 0.3 off y=0, pylon inner faces at |y| 18.6, lintel underside 44.2; half the
-# original arch from the axis (jamb foot, jamb top, shoulder top, point)
-GATE_AXIS, GATE_OUT, GATE_LINTEL = -0.3, 18.6, 44.2
+# the gate: axis 0.3 off y=0, lintel underside 44.2; half the original arch from the axis (jamb
+# foot, jamb top, shoulder top, point). The flame upgrade (DBFFlam) stands a brazier column on each
+# side at x 80.8..90.4, |y| 10.7..19.6, cups at z 48..56: the jambs take the columns, the lintel
+# and crown stop inside them (GATE_Y) and the pylons start outside them (BRAZIER_Y)
+GATE_Y, BRAZIER_Y = 10.4, 19.8
+GATE_AXIS, GATE_OUT, GATE_LINTEL = -0.3, BRAZIER_Y, 44.2
 ARCH = [(11.8, 0.0), (11.8, 21.5), (8.5, 35.0), (0.0, 38.0)]
 # the shield sigil: a double chevron under a bar, on each tower's bronze shields
 SIGIL = [((-2.3, 91.0), (0.0, 86.4)), ((0.0, 86.4), (2.3, 91.0)), ((-1.2, 91.0), (0.0, 88.6)), ((0.0, 88.6), (1.2, 91.0)),
@@ -102,12 +105,12 @@ class Fortress(Building):
         P = []
         for z, e in ((0.0, 1.8), (2.4, 1.8), (2.4, 0.9), (4.8, 0.9), (5.6, -0.05)):
             fx, oy = body(z, e)
-            P.append(ring(68.0, fx, 18.6, oy, z, 0.6))
+            P.append(ring(68.0, fx, BRAZIER_Y, oy, z, 0.6))
         out.append(loft(P, ["stoneB", "top", "stoneB", "trim"], cap0=("top", False), cap1=("top", False)))
         B = []
         for z, e in ((43.3, -0.05), (44.0, 0.6), (51.0, 0.6), (51.7, -0.05)):
             fx, oy = body(z, e)
-            B.append(ring(68.0, fx, 18.0 if e > 0 else 18.6, oy, z, 0.5))
+            B.append(ring(68.0, fx, BRAZIER_Y, oy, z, 0.5))
         outer = 4 if sy > 0 else 0          # chamfered ring sides: 0 y0-face, 2 front, 4 y1-face, 6 back
         out.append(loft(B, ["trim", ["rune" if k in (2, outer) else "stoneA" for k in range(8)], "trim"],
                         cap0=("top", False), cap1=("top", False)))
@@ -119,9 +122,9 @@ class Fortress(Building):
                 rib.append(ring(x0, x1, y0, y1, z, 0.3))
             out.append(loft(rib, [["stoneB" if k != side else "pilaster" for k in range(8)]],
                             cap0=("top", False), cap1=("top", False)))
-        R = [ring(69.0, 95.0, 18.6, 28.5, 0.0, 0.8), ring(69.0, 93.5, 18.6, 27.5, 56.0, 0.8),
-             ring(68.3, 94.4, 17.9, 28.4, 56.9, 0.8), ring(68.3, 94.4, 17.9, 28.4, 59.6, 0.8),
-             ring(68.9, 93.8, 18.5, 27.8, 60.2, 0.7), ring(71.5, 91.8, 20.2, 26.2, 60.2, 0.6),
+        R = [ring(69.0, 95.0, BRAZIER_Y, 28.5, 0.0, 0.8), ring(69.0, 93.5, BRAZIER_Y, 27.5, 56.0, 0.8),
+             ring(68.3, 94.4, BRAZIER_Y, 28.4, 56.9, 0.8), ring(68.3, 94.4, BRAZIER_Y, 28.4, 59.6, 0.8),
+             ring(68.9, 93.8, BRAZIER_Y + 0.2, 27.8, 60.2, 0.7), ring(71.5, 91.8, 20.2, 26.2, 60.2, 0.6),
              ring(71.5, 91.8, 20.2, 26.2, 65.6, 0.6), ring(73.0, 90.3, 21.2, 25.2, 65.6, 0.5),
              ring(77.5, 86.0, 22.0, 24.4, 69.2, 0.3)]
         out.append(loft(R, ["stoneB", "trim", "tri", "trim", "top", "stoneA", "top", "stoneA"],
@@ -130,9 +133,10 @@ class Fortress(Building):
 
     @staticmethod
     def _lintel_and_crown():
-        """A lintel carrying a rune frieze pylon to pylon, and a stepped crown over the gate."""
+        """A lintel carrying a rune frieze over the gate, and a stepped crown. Both stop at the flame
+        upgrade's brazier columns (DBFFlam), which stand between the lintel and the pylons."""
         from sagekit.blender.geometry import box_rings, loft
-        Y = 19.5
+        Y = GATE_Y
         out = [loft([box_rings((83.3, 90.7), (-Y, Y), 44.2, 0), box_rings((83.3, 90.7), (-Y, Y), 51.0, 0)],
                     [["stoneA", "rune", "stoneA", "stoneA"]], cap0=("stoneA", True), cap1=("top", False))]
 
@@ -140,11 +144,15 @@ class Fortress(Building):
             return ["stoneA", t, "stoneA", "stoneA"]
         crown = [box_rings((83.3, 90.7), (-Y, Y), 51.0, 0), box_rings((83.3, 91.5), (-Y, Y), 51.8, 0),
                  box_rings((83.3, 91.5), (-Y, Y), 59.0, 0), box_rings((83.3, 90.9), (-Y, Y), 59.6, 0),
-                 box_rings((84.3, 90.0), (-12.5, 12.5), 59.6, 0), box_rings((84.3, 90.0), (-12.5, 12.5), 64.2, 0),
-                 box_rings((84.6, 89.7), (-12.2, 12.2), 64.6, 0), box_rings((85.3, 89.2), (-6.0, 6.0), 64.6, 0),
+                 box_rings((84.3, 90.0), (-8.6, 8.6), 59.6, 0), box_rings((84.3, 90.0), (-8.6, 8.6), 64.2, 0),
+                 box_rings((84.6, 89.7), (-8.3, 8.3), 64.6, 0), box_rings((85.3, 89.2), (-6.0, 6.0), 64.6, 0),
                  box_rings((85.3, 89.2), (-6.0, 6.0), 68.4, 0), box_rings((86.0, 88.5), (-4.4, 4.4), 70.0, 0)]
         out.append(loft(crown, [front("trim"), front("tri"), "trim", "top", front("hex"), "trim", "top", "stoneB", "trim"],
                         cap0=("top", False), cap1=("top", True)))
+        for sy in (-1, 1):                  # a capping slab on each jamb: the brazier cups' seat
+            ys = sorted((sy * GATE_Y, sy * BRAZIER_Y))
+            out.append(loft([box_rings((83.1, 88.6), ys, GATE_LINTEL, 0), box_rings((83.1, 88.6), ys, GATE_LINTEL + 0.8, 0)],
+                            ["trim"], cap0=("top", False), cap1=("top", True)))
         return out
 
     def emphasis(self, c, n):

@@ -1,0 +1,147 @@
+From 259b1a761451a25c242b1e856dd8d6d94fd64465 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 14:07:54 -0400
+Subject: [PATCH 14/19] wined3d: Upload small regions of system memory textures
+ through UPDATE_SUB_RESOURCE.
+
+Uploads from a CPU-only texture into a GPU texture (d3d9 managed textures before a draw,
+UpdateTexture(), UpdateSurface()) are blits that read the source on the CS, which keeps the source
+referenced until the CS gets there. An application that maps the source again right away - text
+rendered string by string through one systemmem surface - then waits for the CS after all. For
+regions up to 256 KiB, copy the source on the application thread into an UPDATE_SUB_RESOURCE
+operation on the destination instead; the CS uploads exactly what the blit's upload path would.
+Larger regions keep the blit, which saves the application thread the copy.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/device.c | 93 ++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 83 insertions(+), 10 deletions(-)
+
+diff --git a/dlls/wined3d/device.c b/dlls/wined3d/device.c
+index 503b377662a..dc029828bff 100644
+--- a/dlls/wined3d/device.c
++++ b/dlls/wined3d/device.c
+@@ -3801,6 +3801,78 @@ void CDECL wined3d_device_context_get_primitive_type(const struct wined3d_device
+     TRACE("Returning %s.\n", debug_d3dprimitivetype(*primitive_type));
+ }
+ 
++/* Uploads from a system memory texture (d3d9 managed textures before a draw, UpdateTexture(),
++ * UpdateSurface()) are blits that read the source on the CS, so the source stays referenced until
++ * the CS gets there, and an application that maps it again soon after (text rendering, the radar of
++ * EA's SAGE games) has to wait for the CS. For small regions copy the source on the application
++ * thread into an UPDATE_SUB_RESOURCE operation instead; the CS then uploads exactly what the
++ * blit's upload path (wined3d_texture_upload_from_texture()) would have. Large regions keep the
++ * blit, which reads the source without the extra copy on the application thread. */
++#define WINED3D_CLIENT_UPLOAD_MAX_SIZE (256 * 1024)
++
++static bool wined3d_device_context_upload_sysmem_region(struct wined3d_device_context *context,
++        struct wined3d_texture *dst_texture, unsigned int dst_sub_resource_idx, const struct wined3d_box *dst_box,
++        struct wined3d_texture *src_texture, unsigned int src_sub_resource_idx, const struct wined3d_box *src_box)
++{
++    const struct wined3d_format *format = src_texture->resource.format;
++    struct wined3d_texture_sub_resource *src_sub_resource;
++    unsigned int row_pitch, slice_pitch, width, height, depth;
++    struct wined3d_bo_address data;
++
++    if (context != &context->device->cs->c || !wined3d_client_maps_enabled())
++        return false;
++    if ((src_texture->resource.access & WINED3D_RESOURCE_ACCESS_GPU)
++            || src_texture->resource.map_binding != WINED3D_LOCATION_SYSMEM || src_texture->swapchain)
++        return false;
++    if (!(dst_texture->resource.access & WINED3D_RESOURCE_ACCESS_GPU)
++            || (dst_texture->resource.access & WINED3D_RESOURCE_ACCESS_CPU) || dst_texture->swapchain)
++        return false;
++    if (dst_texture->resource.format != format || format->conv_byte_count || format->depth_size
++            || format->stencil_size || (src_texture->resource.format_attrs & WINED3D_FORMAT_ATTR_BROKEN_PITCH)
++            || src_texture->resource.multisample_type || dst_texture->resource.multisample_type)
++        return false;
++
++    width = src_box->right - src_box->left;
++    height = src_box->bottom - src_box->top;
++    depth = src_box->back - src_box->front;
++    if (dst_box->right - dst_box->left != width || dst_box->bottom - dst_box->top != height
++            || dst_box->back - dst_box->front != depth)
++        return false;
++    wined3d_format_calculate_pitch(format, 1, width, height, &row_pitch, &slice_pitch);
++    if ((size_t)slice_pitch * depth > WINED3D_CLIENT_UPLOAD_MAX_SIZE)
++        return false;
++
++    src_sub_resource = &src_texture->sub_resources[src_sub_resource_idx];
++    if (src_sub_resource->map_count || dst_texture->sub_resources[dst_sub_resource_idx].map_count)
++        return false;
++    if (wined3d_resource_is_busy(&src_texture->resource))
++        return false;
++    if (!(src_sub_resource->locations & WINED3D_LOCATION_SYSMEM))
++        return false;
++
++    TRACE("Uploading %s from texture %p, sub-resource %u, to %s of texture %p, sub-resource %u.\n",
++            debug_box(src_box), src_texture, src_sub_resource_idx, debug_box(dst_box),
++            dst_texture, dst_sub_resource_idx);
++
++    wined3d_texture_get_pitch(src_texture, src_sub_resource_idx % src_texture->level_count, &row_pitch, &slice_pitch);
++    wined3d_texture_get_bo_address(src_texture, src_sub_resource_idx, &data, WINED3D_LOCATION_SYSMEM);
++    wined3d_device_context_emit_update_sub_resource(context, &dst_texture->resource, dst_sub_resource_idx, dst_box,
++            resource_offset_map_pointer(&src_texture->resource, src_sub_resource_idx, data.addr, src_box),
++            row_pitch, slice_pitch);
++    return true;
++}
++
++static void wined3d_device_context_update_texture_region(struct wined3d_device_context *context,
++        struct wined3d_texture *dst_texture, unsigned int dst_sub_resource_idx, const struct wined3d_box *dst_box,
++        struct wined3d_texture *src_texture, unsigned int src_sub_resource_idx, const struct wined3d_box *src_box)
++{
++    if (wined3d_device_context_upload_sysmem_region(context, dst_texture, dst_sub_resource_idx, dst_box,
++            src_texture, src_sub_resource_idx, src_box))
++        return;
++    wined3d_device_context_emit_blt_sub_resource(context, &dst_texture->resource, dst_sub_resource_idx, dst_box,
++            &src_texture->resource, src_sub_resource_idx, src_box, 0, NULL, WINED3D_TEXF_POINT);
++}
++
+ HRESULT CDECL wined3d_device_update_texture(struct wined3d_device *device,
+         struct wined3d_texture *src_texture, struct wined3d_texture *dst_texture)
+ {
+@@ -3896,10 +3968,9 @@ HRESULT CDECL wined3d_device_update_texture(struct wined3d_device *device,
+             wined3d_texture_get_level_box(dst_texture, i, &box);
+             for (j = 0; j < layer_count; ++j)
+             {
+-                wined3d_device_context_emit_blt_sub_resource(&device->cs->c,
+-                        &dst_texture->resource, j * dst_level_count + i, &box,
+-                        &src_texture->resource, j * src_level_count + i + src_skip_levels, &box,
+-                        0, NULL, WINED3D_TEXF_POINT);
++                wined3d_device_context_update_texture_region(&device->cs->c,
++                        dst_texture, j * dst_level_count + i, &box,
++                        src_texture, j * src_level_count + i + src_skip_levels, &box);
+             }
+         }
+     }
+@@ -3942,10 +4013,9 @@ HRESULT CDECL wined3d_device_update_texture(struct wined3d_device *device,
+                                 wined3d_texture_get_level_depth(src_texture, src_level));
+                     }
+ 
+-                    wined3d_device_context_emit_blt_sub_resource(&device->cs->c,
+-                            &dst_texture->resource, i * dst_level_count + j, &box,
+-                            &src_texture->resource, i * src_level_count + src_level, &box,
+-                            0, NULL, WINED3D_TEXF_POINT);
++                    wined3d_device_context_update_texture_region(&device->cs->c,
++                            dst_texture, i * dst_level_count + j, &box,
++                            src_texture, i * src_level_count + src_level, &box);
+                 }
+             }
+         }
+@@ -4362,8 +4432,11 @@ HRESULT CDECL wined3d_device_context_copy_sub_resource_region(struct wined3d_dev
+     }
+ 
+     wined3d_device_context_lock(context);
+-    wined3d_device_context_emit_blt_sub_resource(context, dst_resource, dst_sub_resource_idx, &dst_box,
+-            src_resource, src_sub_resource_idx, src_box, WINED3D_BLT_RAW, NULL, WINED3D_TEXF_POINT);
++    if (dst_resource->type == WINED3D_RTYPE_BUFFER || src_resource->type == WINED3D_RTYPE_BUFFER
++            || !wined3d_device_context_upload_sysmem_region(context, texture_from_resource(dst_resource),
++            dst_sub_resource_idx, &dst_box, texture_from_resource(src_resource), src_sub_resource_idx, src_box))
++        wined3d_device_context_emit_blt_sub_resource(context, dst_resource, dst_sub_resource_idx, &dst_box,
++                src_resource, src_sub_resource_idx, src_box, WINED3D_BLT_RAW, NULL, WINED3D_TEXF_POINT);
+     wined3d_device_context_unlock(context);
+ 
+     return WINED3D_OK;
+-- 
+2.39.5 (Apple Git-154)
+

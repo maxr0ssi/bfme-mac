@@ -5,7 +5,8 @@ compute() returns nine masks in a fixed order, three per baked image:
     mask1 = (bronze, gold, wood)   mask2 = (band ground, inlay/glyph, iron)   mask3 = (rock, plain stone, tiles)
 Hint names an Atlas may declare (upscale pixels, y down): rune, tri (frieze bands), hex (hexagon
 chain), grille, rock, tiles, strap (iron straps over wood), stone (plain wall stone whose painted
-brown grime is not metal).
+brown grime is not metal), plate (a dull mottled metal plate: all its dark and mid tones are bronze,
+not the patchwork of gold and stone colour alone makes of it).
 """
 import numpy as np
 
@@ -22,8 +23,10 @@ def rect_mask(atlas, names, h, w):
     return m
 
 
-def compute(a, atlas):
-    """a: (h, w, 3) sRGB values, rows bottom-up. Returns the nine masks of NAMES."""
+def compute(a, atlas, coherent=False):
+    """a: (h, w, 3) sRGB values, rows bottom-up. Returns the nine masks of NAMES.
+    coherent: keep metal only where it forms solid plates (sheets without hints, where rusty grime
+    and brown rock otherwise read as speckles of gold)."""
     H, S, Vv = hsv(a)
     h, w = a.shape[:2]
     lum = a @ np.array([0.3, 0.59, 0.11], np.float32)
@@ -35,6 +38,8 @@ def compute(a, atlas):
     stone = rect_mask(atlas, ["stone"], h, w)
     wood = wood * (1 - stone)
     bronze = np.clip(warm - gold - wood, 0, 1) * (1 - stone)
+    plate = rect_mask(atlas, ["plate"], h, w) * (1 - smooth(lum, 0.55, 0.7)) * (1 - wood) * (1 - gold)
+    bronze = np.maximum(bronze, plate)
     teal = smooth(S, 0.08, 0.2) * (H > 120) * (H < 220)
     # glyphs: the light strokes inside the frieze bands; band ground: the rest of the band
     glyph = band_r * smooth(lum, 0.52, 0.66) * (1 - smooth(S, 0.25, 0.4))
@@ -52,6 +57,12 @@ def compute(a, atlas):
     tiles = rect_mask(atlas, ["tiles"], h, w).astype(np.float32)
     for m in (bronze, gold, wood):             # yellowish tiles and brown rock are not metal or wood
         m *= (1 - rock) * (1 - tiles)
+    if coherent:
+        rust = gold * (1 - smooth(H, 40.0, 46.0))              # orange-brown "gold" is rust: bronze
+        gold -= rust
+        bronze += rust
+        for m in (bronze, gold):
+            m *= smooth(roll_blur(m, 6), 0.45, 0.7)
     detail = np.abs(lum - local)
     plain = (1 - smooth(roll_blur(detail, 4), 0.025, 0.06)) * (1 - smooth(S, 0.12, 0.22))
     for m in (bronze, gold, wood, ground, glyph, iron):

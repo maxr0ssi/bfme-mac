@@ -1,0 +1,1085 @@
+From 982e0c3b2b681d113beb7531aea287cf96e41839 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 15:07:43 -0400
+Subject: [PATCH 19/19] wined3d: Record linked GLSL programs and build them
+ again in idle CS time in later runs.
+
+Linking a GL program takes 3-7 ms on macOS, and wined3d links each program the first time a
+draw needs it, so every new combination of shaders and state is a hitch; a game meeting a new
+unit or effect links a dozen at once. Record what each program was linked from - the byte code
+hash and compile arguments of its D3D shaders, or its fixed function settings, and the state the
+link itself depends on - in %LOCALAPPDATA%\wined3d\<executable>.glslprograms. In later runs, queue
+each recorded program once the D3D shaders it needs have been created (fixed function ones at
+once), pairing a shader with the most recently created shader for the other stage, and build the
+queue while the CS thread has nothing else to do, one program at a time. A program built ahead
+is only found by the ordinary lookup at draw time, which compares GL shader objects, so it is only
+used where the draw would have linked exactly the same program. The file starts over when the
+record layout changes. WINED3D_PROGRAM_CACHE=0 disables recording and building.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/cs.c              |   7 +
+ dlls/wined3d/glsl_shader.c     | 888 ++++++++++++++++++++++++++++-----
+ dlls/wined3d/wined3d_private.h |   2 +
+ 3 files changed, 784 insertions(+), 113 deletions(-)
+
+diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
+index c3960cfe3d5..8a3a451df8e 100644
+--- a/dlls/wined3d/cs.c
++++ b/dlls/wined3d/cs.c
+@@ -3631,6 +3631,13 @@ static DWORD WINAPI wined3d_cs_run(void *ctx)
+             queue = &cs->queue[WINED3D_CS_QUEUE_DEFAULT];
+             if (wined3d_cs_queue_is_empty(cs, queue))
+             {
++                const struct wined3d_shader_backend_ops *backend = cs->c.device->shader_backend;
++
++                if (backend && backend->shader_idle_work && backend->shader_idle_work(cs->c.device))
++                {
++                    spin_count = 0;
++                    continue;
++                }
+                 YieldProcessor();
+                 if (++spin_count >= WINED3D_CS_SPIN_COUNT)
+                 {
+diff --git a/dlls/wined3d/glsl_shader.c b/dlls/wined3d/glsl_shader.c
+index f016d09cc10..1dbb2caebe1 100644
+--- a/dlls/wined3d/glsl_shader.c
++++ b/dlls/wined3d/glsl_shader.c
+@@ -142,6 +142,9 @@ struct shader_glsl_priv
+     BOOL legacy_lighting;
+ 
+     struct wine_rb_tree rasterizer_setup_shaders;
++
++    struct glsl_program_cache *program_cache;
++    BOOL program_cache_opened;
+ };
+ 
+ /* The vertex shader that feeds an SM1-3 vertex shader's outputs to the rasterizer, by source. */
+@@ -262,6 +265,9 @@ struct glsl_shader_prog_link
+     DWORD shader_controlled_clip_distances : 1;
+     DWORD clip_distance_mask : 8; /* WINED3D_MAX_CLIP_DISTANCES, 8 */
+     DWORD padding : 23;
++    /* The fixed function shaders the program was linked from, if any. */
++    const struct glsl_ffp_vertex_shader *ffp_vs;
++    const struct glsl_ffp_fragment_shader *ffp_ps;
+ };
+ 
+ struct glsl_program_key
+@@ -336,6 +342,7 @@ struct glsl_shader_private
+         struct glsl_cs_compiled_shader *cs;
+     } gl_shaders;
+     unsigned int num_gl_shaders, shader_array_size;
++    uint64_t hash; /* of the byte code, for the program cache; 0 until computed */
+ };
+ 
+ struct glsl_ffp_vertex_shader
+@@ -8812,11 +8819,11 @@ static BOOL vs_args_equal(const struct vs_compile_args *stored, const struct vs_
+     return !memcmp(stored->interpolation_mode, new->interpolation_mode, sizeof(new->interpolation_mode));
+ }
+ 
+-static GLuint find_glsl_vertex_shader(const struct wined3d_context_gl *context_gl,
+-        struct shader_glsl_priv *priv, struct wined3d_shader *shader, const struct vs_compile_args *args)
++static GLuint find_glsl_vertex_shader_use_map(const struct wined3d_context_gl *context_gl,
++        struct shader_glsl_priv *priv, struct wined3d_shader *shader, const struct vs_compile_args *args,
++        uint32_t use_map)
+ {
+     struct glsl_vs_compiled_shader *gl_shaders, *new_array;
+-    uint32_t use_map = context_gl->c.stream_info.use_map;
+     struct glsl_shader_private *shader_data;
+     unsigned int i, new_size;
+     GLuint ret;
+@@ -8875,6 +8882,12 @@ static GLuint find_glsl_vertex_shader(const struct wined3d_context_gl *context_g
+     return ret;
+ }
+ 
++static GLuint find_glsl_vertex_shader(const struct wined3d_context_gl *context_gl,
++        struct shader_glsl_priv *priv, struct wined3d_shader *shader, const struct vs_compile_args *args)
++{
++    return find_glsl_vertex_shader_use_map(context_gl, priv, shader, args, context_gl->c.stream_info.use_map);
++}
++
+ static GLuint find_glsl_hull_shader(const struct wined3d_context_gl *context_gl,
+         struct shader_glsl_priv *priv, struct wined3d_shader *shader)
+ {
+@@ -10577,140 +10590,381 @@ static void set_glsl_compute_shader_program(const struct wined3d_context_gl *con
+ }
+ 
+ /* Context activation is done by the caller. */
+-static void set_glsl_shader_program(const struct wined3d_context_gl *context_gl, const struct wined3d_state *state,
+-        struct shader_glsl_priv *priv, struct glsl_context_data *ctx_data)
+-{
+-    const struct wined3d_d3d_info *d3d_info = context_gl->c.d3d_info;
+-    const struct wined3d_gl_info *gl_info = context_gl->gl_info;
+-    const struct wined3d_shader *pre_rasterization_shader;
+-    struct wined3d_shader *hshader, *dshader, *gshader;
+-    struct glsl_shader_prog_link *entry = NULL;
+-    struct wined3d_shader *vshader = NULL;
+-    struct wined3d_shader *pshader = NULL;
+-    struct glsl_active_uniforms active;
+-    GLuint reorder_shader_id = 0;
+-    struct glsl_program_key key;
+-    BOOL active_listed;
+-    uint32_t attribs_map;
+-    GLuint program_id;
+-    unsigned int i;
+-    GLuint vs_id = 0;
+-    GLuint hs_id = 0;
+-    GLuint ds_id = 0;
+-    GLuint gs_id = 0;
+-    GLuint ps_id = 0;
+-    struct list *ps_list, *vs_list;
+-    struct wined3d_string_buffer *tmp_name;
++struct glsl_program_desc
++{
++    GLuint vs_id, hs_id, ds_id, gs_id, ps_id;
++    struct list *vs_list, *ps_list;
++    struct wined3d_shader *vshader, *hshader, *dshader, *gshader, *pshader;
++    const struct glsl_ffp_vertex_shader *ffp_vs;
++    const struct glsl_ffp_fragment_shader *ffp_ps;
++    BOOL per_vertex_point_size, flatshading, dual_source;
++};
+ 
+-    if (!(context_gl->c.shader_update_mask & (1u << WINED3D_SHADER_TYPE_VERTEX)) && ctx_data->glsl_program)
++/* GLSL program cache.
++ *
++ * Linking a GL program takes milliseconds with some drivers (3-7 ms on macOS), and wined3d links
++ * each program when a draw first needs it, so every new combination of shaders and state is a
++ * hitch in the frame that meets it. Record what each linked program was built from - the byte code
++ * hashes and compile arguments of its D3D shaders, or the fixed function settings - in a file
++ * under the user's local application data, one per executable. In later runs, build those
++ * programs again while the CS thread has nothing else to do, as soon as the D3D shaders they need
++ * exist. A program built ahead is only found by the ordinary lookup at draw time, which compares
++ * GL shader objects, i.e. only where the draw would have built exactly the same program.
++ * WINED3D_PROGRAM_CACHE=0 disables recording and building. */
++#define GLSL_PROGRAM_CACHE_VERSION 1
++#define GLSL_PROGRAM_CACHE_MAX_RECORDS 8192
++
++enum glsl_program_record_flags
++{
++    GLSL_PROGRAM_VS_FFP         = 0x01,
++    GLSL_PROGRAM_PS_NONE        = 0x02,
++    GLSL_PROGRAM_PS_FFP         = 0x04,
++    GLSL_PROGRAM_POINT_SIZE     = 0x08,
++    GLSL_PROGRAM_FLATSHADING    = 0x10,
++    GLSL_PROGRAM_DUAL_SOURCE    = 0x20,
++};
++
++struct glsl_program_record
++{
++    uint32_t flags;
++    uint32_t use_map;
++    uint64_t vs_hash;
++    uint64_t ps_hash;
++    union
+     {
+-        vs_id = ctx_data->glsl_program->vs.id;
+-        vs_list = &ctx_data->glsl_program->vs.shader_entry;
++        struct vs_compile_args shader;
++        struct wined3d_ffp_vs_settings ffp;
++    } vs;
++    union
++    {
++        struct ps_compile_args shader;
++        struct ffp_frag_settings ffp;
++    } ps;
++};
+ 
+-        if (use_vs(state) || d3d_info->ffp_hlsl)
+-            vshader = state->shader[WINED3D_SHADER_TYPE_VERTEX];
+-    }
+-    else if (use_vs(state) || d3d_info->ffp_hlsl)
++struct glsl_program_cache_header
++{
++    char magic[8];
++    uint32_t version;
++    uint32_t sizes[5];
++};
++
++struct glsl_known_program
++{
++    struct wine_rb_entry entry;
++    struct glsl_program_record record;
++};
++
++/* The live D3D shaders with the same byte code, oldest first, with their creation serials. */
++struct glsl_live_shader
++{
++    struct wine_rb_entry entry;
++    uint64_t hash;
++    struct glsl_live_shader_object
+     {
+-        struct vs_compile_args vs_compile_args;
++        struct wined3d_shader *shader;
++        unsigned int serial;
++    } *shaders;
++    SIZE_T size;
++    unsigned int count;
++};
+ 
+-        vshader = state->shader[WINED3D_SHADER_TYPE_VERTEX];
++/* A recorded program to build, with the D3D shaders whose creation completed it. */
++struct glsl_program_job
++{
++    struct glsl_known_program *known;
++    struct wined3d_shader *vshader, *pshader;
++};
+ 
+-        find_vs_compile_args(state, vshader, &vs_compile_args, &context_gl->c);
+-        vs_id = find_glsl_vertex_shader(context_gl, priv, vshader, &vs_compile_args);
+-        vs_list = &vshader->linked_programs;
++struct glsl_program_cache
++{
++    HANDLE file;
++    struct wine_rb_tree known;  /* struct glsl_known_program by record */
++    unsigned int known_count;
++    struct wine_rb_tree live;   /* struct glsl_live_shader by byte code hash */
++    unsigned int serial;
++    struct glsl_program_job *pending;
++    SIZE_T pending_size;
++    unsigned int pending_count, pending_next;
++    unsigned int built;
++};
++
++static int glsl_known_program_compare(const void *key, const struct wine_rb_entry *entry)
++{
++    return memcmp(key, &WINE_RB_ENTRY_VALUE(entry, const struct glsl_known_program, entry)->record,
++            sizeof(struct glsl_program_record));
++}
++
++static int glsl_live_shader_compare(const void *key, const struct wine_rb_entry *entry)
++{
++    uint64_t a = *(const uint64_t *)key, b = WINE_RB_ENTRY_VALUE(entry, const struct glsl_live_shader, entry)->hash;
++
++    return a < b ? -1 : a > b;
++}
++
++static void glsl_program_cache_header_init(struct glsl_program_cache_header *header)
++{
++    memset(header, 0, sizeof(*header));
++    memcpy(header->magic, "WD3DGLSL", sizeof(header->magic));
++    header->version = GLSL_PROGRAM_CACHE_VERSION;
++    header->sizes[0] = sizeof(struct glsl_program_record);
++    header->sizes[1] = sizeof(struct vs_compile_args);
++    header->sizes[2] = sizeof(struct wined3d_ffp_vs_settings);
++    header->sizes[3] = sizeof(struct ps_compile_args);
++    header->sizes[4] = sizeof(struct ffp_frag_settings);
++}
++
++/* A D3D shader's identity across runs: its type and byte code. */
++static uint64_t glsl_shader_get_hash(struct wined3d_shader *shader)
++{
++    struct glsl_shader_private *shader_data;
++    const unsigned char *code = shader->byte_code;
++    uint64_t hash = 0xcbf29ce484222325ull;
++    unsigned int i;
++
++    if (!shader->byte_code || shader->is_ffp_vs || shader->is_ffp_ps)
++        return 0;
++    if (!shader->backend_data && !(shader->backend_data = calloc(1, sizeof(*shader_data))))
++        return 0;
++    shader_data = shader->backend_data;
++    if (shader_data->hash)
++        return shader_data->hash;
++
++    hash = (hash ^ shader->reg_maps.shader_version.type) * 0x100000001b3ull;
++    hash = (hash ^ shader->source_type) * 0x100000001b3ull;
++    for (i = 0; i < shader->byte_code_size; ++i)
++        hash = (hash ^ code[i]) * 0x100000001b3ull;
++    hash ^= shader->byte_code_size;
++    return shader_data->hash = hash ? hash : 1;
++}
++
++static BOOL glsl_program_cache_enabled(void)
++{
++    static int enabled = -1;
++    char value[8];
++
++    if (enabled < 0)
++        enabled = !GetEnvironmentVariableA("WINED3D_PROGRAM_CACHE", value, sizeof(value)) || value[0] != '0';
++    return enabled;
++}
++
++static HANDLE glsl_program_cache_open_file(void)
++{
++    WCHAR path[MAX_PATH], exe[MAX_PATH];
++    const WCHAR *name;
++    DWORD length;
++
++    if (!(length = GetEnvironmentVariableW(L"LOCALAPPDATA", path, ARRAY_SIZE(path))) || length >= ARRAY_SIZE(path))
++        return INVALID_HANDLE_VALUE;
++    length = GetModuleFileNameW(NULL, exe, ARRAY_SIZE(exe));
++    if (!length || length >= ARRAY_SIZE(exe))
++        return INVALID_HANDLE_VALUE;
++    name = wcsrchr(exe, '\\') ? wcsrchr(exe, '\\') + 1 : exe;
++    if (wcslen(path) + wcslen(name) + 32 >= ARRAY_SIZE(path))
++        return INVALID_HANDLE_VALUE;
++    wcscat(path, L"\\wined3d");
++    CreateDirectoryW(path, NULL);
++    wcscat(path, L"\\");
++    wcscat(path, name);
++    wcscat(path, L".glslprograms");
++    TRACE("Program cache %s.\n", debugstr_w(path));
++    return CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
++            NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
++}
++
++static struct glsl_known_program *glsl_program_cache_add(struct glsl_program_cache *cache,
++        const struct glsl_program_record *record)
++{
++    struct glsl_known_program *known;
++
++    if (cache->known_count >= GLSL_PROGRAM_CACHE_MAX_RECORDS || wine_rb_get(&cache->known, record))
++        return NULL;
++    if (!(known = malloc(sizeof(*known))))
++        return NULL;
++    known->record = *record;
++    wine_rb_put(&cache->known, &known->record, &known->entry);
++    ++cache->known_count;
++    return known;
++}
++
++static void glsl_program_cache_queue(struct glsl_program_cache *cache, struct glsl_known_program *known,
++        struct wined3d_shader *vshader, struct wined3d_shader *pshader)
++{
++    struct glsl_program_job *job;
++
++    if (!wined3d_array_reserve((void **)&cache->pending, &cache->pending_size,
++            cache->pending_count + 1, sizeof(*cache->pending)))
++        return;
++    job = &cache->pending[cache->pending_count++];
++    job->known = known;
++    job->vshader = vshader;
++    job->pshader = pshader;
++}
++
++/* Reads the records of earlier runs; a missing file, a file from another version of the record
++ * layout and a partial record at the end are all dealt with by starting over or truncating. */
++static void glsl_program_cache_load(struct glsl_program_cache *cache)
++{
++    struct glsl_program_cache_header header, expected;
++    struct glsl_program_record record;
++    struct glsl_known_program *known;
++    unsigned int count = 0;
++    DWORD size;
++    LARGE_INTEGER end;
++
++    glsl_program_cache_header_init(&expected);
++    if (!ReadFile(cache->file, &header, sizeof(header), &size, NULL) || size != sizeof(header)
++            || memcmp(&header, &expected, sizeof(header)))
++    {
++        TRACE("Starting a new program cache.\n");
++        SetFilePointer(cache->file, 0, NULL, FILE_BEGIN);
++        SetEndOfFile(cache->file);
++        WriteFile(cache->file, &expected, sizeof(expected), &size, NULL);
++        return;
+     }
+-    else if (priv->vertex_pipe == &glsl_vertex_pipe)
+-    {
+-        struct glsl_ffp_vertex_shader *ffp_shader;
+-        struct wined3d_ffp_vs_settings settings;
+ 
+-        wined3d_ffp_get_vs_settings(state, &context_gl->c.stream_info, d3d_info, &settings);
+-        ffp_shader = shader_glsl_find_ffp_vertex_shader(priv, gl_info, &settings);
+-        vs_id = ffp_shader->id;
+-        vs_list = &ffp_shader->linked_programs;
++    while (ReadFile(cache->file, &record, sizeof(record), &size, NULL) && size == sizeof(record))
++    {
++        ++count;
++        if (!(known = glsl_program_cache_add(cache, &record)))
++            continue;
++        /* Fixed function programs need no D3D shader: build them right away. */
++        if ((record.flags & GLSL_PROGRAM_VS_FFP) && (record.flags & (GLSL_PROGRAM_PS_FFP | GLSL_PROGRAM_PS_NONE)))
++            glsl_program_cache_queue(cache, known, NULL, NULL);
+     }
++    end.QuadPart = sizeof(header) + (LONGLONG)count * sizeof(record);
++    SetFilePointerEx(cache->file, end, NULL, FILE_BEGIN);
++    SetEndOfFile(cache->file);
++    TRACE("Read %u program records.\n", cache->known_count);
++}
+ 
+-    hshader = state->shader[WINED3D_SHADER_TYPE_HULL];
+-    if (!(context_gl->c.shader_update_mask & (1u << WINED3D_SHADER_TYPE_HULL)) && ctx_data->glsl_program)
+-        hs_id = ctx_data->glsl_program->hs.id;
+-    else if (hshader)
+-        hs_id = find_glsl_hull_shader(context_gl, priv, hshader);
++static struct glsl_program_cache *glsl_program_cache_get(struct shader_glsl_priv *priv)
++{
++    struct glsl_program_cache *cache;
+ 
+-    dshader = state->shader[WINED3D_SHADER_TYPE_DOMAIN];
+-    if (!(context_gl->c.shader_update_mask & (1u << WINED3D_SHADER_TYPE_DOMAIN)) && ctx_data->glsl_program)
++    if (priv->program_cache_opened)
++        return priv->program_cache;
++    priv->program_cache_opened = TRUE;
++
++    if (!glsl_program_cache_enabled())
++        return NULL;
++    if (!(cache = calloc(1, sizeof(*cache))))
++        return NULL;
++    if ((cache->file = glsl_program_cache_open_file()) == INVALID_HANDLE_VALUE)
+     {
+-        ds_id = ctx_data->glsl_program->ds.id;
++        WARN("Failed to open the program cache.\n");
++        free(cache);
++        return NULL;
+     }
+-    else if (dshader)
+-    {
+-        struct ds_compile_args args;
++    wine_rb_init(&cache->known, glsl_known_program_compare);
++    wine_rb_init(&cache->live, glsl_live_shader_compare);
++    glsl_program_cache_load(cache);
++    return priv->program_cache = cache;
++}
+ 
+-        find_ds_compile_args(state, dshader, &args, &context_gl->c);
+-        ds_id = find_glsl_domain_shader(context_gl, priv, dshader, &args);
+-    }
++/* Called when a draw has linked a new program. */
++static void shader_glsl_program_cache_record(struct shader_glsl_priv *priv,
++        const struct wined3d_context_gl *context_gl, const struct glsl_program_desc *desc)
++{
++    struct glsl_program_record record;
++    struct glsl_shader_private *shader_data;
++    struct glsl_program_cache *cache;
++    unsigned int i;
++    DWORD written;
+ 
+-    gshader = state->shader[WINED3D_SHADER_TYPE_GEOMETRY];
+-    if (!(context_gl->c.shader_update_mask & (1u << WINED3D_SHADER_TYPE_GEOMETRY)) && ctx_data->glsl_program)
++    if (!desc->vs_id || desc->hs_id || desc->ds_id || desc->gs_id)
++        return;
++    if (!(cache = glsl_program_cache_get(priv)))
++        return;
++
++    memset(&record, 0, sizeof(record));
++    if (desc->vshader)
+     {
+-        gs_id = ctx_data->glsl_program->gs.id;
++        if (desc->vshader->reg_maps.shader_version.major >= 4 || !(record.vs_hash = glsl_shader_get_hash(desc->vshader)))
++            return;
++        shader_data = desc->vshader->backend_data;
++        for (i = 0; i < shader_data->num_gl_shaders; ++i)
++        {
++            if (shader_data->gl_shaders.vs[i].id == desc->vs_id)
++                break;
++        }
++        if (i == shader_data->num_gl_shaders)
++            return;
++        record.vs.shader = shader_data->gl_shaders.vs[i].args;
++        record.use_map = context_gl->c.stream_info.use_map;
+     }
+-    else if (gshader)
++    else if (desc->ffp_vs)
+     {
+-        struct gs_compile_args args;
+-
+-        find_gs_compile_args(state, gshader, &args, &context_gl->c);
+-        gs_id = find_glsl_geometry_shader(context_gl, priv, gshader, &args);
++        record.flags |= GLSL_PROGRAM_VS_FFP;
++        record.vs.ffp = desc->ffp_vs->desc.settings;
+     }
+-
+-    /* A pixel shader is not used when rasterization is disabled. */
+-    if (is_rasterization_disabled(gshader))
++    else
+     {
+-        ps_id = 0;
+-        ps_list = NULL;
++        return;
+     }
+-    else if (!(context_gl->c.shader_update_mask & (1u << WINED3D_SHADER_TYPE_PIXEL)) && ctx_data->glsl_program)
+-    {
+-        ps_id = ctx_data->glsl_program->ps.id;
+-        ps_list = &ctx_data->glsl_program->ps.shader_entry;
+ 
+-        if (use_ps(state))
+-            pshader = state->shader[WINED3D_SHADER_TYPE_PIXEL];
++    if (!desc->ps_id)
++    {
++        record.flags |= GLSL_PROGRAM_PS_NONE;
+     }
+-    else if (use_ps(state))
++    else if (desc->pshader)
+     {
+-        struct ps_compile_args ps_compile_args;
+-        pshader = state->shader[WINED3D_SHADER_TYPE_PIXEL];
+-        find_ps_compile_args(state, pshader, context_gl->c.stream_info.position_transformed,
+-                &ps_compile_args, &context_gl->c);
+-        ps_id = find_glsl_fragment_shader(context_gl, priv, pshader, &ps_compile_args);
+-        ps_list = &pshader->linked_programs;
++        if (desc->pshader->reg_maps.shader_version.major >= 4 || !(record.ps_hash = glsl_shader_get_hash(desc->pshader)))
++            return;
++        shader_data = desc->pshader->backend_data;
++        for (i = 0; i < shader_data->num_gl_shaders; ++i)
++        {
++            if (shader_data->gl_shaders.ps[i].id == desc->ps_id)
++                break;
++        }
++        if (i == shader_data->num_gl_shaders)
++            return;
++        record.ps.shader = shader_data->gl_shaders.ps[i].args;
+     }
+-    else if (priv->fragment_pipe == &glsl_fragment_pipe
+-            && !(vshader && vshader->reg_maps.shader_version.major >= 4))
++    else if (desc->ffp_ps)
+     {
+-        struct glsl_ffp_fragment_shader *ffp_shader;
+-        struct ffp_frag_settings settings;
+-
+-        wined3d_ffp_get_fs_settings(state, d3d_info, &settings);
+-        ffp_shader = shader_glsl_find_ffp_fragment_shader(priv, &settings, context_gl);
+-        ps_id = ffp_shader->id;
+-        ps_list = &ffp_shader->linked_programs;
++        record.flags |= GLSL_PROGRAM_PS_FFP;
++        record.ps.ffp = desc->ffp_ps->entry.settings;
+     }
+-
+-    key.vs_id = vs_id;
+-    key.hs_id = hs_id;
+-    key.ds_id = ds_id;
+-    key.gs_id = gs_id;
+-    key.ps_id = ps_id;
+-    key.cs_id = 0;
+-    if ((!vs_id && !hs_id && !ds_id && !gs_id && !ps_id) || (entry = get_glsl_program_entry(priv, &key)))
++    else
+     {
+-        ctx_data->glsl_program = entry;
+         return;
+     }
+ 
+-    /* If we get to this point, then no matching program exists, so we create one */
++    if (desc->per_vertex_point_size)
++        record.flags |= GLSL_PROGRAM_POINT_SIZE;
++    if (desc->flatshading)
++        record.flags |= GLSL_PROGRAM_FLATSHADING;
++    if (desc->dual_source)
++        record.flags |= GLSL_PROGRAM_DUAL_SOURCE;
++
++    if (!glsl_program_cache_add(cache, &record))
++        return;
++    if (!WriteFile(cache->file, &record, sizeof(record), &written, NULL) || written != sizeof(record))
++        WARN("Failed to write a program record.\n");
++}
++
++/* Context activation is done by the caller. */
++static struct glsl_shader_prog_link *shader_glsl_create_graphics_program(const struct wined3d_context_gl *context_gl,
++        struct shader_glsl_priv *priv, const struct glsl_program_desc *desc)
++{
++    const struct wined3d_gl_info *gl_info = context_gl->gl_info;
++    struct wined3d_shader *vshader = desc->vshader, *hshader = desc->hshader;
++    struct wined3d_shader *dshader = desc->dshader, *gshader = desc->gshader;
++    struct wined3d_shader *pshader = desc->pshader;
++    GLuint vs_id = desc->vs_id, hs_id = desc->hs_id, ds_id = desc->ds_id;
++    GLuint gs_id = desc->gs_id, ps_id = desc->ps_id;
++    struct list *vs_list = desc->vs_list, *ps_list = desc->ps_list;
++    const struct wined3d_shader *pre_rasterization_shader;
++    struct glsl_shader_prog_link *entry;
++    struct glsl_active_uniforms active;
++    struct wined3d_string_buffer *tmp_name;
++    GLuint reorder_shader_id = 0;
++    BOOL active_listed;
++    uint32_t attribs_map;
++    GLuint program_id;
++    unsigned int i;
++
+     program_id = GL_EXTCALL(glCreateProgram());
+     TRACE("Created new GLSL shader program %u.\n", program_id);
+ 
+@@ -10725,12 +10979,11 @@ static void set_glsl_shader_program(const struct wined3d_context_gl *context_gl,
+     entry->cs.id = 0;
+     entry->constant_version = 0;
+     entry->shader_controlled_clip_distances = 0;
++    entry->ffp_vs = desc->ffp_vs;
++    entry->ffp_ps = desc->ffp_ps;
+     /* Add the hash table entry */
+     add_glsl_program_entry(priv, entry);
+ 
+-    /* Set the current program */
+-    ctx_data->glsl_program = entry;
+-
+     /* Attach GLSL vshader */
+     if (vs_id)
+     {
+@@ -10749,9 +11002,7 @@ static void set_glsl_shader_program(const struct wined3d_context_gl *context_gl,
+             BOOL owned;
+ 
+             reorder_shader_id = shader_glsl_generate_vs3_rasterizer_input_setup(priv, vshader, pshader,
+-                    state->primitive_type == WINED3D_PT_POINTLIST && vshader->reg_maps.point_size,
+-                    d3d_info->emulated_flatshading
+-                    && state->render_states[WINED3D_RS_SHADEMODE] == WINED3D_SHADE_FLAT, gl_info, &owned);
++                    desc->per_vertex_point_size, desc->flatshading, gl_info, &owned);
+             TRACE("Attaching GLSL shader object %u to program %u.\n", reorder_shader_id, program_id);
+             GL_EXTCALL(glAttachShader(program_id, reorder_shader_id));
+             checkGLcall("glAttachShader");
+@@ -10798,7 +11049,7 @@ static void set_glsl_shader_program(const struct wined3d_context_gl *context_gl,
+             for (i = 0; i < WINED3D_MAX_RENDER_TARGETS; ++i)
+             {
+                 string_buffer_sprintf(tmp_name, "color_out%u", i);
+-                if (state->blend_state && state->blend_state->dual_source)
++                if (desc->dual_source)
+                     GL_EXTCALL(glBindFragDataLocationIndexed(program_id, 0, i, tmp_name->buffer));
+                 else
+                     GL_EXTCALL(glBindFragDataLocation(program_id, i, tmp_name->buffer));
+@@ -11003,6 +11254,411 @@ static void set_glsl_shader_program(const struct wined3d_context_gl *context_gl,
+         if (entry->ps.color_key_location != -1)
+             entry->constant_update_mask |= WINED3D_SHADER_CONST_FFP_COLOR_KEY;
+     }
++
++    return entry;
++}
++
++static void set_glsl_shader_program(const struct wined3d_context_gl *context_gl, const struct wined3d_state *state,
++        struct shader_glsl_priv *priv, struct glsl_context_data *ctx_data)
++{
++    const struct wined3d_d3d_info *d3d_info = context_gl->c.d3d_info;
++    const struct wined3d_gl_info *gl_info = context_gl->gl_info;
++    struct wined3d_shader *hshader, *dshader, *gshader;
++    struct glsl_shader_prog_link *entry = NULL;
++    struct glsl_program_desc desc = {0};
++    struct wined3d_shader *vshader = NULL;
++    struct wined3d_shader *pshader = NULL;
++    struct glsl_program_key key;
++    GLuint vs_id = 0;
++    GLuint hs_id = 0;
++    GLuint ds_id = 0;
++    GLuint gs_id = 0;
++    GLuint ps_id = 0;
++    struct list *ps_list = NULL, *vs_list = NULL;
++
++    if (!(context_gl->c.shader_update_mask & (1u << WINED3D_SHADER_TYPE_VERTEX)) && ctx_data->glsl_program)
++    {
++        vs_id = ctx_data->glsl_program->vs.id;
++        vs_list = &ctx_data->glsl_program->vs.shader_entry;
++        desc.ffp_vs = ctx_data->glsl_program->ffp_vs;
++
++        if (use_vs(state) || d3d_info->ffp_hlsl)
++            vshader = state->shader[WINED3D_SHADER_TYPE_VERTEX];
++    }
++    else if (use_vs(state) || d3d_info->ffp_hlsl)
++    {
++        struct vs_compile_args vs_compile_args;
++
++        vshader = state->shader[WINED3D_SHADER_TYPE_VERTEX];
++
++        find_vs_compile_args(state, vshader, &vs_compile_args, &context_gl->c);
++        vs_id = find_glsl_vertex_shader(context_gl, priv, vshader, &vs_compile_args);
++        vs_list = &vshader->linked_programs;
++    }
++    else if (priv->vertex_pipe == &glsl_vertex_pipe)
++    {
++        struct glsl_ffp_vertex_shader *ffp_shader;
++        struct wined3d_ffp_vs_settings settings;
++
++        wined3d_ffp_get_vs_settings(state, &context_gl->c.stream_info, d3d_info, &settings);
++        ffp_shader = shader_glsl_find_ffp_vertex_shader(priv, gl_info, &settings);
++        vs_id = ffp_shader->id;
++        vs_list = &ffp_shader->linked_programs;
++        desc.ffp_vs = ffp_shader;
++    }
++
++    hshader = state->shader[WINED3D_SHADER_TYPE_HULL];
++    if (!(context_gl->c.shader_update_mask & (1u << WINED3D_SHADER_TYPE_HULL)) && ctx_data->glsl_program)
++        hs_id = ctx_data->glsl_program->hs.id;
++    else if (hshader)
++        hs_id = find_glsl_hull_shader(context_gl, priv, hshader);
++
++    dshader = state->shader[WINED3D_SHADER_TYPE_DOMAIN];
++    if (!(context_gl->c.shader_update_mask & (1u << WINED3D_SHADER_TYPE_DOMAIN)) && ctx_data->glsl_program)
++    {
++        ds_id = ctx_data->glsl_program->ds.id;
++    }
++    else if (dshader)
++    {
++        struct ds_compile_args args;
++
++        find_ds_compile_args(state, dshader, &args, &context_gl->c);
++        ds_id = find_glsl_domain_shader(context_gl, priv, dshader, &args);
++    }
++
++    gshader = state->shader[WINED3D_SHADER_TYPE_GEOMETRY];
++    if (!(context_gl->c.shader_update_mask & (1u << WINED3D_SHADER_TYPE_GEOMETRY)) && ctx_data->glsl_program)
++    {
++        gs_id = ctx_data->glsl_program->gs.id;
++    }
++    else if (gshader)
++    {
++        struct gs_compile_args args;
++
++        find_gs_compile_args(state, gshader, &args, &context_gl->c);
++        gs_id = find_glsl_geometry_shader(context_gl, priv, gshader, &args);
++    }
++
++    /* A pixel shader is not used when rasterization is disabled. */
++    if (is_rasterization_disabled(gshader))
++    {
++        ps_id = 0;
++        ps_list = NULL;
++    }
++    else if (!(context_gl->c.shader_update_mask & (1u << WINED3D_SHADER_TYPE_PIXEL)) && ctx_data->glsl_program)
++    {
++        ps_id = ctx_data->glsl_program->ps.id;
++        ps_list = &ctx_data->glsl_program->ps.shader_entry;
++        desc.ffp_ps = ctx_data->glsl_program->ffp_ps;
++
++        if (use_ps(state))
++            pshader = state->shader[WINED3D_SHADER_TYPE_PIXEL];
++    }
++    else if (use_ps(state))
++    {
++        struct ps_compile_args ps_compile_args;
++        pshader = state->shader[WINED3D_SHADER_TYPE_PIXEL];
++        find_ps_compile_args(state, pshader, context_gl->c.stream_info.position_transformed,
++                &ps_compile_args, &context_gl->c);
++        ps_id = find_glsl_fragment_shader(context_gl, priv, pshader, &ps_compile_args);
++        ps_list = &pshader->linked_programs;
++    }
++    else if (priv->fragment_pipe == &glsl_fragment_pipe
++            && !(vshader && vshader->reg_maps.shader_version.major >= 4))
++    {
++        struct glsl_ffp_fragment_shader *ffp_shader;
++        struct ffp_frag_settings settings;
++
++        wined3d_ffp_get_fs_settings(state, d3d_info, &settings);
++        ffp_shader = shader_glsl_find_ffp_fragment_shader(priv, &settings, context_gl);
++        ps_id = ffp_shader->id;
++        ps_list = &ffp_shader->linked_programs;
++        desc.ffp_ps = ffp_shader;
++    }
++
++    key.vs_id = vs_id;
++    key.hs_id = hs_id;
++    key.ds_id = ds_id;
++    key.gs_id = gs_id;
++    key.ps_id = ps_id;
++    key.cs_id = 0;
++    if ((!vs_id && !hs_id && !ds_id && !gs_id && !ps_id) || (entry = get_glsl_program_entry(priv, &key)))
++    {
++        ctx_data->glsl_program = entry;
++        return;
++    }
++
++    desc.vs_id = vs_id;
++    desc.hs_id = hs_id;
++    desc.ds_id = ds_id;
++    desc.gs_id = gs_id;
++    desc.ps_id = ps_id;
++    desc.vs_list = vs_list;
++    desc.ps_list = ps_list;
++    desc.vshader = vshader;
++    desc.hshader = hshader;
++    desc.dshader = dshader;
++    desc.gshader = gshader;
++    desc.pshader = pshader;
++    desc.per_vertex_point_size = vshader && state->primitive_type == WINED3D_PT_POINTLIST
++            && vshader->reg_maps.point_size;
++    desc.flatshading = d3d_info->emulated_flatshading
++            && state->render_states[WINED3D_RS_SHADEMODE] == WINED3D_SHADE_FLAT;
++    desc.dual_source = state->blend_state && state->blend_state->dual_source;
++    ctx_data->glsl_program = shader_glsl_create_graphics_program(context_gl, priv, &desc);
++    shader_glsl_program_cache_record(priv, context_gl, &desc);
++}
++
++/* Context activation is done by the caller. */
++static BOOL glsl_program_cache_is_live(struct glsl_program_cache *cache, uint64_t hash, struct wined3d_shader *shader)
++{
++    struct glsl_live_shader *live;
++    struct wine_rb_entry *entry;
++    unsigned int i;
++
++    if (!(entry = wine_rb_get(&cache->live, &hash)))
++        return FALSE;
++    live = WINE_RB_ENTRY_VALUE(entry, struct glsl_live_shader, entry);
++    for (i = 0; i < live->count; ++i)
++    {
++        if (live->shaders[i].shader == shader)
++            return TRUE;
++    }
++    return FALSE;
++}
++
++/* Context activation is done by the caller. */
++static void shader_glsl_build_recorded_program(struct shader_glsl_priv *priv,
++        struct wined3d_context_gl *context_gl, const struct glsl_program_job *job)
++{
++    const struct glsl_program_record *record = &job->known->record;
++    struct glsl_context_data *ctx_data = context_gl->c.shader_backend_data;
++    struct glsl_program_cache *cache = priv->program_cache;
++    const struct wined3d_gl_info *gl_info = context_gl->gl_info;
++    struct glsl_program_desc desc = {0};
++    struct glsl_program_key key = {0};
++
++    if (record->flags & GLSL_PROGRAM_VS_FFP)
++    {
++        struct glsl_ffp_vertex_shader *ffp_vs;
++
++        if (priv->vertex_pipe != &glsl_vertex_pipe
++                || !(ffp_vs = shader_glsl_find_ffp_vertex_shader(priv, gl_info, &record->vs.ffp)))
++            return;
++        desc.vs_id = ffp_vs->id;
++        desc.vs_list = &ffp_vs->linked_programs;
++        desc.ffp_vs = ffp_vs;
++    }
++    else
++    {
++        if (!glsl_program_cache_is_live(cache, record->vs_hash, job->vshader))
++            return;
++        desc.vshader = job->vshader;
++        desc.vs_id = find_glsl_vertex_shader_use_map(context_gl, priv, desc.vshader, &record->vs.shader, record->use_map);
++        desc.vs_list = &desc.vshader->linked_programs;
++    }
++
++    if (record->flags & GLSL_PROGRAM_PS_FFP)
++    {
++        struct glsl_ffp_fragment_shader *ffp_ps;
++
++        if (priv->fragment_pipe != &glsl_fragment_pipe
++                || !(ffp_ps = shader_glsl_find_ffp_fragment_shader(priv, &record->ps.ffp, context_gl)))
++            return;
++        desc.ps_id = ffp_ps->id;
++        desc.ps_list = &ffp_ps->linked_programs;
++        desc.ffp_ps = ffp_ps;
++    }
++    else if (!(record->flags & GLSL_PROGRAM_PS_NONE))
++    {
++        if (!glsl_program_cache_is_live(cache, record->ps_hash, job->pshader))
++            return;
++        desc.pshader = job->pshader;
++        desc.ps_id = find_glsl_fragment_shader(context_gl, priv, desc.pshader, &record->ps.shader);
++        desc.ps_list = &desc.pshader->linked_programs;
++    }
++
++    if (!desc.vs_id || (!desc.ps_id && !(record->flags & GLSL_PROGRAM_PS_NONE)))
++        return;
++    key.vs_id = desc.vs_id;
++    key.ps_id = desc.ps_id;
++    if (get_glsl_program_entry(priv, &key))
++        return;
++
++    desc.per_vertex_point_size = !!(record->flags & GLSL_PROGRAM_POINT_SIZE);
++    desc.flatshading = !!(record->flags & GLSL_PROGRAM_FLATSHADING);
++    desc.dual_source = !!(record->flags & GLSL_PROGRAM_DUAL_SOURCE);
++    shader_glsl_create_graphics_program(context_gl, priv, &desc);
++    ++cache->built;
++    TRACE("Built recorded program %u of %u.\n", cache->built, cache->known_count);
++
++    /* Linking made the new program current; draws expect the one they last used. */
++    GL_EXTCALL(glUseProgram(ctx_data->glsl_program ? ctx_data->glsl_program->id : 0));
++    checkGLcall("glUseProgram");
++}
++
++/* Called by the CS thread when both its queues are empty: builds one recorded program. Returns
++ * whether it did, so that the CS looks at its queues again before building the next. */
++static bool shader_glsl_idle_work(struct wined3d_device *device)
++{
++    struct shader_glsl_priv *priv = device->shader_priv;
++    struct glsl_program_cache *cache;
++    struct wined3d_context *context;
++    struct glsl_program_job job;
++
++    if (!priv || !(cache = priv->program_cache) || cache->pending_next == cache->pending_count)
++        return false;
++    if (!device->d3d_initialized || !device->context_count)
++        return false;
++
++    job = cache->pending[cache->pending_next++];
++    if (cache->pending_next == cache->pending_count)
++        cache->pending_next = cache->pending_count = 0;
++
++    context = context_acquire(device, NULL, 0);
++    shader_glsl_build_recorded_program(priv, wined3d_context_gl(context), &job);
++    context_release(context);
++    return true;
++}
++
++/* The newest live D3D shader with this byte code. */
++static const struct glsl_live_shader_object *glsl_program_cache_newest(struct glsl_program_cache *cache, uint64_t hash)
++{
++    struct glsl_live_shader *live;
++    struct wine_rb_entry *entry;
++
++    if (!(entry = wine_rb_get(&cache->live, &hash)))
++        return NULL;
++    live = WINE_RB_ENTRY_VALUE(entry, struct glsl_live_shader, entry);
++    return live->count ? &live->shaders[live->count - 1] : NULL;
++}
++
++/* A new vertex or pixel shader: queue the recorded programs it completes, each with the newest
++ * live shader for its other half. Applications create shaders that are used together one after
++ * the other, also when they create the same byte code more than once (effects); when this byte
++ * code exists already, a partner older than its previous copy belongs to that copy, which had its
++ * programs queued when it was created. */
++static void shader_glsl_program_cache_shader_created(struct shader_glsl_priv *priv, struct wined3d_shader *shader)
++{
++    enum wined3d_shader_type type = shader->reg_maps.shader_version.type;
++    const struct glsl_live_shader_object *partner;
++    struct wined3d_shader *vshader, *pshader;
++    struct glsl_program_cache *cache;
++    struct glsl_known_program *known;
++    struct glsl_live_shader *live;
++    struct wine_rb_entry *entry;
++    unsigned int previous = 0;
++    uint64_t hash;
++
++    if ((type != WINED3D_SHADER_TYPE_VERTEX && type != WINED3D_SHADER_TYPE_PIXEL)
++            || shader->reg_maps.shader_version.major >= 4)
++        return;
++    if (!(cache = glsl_program_cache_get(priv)) || !(hash = glsl_shader_get_hash(shader)))
++        return;
++
++    if ((entry = wine_rb_get(&cache->live, &hash)))
++    {
++        live = WINE_RB_ENTRY_VALUE(entry, struct glsl_live_shader, entry);
++    }
++    else
++    {
++        if (!(live = calloc(1, sizeof(*live))))
++            return;
++        live->hash = hash;
++        wine_rb_put(&cache->live, &live->hash, &live->entry);
++    }
++    if (!wined3d_array_reserve((void **)&live->shaders, &live->size, live->count + 1, sizeof(*live->shaders)))
++        return;
++    if (live->count)
++        previous = live->shaders[live->count - 1].serial;
++    live->shaders[live->count].shader = shader;
++    live->shaders[live->count++].serial = ++cache->serial;
++
++    WINE_RB_FOR_EACH_ENTRY(known, &cache->known, struct glsl_known_program, entry)
++    {
++        const struct glsl_program_record *record = &known->record;
++
++        if (type == WINED3D_SHADER_TYPE_VERTEX)
++        {
++            if ((record->flags & GLSL_PROGRAM_VS_FFP) || record->vs_hash != hash)
++                continue;
++            vshader = shader;
++            pshader = NULL;
++            if (!(record->flags & (GLSL_PROGRAM_PS_FFP | GLSL_PROGRAM_PS_NONE)))
++            {
++                if (!(partner = glsl_program_cache_newest(cache, record->ps_hash)) || partner->serial < previous)
++                    continue;
++                pshader = partner->shader;
++            }
++        }
++        else
++        {
++            if ((record->flags & (GLSL_PROGRAM_PS_FFP | GLSL_PROGRAM_PS_NONE)) || record->ps_hash != hash)
++                continue;
++            pshader = shader;
++            vshader = NULL;
++            if (!(record->flags & GLSL_PROGRAM_VS_FFP))
++            {
++                if (!(partner = glsl_program_cache_newest(cache, record->vs_hash)) || partner->serial < previous)
++                    continue;
++                vshader = partner->shader;
++            }
++        }
++        glsl_program_cache_queue(cache, known, vshader, pshader);
++    }
++}
++
++static void shader_glsl_program_cache_shader_destroyed(struct shader_glsl_priv *priv, struct wined3d_shader *shader)
++{
++    struct glsl_shader_private *shader_data = shader->backend_data;
++    struct glsl_program_cache *cache;
++    struct glsl_live_shader *live;
++    struct wine_rb_entry *entry;
++    unsigned int i;
++
++    if (!priv || !(cache = priv->program_cache) || !shader_data || !shader_data->hash)
++        return;
++    if (!(entry = wine_rb_get(&cache->live, &shader_data->hash)))
++        return;
++    live = WINE_RB_ENTRY_VALUE(entry, struct glsl_live_shader, entry);
++    for (i = 0; i < live->count; ++i)
++    {
++        if (live->shaders[i].shader != shader)
++            continue;
++        memmove(&live->shaders[i], &live->shaders[i + 1], (live->count - i - 1) * sizeof(*live->shaders));
++        --live->count;
++        break;
++    }
++    if (live->count)
++        return;
++    wine_rb_remove(&cache->live, &live->entry);
++    free(live->shaders);
++    free(live);
++}
++
++static void glsl_program_cache_free_known(struct wine_rb_entry *entry, void *param)
++{
++    free(WINE_RB_ENTRY_VALUE(entry, struct glsl_known_program, entry));
++}
++
++static void glsl_program_cache_free_live(struct wine_rb_entry *entry, void *param)
++{
++    struct glsl_live_shader *live = WINE_RB_ENTRY_VALUE(entry, struct glsl_live_shader, entry);
++
++    free(live->shaders);
++    free(live);
++}
++
++static void glsl_program_cache_destroy(struct glsl_program_cache *cache)
++{
++    if (!cache)
++        return;
++    TRACE("Built %u of %u recorded programs.\n", cache->built, cache->known_count);
++    CloseHandle(cache->file);
++    wine_rb_destroy(&cache->known, glsl_program_cache_free_known, NULL);
++    wine_rb_destroy(&cache->live, glsl_program_cache_free_live, NULL);
++    free(cache->pending);
++    free(cache);
+ }
+ 
+ static void shader_glsl_precompile(void *shader_priv, struct wined3d_shader *shader)
+@@ -11010,6 +11666,8 @@ static void shader_glsl_precompile(void *shader_priv, struct wined3d_shader *sha
+     struct wined3d_device *device = shader->device;
+     struct wined3d_context *context;
+ 
++    shader_glsl_program_cache_shader_created(shader_priv, shader);
++
+     if (shader->reg_maps.shader_version.type == WINED3D_SHADER_TYPE_COMPUTE)
+     {
+         context = context_acquire(device, NULL, 0);
+@@ -11188,6 +11846,8 @@ static void shader_glsl_destroy(struct wined3d_shader *shader)
+     const struct list *linked_programs;
+     struct wined3d_context *context;
+ 
++    shader_glsl_program_cache_shader_destroyed(priv, shader);
++
+     if (!shader_data || !shader_data->num_gl_shaders)
+     {
+         free(shader_data);
+@@ -11489,6 +12149,7 @@ static void shader_glsl_free(struct wined3d_device *device, struct wined3d_conte
+ {
+     struct shader_glsl_priv *priv = device->shader_priv;
+ 
++    glsl_program_cache_destroy(priv->program_cache);
+     wine_rb_destroy(&priv->program_lookup, NULL, NULL);
+     wine_rb_destroy(&priv->rasterizer_setup_shaders, shader_glsl_free_rasterizer_setup_shader,
+             context ? (void *)wined3d_context_gl(context)->gl_info : NULL);
+@@ -11901,6 +12562,7 @@ const struct wined3d_shader_backend_ops glsl_shader_backend =
+     shader_glsl_get_caps,
+     shader_glsl_color_fixup_supported,
+     shader_glsl_shader_compile,
++    shader_glsl_idle_work,
+ };
+ 
+ static void glsl_vertex_pipe_vp_apply_draw_state(struct wined3d_context *context, const struct wined3d_state *state) {}
+diff --git a/dlls/wined3d/wined3d_private.h b/dlls/wined3d/wined3d_private.h
+index da2d12eb086..95594f00663 100644
+--- a/dlls/wined3d/wined3d_private.h
++++ b/dlls/wined3d/wined3d_private.h
+@@ -1549,6 +1549,8 @@ struct wined3d_shader_backend_ops
+     BOOL (*shader_color_fixup_supported)(struct color_fixup_desc fixup);
+     uint64_t (*shader_compile)(struct wined3d_context *context, const struct wined3d_shader_desc *shader_desc,
+         enum wined3d_shader_type shader_type);
++    /* Optional: work to do while the CS is idle. Returns whether it did any. */
++    bool (*shader_idle_work)(struct wined3d_device *device);
+ };
+ 
+ extern const struct wined3d_shader_backend_ops glsl_shader_backend;
+-- 
+2.39.5 (Apple Git-154)
+

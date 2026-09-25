@@ -51,13 +51,17 @@ class TagRamp(Layer):
 
 
 class MetalRims(Layer):
-    """Burnished rims around every bronze plate."""
+    """Burnished rims around every bronze plate. min_plate > 0 skips thin bronze (bars, rungs), which
+    is all rim and would turn wholly gold."""
 
-    def __init__(self, ramp_name="gold", lift=0.25):
-        self.ramp_name, self.lift = ramp_name, lift
+    def __init__(self, ramp_name="gold", lift=0.25, min_plate=0.0):
+        self.ramp_name, self.lift, self.min_plate = ramp_name, lift, min_plate
 
     def apply(self, col, cv, pal):
-        rim = (smooth(cv.bronze, 0.4, 0.7) * (1 - smooth(cv.bronze_blur, 0.80, 0.95)))[..., None]
+        rim = smooth(cv.bronze, 0.4, 0.7) * (1 - smooth(cv.bronze_blur, 0.80, 0.95))
+        if self.min_plate:
+            rim = rim * smooth(cv.bronze_blur, self.min_plate, self.min_plate + 0.15)
+        rim = rim[..., None]
         return col * (1 - rim) + ramp(np.clip(np.clip(cv.lum, 0, 1) + self.lift, 0, 1), pal[self.ramp_name]) * rim
 
 

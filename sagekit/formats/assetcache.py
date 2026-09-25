@@ -18,7 +18,7 @@ import struct
 
 from .w3d import W3DFile
 
-MODEL_TAGS = (b"REIH", b"HSEM", b"DOLH")   # hierarchy, mesh, HLOD (reversed)
+MODEL_TAGS = (b"REIH", b"HSEM", b"DOLH", b"MINA", b"XOB\0")   # hierarchy, mesh, HLOD, animation, box (reversed)
 
 
 class CacheError(Exception):
@@ -66,6 +66,9 @@ class AssetCache:
     def texture_names(self):
         return [a[0].lower() for a in self.sections()[0]]
 
+    def has_texture(self, name):
+        return name.lower().encode("latin-1") in self.texture_names()
+
     def dependencies(self, model, obj):
         """The names object `obj` of `model` depends on, or None if there is no such object."""
         for f, o, s, e in self.sections()[2]:
@@ -86,24 +89,37 @@ class AssetCache:
         key = bytes([len(model)]) + model.lower().encode("latin-1")
         at = data.lower().find(key)
         while at >= 0:
-            p = at + len(key) + 8                              # skip the timestamp
-            if p + 2 <= len(data):
-                count = struct.unpack_from("<H", data, p)[0]
-                entries, q, ok = [], p + 2, True
-                for _ in range(count):
-                    if q >= len(data):
-                        ok = False
-                        break
-                    n = data[q]
-                    name = data[q + 1:q + 1 + n].decode("latin-1", "replace")
-                    tag = data[q + 1 + n:q + 5 + n]
-                    offset, size = struct.unpack_from("<II", data, q + 5 + n)
-                    entries.append((name, tag, offset, size, q + 5 + n))
-                    q += 13 + n
-                if ok and entries and all(e[1] in MODEL_TAGS for e in entries):
-                    return entries
-            at = data.lower().find(key, at + 1)
+            entries = self._entries_at(data, at + len(key) + 8)     # skip the timestamp
+            if entries:
+                return entries
+            at = data.lower().find(key, at + 1)     # the name also appears in dependency lists
         raise CacheError("no W3D record for %s in %s" % (model, self.path))
+
+    @staticmethod
+    def _entries_at(data, p):
+        """The model record entries starting at p, or None if what is there is not one."""
+        if p + 2 > len(data):
+            return None
+        count = struct.unpack_from("<H", data, p)[0]
+        entries, q = [], p + 2
+        for _ in range(count):
+            if q >= len(data) or q + 13 + data[q] > len(data):
+                return None
+            n = data[q]
+            tag = data[q + 1 + n:q + 5 + n]
+            if tag not in MODEL_TAGS:
+                return None
+            offset, size = struct.unpack_from("<II", data, q + 5 + n)
+            entries.append((data[q + 1:q + 1 + n].decode("latin-1", "replace"), tag, offset, size, q + 5 + n))
+            q += 13 + n
+        return entries or None
+
+    def has_model(self, model):
+        try:
+            self.model_record(model)
+            return True
+        except CacheError:
+            return False
 
     def stale_entries(self, w3d_path, model=None):
         """[(record entry, file entry)] whose offset/size differ. Raises if the entry names differ

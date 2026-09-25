@@ -12,6 +12,10 @@ LOGDIR="$BFME_ROOT/logs"; mkdir -p "$LOGDIR"
 LOG="$LOGDIR/rotwk-$(date +%Y%m%d-%H%M%S).log"
 
 export WINE_CPU_TOPOLOGY=1:0
+# msync: Wine's in-process (Mach) sync objects instead of a wineserver round trip per wait/release.
+# The game takes a kernel mutex around its rendering thousands of times a second; in a big battle that
+# cost ~19 ms of every frame, ~2.5 ms with msync (docs/PERFORMANCE.md). WINEMSYNC=0 turns it off.
+export WINEMSYNC="${WINEMSYNC:-1}"
 if [[ "$RENDERER" == "dxvk" ]]; then
   export WINEDLLOVERRIDES="mscoree,mshtml=;d3d9=n"
   export DXVK_HUD=""            # DXVK's HUD text shader can't compile on MoltenVK (gl_DrawID)
@@ -19,6 +23,13 @@ if [[ "$RENDERER" == "dxvk" ]]; then
   export DXVK_LOG_PATH="$LOGDIR"
 else
   export WINEDLLOVERRIDES="mscoree,mshtml=;d3d9=b"
+fi
+# Game-side performance patch (gamepatch/, installed by scripts/game-patch.sh): a proxy dinput8.dll in
+# the game folder that patches the running game in memory at startup. Wine prefers its builtin dinput8,
+# so the native one is asked for explicitly, only while the patch is installed. Log: logs/gamepatch.log.
+if [[ -f "$GAMEDIR/gamepatch.ini" ]]; then
+  export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;dinput8=n,b"
+  export GAMEPATCH_LOG="${GAMEPATCH_LOG:-Z:${LOGDIR//\//\\}\\gamepatch.log}"
 fi
 
 cd "$GAMEDIR"

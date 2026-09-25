@@ -72,22 +72,39 @@ class Tier(enum.Enum):
     def normal(self):
         return self.value[1]
 
-    def bytes(self):
-        """Memory one building's own textures take: DXT1 diffuse with mips + uncompressed TGA normal."""
-        d = self.diffuse
-        return dxt1_size(d, d, full_chain(d)) + tga24_size(self.normal, self.normal)
+    def bytes(self, variants=0):
+        """Memory one building's own textures take: DXT1 diffuse with mips, uncompressed TGA normal,
+        and its state variants (damaged, snow, stonework) at half the diffuse size."""
+        d, v = self.diffuse, self.diffuse // 2
+        return dxt1_size(d, d, full_chain(d)) + tga24_size(self.normal, self.normal) + variants * dxt1_size(v, v, full_chain(v))
 
 
-def own_texture_name(original, building_code, taken=()):
-    """A building's own texture name for a shared original, of the SAME length (W3D texture names are
-    patched in place): DBFortress1 + code 'bar' -> 'DBBarracksX'-like. The first two letters (the
-    game's folder, e.g. 'db') are kept; the rest is the code padded with 'H' and cut to length."""
+def own_texture_name(original, taken=()):
+    """A building's own texture name for the sheet it was painted from, of the SAME length (W3D
+    texture names are patched in place): the stem's last letter becomes H (X if it already is H):
+    DBFortress1 -> DBFortressH, DBBunker -> DBBunkeH. Buildings sharing a sheet pin their own."""
     stem = original[:-4] if original.lower().endswith(".tga") else original
-    body = (building_code.upper().replace("_", "") + "H" * len(stem))[:len(stem) - 2]
-    name = stem[:2] + body
+    name = stem[:-1] + ("X" if stem[-1].lower() == "h" else "H")
     if name.lower() in {t.lower() for t in taken}:
         raise ValueError("texture name %s is taken; pin one in the Building" % name)
     return name
+
+
+def variant_class(texture):
+    """damaged / snow / stonework, from EA's variant suffix (_D, _D1, _Snow, _S, _U)."""
+    tail = texture[:-4].rsplit("_", 1)[-1].lower()
+    return {"d": "damaged", "d1": "damaged", "d2": "damaged", "snow": "snow", "s": "snow", "u": "stonework"}.get(tail)
+
+
+def own_variant_name(atlas_texture, own_texture, variant_texture):
+    """A state variant of a building's own texture, named like EA named theirs:
+    (DBFortress1.tga, DBFortressH.tga, DBFortress1_D.tga) -> DBFortressH_D.tga,
+    (DBFortress1.tga, DBFortressH.tga, DBFortress_U.tga)  -> DBFortressH_U.tga."""
+    a, v = atlas_texture[:-4], variant_texture[:-4]
+    n = 0
+    while n < min(len(a), len(v)) and a[n].lower() == v[n].lower():
+        n += 1
+    return own_texture[:-4] + v[n:] + ".tga"
 
 
 def check_id(kind, value):

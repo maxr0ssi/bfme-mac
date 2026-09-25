@@ -1,0 +1,30 @@
+From 0c7db91dda0bb7a4bebc3f2a7c80e81af75a5bce Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Fri, 19 Dec 2025 16:12:04 -0600
+Subject: [PATCH 04/10] wined3d: Avoid some invalidation when the vertex
+ declaration is set redundantly.
+
+Wine-Bug: https://bugs.winehq.org/show_bug.cgi?id=59013
+(cherry picked from commit 7f5c210596400ab2c6a7e1afff85a4882227df3d)
+---
+ dlls/wined3d/stateblock.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/dlls/wined3d/stateblock.c b/dlls/wined3d/stateblock.c
+index 54edf2cc1df..35499117751 100644
+--- a/dlls/wined3d/stateblock.c
++++ b/dlls/wined3d/stateblock.c
+@@ -1580,6 +1580,10 @@ void CDECL wined3d_stateblock_set_vertex_declaration(struct wined3d_stateblock *
+         wined3d_vertex_declaration_decref(prev);
+     stateblock->stateblock_state.vertex_declaration = declaration;
+     stateblock->changed.vertexDecl = TRUE;
++
++    if (declaration == prev)
++        return;
++
+     /* Texture matrices depend on the format of the TEXCOORD attributes. */
+     /* FIXME: They also depend on whether the draw is pretransformed,
+      * but that should go away. */
+-- 
+2.39.5 (Apple Git-154)
+

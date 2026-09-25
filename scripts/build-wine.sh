@@ -5,6 +5,7 @@
 #   scripts/build-wine.sh <label> [extra configure args...]     configure + make + make install
 #   CONFIGURE_ONLY=1 scripts/build-wine.sh <label> ...          stop after configure
 #   WINE_SRC=<tree> MAKE_TARGETS="<targets>" scripts/build-wine.sh <label> ...
+#   I386_CFLAGS="<flags>" overrides the compiler flags of 32-bit PE code (with MAKE_TARGETS)
 #                    build other sources (e.g. a git worktree) and only the named targets, no install
 #
 # Builds out of tree in wine/build-<label>/, installs to engines/src-<label>/ (env.sh then
@@ -107,7 +108,7 @@ export FLEX="/usr/bin/flex"
 export PATH="/opt/homebrew/opt/bison/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 start=$(date +%s)
 if [ -n "${MAKE_TARGETS:-}" ]; then
-  arch -x86_64 make -j"$(sysctl -n hw.ncpu)" $MAKE_TARGETS
+  arch -x86_64 make -j"$(sysctl -n hw.ncpu)" ${I386_CFLAGS:+"i386_CFLAGS=$I386_CFLAGS"} $MAKE_TARGETS
   echo "built $MAKE_TARGETS in $(( $(date +%s) - start )) s"; exit 0
 fi
 arch -x86_64 make -j"$(sysctl -n hw.ncpu)"

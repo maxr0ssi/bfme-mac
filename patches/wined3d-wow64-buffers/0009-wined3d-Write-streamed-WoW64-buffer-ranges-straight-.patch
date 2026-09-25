@@ -1,0 +1,366 @@
+From f9c6ac90931f1614158791086e874cb10e9ac2c6 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 10:03:13 -0400
+Subject: [PATCH 09/10] wined3d: Write streamed WoW64 buffer ranges straight
+ into host buffer memory.
+
+Add a small unix library to wined3d. On unmap of a DISCARD/NOOVERWRITE map in stream mode the CS
+calls it once per range: it orphans the buffer for DISCARD, then maps just the range with
+GL_MAP_UNSYNCHRONIZED_BIT, copies the application's bytes in and unmaps, on the host side where
+the driver's pointer is addressable. Measured on macOS (Apple M3 Max): 0.3 us per upload+draw
+natively, against 20-60 us for glBufferSubData() between draws and 70-140 us for a map through
+opengl32's WoW64 copy. Falls back to glBufferSubData() when wined3d.so is not installed.
+---
+ dlls/wined3d/Makefile.in       |  2 +
+ dlls/wined3d/buffer.c          | 14 ++++-
+ dlls/wined3d/context_gl.c      | 28 +++++++++-
+ dlls/wined3d/cs.c              |  7 +--
+ dlls/wined3d/unix_gl.c         | 98 ++++++++++++++++++++++++++++++++++
+ dlls/wined3d/unixlib.h         | 42 +++++++++++++++
+ dlls/wined3d/wined3d_main.c    |  4 ++
+ dlls/wined3d/wined3d_private.h |  5 ++
+ 8 files changed, 194 insertions(+), 6 deletions(-)
+ create mode 100644 dlls/wined3d/unix_gl.c
+ create mode 100644 dlls/wined3d/unixlib.h
+
+diff --git a/dlls/wined3d/Makefile.in b/dlls/wined3d/Makefile.in
+index 128956c66be..5c83f2de25b 100644
+--- a/dlls/wined3d/Makefile.in
++++ b/dlls/wined3d/Makefile.in
+@@ -1,4 +1,5 @@
+ MODULE    = wined3d.dll
++UNIXLIB   = wined3d.so
+ IMPORTLIB = wined3d
+ IMPORTS   = $(VKD3D_PE_LIBS) dxguid opengl32 user32 gdi32 advapi32
+ EXTRAINCL = $(VKD3D_PE_CFLAGS)
+@@ -30,6 +31,7 @@ SOURCES = \
+ 	surface.c \
+ 	swapchain.c \
+ 	texture.c \
++	unix_gl.c \
+ 	utils.c \
+ 	version.rc \
+ 	vertexdeclaration.c \
+diff --git a/dlls/wined3d/buffer.c b/dlls/wined3d/buffer.c
+index 8ef3a2d2ca4..d777b9535bb 100644
+--- a/dlls/wined3d/buffer.c
++++ b/dlls/wined3d/buffer.c
+@@ -789,7 +789,15 @@ void wined3d_buffer_acquire_bo_for_write(struct wined3d_buffer *buffer, struct w
+ void wined3d_buffer_copy_bo_address(struct wined3d_buffer *dst_buffer, struct wined3d_context *context,
+         unsigned int dst_offset, const struct wined3d_const_bo_address *src_addr, unsigned int size)
+ {
+-    uint32_t map_flags = WINED3D_MAP_WRITE;
++    wined3d_buffer_copy_bo_address_flags(dst_buffer, context, dst_offset, src_addr, size, 0);
++}
++
++/* extra_map_flags: WINED3D_MAP_NOOVERWRITE or WINED3D_MAP_DISCARD when the data was written under
++ * such a D3D map, which lets the copy skip synchronising with the GPU. */
++void wined3d_buffer_copy_bo_address_flags(struct wined3d_buffer *dst_buffer, struct wined3d_context *context,
++        unsigned int dst_offset, const struct wined3d_const_bo_address *src_addr, unsigned int size, uint32_t extra_map_flags)
++{
++    uint32_t map_flags = WINED3D_MAP_WRITE | extra_map_flags;
+     struct wined3d_bo_address dst_addr;
+     struct wined3d_range range;
+     DWORD dst_location;
+@@ -877,7 +885,9 @@ void wined3d_buffer_update_sub_resource(struct wined3d_buffer *buffer, struct wi
+     }
+     else
+     {
+-        wined3d_buffer_copy_bo_address(buffer, context, offset, &upload_bo->addr, size);
++        wined3d_buffer_copy_bo_address_flags(buffer, context, offset, &upload_bo->addr, size,
++                (flags & UPLOAD_BO_DISCARD ? WINED3D_MAP_DISCARD : 0)
++                | (flags & UPLOAD_BO_NOOVERWRITE ? WINED3D_MAP_NOOVERWRITE : 0));
+     }
+ }
+ 
+diff --git a/dlls/wined3d/context_gl.c b/dlls/wined3d/context_gl.c
+index 64ea956c7db..62a59e3d701 100644
+--- a/dlls/wined3d/context_gl.c
++++ b/dlls/wined3d/context_gl.c
+@@ -26,6 +26,7 @@
+ 
+ #include "wined3d_private.h"
+ #include "wined3d_gl.h"
++#include "unixlib.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(d3d);
+ WINE_DECLARE_DEBUG_CHANNEL(d3d_perf);
+@@ -3056,7 +3057,32 @@ void wined3d_context_gl_copy_bo_address(struct wined3d_context_gl *context_gl,
+     }
+     else if (dst_bo && !src_bo)
+     {
+-        if ((map_flags & WINED3D_MAP_DISCARD) && (dst_bo->flags & GL_MAP_WRITE_BIT)
++        if ((map_flags & (WINED3D_MAP_DISCARD | WINED3D_MAP_NOOVERWRITE)) && wined3d_unixlib_loaded
++                && !dst_bo->memory && !dst_bo->b.map_ptr
++                && wined3d_wow64_buffer_mode(context_gl->c.device) == WINED3D_WOW64_BUFFERS_STREAM)
++        {
++            struct wined3d_unix_buffer_write_params params;
++
++            wined3d_context_gl_bind_bo(context_gl, dst_bo->binding, dst_bo->id);
++            for (i = 0; i < range_count; ++i)
++            {
++                params.data = (ULONG_PTR)(src->addr + ranges[i].offset);
++                params.target = dst_bo->binding;
++                params.offset = dst_bo->b.buffer_offset + (ULONG_PTR)dst->addr + ranges[i].offset;
++                params.size = ranges[i].size;
++                params.orphan_size = (!i && (map_flags & WINED3D_MAP_DISCARD)) ? dst_bo->size : 0;
++                params.orphan_usage = dst_bo->usage;
++                params.pad = 0;
++                if (WINE_UNIX_CALL(unix_buffer_write, &params))
++                {
++                    ERR("Direct buffer write failed, falling back to glBufferSubData().\n");
++                    wined3d_unixlib_loaded = FALSE;
++                    GL_EXTCALL(glBufferSubData(dst_bo->binding, params.offset, params.size, src->addr + ranges[i].offset));
++                }
++            }
++            wined3d_context_gl_reference_bo(context_gl, dst_bo);
++        }
++        else if ((map_flags & WINED3D_MAP_DISCARD) && (dst_bo->flags & GL_MAP_WRITE_BIT)
+                 && wined3d_wow64_buffer_mode(context_gl->c.device) == WINED3D_WOW64_BUFFERS_OFF)
+         {
+             dst_ptr = wined3d_context_gl_map_bo_address(context_gl, dst, dst_bo->size, map_flags);
+diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
+index 07bf6fd8f9e..b5b3e237f9e 100644
+--- a/dlls/wined3d/cs.c
++++ b/dlls/wined3d/cs.c
+@@ -3078,7 +3078,7 @@ static void wined3d_cs_st_finish(struct wined3d_device_context *context, enum wi
+  * that no data the GPU may still read is overwritten and nothing is read back, so this needs no
+  * synchronisation with the CS. An empty box (D3D8/9 size 0) means "to the end of the buffer". */
+ static bool wined3d_cs_map_upload_sysmem(struct wined3d_resource *resource,
+-        struct wined3d_map_desc *map_desc, const struct wined3d_box *box)
++        struct wined3d_map_desc *map_desc, const struct wined3d_box *box, uint32_t flags)
+ {
+     struct wined3d_client_resource *client = &resource->client;
+     struct wined3d_box range = *box;
+@@ -3092,7 +3092,8 @@ static bool wined3d_cs_map_upload_sysmem(struct wined3d_resource *resource,
+     map_desc->row_pitch = map_desc->slice_pitch = resource->size;
+     client->mapped_upload.addr.buffer_object = 0;
+     client->mapped_upload.addr.addr = map_desc->data;
+-    client->mapped_upload.flags = UPLOAD_BO_UPLOAD_ON_UNMAP | UPLOAD_BO_FREE_ON_UNMAP;
++    client->mapped_upload.flags = UPLOAD_BO_UPLOAD_ON_UNMAP | UPLOAD_BO_FREE_ON_UNMAP
++            | (flags & WINED3D_MAP_DISCARD ? UPLOAD_BO_DISCARD : UPLOAD_BO_NOOVERWRITE);
+     client->mapped_box = range;
+     return true;
+ }
+@@ -3119,7 +3120,7 @@ static bool wined3d_cs_map_upload_bo(struct wined3d_device_context *context, str
+ 
+         if (resource->type == WINED3D_RTYPE_BUFFER
+                 && wined3d_wow64_buffer_mode(device) == WINED3D_WOW64_BUFFERS_STREAM)
+-            return wined3d_cs_map_upload_sysmem(resource, map_desc, box);
++            return wined3d_cs_map_upload_sysmem(resource, map_desc, box, flags);
+ 
+         if ((flags & WINED3D_MAP_NOOVERWRITE) && client->addr.buffer_object == CLIENT_BO_DISCARDED)
+             flags = (flags & ~WINED3D_MAP_NOOVERWRITE) | WINED3D_MAP_DISCARD;
+diff --git a/dlls/wined3d/unix_gl.c b/dlls/wined3d/unix_gl.c
+new file mode 100644
+index 00000000000..3312cecccc8
+--- /dev/null
++++ b/dlls/wined3d/unix_gl.c
+@@ -0,0 +1,98 @@
++/*
++ * wined3d's Unix-side helpers: direct writes into host GL buffer memory
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
++ */
++
++#if 0
++#pragma makedep unix
++#endif
++
++#include "config.h"
++
++#include <dlfcn.h>
++#include <string.h>
++
++#include "ntstatus.h"
++#define WIN32_NO_STATUS
++#include "windef.h"
++#include "winternl.h"
++#include "unixlib.h"
++
++/* A WoW64 process cannot address the host driver's buffer mappings (they live above 4 GiB), so
++ * opengl32 hands every glMapBufferRange() a temporary 32-bit copy instead: an allocation, extra
++ * calls and two copies, ~90 us per map/unmap on macOS. wined3d's CS thread calls this instead: one
++ * transition, then an unsynchronized map of just the written range, a memcpy from the 32-bit
++ * source, and an unmap - ~0.2 us natively. The caller must guarantee that no pending draw reads
++ * the range (D3D NOOVERWRITE), or ask for the buffer to be orphaned first (D3D DISCARD).
++ * The host GL context is current on this thread: wined3d made it current through opengl32. */
++
++typedef unsigned int GLenum;
++typedef unsigned int GLbitfield;
++typedef unsigned char GLboolean;
++typedef long GLintptr;
++typedef long GLsizeiptr;
++
++#define GL_MAP_WRITE_BIT                0x0002
++#define GL_MAP_INVALIDATE_RANGE_BIT     0x0004
++#define GL_MAP_UNSYNCHRONIZED_BIT       0x0020
++
++static void *(*p_glMapBufferRange)(GLenum, GLintptr, GLsizeiptr, GLbitfield);
++static GLboolean (*p_glUnmapBuffer)(GLenum);
++static void (*p_glBufferData)(GLenum, GLsizeiptr, const void *, GLenum);
++
++static NTSTATUS process_attach(void *args)
++{
++    p_glMapBufferRange = dlsym(RTLD_DEFAULT, "glMapBufferRange");
++    p_glUnmapBuffer = dlsym(RTLD_DEFAULT, "glUnmapBuffer");
++    p_glBufferData = dlsym(RTLD_DEFAULT, "glBufferData");
++    return p_glMapBufferRange && p_glUnmapBuffer && p_glBufferData ? STATUS_SUCCESS : STATUS_NOT_SUPPORTED;
++}
++
++static NTSTATUS buffer_write(void *args)
++{
++    const struct wined3d_unix_buffer_write_params *params = args;
++    void *ptr;
++
++    if (!p_glMapBufferRange && process_attach(NULL))
++        return STATUS_NOT_SUPPORTED;
++    if (params->orphan_size)
++        p_glBufferData(params->target, params->orphan_size, NULL, params->orphan_usage);
++    if (!(ptr = p_glMapBufferRange(params->target, params->offset, params->size,
++            GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT)))
++        return STATUS_UNSUCCESSFUL;
++    memcpy(ptr, (const void *)(ULONG_PTR)params->data, params->size);
++    p_glUnmapBuffer(params->target);
++    return STATUS_SUCCESS;
++}
++
++const unixlib_entry_t __wine_unix_call_funcs[] =
++{
++    buffer_write,
++};
++
++C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == unix_funcs_count);
++
++#ifdef _WIN64
++
++/* The parameter layout is the same for 32-bit callers. */
++const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
++{
++    buffer_write,
++};
++
++C_ASSERT(ARRAYSIZE(__wine_unix_call_wow64_funcs) == unix_funcs_count);
++
++#endif /* _WIN64 */
+diff --git a/dlls/wined3d/unixlib.h b/dlls/wined3d/unixlib.h
+new file mode 100644
+index 00000000000..93b1b376e8b
+--- /dev/null
++++ b/dlls/wined3d/unixlib.h
+@@ -0,0 +1,42 @@
++/*
++ * wined3d's Unix-side helpers
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
++ */
++
++#ifndef __WINE_WINED3D_UNIXLIB_H
++#define __WINE_WINED3D_UNIXLIB_H
++
++#include "wine/unixlib.h"
++
++/* Fixed-width fields only, so 32-bit (WoW64) and 64-bit callers share one layout. */
++struct wined3d_unix_buffer_write_params
++{
++    UINT64 data;        /* source address in the caller's address space */
++    UINT32 target;      /* GL binding point the destination buffer is bound to */
++    UINT32 offset;
++    UINT32 size;
++    UINT32 orphan_size; /* non-zero: glBufferData(NULL) the whole buffer first (a D3D DISCARD) */
++    UINT32 orphan_usage;
++    UINT32 pad;
++};
++
++enum wined3d_unix_funcs
++{
++    unix_buffer_write,
++    unix_funcs_count,
++};
++
++#endif /* __WINE_WINED3D_UNIXLIB_H */
+diff --git a/dlls/wined3d/wined3d_main.c b/dlls/wined3d/wined3d_main.c
+index 3b436919559..eb9a79ba89f 100644
+--- a/dlls/wined3d/wined3d_main.c
++++ b/dlls/wined3d/wined3d_main.c
+@@ -26,6 +26,7 @@
+ #define VKD3D_NO_WIN32_TYPES
+ #include "initguid.h"
+ #include "wined3d_private.h"
++#include "unixlib.h"
+ #include "wined3d_gl.h"
+ #include "d3d12.h"
+ #define VK_NO_PROTOTYPES
+@@ -944,12 +945,15 @@ void wined3d_swapchain_state_cleanup(struct wined3d_swapchain_state *state)
+     wined3d_swapchain_state_unregister(state);
+ }
+ 
++BOOL wined3d_unixlib_loaded;
++
+ /* At process attach */
+ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
+ {
+     switch (reason)
+     {
+         case DLL_PROCESS_ATTACH:
++            wined3d_unixlib_loaded = !__wine_init_unix_call();
+             return wined3d_dll_init(inst);
+ 
+         case DLL_PROCESS_DETACH:
+diff --git a/dlls/wined3d/wined3d_private.h b/dlls/wined3d/wined3d_private.h
+index c7dbb1b01bc..55d61af0894 100644
+--- a/dlls/wined3d/wined3d_private.h
++++ b/dlls/wined3d/wined3d_private.h
+@@ -2474,6 +2474,8 @@ bool wined3d_driver_info_init(struct wined3d_driver_info *driver_info,
+ #define UPLOAD_BO_UPLOAD_ON_UNMAP   0x1
+ #define UPLOAD_BO_RENAME_ON_UNMAP   0x2
+ #define UPLOAD_BO_FREE_ON_UNMAP     0x4
++#define UPLOAD_BO_DISCARD           0x8  /* written under a D3D DISCARD map */
++#define UPLOAD_BO_NOOVERWRITE       0x10 /* written under a D3D NOOVERWRITE map */
+ 
+ struct upload_bo
+ {
+@@ -3871,6 +3873,8 @@ void wined3d_buffer_acquire_bo_for_write(struct wined3d_buffer *buffer,
+ void wined3d_buffer_cleanup(struct wined3d_buffer *buffer);
+ void wined3d_buffer_copy(struct wined3d_buffer *dst_buffer, unsigned int dst_offset,
+         struct wined3d_buffer *src_buffer, unsigned int src_offset, unsigned int size);
++void wined3d_buffer_copy_bo_address_flags(struct wined3d_buffer *dst_buffer, struct wined3d_context *context,
++        unsigned int dst_offset, const struct wined3d_const_bo_address *src_addr, unsigned int size, uint32_t extra_map_flags);
+ void wined3d_buffer_copy_bo_address(struct wined3d_buffer *dst_buffer, struct wined3d_context *context,
+         unsigned int dst_offset, const struct wined3d_const_bo_address *src_addr, unsigned int size);
+ DWORD wined3d_buffer_get_memory(struct wined3d_buffer *buffer, struct wined3d_context *context,
+@@ -5006,6 +5010,7 @@ enum wined3d_wow64_buffers
+ };
+ 
+ enum wined3d_wow64_buffers wined3d_wow64_buffer_mode(const struct wined3d_device *device);
++extern BOOL wined3d_unixlib_loaded;
+ 
+ static inline bool wined3d_map_persistent(void)
+ {
+-- 
+2.39.5 (Apple Git-154)
+

@@ -24,16 +24,20 @@ SUB = 0x80000000
 
 # chunk ids (w3d_file.h)
 MESH, VERTICES, NORMALS, MESH_HEADER3, TRIANGLES = 0x00, 0x02, 0x03, 0x1F, 0x20
+VERTEX_INFLUENCES = 0x0E
 SHADERS, VERTEX_MATERIALS, TEXTURES, MATERIAL_PASS = 0x29, 0x2A, 0x30, 0x38
 TEXTURE_STAGE, STAGE_TEXCOORDS, SHADER_MATERIALS = 0x48, 0x4A, 0x50
 TANGENTS, BITANGENTS, AABTREE = 0x60, 0x61, 0x90
 AABTREE_HEADER, AABTREE_POLYINDICES, AABTREE_NODES = 0x91, 0x92, 0x93
 HIERARCHY, HIERARCHY_HEADER, PIVOTS, PIVOT_FIXUPS = 0x100, 0x101, 0x102, 0x103
 HLOD, HLOD_HEADER = 0x700, 0x701
+ANIMATION, ANIMATION_HEADER, COMPRESSED_ANIMATION, COMPRESSED_ANIMATION_HEADER = 0x200, 0x201, 0x280, 0x281
+BOX = 0x740
 
 LEGACY = {SHADERS: "shaders", VERTEX_MATERIALS: "vertex materials", TEXTURES: "textures"}
 # asset.dat tags per top-level chunk (stored byte-reversed in the file)
-CACHE_TAGS = {HIERARCHY: b"HIER", MESH: b"MESH", HLOD: b"HLOD"}
+CACHE_TAGS = {HIERARCHY: b"HIER", MESH: b"MESH", HLOD: b"HLOD", ANIMATION: b"ANIM",
+              COMPRESSED_ANIMATION: b"ANIM", BOX: b"\0BOX"}
 
 
 def chunks(d, off, end):
@@ -89,6 +93,7 @@ class Mesh:
             elif t == MATERIAL_PASS and self.uv is None:
                 self.uv = self._first_texcoords(d, o, s)
         self.textures = sorted(set(texture_names(self.bytes)))
+        self.skinned = any(t == VERTEX_INFLUENCES for t, _, _, _ in chunks(d, offset + 8, offset + 8 + size))
 
     @staticmethod
     def _first_texcoords(d, o, s):
@@ -136,12 +141,16 @@ class W3DFile:
 
     def cache_entries(self):
         """[(entry name, tag, offset, size)] as asset.dat files this model: hierarchy 'H*name',
-        meshes 'CONTAINER.MESH', the HLOD by name; tags byte-reversed like the cache stores them."""
+        meshes 'CONTAINER.MESH', the HLOD by name, animations 'A*HIERARCHY.NAME', collision boxes
+        by name; tags byte-reversed like the cache stores them."""
         d, out = self.data, []
         for t, o, s, _ in chunks(d, 0, len(d)):
             if t not in CACHE_TAGS:
                 continue
             name = None
+            if t == BOX:                                        # no sub-chunks: version, flags, name[32]
+                out.append((_cstr(d[o + 16:o + 48]), CACHE_TAGS[t][::-1], o, 8 + s))
+                continue
             for t2, o2, s2, _ in chunks(d, o + 8, o + 8 + s):   # the first sub-chunk is the header
                 if t == HIERARCHY and t2 == HIERARCHY_HEADER:
                     name = "H*" + _cstr(d[o2 + 12:o2 + 28])
@@ -149,16 +158,34 @@ class W3DFile:
                     name = "%s.%s" % (_cstr(d[o2 + 32:o2 + 48]), _cstr(d[o2 + 16:o2 + 32]))
                 elif t == HLOD and t2 == HLOD_HEADER:
                     name = _cstr(d[o2 + 16:o2 + 32])
+                elif (t, t2) in ((ANIMATION, ANIMATION_HEADER), (COMPRESSED_ANIMATION, COMPRESSED_ANIMATION_HEADER)):
+                    name = "A*%s.%s" % (_cstr(d[o2 + 28:o2 + 44]), _cstr(d[o2 + 12:o2 + 28]))
                 if name:
                     break
             out.append((name, CACHE_TAGS[t][::-1], o, 8 + s))
         return out
 
+    def skeleton(self):
+        """The separate skeleton file ('dbarchrnge_skl.w3d') a skinned model's HLOD names, or None
+        when the model carries its own hierarchy."""
+        d = self.data
+        top = list(chunks(d, 0, len(d)))
+        if any(t == HIERARCHY for t, _, _, _ in top):
+            return None
+        for t, o, s, _ in top:
+            if t == HLOD:
+                for t2, o2, _, _ in chunks(d, o + 8, o + 8 + s):
+                    if t2 == HLOD_HEADER:
+                        model, hier = _cstr(d[o2 + 16:o2 + 32]), _cstr(d[o2 + 32:o2 + 48])
+                        return hier.lower() + ".w3d" if hier and hier.lower() != model.lower() else None
+        return None
+
     def object_names(self):
         """Hierarchy, container.mesh and HLOD names in file order ('H:x', 'C.M', 'L:x')."""
         out = []
         for name, tag, _, _ in self.cache_entries():
-            out.append({b"REIH": "H:" + name[2:], b"HSEM": name, b"DOLH": "L:" + (name or "")}[tag])
+            out.append({b"REIH": "H:" + name[2:], b"HSEM": name, b"DOLH": "L:" + (name or ""),
+                        b"MINA": name, b"XOB\0": "B:" + (name or "")}[tag])
         return out
 
 
@@ -310,3 +337,24 @@ def fix(orig, new, renames=()):
         else:
             out += new[o:o + 8 + s]
     return bytes(out), report
+
+
+def splice_mesh(model, mesh_name, mesh_chunk, container):
+    """model bytes with its mesh `mesh_name` replaced by mesh_chunk (another file's), the chunk's
+    container name set to `container` - every other chunk byte-identical."""
+    out = bytearray()
+    done = False
+    for t, o, s, _ in chunks(model, 0, len(model)):
+        if t == MESH and _mesh_name(model, o, s) == mesh_name.upper():
+            c = bytearray(mesh_chunk)
+            for t2, o2, s2, _ in chunks(c, 8, len(c)):
+                if t2 == MESH_HEADER3:
+                    c[o2 + 32:o2 + 48] = container.encode("latin-1")[:15].ljust(16, b"\0")
+                    break
+            out += c
+            done = True
+        else:
+            out += model[o:o + 8 + s]
+    if not done:
+        raise ValueError("no mesh %s to replace" % mesh_name)
+    return bytes(out)

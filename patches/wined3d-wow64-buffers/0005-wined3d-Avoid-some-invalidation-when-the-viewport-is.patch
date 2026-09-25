@@ -1,0 +1,49 @@
+From 1bd3fc840591b2b05b729c092e5ea614beb31682 Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Fri, 19 Dec 2025 16:12:42 -0600
+Subject: [PATCH 05/10] wined3d: Avoid some invalidation when the viewport is
+ set redundantly.
+
+Wine-Bug: https://bugs.winehq.org/show_bug.cgi?id=59013
+(cherry picked from commit 95bb04efb00f7e1f609925d227536d1c5cf9eb60)
+---
+ dlls/wined3d/stateblock.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/dlls/wined3d/stateblock.c b/dlls/wined3d/stateblock.c
+index 35499117751..eac4238472b 100644
+--- a/dlls/wined3d/stateblock.c
++++ b/dlls/wined3d/stateblock.c
+@@ -79,6 +79,7 @@ struct wined3d_stateblock
+ {
+     LONG ref;
+     struct wined3d_device *device;
++    enum wined3d_stateblock_type type;
+ 
+     struct wined3d_saved_states changed;
+ 
+@@ -1903,6 +1904,13 @@ void CDECL wined3d_stateblock_set_viewport(struct wined3d_stateblock *stateblock
+ {
+     TRACE("stateblock %p, viewport %p.\n", stateblock, viewport);
+ 
++    if (stateblock->type == WINED3D_SBT_PRIMARY
++            && !memcmp(viewport, &stateblock->stateblock_state.viewport, sizeof(*viewport)))
++    {
++        TRACE("Ignoring redundant call on a primary stateblock.\n");
++        return;
++    }
++
+     stateblock->stateblock_state.viewport = *viewport;
+     stateblock->changed.viewport = TRUE;
+     stateblock->changed.point_scale = TRUE;
+@@ -2454,6 +2462,7 @@ static HRESULT stateblock_init(struct wined3d_stateblock *stateblock, const stru
+ 
+     stateblock->ref = 1;
+     stateblock->device = device;
++    stateblock->type = type;
+     stateblock->stateblock_state.light_state = &stateblock->light_state;
+     wined3d_stateblock_state_init(&stateblock->stateblock_state, device,
+             type == WINED3D_SBT_PRIMARY ? WINED3D_STATE_INIT_DEFAULT : 0);
+-- 
+2.39.5 (Apple Git-154)
+

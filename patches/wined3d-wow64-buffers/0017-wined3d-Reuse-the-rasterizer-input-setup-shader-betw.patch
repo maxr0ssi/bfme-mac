@@ -1,0 +1,150 @@
+From 3e594dc4905127ae910fc483125f26e0d325001f Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 14:26:32 -0400
+Subject: [PATCH 17/19] wined3d: Reuse the rasterizer input setup shader
+ between GLSL programs.
+
+Every GLSL program with an SM1-3 vertex shader links a second vertex shader that feeds the
+shader's outputs to the rasterizer, generated and compiled again for each program, although most
+programs of an application need the same one: the vertex shaders write the same outputs and the
+pixel shaders read the same inputs. Keep the compiled shader objects by source and attach them to
+every program that needs them. A new program costs 3-7 ms on macOS, a quarter of a millisecond of
+it this compile, and each is a visible hitch in a game that creates programs as it goes.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/glsl_shader.c | 66 +++++++++++++++++++++++++++++++++++---
+ 1 file changed, 62 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/wined3d/glsl_shader.c b/dlls/wined3d/glsl_shader.c
+index 5deb0814744..69b5f2d5578 100644
+--- a/dlls/wined3d/glsl_shader.c
++++ b/dlls/wined3d/glsl_shader.c
+@@ -140,8 +140,19 @@ struct shader_glsl_priv
+     struct wine_rb_tree ffp_vertex_shaders;
+     struct wine_rb_tree ffp_fragment_shaders;
+     BOOL legacy_lighting;
++
++    struct wine_rb_tree rasterizer_setup_shaders;
+ };
+ 
++/* The vertex shader that feeds an SM1-3 vertex shader's outputs to the rasterizer, by source. */
++struct glsl_rasterizer_setup_shader
++{
++    struct wine_rb_entry entry;
++    GLuint id;
++    char source[];
++};
++
++
+ struct glsl_vs_program
+ {
+     struct list shader_entry;
+@@ -7309,11 +7320,35 @@ static void shader_glsl_setup_sm3_rasterizer_input(struct shader_glsl_priv *priv
+         shader_glsl_setup_sm4_shader_output(priv, input_count, output_signature, reg_maps_out, "shader_out", TRUE);
+ }
+ 
++static int glsl_rasterizer_setup_compare(const void *key, const struct wine_rb_entry *entry)
++{
++    return strcmp(key, WINE_RB_ENTRY_VALUE(entry, const struct glsl_rasterizer_setup_shader, entry)->source);
++}
++
++/* Context activation is done by the caller. */
++static void shader_glsl_free_rasterizer_setup_shader(struct wine_rb_entry *entry, void *param)
++{
++    struct glsl_rasterizer_setup_shader *shader = WINE_RB_ENTRY_VALUE(entry,
++            struct glsl_rasterizer_setup_shader, entry);
++    const struct wined3d_gl_info *gl_info = param;
++
++    if (gl_info)
++        GL_EXTCALL(glDeleteShader(shader->id));
++    free(shader);
++}
++
++/* Every program with an SM1-3 vertex shader links one of these, and there are far fewer distinct
++ * ones than programs: most vertex shaders of an application write the same outputs. Compiling it
++ * again for each program costs ~0.25 ms on macOS, so the shader objects are kept, by source, and
++ * attached to every program that needs the same one. Sets *owned when the caller has to delete
++ * the returned shader after attaching it (it could not be cached). */
+ /* Context activation is done by the caller. */
+ static GLuint shader_glsl_generate_vs3_rasterizer_input_setup(struct shader_glsl_priv *priv,
+         const struct wined3d_shader *vs, const struct wined3d_shader *ps,
+-        BOOL per_vertex_point_size, BOOL flatshading, const struct wined3d_gl_info *gl_info)
++        BOOL per_vertex_point_size, BOOL flatshading, const struct wined3d_gl_info *gl_info, BOOL *owned)
+ {
++    struct glsl_rasterizer_setup_shader *cached;
++    struct wine_rb_entry *entry;
+     const BOOL legacy_syntax = needs_legacy_glsl_syntax(gl_info);
+     DWORD ps_major = ps ? ps->reg_maps.shader_version.major : 0;
+     struct wined3d_string_buffer *buffer = &priv->shader_buffer;
+@@ -7447,10 +7482,27 @@ static GLuint shader_glsl_generate_vs3_rasterizer_input_setup(struct shader_glsl
+ 
+     shader_addline(buffer, "}\n");
+ 
++    if ((entry = wine_rb_get(&priv->rasterizer_setup_shaders, buffer->buffer)))
++    {
++        *owned = FALSE;
++        return WINE_RB_ENTRY_VALUE(entry, struct glsl_rasterizer_setup_shader, entry)->id;
++    }
++
+     ret = GL_EXTCALL(glCreateShader(GL_VERTEX_SHADER));
+     checkGLcall("glCreateShader(GL_VERTEX_SHADER)");
+     shader_glsl_compile(gl_info, ret, buffer->buffer);
+ 
++    *owned = TRUE;
++    if ((cached = malloc(offsetof(struct glsl_rasterizer_setup_shader, source[buffer->content_size + 1]))))
++    {
++        cached->id = ret;
++        memcpy(cached->source, buffer->buffer, buffer->content_size + 1);
++        if (wine_rb_put(&priv->rasterizer_setup_shaders, cached->source, &cached->entry) == -1)
++            free(cached);
++        else
++            *owned = FALSE;
++    }
++
+     return ret;
+ }
+ 
+@@ -10559,16 +10611,19 @@ static void set_glsl_shader_program(const struct wined3d_context_gl *context_gl,
+         attribs_map = vshader->reg_maps.input_registers;
+         if (vshader->reg_maps.shader_version.major < 4)
+         {
++            BOOL owned;
++
+             reorder_shader_id = shader_glsl_generate_vs3_rasterizer_input_setup(priv, vshader, pshader,
+                     state->primitive_type == WINED3D_PT_POINTLIST && vshader->reg_maps.point_size,
+                     d3d_info->emulated_flatshading
+-                    && state->render_states[WINED3D_RS_SHADEMODE] == WINED3D_SHADE_FLAT, gl_info);
++                    && state->render_states[WINED3D_RS_SHADEMODE] == WINED3D_SHADE_FLAT, gl_info, &owned);
+             TRACE("Attaching GLSL shader object %u to program %u.\n", reorder_shader_id, program_id);
+             GL_EXTCALL(glAttachShader(program_id, reorder_shader_id));
+             checkGLcall("glAttachShader");
+-            /* Flag the reorder function for deletion, it will be freed
++            /* Flag an uncached reorder function for deletion, it will be freed
+              * automatically when the program is destroyed. */
+-            GL_EXTCALL(glDeleteShader(reorder_shader_id));
++            if (owned)
++                GL_EXTCALL(glDeleteShader(reorder_shader_id));
+         }
+     }
+     else
+@@ -11263,6 +11318,7 @@ static HRESULT shader_glsl_alloc(struct wined3d_device *device, const struct win
+     }
+ 
+     wine_rb_init(&priv->program_lookup, glsl_program_key_compare);
++    wine_rb_init(&priv->rasterizer_setup_shaders, glsl_rasterizer_setup_compare);
+ 
+     priv->next_constant_version = 1;
+     priv->vertex_pipe = vertex_pipe;
+@@ -11292,6 +11348,8 @@ static void shader_glsl_free(struct wined3d_device *device, struct wined3d_conte
+     struct shader_glsl_priv *priv = device->shader_priv;
+ 
+     wine_rb_destroy(&priv->program_lookup, NULL, NULL);
++    wine_rb_destroy(&priv->rasterizer_setup_shaders, shader_glsl_free_rasterizer_setup_shader,
++            context ? (void *)wined3d_context_gl(context)->gl_info : NULL);
+     constant_free(&priv->pconst_heap);
+     constant_free(&priv->vconst_heap);
+     free(priv->stack);
+-- 
+2.39.5 (Apple Git-154)
+

@@ -1,0 +1,46 @@
+From b89f14691a7fcd523479d3803d73d49e14cbf0e7 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 09:49:59 -0400
+Subject: [PATCH 08/10] wined3d: Push every render, texture stage and sampler
+ state from a fresh primary stateblock.
+
+The primary stateblock now ignores redundant sets (back-ported 8dcbf5d8235 and 7be265ec89a), so an
+application's first call that matches the default never reached the device. Upstream covers this
+selectively (c42d364fa4d); in 10.0 mark them all changed once.
+---
+ dlls/wined3d/stateblock.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/dlls/wined3d/stateblock.c b/dlls/wined3d/stateblock.c
+index bf60d888325..95e1ce8d06d 100644
+--- a/dlls/wined3d/stateblock.c
++++ b/dlls/wined3d/stateblock.c
+@@ -2455,6 +2455,8 @@ static void wined3d_stateblock_state_init(struct wined3d_stateblock_state *state
+  * context or resetting. */
+ static void wined3d_stateblock_invalidate_initial_states(struct wined3d_stateblock *stateblock)
+ {
++    unsigned int i;
++
+     stateblock->changed.ffp_ps_constants = 1;
+     stateblock->changed.lights = 1;
+     stateblock->changed.texture_matrices = 1;
+@@ -2465,6 +2467,16 @@ static void wined3d_stateblock_invalidate_initial_states(struct wined3d_stateblo
+     stateblock->changed.point_scale = 1;
+     stateblock->changed.ffp_vs_settings = 1;
+     stateblock->changed.ffp_ps_settings = 1;
++    /* The primary stateblock ignores redundant render, texture stage and
++     * sampler states, so a first call that matches the default would never
++     * reach the device (and the depth/stencil, blend and rasterizer state
++     * objects derived from them would never be created). Push every default
++     * once instead. Upstream does this selectively in c42d364fa4d. */
++    stateblock_set_all_bits(stateblock->changed.renderState, WINEHIGHEST_RENDER_STATE + 1);
++    for (i = 0; i < WINED3D_MAX_FFP_TEXTURES; ++i)
++        stateblock->changed.textureState[i] = 0x3ffff;
++    for (i = 0; i < WINED3D_MAX_COMBINED_SAMPLERS; ++i)
++        stateblock->changed.samplerState[i] = 0x3ffe;
+ }
+ 
+ static HRESULT stateblock_init(struct wined3d_stateblock *stateblock, const struct wined3d_stateblock *device_state,
+-- 
+2.39.5 (Apple Git-154)
+

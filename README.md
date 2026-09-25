@@ -101,17 +101,85 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   clone in `wine/src` into `engines/src-<label>` (x86_64 host under Rosetta, mingw-w64 PE side;
   `patches/WINE-BUILD.md` has the toolchain, the two traps, and the 10.0→11.0 bisect recipe).
   `patches/lock-whole-buffer/` — upstream d3d8/d3d9 patches + test for zero-size buffer locks.
-- `scripts/d3dx9-fix.sh [--revert]` — the loading-time fix: builds Wine 10.0's d3dx9_27.dll with
-  `patches/d3dx9-setrawvalue/` (SetRawValue for the units' bone palette, see its README), installs it
-  into `engines/$WINE_BUILD` keeping `d3dx9_27.dll.orig-<build>`, and sets `*d3dx9_27=builtin` in the
-  prefix; `--revert` undoes both. `scripts/setup-prefix.sh` keeps the override on new prefixes.
+- `scripts/wine-fixes.sh [--revert]` — builds our fixes to Wine 10.0 from source and installs them into
+  `engines/$WINE_BUILD` (each DLL's engine copy kept as `<dll>.orig-<build>`): `patches/d3dx9-setrawvalue/`
+  (the loading-time fix: SetRawValue for the units' bone palette, so Wine's fast d3dx9_27 can replace
+  Microsoft's, ~170 s -> ~12 s) and `patches/wined3d-wow64-buffers/` (big battles: dynamic-buffer
+  locks stop waiting for the render thread, a new `wined3d.so` writes the locked range straight into
+  the GPU buffer, redundant state work removed, SSE2 instead of x87; synthetic battle frame 184 ->
+  34 ms, `docs/PERFORMANCE.md`). `--revert` restores the engine's DLLs and removes `wined3d.so`.
+  `scripts/d3dx9-fix.sh` is the old name, a wrapper.
+- `scripts/perf-install.sh [--revert|--status]` — every performance fix in one step: the Wine fixes
+  (`wine-fixes.sh`) and the game patch (`game-patch.sh`); `--revert` removes both, `--status` says
+  what is installed (and which wined3d build). Switches that need no reinstall are in its header.
+- `scripts/game-patch.sh [--revert|--test|--status|--bundle]` — the game-side performance patch for
+  RotWK 2.02 (`gamepatch/`): a proxy `dinput8.dll` in the RotWK folder that patches the running game in
+  memory before WinMain (the exe on disk is never changed) — DirectX lock without the Win32 mutex, SSE
+  inverse square root / vector scaling / quaternion matrix / UI hit test / floor, the exit crash,
+  per-draw debug-marker strings skipped, animation re-evaluation and decode shortcuts, SSE particle
+  colours, indexed shadow-volume edge chaining, and (off by default) a frame limiter that sleeps,
+  per-pass render timers (`passtimers`) and shadow volumes built on several cores (`shadowpar`,
+  which checks itself against the serial result for its first 300 frames). Every patch checks the exact original bytes first, gives bit-identical
+  results (so patched and unpatched players can play together) and can be switched off in
+  `gamepatch.ini` or with `GAMEPATCH_<NAME>=0`. `play-rotwk.sh` loads it (`dinput8=n,b`) while
+  `gamepatch.ini` is in the game folder; log in `logs/gamepatch.log`. `--test` runs the standalone
+  bit-exactness tests (`gamepatch/tests/`) in a throwaway prefix; `--bundle` makes the two files a
+  friend copies into his RotWK folder. Record: `docs/PERFORMANCE.md` §10–10.2.
 - `tools/eipsample.c` — in-guest sampling profiler (`i686-w64-mingw32-gcc -O2 -o build/eipsample.exe
   tools/eipsample.c`, run with `wine build/eipsample.exe [secs] [ms]` while the game runs). Reads the
   guest EIP of the busiest thread, so time lands on the real module and offset, which macOS `sample`
-  can't do under Rosetta. Not a debugger attach. It is how the d3dx9 load cost was found.
+  can't do under Rosetta. Not a debugger attach. It is how the d3dx9 load cost was found. Each
+  sample also keeps the return addresses into the exe found on the stack ("R" lines);
+  `tools/callstacks.py <output> --exe build/rotwk-re/disk.exe --funcs build/rotwk-re/funcs.txt
+  --root 0x449cf8` turns them into inclusive time per function and a call tree
+  (`build/rotwk-re/funcs.py` writes the function map, `namematch.py` names from Open-BFME-1).
+- `tools/perfprobe.py <label> [secs] [--no-eip]` — measures a running game in one pass: frame times
+  (start it with `WINEDEBUG=-all,+fps,+frametime`), per-thread CPU, optional eipsample profile
+  (eipsample suspends threads; don't use it mid-fight). `scripts/bench-matchstart.sh <label>` runs a
+  hands-free skirmish and probes the match-start view (same map and camera every run).
+- `scripts/bench-battle.sh <label> [max_min]` — hands-free big-battle profile: starts the skirmish in
+  `build/Skirmish.ini.aibattle` (idle human vs AIs), waits until frames fall under 20 FPS, then runs the
+  read-only memory probe (`build/rotwk-re/memprobe.exe`, logic vs render split), perfprobe and
+  `eipsample … main` (samples only the game thread). One game session at a time: `logs/.game-session`.
+- `parallel/` — the multi-core framework for the game patch (not wired in yet): a fork/join worker
+  pool (`pool/parallel.c`: spin-then-park, FPU state copied into jobs, faults retried serially), a
+  deferred-call recorder (`pool/recorder.c`) and `parallel/DESIGN.md`. `parallel/pool/build-and-run.sh
+  bench|rectest|place` builds and runs its tests under Wine in an isolated prefix, never beside a game.
+- `tools/glcallcost.c` — what GL calls and buffer uploads cost a 32-bit program under WoW64 versus a
+  64-bit one (build both with mingw; numbers in `docs/PERFORMANCE.md` §3).
+- `scripts/bench-d3d9.sh <variant> [args]` + `tools/d3d9bench.c` — compares wined3d builds without the
+  game (a 640x480 window for ~15 s per run, 3 runs, median; refuses to run beside a game). The bench
+  replays WW3D2's per-frame D3D9 pattern (EA's Generals source, `dx8wrapper.cpp`): per-object state
+  changes and `SetTransform(WORLD)`, static-mesh FFP draws, vs_1_1/2_0 skinned draws with the bone
+  palette as VS constants, and draws appended to one shared 5000-vertex dynamic VB/IB with
+  NOOVERWRITE/DISCARD range locks (defaults ~2000 draws/frame, 300 dynamic). `<variant>`: `stock`
+  (the engine's `wined3d.dll.orig-w10`), `engine` (what is installed), `sse2`/`x87`
+  (`build/wined3d-variants/wined3d-<v>.dll`) or a path; the DLL is copied next to the exe with its
+  "Wine builtin DLL" marker cleared and loaded with `wined3d=n` (Wine otherwise swaps the engine's
+  builtin back in), and the bench checks in-process which file it runs. Prints fps, mean/p50/p95/p99
+  frame ms and the app thread's split (`lock fill unlock state draw present`; `present` = waiting
+  for the render thread); medians go to `logs/bench-d3d9.log`. Knobs: `--objects --dyn-frac
+  --ffp-frac --vs 11|20 --bones --dyn-verts --redundant --clip --order mix|grouped --secs`, env
+  `WINED3D_WOW64_BUFFERS=off|pin|stream`, `WINE_D3D_CONFIG=renderer=vulkan`, `RUNS=`. `--crc [--bmp f]`
+  checksums one deterministic frame: all builds agree with `--order grouped`; in the default
+  interleaved order stock wined3d is itself non-deterministic (stray triangles from the dynamic VB).
+  Calibration 2026-09-24, defaults, median of 3: stock 75 ms, `sse2` 52 (`off` 73, `pin` 44), `x87` 49
+  (+25 ms of app-thread time in DrawIndexedPrimitive, hidden while the render thread is the limit).
+  Vulkan crashes compiling ps_1_1 in vkd3d-shader; FFP and vs_2_0 run there, ~7x slower than GL.
+  UI-side knobs: `--radar N` (one-pixel radar locks), `--text N` (text-surface locks), `--relock N`
+  (managed-buffer relocks), `--dyntex N` (dynamic-texture DISCARD), `--cpu-ms N` (stand-in game work
+  per frame), `--programs N` (new GLSL programs at first draw; prints a `PROGRAMS` line).
+- `tools/d3d9lockcheck.c` — correctness reproducer for wined3d's app-thread map paths (fixes
+  0012–0016): radar locks between draws, systemmem UpdateTexture/UpdateSurface, managed and systemmem
+  buffer relocks with read-back, DISCARD sub-rectangles, two mip levels locked at once. Build with
+  i686 mingw, run under Wine; prints failures and exits non-zero on any.
+- `tools/d3dx9fxbench.c` — replays the game's per-batch / per-mesh `ID3DXEffect` calls (shadow-map
+  pass + main view) on the real `.fxo` effects against any `d3dx9_27.dll` build, without the game;
+  `--hash` checksums every device call the effects make, so two builds can be proven identical
+  (build and run lines in its header).
 - `tools/make_group_pack.py <rotwk|bfme2>` — builds the **group pack**, `!!!!!!!!!!group-pack.big`, from
   your own install: INI copies with our tweaks (4000 particles, heat effects off, camera max
-  height 1000) that override the game's own because the name sorts first. Install with
+  height 700) that override the game's own because the name sorts first. Install with
   `scripts/install-mod.sh rotwk build/group-pack/rotwk/install`; everyone playing together needs the
   same pack (`MULTIPLAYER.md`). The edits are the `EDITS` list at the top of the tool.
 - `tools/w3d_fixup.py <original.w3d> <exported.w3d>` — repairs what the OpenSAGE Blender add-on drops or

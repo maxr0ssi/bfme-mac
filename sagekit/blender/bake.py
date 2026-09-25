@@ -9,6 +9,7 @@
     tag        face tag / 100 (0 original face, else 1 + atlas region index)     1 ch
     ao_s/ao_l  ambient occlusion at 2.5 and 18 units                              1 ch
     bevel      convex/concave edges: 1 - dot(bevelled normal, flat normal)       1 ch
+    var_*      EA's variant sheets (damaged, snow, stonework) through the ATLAS layer   linear RGB
     ndet       the original normal map re-expressed in the new tangent space     3 ch (GL)
     nbev       bevelled-edge normals in the new tangent space                     3 ch (GL)
 The normal passes are at half resolution (the normal map's size).
@@ -26,10 +27,23 @@ from .scene import use_gpu
 TAG_SCALE = 100.0
 
 
+class Sheet:
+    """One source sheet: its upscale, normal map (or None) and Atlas (mask hints)."""
+
+    def __init__(self, png, nrm, atlas):
+        self.png, self.nrm, self.atlas = png, nrm, atlas
+
+
 class Baker:
-    def __init__(self, obj, res, outdir, atlas_png, atlas_nrm, atlas):
+    """sheet: what the target mesh's original faces were painted from; master (None when it is the
+    same sheet): the faction atlas the new faces are mapped onto. variant_pngs: {pass name:
+    (sheet variant png, master variant png or None)}."""
+
+    def __init__(self, obj, res, outdir, sheet, master=None, variant_pngs=None):
+        self.variant_pngs = variant_pngs or {}
         self.obj, self.res, self.outdir = obj, res, outdir
-        self.atlas_png, self.atlas_nrm, self.atlas = atlas_png, atlas_nrm, atlas
+        self.sheet, self.master = sheet, master
+        self.atlas_png, self.atlas_nrm, self.atlas = sheet.png, sheet.nrm, sheet.atlas
         os.makedirs(outdir, exist_ok=True)
         sc = bpy.context.scene
         sc.render.engine = "CYCLES"
@@ -66,9 +80,31 @@ class Baker:
         self.nt.links.new(a, b)
 
     def image(self, img, uv="ATLAS", interp="Cubic"):
-        n = self.node("ShaderNodeTexImage", image=img, interpolation=interp, extension="EXTEND")
+        # REPEAT like the game's samplers: some originals tile past [0,1] (DBBunker's shield panels
+        # run to u -0.37, v -0.56) and EXTEND smeared the sheet's edge texels over those faces
+        n = self.node("ShaderNodeTexImage", image=img, interpolation=interp, extension="REPEAT")
         self.link(self.node("ShaderNodeUVMap", uv_map=uv).outputs[0], n.inputs[0])
         return n
+
+    def is_new(self):
+        at = self.node("ShaderNodeAttribute", attribute_type="GEOMETRY", attribute_name=TAG_ATTR)
+        gt = self.node("ShaderNodeMath", operation="GREATER_THAN")
+        gt.inputs[1].default_value = 0.5
+        self.link(at.outputs["Fac"], gt.inputs[0])
+        return gt.outputs[0]
+
+    def mixed(self, sheet_socket, master_socket, kind="RGBA"):
+        """Old faces from the building's sheet, new faces from the faction atlas."""
+        m = self.node("ShaderNodeMix", data_type=kind)
+        ins = [i for i in m.inputs if i.enabled]
+        self.link(self.is_new(), ins[0])
+        self.link(sheet_socket, ins[1])
+        self.link(master_socket, ins[2])
+        return [o for o in m.outputs if o.enabled][0]
+
+    def sheet_image(self, sheet_img, master_img=None, interp="Cubic"):
+        a = self.image(sheet_img, interp=interp).outputs[0]
+        return a if master_img is None else self.mixed(a, self.image(master_img, interp=interp).outputs[0])
 
     def emit(self, socket):
         e = self.node("ShaderNodeEmission")
@@ -110,13 +146,20 @@ class Baker:
         for o in bpy.data.objects:
             if o.name in hide:
                 o.hide_render = True
-        src = bpy.data.images.load(self.atlas_png, check_existing=True)
+        load = lambda p: bpy.data.images.load(p, check_existing=True)   # noqa: E731
+        src = load(self.atlas_png)
+        msrc = load(self.master.png) if self.master else None
         self.reset()
-        self.emit(self.image(src).outputs[0])
+        self.emit(self.sheet_image(src, msrc))
         self.bake("atlas", samples=16)
-        for i, img in enumerate(self._mask_images(src)):
+        for name, (png, mpng) in sorted(self.variant_pngs.items()):     # EA's damaged / snow / stonework sheets
             self.reset()
-            self.emit(self.image(img, interp="Linear").outputs[0])
+            self.emit(self.sheet_image(load(png), load(mpng) if mpng else None))
+            self.bake(name, samples=16)
+        mimgs = self._mask_images(msrc, self.master.atlas) if self.master else [None] * 3
+        for i, (img, mimg) in enumerate(zip(self._mask_images(src, self.atlas), mimgs)):
+            self.reset()
+            self.emit(self.sheet_image(img, mimg, interp="Linear"))
             self.bake("mask%d" % (i + 1), samples=16)
         self.reset()
         self.emit(self.node("ShaderNodeUVMap", uv_map="ATLAS").outputs[0])
@@ -150,12 +193,14 @@ class Baker:
         self.reset()
         self.emit(self._bevel_delta().outputs[0])
         self.bake("bevel", samples=16, channels=1)
+        if self.atlas_nrm is None:            # the sheet has no normal map: none is shipped
+            self.obj.data.materials[0] = self.orig_mat
+            print("bake done (no normal map)", flush=True)
+            return
         normal = dict(kind="NORMAL", res=self.res // 2, normal_space="TANGENT",
                       normal_r="POS_X", normal_g="POS_Y", normal_b="POS_Z")
         self.reset()
-        nm = self.node("ShaderNodeNormalMap", space="TANGENT", uv_map="ATLAS")
-        self.link(self.image(self._gl_normal_image()).outputs[0], nm.inputs["Color"])
-        self.shade(nm.outputs[0])
+        self.shade(self._detail_normal(self.atlas_nrm, self.master.nrm if self.master else None))
         self.bake("ndet", samples=16, **normal)
         self.reset()
         bv = self.node("ShaderNodeBevel", samples=16)
@@ -176,32 +221,42 @@ class Baker:
         self.link(dp.outputs["Value"], inv.inputs[1])
         return inv
 
-    def _mask_images(self, src):
-        """The sheet's material masks as three RGB float images (sagekit/paint/masks.py order)."""
+    def _detail_normal(self, nrm, master_nrm=None):
+        """The shading normal of the original normal map(s) through the ATLAS layer."""
+        def one(path):
+            nm = self.node("ShaderNodeNormalMap", space="TANGENT", uv_map="ATLAS")
+            self.link(self.image(self._gl_normal_image(path)).outputs[0], nm.inputs["Color"])
+            return nm.outputs[0]
+        a = one(nrm)
+        return a if master_nrm is None else self.mixed(a, one(master_nrm), "VECTOR")
+
+    def _mask_images(self, src, atlas):
+        """A sheet's material masks as three RGB float images (sagekit/paint/masks.py order); a
+        sheet without hints keeps only coherent metal (see masks.compute)."""
         w, h = src.size
         a = np.empty(w * h * 4, np.float32)
         src.pixels.foreach_get(a)
-        ms = masks.compute(a.reshape(h, w, 4)[..., :3], self.atlas)
+        ms = masks.compute(a.reshape(h, w, 4)[..., :3], atlas, coherent=not atlas.mask_hints)
         out = []
         for k in range(3):
             px = np.ones((h, w, 4), np.float32)
             for c in range(3):
                 px[..., c] = ms[3 * k + c]
-            im = bpy.data.images.new("mask%d" % (k + 1), w, h, alpha=False, float_buffer=True)
+            im = bpy.data.images.new("mask%d_%s" % (k + 1, atlas.texture or "sheet"), w, h, alpha=False, float_buffer=True)
             im.colorspace_settings.name = "Non-Color"
             im.pixels.foreach_set(px.ravel())
             out.append(im)
         return out
 
-    def _gl_normal_image(self):
-        """The original normal map with red flipped to Blender's convention (see imageio)."""
-        src = bpy.data.images.load(self.atlas_nrm, check_existing=True)
+    def _gl_normal_image(self, path):
+        """An original normal map with red flipped to Blender's convention (see imageio)."""
+        src = bpy.data.images.load(path, check_existing=True)
         src.colorspace_settings.name = "Non-Color"
         w, h = src.size
         a = np.empty(w * h * 4, np.float32)
         src.pixels.foreach_get(a)
         a = imageio.game_to_gl(a.reshape(h, w, 4))
-        gl = bpy.data.images.new("nrm_gl", w, h, alpha=False, float_buffer=True)
+        gl = bpy.data.images.new("nrm_gl_" + os.path.basename(path), w, h, alpha=False, float_buffer=True)
         gl.colorspace_settings.name = "Non-Color"
         gl.pixels.foreach_set(a.ravel())
         return gl

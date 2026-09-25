@@ -1,0 +1,80 @@
+From a2b1ff2220491eba3eaec74609daaa19d9dc7c0a Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 14:21:10 -0400
+Subject: [PATCH 16/19] wined3d: Stream WoW64 DISCARD maps of dynamic textures
+ through system memory.
+
+Without persistently mapped buffers adapter_alloc_bo() cannot allocate a buffer from the
+application thread, so a DISCARD map of a dynamic texture waits for the CS to go idle on the
+texture and then maps its PBO on the CS, through opengl32's WoW64 copy of the whole mapping.
+With WINED3D_WOW64_BUFFERS=stream hand out system memory for the mapped box instead, laid out
+with the sub-resource's map pitch, and upload it on unmap with UPDATE_SUB_RESOURCE, in order with
+the draws around it. DISCARD leaves the rest of the sub-resource undefined, so keeping its old
+contents is fine.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/cs.c | 40 ++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 40 insertions(+)
+
+diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
+index a8dfb2cffc6..c3960cfe3d5 100644
+--- a/dlls/wined3d/cs.c
++++ b/dlls/wined3d/cs.c
+@@ -3146,6 +3146,42 @@ static bool wined3d_cs_map_upload_sysmem(struct wined3d_resource *resource,
+     return true;
+ }
+ 
++/* The same for DISCARD maps of dynamic textures: without persistently mapped buffers
++ * adapter_alloc_bo() cannot allocate a buffer from the application thread, and the map would wait
++ * for the CS to go idle on the texture and then map its PBO through opengl32's WoW64 copy. Hand out
++ * system memory for the box instead, uploaded on unmap by UPDATE_SUB_RESOURCE, in order with the
++ * draws around it; DISCARD leaves the rest of the sub-resource undefined, so keeping it is fine.
++ * Rows use the sub-resource's map pitch, which is what wined3d_device_context_emit_unmap() passes
++ * along with the upload. */
++static bool wined3d_cs_map_upload_texture_sysmem(struct wined3d_resource *resource, unsigned int sub_resource_idx,
++        struct wined3d_map_desc *map_desc, const struct wined3d_box *box)
++{
++    struct wined3d_client_resource *client = &resource->client;
++    const struct wined3d_format *format = resource->format;
++    unsigned int row_pitch, slice_pitch, row_count;
++    size_t size;
++
++    if (resource->format_attrs & WINED3D_FORMAT_ATTR_BROKEN_PITCH)
++        return false;
++
++    wined3d_resource_get_sub_resource_map_pitch(resource, sub_resource_idx, &row_pitch, &slice_pitch);
++    row_count = (box->bottom - box->top + format->block_height - 1) / format->block_height;
++    size = (size_t)(box->back - box->front - 1) * slice_pitch + (size_t)(row_count - 1) * row_pitch
++            + ((box->right - box->left + format->block_width - 1) / format->block_width) * format->block_byte_count;
++    if (!(map_desc->data = malloc(size)))
++        return false;
++
++    map_desc->row_pitch = row_pitch;
++    map_desc->slice_pitch = slice_pitch;
++    client->mapped_upload.addr.buffer_object = 0;
++    client->mapped_upload.addr.addr = map_desc->data;
++    client->mapped_upload.flags = UPLOAD_BO_UPLOAD_ON_UNMAP | UPLOAD_BO_FREE_ON_UNMAP;
++    client->mapped_box = *box;
++    client->mapped_sub_resource_idx = sub_resource_idx;
++    TRACE("Returning system memory %p for texture DISCARD map, box %s.\n", map_desc->data, debug_box(box));
++    return true;
++}
++
+ static bool wined3d_cs_map_upload_bo(struct wined3d_device_context *context, struct wined3d_resource *resource,
+         unsigned int sub_resource_idx, struct wined3d_map_desc *map_desc, const struct wined3d_box *box, uint32_t flags)
+ {
+@@ -3178,6 +3214,10 @@ static bool wined3d_cs_map_upload_bo(struct wined3d_device_context *context, str
+                 && wined3d_wow64_buffer_mode(device) == WINED3D_WOW64_BUFFERS_STREAM)
+             return wined3d_cs_map_upload_sysmem(resource, map_desc, box, flags);
+ 
++        if (resource->type != WINED3D_RTYPE_BUFFER && (flags & WINED3D_MAP_DISCARD)
++                && wined3d_wow64_buffer_mode(device) == WINED3D_WOW64_BUFFERS_STREAM)
++            return wined3d_cs_map_upload_texture_sysmem(resource, sub_resource_idx, map_desc, box);
++
+         if ((flags & WINED3D_MAP_NOOVERWRITE) && client->addr.buffer_object == CLIENT_BO_DISCARDED)
+             flags = (flags & ~WINED3D_MAP_NOOVERWRITE) | WINED3D_MAP_DISCARD;
+ 
+-- 
+2.39.5 (Apple Git-154)
+

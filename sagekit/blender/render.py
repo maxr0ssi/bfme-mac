@@ -92,8 +92,8 @@ def game_material(obj, mesh, texmap):
     me = obj.data
     names = [t.lower() for t in mesh.textures]
     diff = [t for t in names if "nrm" not in t][0]
-    nrm = [t for t in names if "nrm" in t][0]
-    for nm, vecs in (("gameT", mesh.tangents), ("gameB", mesh.bitangents)):
+    nrm = next((t for t in names if "nrm" in t), None)
+    for nm, vecs in (("gameT", mesh.tangents), ("gameB", mesh.bitangents)) if mesh.tangents else ():
         a = me.attributes.get(nm) or me.attributes.new(nm, "FLOAT_VECTOR", "POINT")
         a.data.foreach_set("vector", np.array(vecs, np.float32).ravel())
     mat = bpy.data.materials.new(obj.name + ".game")
@@ -115,6 +115,10 @@ def game_material(obj, mesh, texmap):
         nt.links.new(uv.outputs[0], n.inputs[0])
         return n
     nt.links.new(tex(texmap[diff], False).outputs[0], bsdf.inputs["Base Color"])
+    me.materials.clear()
+    me.materials.append(mat)
+    if nrm is None or not mesh.tangents:
+        return                                  # no normal-map pass: the geometry's own normals
     tn = tex(texmap[nrm], True)
     sep, m2 = N("ShaderNodeSeparateXYZ"), N("ShaderNodeVectorMath")
     m2.operation = "MULTIPLY_ADD"
@@ -150,16 +154,14 @@ def game_material(obj, mesh, texmap):
     nt.links.new(terms[2], s2.inputs[1])
     nt.links.new(s2.outputs[0], nz.inputs[0])
     nt.links.new(nz.outputs[0], bsdf.inputs["Normal"])
-    me.materials.clear()
-    me.materials.append(mat)
 
 
-def render_views(building, w3d_path, w3d, texmap, prefix, views, res, samples):
-    scene.import_w3d(w3d_path)
+def render_views(building, w3d_path, w3d, texmap, prefix, views, res, samples, skeletons=None):
+    scene.import_w3d(w3d_path, skeletons)
     rig(res, samples, building.bake_hidden)
     for name, mesh in w3d.meshes.items():
         obj = bpy.data.objects.get(name)
-        if obj is not None and not obj.hide_render and mesh.tangents and len(mesh.textures) >= 2:
+        if obj is not None and not obj.hide_render and mesh.textures and all(t.lower() in texmap for t in mesh.textures):
             game_material(obj, mesh, texmap)
     presets = views_for(building, bpy.data.objects[building.target])
     for v in views:

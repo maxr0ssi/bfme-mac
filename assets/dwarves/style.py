@@ -32,7 +32,16 @@ class DwarvenStyle(Style):
     palette = PALETTE
     atlas = DwarvenAtlas()
     ini_dir = "data\\ini\\object\\goodfaction\\structures\\dwarven"
+    sheet_dir = "art\\compiledtextures\\db"
+    master_variants = {"damaged": "DBFortress1_D.tga", "snow": "DBFortress1_Snow.tga", "stonework": "DBFortress_U.tga"}
     budget_mb = 256
+
+    def sheet_size(self, name):
+        return 2048 if name.lower().startswith("dbfortress1") else 1024
+
+    def sheet_layers(self):
+        from sagekit.paint import layers as L
+        return [L.Recolour(), L.MetalRims(min_plate=0.45), L.Inlay()]
 
     def shapes(self):
         from .shapes import DwarvenShapes

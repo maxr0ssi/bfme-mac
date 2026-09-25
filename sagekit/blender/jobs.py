@@ -18,7 +18,7 @@ def _target(b):
 def job_geometry(b):
     """Original model + the building's design merged into its target mesh, then its own layout."""
     ws = workspace.Workspace(b)
-    scene.import_w3d(ws.source_model)
+    scene.import_w3d(ws.source_model, ws.src)
     obj = _target(b)
     meshes = [o.name for o in bpy.data.objects if o.type == "MESH"]
     before = {n: scene.tri_count(bpy.data.objects[n].data) for n in meshes}
@@ -40,10 +40,14 @@ def job_geometry(b):
 
 
 def job_bake(b):
-    from .bake import Baker
+    from .bake import Baker, Sheet
     ws = workspace.Workspace(b)
-    Baker(_target(b), b.tier.diffuse, ws.bake_dir, ws.atlas_upscale, ws.atlas_normal, b.style.atlas).run(
-        hide=b.bake_hidden)
+    master = Sheet(ws.master_upscale, ws.master_normal, b.style.atlas) if b.two_sheets else None
+    variants = {"var_" + mine[:-4].lower(): (ws.variant_upscale(ea),
+                                             ws.upscale_of(b.style.master_variant(ea)) if master else None)
+                for ea, mine in ws.variants.items()}
+    Baker(_target(b), b.tier.diffuse, ws.bake_dir, Sheet(ws.atlas_upscale, ws.atlas_normal, b.sheet_atlas),
+          master, variants).run(hide=b.bake_hidden)
 
 
 def job_paint(b):
@@ -55,10 +59,12 @@ def job_paint(b):
     def log(*a):
         print("[paint %5.1fs]" % (time.time() - t0), *a, flush=True)
     p = Painter(Canvas(ws.bake_dir, b.style.atlas, _target(b)), b.style.palette, b.style.layers(b), log)
-    names = b.texture_names()
-    diffuse, normal = names[b.style.atlas.texture], names[b.style.atlas.normal]
-    p.write_diffuse(p.diffuse(), ws.tex_dir, diffuse[:-4].lower(), [b.tier.diffuse, b.tier.diffuse // 2])
-    p.normal(ws.atlas_normal, ws.tex(normal[:-4].lower() + ".tga"))
+    col = p.diffuse()
+    p.write_diffuse(col, ws.tex_dir, b.own_diffuse[:-4].lower(), [b.tier.diffuse, b.tier.diffuse // 2])
+    for mine in ws.variants.values():
+        p.write_diffuse(p.variant(col, "var_" + mine[:-4].lower()), ws.tex_dir, mine[:-4].lower(), [b.tier.diffuse // 2])
+    if b.own_normal:
+        p.normal(ws.atlas_normal, ws.tex(b.own_normal[:-4].lower() + ".tga"))
 
 
 def job_export(b):
@@ -67,20 +73,14 @@ def job_export(b):
     scene.save(ws.stage("export"))
 
 
-def job_reference(b):
-    """The untouched original through the same import + export: what 'unchanged' is compared to."""
-    ws = workspace.Workspace(b)
-    scene.import_w3d(ws.source_model)
-    scene.export_w3d(ws.reference_export)
-
-
 def job_render(b, w3d, prefix, views="rts,close", res="1600x1100", spp="64", **textures):
     """Render a shipped model like the game draws it. textures: lowercase name=file overrides."""
     from .render import render_views
     ws = workspace.Workspace(b)
     texmap = ws.texture_map()
     texmap.update({k.lower(): v for k, v in textures.items()})
-    render_views(b, w3d, W3DFile(w3d), texmap, prefix, views.split(","), tuple(int(x) for x in res.split("x")), int(spp))
+    render_views(b, w3d, W3DFile(w3d), texmap, prefix, views.split(","), tuple(int(x) for x in res.split("x")), int(spp),
+                 ws.src)
 
 
 def job_checks(b):

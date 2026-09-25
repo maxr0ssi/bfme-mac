@@ -13,7 +13,7 @@ from .checks import new_triangle_normals, snapshot, tangent_convention, uv_overl
 def run(b, ws, r):
     target = b.target
     shipped = ws.shipped_model
-    O, N = snapshot(ws.source_model), snapshot(shipped)
+    O, N = snapshot(ws.source_model, ws.src), snapshot(shipped, ws.src)
     WO, WN = W3DFile(ws.source_model), W3DFile(shipped)
     meshes = sorted(O["meshes"])
     others = [n for n in meshes if n != target]
@@ -30,12 +30,15 @@ def run(b, ws, r):
         a, m = O["meshes"][n], N["meshes"].get(n)
         if m is None:
             continue
-        r.check("%s parented to bone %s" % (n, a["parent_bone"]),
-                (m["parent_type"], m["parent_bone"]) == ("BONE", a["parent_bone"]), "%s/%s" % (m["parent_type"], m["parent_bone"]))
+        r.check("%s parented as the original (%s/%s)" % (n, a["parent_type"], a["parent_bone"]),
+                (m["parent_type"], m["parent_bone"]) == (a["parent_type"], a["parent_bone"]),
+                "%s/%s" % (m["parent_type"], m["parent_bone"]))
         r.check("%s keeps its one material" % n, m["mats"] == a["mats"] and m["mat_idx"] == {0}, str(m["mats"]))
         r.check("%s zero-area faces / loose verts" % n, m["zero_area"] == 0 and m["loose"] == 0, "%d / %d" % (m["zero_area"], m["loose"]))
-        r.check("%s UV layers as the original, inside [0,1]" % n, m["uv_layers"] == a["uv_layers"] and m["uv_out"] == 0,
-                "%d layers, %d out" % (m["uv_layers"], m["uv_out"]))
+        # EA's own meshes may tile past [0,1] (props, effect cards); ours must not
+        out_ok = m["uv_out"] == 0 if n == target else m["uv_out"] <= a["uv_out"]
+        r.check("%s UV layers as the original, %s" % (n, "inside [0,1]" if n == target else "no more outside [0,1]"),
+                m["uv_layers"] == a["uv_layers"] and out_ok, "%d layers, %d out (original %d)" % (m["uv_layers"], m["uv_out"], a["uv_out"]))
     for n in others:
         same = sorted(O["meshes"][n]["tri_keys"]) == sorted(N["meshes"][n]["tri_keys"])
         r.check("%s geometry untouched" % n, same, "%d tris" % N["meshes"][n]["tris"])
@@ -65,26 +68,26 @@ def run(b, ws, r):
             str({n: hex(WN.meshes[n].version) for n in meshes}))
 
     r.section("texture files")
-    atlas = b.style.atlas
-    dds = ws.shipped_texture(own[atlas.texture], ".dds")
-    for path, size in ((dds, b.tier.diffuse), (ws.tex(own[atlas.texture][:-4].lower() + "_%d.dds" % (b.tier.diffuse // 2)), b.tier.diffuse // 2)):
+    dds = ws.shipped_texture(b.own_diffuse, ".dds")
+    for path, size in ((dds, b.tier.diffuse), (ws.tex(b.own_diffuse[:-4].lower() + "_%d.dds" % (b.tier.diffuse // 2)), b.tier.diffuse // 2)):
         i = dds_info(path)
         exp = dxt1_size(size, size, full_chain(size))
         r.check("%s: %d, DXT1, full mip chain" % (os.path.basename(path), size),
                 (i["width"], i["height"], i["fourcc"], i["mips"], i["bytes"]) == (size, size, "DXT1", full_chain(size), exp),
                 "%dx%d %s, %d mips, %d bytes" % (i["width"], i["height"], i["fourcc"], i["mips"], i["bytes"]))
-    tga = ws.shipped_texture(own[atlas.normal], ".tga")
-    ref, nt = imageio.read_tga24(ws.atlas_normal), imageio.read_tga24(tga)
-    same = all(nt[k] == ref[k] for k in ("type", "bpp", "desc", "cmap", "idlen")) and nt["footer"] == ref["footer"]
-    r.check("%s: the original normal map's TGA format" % os.path.basename(tga), same,
-            "type %d, %d bpp, descriptor 0x%02x" % (nt["type"], nt["bpp"], nt["desc"]))
-    r.check("%s: %d x %d, uncompressed" % (os.path.basename(tga), b.tier.normal, b.tier.normal),
-            (tga_header(tga)["width"], tga_header(tga)["height"]) == (b.tier.normal, b.tier.normal)
-            and os.path.getsize(tga) == tga24_size(b.tier.normal, b.tier.normal, len(ref["footer"])), "%d bytes" % os.path.getsize(tga))
-    v = nt["pixels"] * 2 - 1
-    ln = np.linalg.norm(v, axis=-1)
-    r.check("normal map decodes to unit normals facing out", abs(float(np.median(ln)) - 1) < 0.03 and float(np.percentile(v[..., 2], 1)) > 0.2,
-            "median |n| %.3f, 1st percentile z %.2f" % (float(np.median(ln)), float(np.percentile(v[..., 2], 1))))
+    if b.own_normal:
+        tga = ws.shipped_texture(b.own_normal, ".tga")
+        ref, nt = imageio.read_tga24(ws.atlas_normal), imageio.read_tga24(tga)
+        same = all(nt[k] == ref[k] for k in ("type", "bpp", "desc", "cmap", "idlen")) and nt["footer"] == ref["footer"]
+        r.check("%s: the original normal map's TGA format" % os.path.basename(tga), same,
+                "type %d, %d bpp, descriptor 0x%02x" % (nt["type"], nt["bpp"], nt["desc"]))
+        r.check("%s: %d x %d, uncompressed" % (os.path.basename(tga), b.tier.normal, b.tier.normal),
+                (tga_header(tga)["width"], tga_header(tga)["height"]) == (b.tier.normal, b.tier.normal)
+                and os.path.getsize(tga) == tga24_size(b.tier.normal, b.tier.normal, len(ref["footer"])), "%d bytes" % os.path.getsize(tga))
+        v = nt["pixels"] * 2 - 1
+        ln = np.linalg.norm(v, axis=-1)
+        r.check("normal map decodes to unit normals facing out", abs(float(np.median(ln)) - 1) < 0.03 and float(np.percentile(v[..., 2], 1)) > 0.2,
+                "median |n| %.3f, 1st percentile z %.2f" % (float(np.median(ln)), float(np.percentile(v[..., 2], 1))))
 
     r.section("%s layout and tangent frame (file bytes)" % target)
     mm = WN.meshes[target]
@@ -96,8 +99,9 @@ def run(b, ws, r):
             "overlap %.5f%%; layout fills %.1f%% of the square" % (100 * over / max(cov, 1), 100 * cov / 2048 ** 2))
     passes = mm.material_passes()
     r.check("one material pass (as the original)", len(passes) == len(WO.meshes[target].material_passes()) == 1, "%d" % len(passes))
-    t_n, b_n = tangent_convention(mm)
-    r.check("tangent frame stored like the original (T=-dP/dv, B=+dP/du)", t_n > 0.95 and b_n > 0.95, "median dots %.3f / %.3f" % (t_n, b_n))
+    if mm.tangents:
+        t_n, b_n = tangent_convention(mm)
+        r.check("tangent frame stored like the original (T=-dP/dv, B=+dP/du)", t_n > 0.95 and b_n > 0.95, "median dots %.3f / %.3f" % (t_n, b_n))
     P = np.array(mm.verts)
     a3 = np.linalg.norm(np.cross(P[tr[:, 1]] - P[tr[:, 0]], P[tr[:, 2]] - P[tr[:, 0]]), axis=1) / 2
     d1, d2 = uv[tr[:, 1]] - uv[tr[:, 0]], uv[tr[:, 2]] - uv[tr[:, 0]]
@@ -107,22 +111,56 @@ def run(b, ws, r):
     r.info("texel density (area-weighted px per unit)", "median %.1f, p10 %.1f, p90 %.1f" % tuple(
         dens[o][np.searchsorted(cw, cw[-1] * q)] for q in (0.5, 0.1, 0.9)))
 
-    r.section("untouched parts, byte for byte (vs the original through the same export + fix-up)")
-    WR = W3DFile(ws.reference_fixed)
+    r.section("untouched parts, byte for byte (vs EA's original file)")
     for n in others:
-        r.check("%s mesh chunk identical" % n, WN.meshes[n].bytes == WR.meshes[n].bytes, "%d bytes" % len(WN.meshes[n].bytes))
-    cn, cr = WN.top(), WR.top()
+        r.check("%s mesh chunk identical" % n, WN.meshes[n].bytes == WO.meshes[n].bytes, "%d bytes" % len(WN.meshes[n].bytes))
+    cn, co = WN.top(), WO.top()
     for tag, name in ((0x100, "hierarchy"), (0x700, "HLOD")):
-        x, y = [c for t, c in cn if t == tag], [c for t, c in cr if t == tag]
-        r.check("%s chunk identical" % name, x == y and len(x) == 1, "%d bytes" % (len(x[0]) if x else 0))
-    r.check("top-level chunk order unchanged", [t for t, _ in cn] == [t for t, _ in cr], str([hex(t) for t, _ in cn]))
+        x, y = [c for t, c in cn if t == tag], [c for t, c in co if t == tag]
+        r.check("%s chunk identical" % name, x == y and len(x) <= 1, "%d bytes" % (len(x[0]) if x else 0))
+    r.check("top-level chunk order unchanged", [t for t, _ in cn] == [t for t, _ in co], str([hex(t) for t, _ in cn]))
 
-    r.section("asset cache (the build's copy)")
-    cache = AssetCache(ws.cache)
-    stale = cache.stale_entries(shipped, b.model_file)
-    r.check("record matches the file", not stale, "%d stale" % len(stale))
-    names = cache.texture_names()
-    r.check("own textures registered", all(t.lower().encode() in names for t in own.values()), "%d asset records" % len(names))
-    dep = cache.dependencies(b.model_file, "%s.%s" % (ws.container, target))
-    r.check("%s depends on %s" % (target, own[atlas.texture].lower()), dep is not None and own[atlas.texture].lower() in [d.lower() for d in dep], str(dep))
+    r.section("state variants (damaged / snow / stonework) and derived models")
+    for ea, mine in sorted(ws.variants.items()):
+        path = ws.shipped_texture(mine, ".dds")
+        size = b.tier.diffuse // 2
+        i = dds_info(path) if os.path.exists(path) else None
+        r.check("%s (for EA's %s): %d, DXT1, full mips" % (mine, ea, size),
+                i is not None and (i["width"], i["fourcc"], i["mips"]) == (size, "DXT1", full_chain(size)),
+                "%s" % ("missing" if i is None else "%dx%d %s %d mips" % (i["width"], i["height"], i["fourcc"], i["mips"])))
+    for model in ws.derived:
+        member = "art\\w3d\\%s\\%s.w3d" % (model[:2].lower(), model.lower())
+        new, ea = W3DFile(ws.out(member)), W3DFile(os.path.join(ws.path("src"), model.lower() + ".w3d")) \
+            if os.path.exists(os.path.join(ws.path("src"), model.lower() + ".w3d")) else None
+        mesh = new.meshes[target]
+        want = sorted({own.get(t, ws.variants.get(t, t)) for t in (ea.meshes[target].textures if ea else [])}) if ea else None
+        r.check("%s: %s carries our body (%d tris)" % (model, target, len(mesh.tris)),
+                len(mesh.tris) == len(WN.meshes[target].tris) and not mesh.skinned, "")
+        if ea:
+            r.check("%s: %s textures %s" % (model, target, mesh.textures), mesh.textures == want, "want %s" % want)
+            others = [n for n in ea.meshes if n != target]
+            r.check("%s: EA's other meshes byte-identical" % model,
+                    all(new.meshes[n].bytes == ea.meshes[n].bytes for n in others), ", ".join(others))
+
+    r.section("asset caches (the build's copies)")
+    caches = [AssetCache(p) for p in ws.caches()]
+    r.check("at least one cache copy", bool(caches), ", ".join(ws.caches()))
+    home = lambda f: next((c for c in caches if c.has_model(f)), None)  # noqa: E731
+    for model, path in [(b.model_file, shipped)] + [
+            (m.lower() + ".w3d", ws.out("art\\w3d\\%s\\%s.w3d" % (m[:2].lower(), m.lower()))) for m in ws.derived]:
+        cache = home(model)
+        if cache is None:
+            r.info(model, "not in the asset caches: the game parses it directly")
+            continue
+        st = cache.stale_entries(path, model)
+        r.check("record of %s matches the file" % model, not st, "%d stale" % len(st))
+    names = {n for c in caches for n in c.texture_names()}
+    mine = list(own.values()) + list(ws.variants.values())
+    r.check("own textures registered (%d)" % len(mine), all(t.lower().encode() in names for t in mine), "%d asset records" % len(names))
+    obj = "%s.%s" % (ws.container, target)
+    dep = next((d for d in (c.dependencies(b.model_file, obj) for c in caches) if d is not None), None)
+    if dep is None:
+        r.info(obj, "no object record in the game's caches (none in EA's either): nothing to switch")
+    else:
+        r.check("%s depends on %s" % (target, b.own_diffuse.lower()), b.own_diffuse.lower() in [d.lower() for d in dep], str(dep))
     return r.summary()

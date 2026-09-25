@@ -38,9 +38,10 @@ EDITS = [
     # Heat shimmer over fires: it copies the whole screen every frame while any fire is on screen,
     # which is exactly when battles slow down, and it is barely visible. Off pending a measurement.
     (r"data\ini\gamelod.ini", r"StaticGameLOD\s*=\s*UltraHigh", "UseHeatEffects", "No"),
-    # Zoom out further: EA 300, patch 2.02 540. Retina's 4x pixels keep the far view sharp; more
-    # of the map on screen costs frames in big battles.
-    (r"data\ini\gamedata.ini", None, "DefaultCameraMaxHeight", "1000.0"),
+    # Zoom out further: EA 300, patch 2.02 540. The limit is draw calls, not pixels: the frame rate
+    # is bound by Wine's render thread (every draw call crosses into 64-bit OpenGL), and zooming out
+    # draws more units, trees and buildings - 1000 made big battles unplayable, 700 is measured fine.
+    (r"data\ini\gamedata.ini", None, "DefaultCameraMaxHeight", "700.0"),
 ]
 
 

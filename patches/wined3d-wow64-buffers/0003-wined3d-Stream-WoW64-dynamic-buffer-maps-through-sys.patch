@@ -1,0 +1,171 @@
+From 5606c4996a8882e2b5680f20b4bd982e8c40743b Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 09:36:24 -0400
+Subject: [PATCH 03/10] wined3d: Stream WoW64 dynamic buffer maps through
+ system memory without waiting for the CS.
+
+Without ARB_buffer_storage wined3d cannot allocate buffer memory on the application thread,
+so every DISCARD/NOOVERWRITE map waits for the CS to go idle on the buffer and maps the whole
+buffer object there; under WoW64 opengl32 then copies the whole buffer in and out. Return
+fresh system memory for the mapped range instead and upload it on unmap from the CS with
+glBufferSubData(), as the upload path already does for other maps. The earlier pinning
+remains available as WINED3D_WOW64_BUFFERS=pin; =off restores wined3d's behaviour.
+---
+ dlls/wined3d/buffer.c          | 47 ++++++++++++++++++++++------------
+ dlls/wined3d/context_gl.c      |  3 ++-
+ dlls/wined3d/cs.c              | 28 ++++++++++++++++++++
+ dlls/wined3d/wined3d_private.h |  9 +++++++
+ 4 files changed, 69 insertions(+), 18 deletions(-)
+
+diff --git a/dlls/wined3d/buffer.c b/dlls/wined3d/buffer.c
+index d89c84f6e88..8ef3a2d2ca4 100644
+--- a/dlls/wined3d/buffer.c
++++ b/dlls/wined3d/buffer.c
+@@ -935,26 +935,38 @@ static const struct wined3d_resource_ops buffer_resource_ops =
+ /* A 32-bit process on a 64-bit host (WoW64) whose GL driver maps buffers above 4 GiB cannot use
+  * the driver's pointer: opengl32 hands it a temporary 32-bit copy instead, allocating it and
+  * copying the whole mapped range in on map and out again on unmap, around two extra unix calls.
+- * wined3d maps the whole buffer object for every lock when persistent mapping is unavailable
+- * (no ARB_buffer_storage, e.g. macOS), so every small NOOVERWRITE append of a dynamic buffer
+- * copies the entire buffer twice. Keeping such buffers double-buffered in (32-bit) system memory
+- * uploads only the dirty ranges with glBufferSubData() instead. WINED3D_WOW64_PIN=0 disables. */
+-static BOOL wined3d_buffer_pin_for_wow64(const struct wined3d_device *device, uint32_t usage)
+-{
+-    static int enabled = -1;
+-    char value[8];
++ * Without ARB_buffer_storage (e.g. macOS) wined3d also cannot allocate buffer memory from the
++ * application thread, so every DISCARD/NOOVERWRITE map of a dynamic buffer goes through the CS:
++ * the application thread waits for the CS to go idle on the buffer, then maps the whole buffer
++ * object there. WINED3D_WOW64_BUFFERS selects what to do about it:
++ *   stream (default)  DISCARD/NOOVERWRITE maps return fresh system memory for the mapped range,
++ *                     uploaded on unmap by the CS with glBufferSubData(): no wait, no GL map
++ *   pin               keep dynamic buffers double-buffered in system memory (maps still wait)
++ *   off               wined3d's own behaviour */
++enum wined3d_wow64_buffers wined3d_wow64_buffer_mode(const struct wined3d_device *device)
++{
++    static int mode = -1;
++    char value[16];
+     BOOL wow64;
+ 
+-    if (!(usage & WINED3DUSAGE_DYNAMIC) || device->adapter->d3d_info.persistent_map)
+-        return FALSE;
+-    if (enabled < 0)
++    if (device->adapter->d3d_info.persistent_map)
++        return WINED3D_WOW64_BUFFERS_OFF;
++    if (mode < 0)
+     {
+-        enabled = sizeof(void *) == 4 && IsWow64Process(GetCurrentProcess(), &wow64) && wow64;
+-        if (GetEnvironmentVariableA("WINED3D_WOW64_PIN", value, sizeof(value)) && value[0] == '0')
+-            enabled = 0;
+-        TRACE("Pinning dynamic buffers in system memory: %s.\n", enabled ? "yes" : "no");
++        if (sizeof(void *) != 4 || !IsWow64Process(GetCurrentProcess(), &wow64) || !wow64)
++            mode = WINED3D_WOW64_BUFFERS_OFF;
++        else if (!GetEnvironmentVariableA("WINED3D_WOW64_BUFFERS", value, sizeof(value)))
++            mode = WINED3D_WOW64_BUFFERS_STREAM;
++        else if (!strcmp(value, "pin"))
++            mode = WINED3D_WOW64_BUFFERS_PIN;
++        else if (!strcmp(value, "off") || !strcmp(value, "0"))
++            mode = WINED3D_WOW64_BUFFERS_OFF;
++        else
++            mode = WINED3D_WOW64_BUFFERS_STREAM;
++        ERR("WoW64 dynamic buffer mode: %s.\n", mode == WINED3D_WOW64_BUFFERS_STREAM ? "stream"
++                : mode == WINED3D_WOW64_BUFFERS_PIN ? "pin" : "off");
+     }
+-    return enabled;
++    return mode;
+ }
+ 
+ static HRESULT wined3d_buffer_init(struct wined3d_buffer *buffer, struct wined3d_device *device,
+@@ -1009,7 +1021,8 @@ static HRESULT wined3d_buffer_init(struct wined3d_buffer *buffer, struct wined3d
+ 
+     if (device->create_parms.flags & WINED3DCREATE_SOFTWARE_VERTEXPROCESSING
+             || (desc->usage & WINED3DUSAGE_MANAGED)
+-            || wined3d_buffer_pin_for_wow64(device, desc->usage))
++            || ((desc->usage & WINED3DUSAGE_DYNAMIC)
++                    && wined3d_wow64_buffer_mode(device) == WINED3D_WOW64_BUFFERS_PIN))
+     {
+         /* SWvp and managed buffers always return the same pointer in buffer
+          * maps and retain data in DISCARD maps. Keep a system memory copy of
+diff --git a/dlls/wined3d/context_gl.c b/dlls/wined3d/context_gl.c
+index e150e2bdec6..64ea956c7db 100644
+--- a/dlls/wined3d/context_gl.c
++++ b/dlls/wined3d/context_gl.c
+@@ -3056,7 +3056,8 @@ void wined3d_context_gl_copy_bo_address(struct wined3d_context_gl *context_gl,
+     }
+     else if (dst_bo && !src_bo)
+     {
+-        if ((map_flags & WINED3D_MAP_DISCARD) && (dst_bo->flags & GL_MAP_WRITE_BIT))
++        if ((map_flags & WINED3D_MAP_DISCARD) && (dst_bo->flags & GL_MAP_WRITE_BIT)
++                && wined3d_wow64_buffer_mode(context_gl->c.device) == WINED3D_WOW64_BUFFERS_OFF)
+         {
+             dst_ptr = wined3d_context_gl_map_bo_address(context_gl, dst, dst_bo->size, map_flags);
+             memcpy(dst_ptr, src->addr, dst_bo->size);
+diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
+index da903e39488..07bf6fd8f9e 100644
+--- a/dlls/wined3d/cs.c
++++ b/dlls/wined3d/cs.c
+@@ -3073,6 +3073,30 @@ static void wined3d_cs_st_finish(struct wined3d_device_context *context, enum wi
+ {
+ }
+ 
++/* WINED3D_WOW64_BUFFERS=stream: hand the application fresh memory for just the mapped range and
++ * let the CS upload it on unmap, in order with the draws around it. DISCARD and NOOVERWRITE promise
++ * that no data the GPU may still read is overwritten and nothing is read back, so this needs no
++ * synchronisation with the CS. An empty box (D3D8/9 size 0) means "to the end of the buffer". */
++static bool wined3d_cs_map_upload_sysmem(struct wined3d_resource *resource,
++        struct wined3d_map_desc *map_desc, const struct wined3d_box *box)
++{
++    struct wined3d_client_resource *client = &resource->client;
++    struct wined3d_box range = *box;
++
++    if (range.right <= range.left)
++        range.right = resource->size;
++    if (range.left >= range.right || range.right > resource->size)
++        return false;
++    if (!(map_desc->data = malloc(range.right - range.left)))
++        return false;
++    map_desc->row_pitch = map_desc->slice_pitch = resource->size;
++    client->mapped_upload.addr.buffer_object = 0;
++    client->mapped_upload.addr.addr = map_desc->data;
++    client->mapped_upload.flags = UPLOAD_BO_UPLOAD_ON_UNMAP | UPLOAD_BO_FREE_ON_UNMAP;
++    client->mapped_box = range;
++    return true;
++}
++
+ static bool wined3d_cs_map_upload_bo(struct wined3d_device_context *context, struct wined3d_resource *resource,
+         unsigned int sub_resource_idx, struct wined3d_map_desc *map_desc, const struct wined3d_box *box, uint32_t flags)
+ {
+@@ -3093,6 +3117,10 @@ static bool wined3d_cs_map_upload_bo(struct wined3d_device_context *context, str
+             return false;
+         }
+ 
++        if (resource->type == WINED3D_RTYPE_BUFFER
++                && wined3d_wow64_buffer_mode(device) == WINED3D_WOW64_BUFFERS_STREAM)
++            return wined3d_cs_map_upload_sysmem(resource, map_desc, box);
++
+         if ((flags & WINED3D_MAP_NOOVERWRITE) && client->addr.buffer_object == CLIENT_BO_DISCARDED)
+             flags = (flags & ~WINED3D_MAP_NOOVERWRITE) | WINED3D_MAP_DISCARD;
+ 
+diff --git a/dlls/wined3d/wined3d_private.h b/dlls/wined3d/wined3d_private.h
+index c98f8ef09a5..c7dbb1b01bc 100644
+--- a/dlls/wined3d/wined3d_private.h
++++ b/dlls/wined3d/wined3d_private.h
+@@ -4998,6 +4998,15 @@ static inline bool wined3d_primitive_type_is_list(enum wined3d_primitive_type t)
+             || t == WINED3D_PT_PATCH;
+ }
+ 
++enum wined3d_wow64_buffers
++{
++    WINED3D_WOW64_BUFFERS_OFF,
++    WINED3D_WOW64_BUFFERS_PIN,
++    WINED3D_WOW64_BUFFERS_STREAM,
++};
++
++enum wined3d_wow64_buffers wined3d_wow64_buffer_mode(const struct wined3d_device *device);
++
+ static inline bool wined3d_map_persistent(void)
+ {
+     return sizeof(void *) >= sizeof(uint64_t);
+-- 
+2.39.5 (Apple Git-154)
+

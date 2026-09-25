@@ -1,0 +1,32 @@
+From 709b087f1fc33d358784e1acf9bb3431b01527c7 Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Sun, 21 Dec 2025 19:41:47 -0600
+Subject: [PATCH 07/10] wined3d: Avoid some invalidation when render states are
+ set redundantly.
+
+Wine-Bug: https://bugs.winehq.org/show_bug.cgi?id=59013
+(cherry picked from commit 8dcbf5d8235d6116a29fc694ee6526c3c0156f58)
+---
+ dlls/wined3d/stateblock.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/dlls/wined3d/stateblock.c b/dlls/wined3d/stateblock.c
+index 7a8310e54c0..bf60d888325 100644
+--- a/dlls/wined3d/stateblock.c
++++ b/dlls/wined3d/stateblock.c
+@@ -1635,6 +1635,12 @@ void CDECL wined3d_stateblock_set_render_state(struct wined3d_stateblock *stateb
+         return;
+     }
+ 
++    if (stateblock->type == WINED3D_SBT_PRIMARY && value == stateblock->stateblock_state.rs[state])
++    {
++        TRACE("Ignoring redundant call on a primary stateblock.\n");
++        return;
++    }
++
+     stateblock->stateblock_state.rs[state] = value;
+     stateblock->changed.renderState[state >> 5] |= 1u << (state & 0x1f);
+ 
+-- 
+2.39.5 (Apple Git-154)
+

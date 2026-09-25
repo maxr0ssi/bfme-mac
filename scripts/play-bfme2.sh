@@ -15,6 +15,10 @@ LOG="$LOGDIR/bfme2-$(date +%Y%m%d-%H%M%S).log"
 # The engine's startup CPU benchmark never converges on a many-core machine under
 # Rosetta and picks an LOD preset that crashes it; pin it to one core (DrewHoo's fix #2).
 export WINE_CPU_TOPOLOGY=1:0
+# msync: Wine's in-process (Mach) sync objects instead of a wineserver round trip per wait/release.
+# The game takes a kernel mutex around its rendering thousands of times a second; in a big battle that
+# cost ~19 ms of every frame, ~2.5 ms with msync (docs/PERFORMANCE.md). WINEMSYNC=0 turns it off.
+export WINEMSYNC="${WINEMSYNC:-1}"
 # Force Wine's own d3d9 (wined3d/OpenGL); play-bfme2-dxvk.sh flips this to the DXVK dll in syswow64.
 export WINEDLLOVERRIDES="mscoree,mshtml=;d3d9=b"
 

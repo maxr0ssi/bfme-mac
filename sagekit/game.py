@@ -15,6 +15,7 @@ class Install:
         self.pristine = pristine
         self._archives = None
         self._owner = None
+        self._caches = None
 
     def archives(self):
         """Every .big the game loads, in the order it searches them."""
@@ -55,18 +56,43 @@ class Install:
         p = norm(prefix)
         return sorted(k for k in self._owner if k.startswith(p))
 
+    def asset_caches(self):
+        """{live asset.dat path: AssetCache of its pristine copy}, in search order."""
+        if self._caches is None:
+            from .formats.assetcache import AssetCache
+            self._caches = {}
+            for g in paths.SEARCH_ORDER[self.game]:
+                live = os.path.join(paths.GAMEDIRS[g], "asset.dat")
+                self._caches[live] = AssetCache(live + ".orig" if os.path.exists(live + ".orig") else live)
+        return self._caches
+
     def asset_cache(self, model):
         """Path of the asset.dat that files `model` (BFME2's for base-game art, RotWK's for its own)."""
-        from .formats.assetcache import AssetCache, CacheError
-        for g in paths.SEARCH_ORDER[self.game]:
-            path = os.path.join(paths.GAMEDIRS[g], "asset.dat")
-            orig = path + ".orig" if os.path.exists(path + ".orig") else path
-            try:
-                AssetCache(orig).model_record(model)
-                return path
-            except CacheError:
-                continue
+        for live, cache in self.asset_caches().items():
+            if cache.has_model(model):
+                return live
         raise FileNotFoundError("no asset.dat files %s" % model)
+
+    def route_cache_ops(self, ops):
+        """{live asset.dat: [op]} (op as Building.cache_ops). A texture is registered in the cache
+        that files the texture it copies - RotWK files some models in its own cache and their sheets
+        in BFME2's - and its dependency switched only where that cache has the object; a model is
+        patched where it is filed, and skipped when no cache files it (the game parses it)."""
+        out = {}
+        for op in ops:
+            if op[0] == "texture":
+                _, new, like, model, obj = op
+                live = next((p for p, c in self.asset_caches().items() if c.has_texture(like)), None)
+                if live is None:
+                    raise FileNotFoundError("no asset.dat files texture %s" % like)
+                if model and self.asset_caches()[live].dependencies(model, obj) is None:
+                    op = ("texture", new, like, None, None)
+            else:
+                live = next((p for p, c in self.asset_caches().items() if c.has_model(op[1])), None)
+                if live is None:
+                    continue
+            out.setdefault(live, []).append(op)
+        return out
 
     # ------------------------------------------------------------------ art lookups
     @staticmethod

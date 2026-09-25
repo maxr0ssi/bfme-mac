@@ -1,0 +1,32 @@
+From 521365cd11a3ce6748dbd33737a564fae6b84f26 Mon Sep 17 00:00:00 2001
+From: Elizabeth Figura <zfigura@codeweavers.com>
+Date: Fri, 19 Dec 2025 16:12:54 -0600
+Subject: [PATCH 06/10] wined3d: Avoid some invalidation when texture states
+ are set redundantly.
+
+Wine-Bug: https://bugs.winehq.org/show_bug.cgi?id=59013
+(cherry picked from commit 7be265ec89a89db65f0b13f9b7c20c34573b6bb4)
+---
+ dlls/wined3d/stateblock.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/dlls/wined3d/stateblock.c b/dlls/wined3d/stateblock.c
+index eac4238472b..7a8310e54c0 100644
+--- a/dlls/wined3d/stateblock.c
++++ b/dlls/wined3d/stateblock.c
+@@ -1745,6 +1745,12 @@ void CDECL wined3d_stateblock_set_texture_stage_state(struct wined3d_stateblock
+         return;
+     }
+ 
++    if (stateblock->type == WINED3D_SBT_PRIMARY && value == stateblock->stateblock_state.texture_states[stage][state])
++    {
++        TRACE("Ignoring redundant call on a primary stateblock.\n");
++        return;
++    }
++
+     stateblock->stateblock_state.texture_states[stage][state] = value;
+     stateblock->changed.textureState[stage] |= 1u << state;
+ 
+-- 
+2.39.5 (Apple Git-154)
+

@@ -1,0 +1,80 @@
+From 6cee01681489d0e4dba9e6d4bd6cb2ecf9a1ead6 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 09:03:37 -0400
+Subject: [PATCH 01/10] wined3d: Keep dynamic buffers in system memory under
+ WoW64 without persistent maps.
+
+A WoW64 process whose GL driver maps buffers above 4 GiB gets a temporary 32-bit copy from
+opengl32 for every map: an allocation, two extra unix calls, and a copy of the whole mapped
+range on map and on unmap. Without ARB_buffer_storage (macOS) wined3d maps the whole buffer
+object on every lock, so each small NOOVERWRITE append of a dynamic vertex buffer copies the
+entire buffer twice. Measured on RotWK under Rosetta: the CS thread spends ~38% in
+glMapBufferRange. Pin such buffers in system memory (as for SWVP and managed buffers) and
+upload the dirty ranges with glBufferSubData() instead. WINED3D_WOW64_PIN=0 disables it.
+
+Also treat a D3D8/9 lock size of 0 as 'to the end of the buffer' for the dirty range, so
+data written after such a lock at a non-zero offset reaches the buffer object.
+---
+ dlls/wined3d/buffer.c | 32 +++++++++++++++++++++++++++++++-
+ 1 file changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/wined3d/buffer.c b/dlls/wined3d/buffer.c
+index 608be16b9df..d89c84f6e88 100644
+--- a/dlls/wined3d/buffer.c
++++ b/dlls/wined3d/buffer.c
+@@ -568,6 +568,10 @@ static HRESULT buffer_resource_sub_resource_map(struct wined3d_resource *resourc
+ 
+     dirty_offset = offset = box->left;
+     dirty_size = size = box->right - box->left;
++    /* D3D8/9 lock a size of 0 as "to the end of the buffer"; the box arrives empty, and an empty
++     * dirty range (offset > 0) would never upload what the application writes there. */
++    if (!dirty_size && dirty_offset)
++        dirty_size = resource->size - dirty_offset;
+ 
+     count = ++resource->map_count;
+ 
+@@ -928,6 +932,31 @@ static const struct wined3d_resource_ops buffer_resource_ops =
+     buffer_resource_sub_resource_unmap,
+ };
+ 
++/* A 32-bit process on a 64-bit host (WoW64) whose GL driver maps buffers above 4 GiB cannot use
++ * the driver's pointer: opengl32 hands it a temporary 32-bit copy instead, allocating it and
++ * copying the whole mapped range in on map and out again on unmap, around two extra unix calls.
++ * wined3d maps the whole buffer object for every lock when persistent mapping is unavailable
++ * (no ARB_buffer_storage, e.g. macOS), so every small NOOVERWRITE append of a dynamic buffer
++ * copies the entire buffer twice. Keeping such buffers double-buffered in (32-bit) system memory
++ * uploads only the dirty ranges with glBufferSubData() instead. WINED3D_WOW64_PIN=0 disables. */
++static BOOL wined3d_buffer_pin_for_wow64(const struct wined3d_device *device, uint32_t usage)
++{
++    static int enabled = -1;
++    char value[8];
++    BOOL wow64;
++
++    if (!(usage & WINED3DUSAGE_DYNAMIC) || device->adapter->d3d_info.persistent_map)
++        return FALSE;
++    if (enabled < 0)
++    {
++        enabled = sizeof(void *) == 4 && IsWow64Process(GetCurrentProcess(), &wow64) && wow64;
++        if (GetEnvironmentVariableA("WINED3D_WOW64_PIN", value, sizeof(value)) && value[0] == '0')
++            enabled = 0;
++        TRACE("Pinning dynamic buffers in system memory: %s.\n", enabled ? "yes" : "no");
++    }
++    return enabled;
++}
++
+ static HRESULT wined3d_buffer_init(struct wined3d_buffer *buffer, struct wined3d_device *device,
+         const struct wined3d_buffer_desc *desc, const struct wined3d_sub_resource_data *data,
+         void *parent, const struct wined3d_parent_ops *parent_ops, const struct wined3d_buffer_ops *buffer_ops)
+@@ -979,7 +1008,8 @@ static HRESULT wined3d_buffer_init(struct wined3d_buffer *buffer, struct wined3d
+             buffer, buffer->resource.size, buffer->resource.usage, buffer->resource.heap_memory);
+ 
+     if (device->create_parms.flags & WINED3DCREATE_SOFTWARE_VERTEXPROCESSING
+-            || (desc->usage & WINED3DUSAGE_MANAGED))
++            || (desc->usage & WINED3DUSAGE_MANAGED)
++            || wined3d_buffer_pin_for_wow64(device, desc->usage))
+     {
+         /* SWvp and managed buffers always return the same pointer in buffer
+          * maps and retain data in DISCARD maps. Keep a system memory copy of
+-- 
+2.39.5 (Apple Git-154)
+

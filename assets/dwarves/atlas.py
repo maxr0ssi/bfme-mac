@@ -28,4 +28,5 @@ class DwarvenAtlas(Atlas):
         "tiles": [(1060, 648, 1346, 846)],
         "strap": [(247, 525, 256, 676), (318, 525, 327, 676), (1724, 108, 1940, 117), (1724, 268, 1940, 277)],
         "stone": [(90, 1560, 1652, 2048), (1652, 1180, 2048, 2048)],
+        "plate": [(860, 0, 1236, 188)],     # the round bronze disc (the catapult tower's platform floor)
     }

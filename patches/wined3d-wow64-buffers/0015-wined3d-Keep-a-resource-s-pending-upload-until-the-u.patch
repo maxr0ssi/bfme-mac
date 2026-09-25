@@ -1,0 +1,107 @@
+From b90c6400c07b65841ba1c1fa05919463f88c6ecf Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 14:09:23 -0400
+Subject: [PATCH 15/19] wined3d: Keep a resource's pending upload until the
+ unmap of the sub-resource that owns it.
+
+A resource has one client-side pending upload, set up by an accelerated DISCARD/NOOVERWRITE map
+or by an UPDATE_SUB_RESOURCE with a copied source. A second accelerated map of the same resource
+while the first is outstanding (another sub-resource, a nested map, or an update of a resource
+the application still has mapped) overwrote it: the first map's data was never uploaded and its
+memory leaked, and the next unmap uploaded the wrong data to the wrong sub-resource. Send such
+maps through the CS instead, and only consume the pending upload on the unmap of the
+sub-resource it belongs to.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/cs.c              | 23 ++++++++++++++++++-----
+ dlls/wined3d/wined3d_private.h |  1 +
+ 2 files changed, 19 insertions(+), 5 deletions(-)
+
+diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
+index f1066a09fb5..a8dfb2cffc6 100644
+--- a/dlls/wined3d/cs.c
++++ b/dlls/wined3d/cs.c
+@@ -3115,6 +3115,11 @@ static void wined3d_cs_st_finish(struct wined3d_device_context *context, enum wi
+ {
+ }
+ 
++static bool wined3d_bo_address_is_null(struct wined3d_const_bo_address *addr)
++{
++    return !addr->buffer_object && !addr->addr;
++}
++
+ /* WINED3D_WOW64_BUFFERS=stream: hand the application fresh memory for just the mapped range and
+  * let the CS upload it on unmap, in order with the draws around it. DISCARD and NOOVERWRITE promise
+  * that no data the GPU may still read is overwritten and nothing is read back, so this needs no
+@@ -3137,6 +3142,7 @@ static bool wined3d_cs_map_upload_sysmem(struct wined3d_resource *resource,
+     client->mapped_upload.flags = UPLOAD_BO_UPLOAD_ON_UNMAP | UPLOAD_BO_FREE_ON_UNMAP
+             | (flags & WINED3D_MAP_DISCARD ? UPLOAD_BO_DISCARD : UPLOAD_BO_NOOVERWRITE);
+     client->mapped_box = range;
++    client->mapped_sub_resource_idx = 0;
+     return true;
+ }
+ 
+@@ -3147,6 +3153,14 @@ static bool wined3d_cs_map_upload_bo(struct wined3d_device_context *context, str
+     const struct wined3d_format *format = resource->format;
+     size_t size;
+ 
++    /* There is one pending upload per resource. Another map of the resource (a second
++     * sub-resource, or an update while it is mapped) goes through the CS instead of losing it. */
++    if (!wined3d_bo_address_is_null(&client->mapped_upload.addr))
++    {
++        WARN_(d3d_perf)("Resource %p already has a pending upload.\n", resource);
++        return false;
++    }
++
+     if (flags & (WINED3D_MAP_DISCARD | WINED3D_MAP_NOOVERWRITE))
+     {
+         struct wined3d_device *device = context->device;
+@@ -3228,6 +3242,7 @@ static bool wined3d_cs_map_upload_bo(struct wined3d_device_context *context, str
+             client->mapped_upload.flags |= UPLOAD_BO_UPLOAD_ON_UNMAP | UPLOAD_BO_RENAME_ON_UNMAP;
+ 
+         client->mapped_box = *box;
++        client->mapped_sub_resource_idx = sub_resource_idx;
+ 
+         TRACE("Returning bo %s, flags %#x.\n", debug_const_bo_address(&client->mapped_upload.addr),
+                 client->mapped_upload.flags);
+@@ -3250,14 +3265,10 @@ static bool wined3d_cs_map_upload_bo(struct wined3d_device_context *context, str
+     client->mapped_upload.addr.addr = map_desc->data;
+     client->mapped_upload.flags = UPLOAD_BO_UPLOAD_ON_UNMAP | UPLOAD_BO_FREE_ON_UNMAP;
+     client->mapped_box = *box;
++    client->mapped_sub_resource_idx = sub_resource_idx;
+     return true;
+ }
+ 
+-static bool wined3d_bo_address_is_null(struct wined3d_const_bo_address *addr)
+-{
+-    return !addr->buffer_object && !addr->addr;
+-}
+-
+ static bool wined3d_cs_unmap_upload_bo(struct wined3d_device_context *context, struct wined3d_resource *resource,
+         unsigned int sub_resource_idx, struct wined3d_box *box, struct upload_bo *upload_bo)
+ {
+@@ -3267,6 +3278,8 @@ static bool wined3d_cs_unmap_upload_bo(struct wined3d_device_context *context, s
+ 
+     if (wined3d_bo_address_is_null(&client->mapped_upload.addr))
+         return false;
++    if (client->mapped_sub_resource_idx != sub_resource_idx)
++        return false;
+ 
+     if ((bo = client->mapped_upload.addr.buffer_object))
+     {
+diff --git a/dlls/wined3d/wined3d_private.h b/dlls/wined3d/wined3d_private.h
+index 31f5585b93f..da2d12eb086 100644
+--- a/dlls/wined3d/wined3d_private.h
++++ b/dlls/wined3d/wined3d_private.h
+@@ -3177,6 +3177,7 @@ struct wined3d_client_resource
+     /* The currently mapped upload BO, if applicable, and box. */
+     struct upload_bo mapped_upload;
+     struct wined3d_box mapped_box;
++    unsigned int mapped_sub_resource_idx;
+ };
+ 
+ static inline BOOL wined3d_resource_access_is_managed(unsigned int access)
+-- 
+2.39.5 (Apple Git-154)
+

@@ -5,6 +5,8 @@
     inventory <faction/building>       its lifecycle as the game defines it, and what exists
     budget [faction]                   memory the own textures take, per faction
     build <faction/building> [--from STEP] [--to STEP]
+    sheets <faction> [--only NAME]     recolour every texture sheet of the faction to its palette
+    install <faction> | revert <faction>   put everything built into the game / take it out
 """
 import argparse
 import sys
@@ -98,6 +100,63 @@ def cmd_build(a):
     return 0
 
 
+def cmd_sheets(a):
+    """Recolour the faction's sheets (sagekit/paint/sheets.py) into build/assets/<faction>/_sheets/out,
+    four at a time on Blender's Python."""
+    import os
+    import subprocess
+    from concurrent.futures import ThreadPoolExecutor
+    from . import paths
+    from .formats.textures import dds_info
+    from .pipeline import REALESRGAN, game_running
+    if game_running() and not a.force:
+        print("the game is running - recolouring would take its CPU and GPU. Close it, or pass --force")
+        return 1
+    style = _style(a.faction)
+    g = Install()
+    root = os.path.join(paths.BUILD, a.faction, "_sheets")
+    todo = [m for m in style.sheets(g) if not a.only or a.only.lower() in m]
+
+    def one(member):
+        name = member.split("\\")[-1]
+        src = os.path.join(root, "src", name)
+        os.makedirs(os.path.dirname(src), exist_ok=True)
+        with open(src, "wb") as fh:
+            fh.write(g.read(member))
+        out = os.path.join(root, "out", *member.split("\\"))
+        r = subprocess.run([paths.blender_python(), "-m", "sagekit.paint.sheets", a.faction, src, out,
+                            str(style.sheet_size(name)), REALESRGAN], capture_output=True, text=True,
+                           cwd=paths.REPO, env=dict(os.environ, PYTHONPATH=paths.REPO))
+        if r.returncode:
+            return "FAIL %s\n%s" % (name, r.stderr[-1500:])
+        i = dds_info(out)
+        return "ok   %-28s %4dx%-4d %s" % (name, i["width"], i["height"], i["fourcc"])
+    with ThreadPoolExecutor(4) as ex:
+        results = list(ex.map(one, todo))
+    print("\n".join(results))
+    return 1 if any(r.startswith("FAIL") for r in results) else 0
+
+
+def cmd_install(a):
+    from .install import install_faction
+    from .pipeline import game_running
+    if game_running():
+        print("the game is running - close it first (it reads its archives at startup)")
+        return 1
+    install_faction(a.faction)
+
+
+def cmd_revert(a):
+    from .install import revert_faction
+    revert_faction(a.faction)
+
+
+def _style(faction):
+    import importlib
+    mod = importlib.import_module("assets.%s.style" % faction)
+    return next(v() for v in vars(mod).values() if isinstance(v, type) and getattr(v, "faction", None) == faction)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="python3 -m sagekit", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -112,6 +171,12 @@ def main(argv=None):
     p.add_argument("--from", dest="first")
     p.add_argument("--to", dest="last")
     p.add_argument("--force", action="store_true", help="build even while the game is running")
+    p = sub.add_parser("sheets")
+    p.add_argument("faction")
+    p.add_argument("--only")
+    p.add_argument("--force", action="store_true")
+    for name in ("install", "revert"):
+        sub.add_parser(name).add_argument("faction")
     a = ap.parse_args(argv)
     return globals()["cmd_" + a.cmd](a) or 0
 

@@ -1,0 +1,55 @@
+From 93706fb6811716948d28324de0a91a768cdb95e5 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 20:53:45 -0400
+Subject: [PATCH 7/7] d3dx9: Check parameter and parameter block handles
+ without calling strncmp().
+
+Every Set*() / Get*() call validates its handle with strncmp() of a 4 byte
+magic string; with RotWK setting ~30 parameters per batch and ~10 per mesh
+through handles, the call was ~5 % of the effect framework's main-thread time.
+Compare the bytes inline instead: the same bytes are read, up to the first
+one that differs, so a name passed as a handle is read no further than before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/d3dx9_36/effect.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/d3dx9_36/effect.c b/dlls/d3dx9_36/effect.c
+index 9a9e19d8c50..2e48573e2a0 100644
+--- a/dlls/d3dx9_36/effect.c
++++ b/dlls/d3dx9_36/effect.c
+@@ -502,12 +502,18 @@ static struct d3dx_pass *get_valid_pass(struct d3dx_effect *effect, D3DXHANDLE p
+     return NULL;
+ }
+ 
++/* strncmp() of a 4 character magic string without a NUL: the same bytes are
++ * read, up to the first one that differs, without a call per handle check. */
++static inline BOOL has_magic_string(const char *p, const char magic[4])
++{
++    return p[0] == magic[0] && p[1] == magic[1] && p[2] == magic[2] && p[3] == magic[3];
++}
++
+ static struct d3dx_parameter *get_valid_parameter(struct d3dx_effect *effect, D3DXHANDLE parameter)
+ {
+     struct d3dx_parameter *handle_param = (struct d3dx_parameter *)parameter;
+ 
+-    if (handle_param && !strncmp(handle_param->magic_string, parameter_magic_string,
+-            sizeof(parameter_magic_string)))
++    if (handle_param && has_magic_string(handle_param->magic_string, parameter_magic_string))
+         return handle_param;
+ 
+     return effect->flags & D3DXFX_LARGEADDRESSAWARE ? NULL : get_parameter_by_name(&effect->params, NULL, parameter);
+@@ -517,8 +523,7 @@ static struct d3dx_parameter_block *get_valid_parameter_block(D3DXHANDLE handle)
+ {
+     struct d3dx_parameter_block *block = (struct d3dx_parameter_block *)handle;
+ 
+-    return block && !strncmp(block->magic_string, parameter_block_magic_string,
+-            sizeof(parameter_block_magic_string)) ? block : NULL;
++    return block && has_magic_string(block->magic_string, parameter_block_magic_string) ? block : NULL;
+ }
+ 
+ static void free_state(struct d3dx_state *state)
+-- 
+2.39.5 (Apple Git-154)
+

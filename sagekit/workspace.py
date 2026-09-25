@@ -3,10 +3,11 @@
     build/assets/<faction>/<building>/
       src/     the game's originals: <model>.w3d, the atlas (.dds + its 4x upscale .png), its normal map
       work/    stage_*.blend, bake/*.npy, tex/, export/, ref/, logs/
-      cache/   asset.dat: a pristine copy with this building's cache ops applied (and verified)
+      cache/   <game>/asset.dat: pristine copies of the caches its ops touch, ops applied (and verified)
       out/     exactly what ships, as archive paths: art/w3d/..., art/compiledtextures/...
       renders/ comparison images
 """
+import json
 import os
 
 from . import paths
@@ -26,20 +27,56 @@ class Workspace:
 
     # ------------------------------------------------------------------ sources
     @property
+    def src(self):
+        """The game's originals (a skinned model's separate skeleton is here too)."""
+        return self.path("src")
+
+    @property
     def source_model(self):
         return self.path("src", self.b.model_file)
 
+    def upscale_of(self, texture):
+        """The 4x upscale of any sheet (by texture name) in src/."""
+        return self.path("src", "%s_x%d.png" % (texture[:-4].lower(), self.b.style.atlas.upscale))
+
     @property
     def atlas_dds(self):
-        return self.path("src", self.b.style.atlas.stem.lower() + ".dds")
+        """The sheet the target mesh was painted from (EA's DDS)."""
+        return self.path("src", self.b.sheet_atlas.texture[:-4].lower() + ".dds")
 
     @property
     def atlas_upscale(self):
-        return self.path("src", "%s_x%d.png" % (self.b.style.atlas.stem.lower(), self.b.style.atlas.upscale))
+        return self.upscale_of(self.b.sheet_atlas.texture)
 
     @property
     def atlas_normal(self):
+        n = self.b.sheet_atlas.normal
+        return self.path("src", n.lower()) if n else None
+
+    @property
+    def master_upscale(self):
+        """The faction atlas's upscale: where new geometry is mapped (the same sheet for buildings
+        painted from the faction atlas)."""
+        return self.upscale_of(self.b.style.atlas.texture)
+
+    @property
+    def master_normal(self):
         return self.path("src", self.b.style.atlas.normal.lower())
+
+    @property
+    def variants(self):
+        """{EA variant texture: our variant} as the extract step recorded it."""
+        p = self.path("work", "variants.json")
+        return json.load(open(p)) if os.path.exists(p) else {}
+
+    @property
+    def derived(self):
+        """Models rebuilt from our body (EA's damaged-but-standing ones), as extract recorded them."""
+        p = self.path("work", "derived.json")
+        return json.load(open(p)) if os.path.exists(p) else []
+
+    def variant_upscale(self, ea_texture):
+        return self.upscale_of(ea_texture)
 
     @property
     def container(self):
@@ -69,17 +106,15 @@ class Workspace:
     def export_model(self):
         return self.path("work", "export", self.container + ".w3d")
 
-    @property
-    def reference_export(self):
-        return self.path("work", "ref", self.container + ".w3d")
+    def cache_copy(self, live):
+        """The build's copy of one of the game's asset.dat files: cache/<game folder>/asset.dat."""
+        return self.path("cache", os.path.basename(os.path.dirname(live)), "asset.dat")
 
-    @property
-    def reference_fixed(self):
-        return self.path("work", "ref_fixed.w3d")
-
-    @property
-    def cache(self):
-        return self.path("cache", "asset.dat")
+    def caches(self, game="rotwk"):
+        """The build's asset.dat copies (one per cache its ops touch) in the game's search order:
+        a model filed in both (RotWK re-files some BFME2 models) is read from the first."""
+        live = [os.path.join(paths.GAMEDIRS[g], "asset.dat") for g in paths.SEARCH_ORDER[game]]
+        return [c for c in map(self.cache_copy, live) if os.path.exists(c)]
 
     # ------------------------------------------------------------------ what ships
     def out(self, archive_path):
@@ -94,11 +129,10 @@ class Workspace:
 
     def texture_map(self):
         """{lower-case texture name a model references: file} for rendering the shipped model."""
-        a = self.b.style.atlas
-        own = self.b.texture_names()
-        return {
-            own[a.texture].lower(): self.shipped_texture(own[a.texture], ".dds"),
-            own[a.normal].lower(): self.shipped_texture(own[a.normal], ".tga"),
-            a.texture.lower(): self.atlas_dds,
-            a.normal.lower(): self.atlas_normal,
-        }
+        a = self.b.sheet_atlas
+        out = {self.b.own_diffuse.lower(): self.shipped_texture(self.b.own_diffuse, ".dds"),
+               a.texture.lower(): self.atlas_dds}
+        if a.normal:
+            out[self.b.own_normal.lower()] = self.shipped_texture(self.b.own_normal, ".tga")
+            out[a.normal.lower()] = self.atlas_normal
+        return out

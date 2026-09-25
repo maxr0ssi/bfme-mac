@@ -1,0 +1,38 @@
+From afc5eeec16c58457dc844805a071d6a7cdce77b5 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 10:24:13 -0400
+Subject: [PATCH 10/10] wined3d: Don't free streamed system memory when
+ flushing a buffer that is still mapped.
+
+wined3d_device_context_flush_mapped_buffer() uploads a mapped dynamic buffer before a draw
+(Castlevania 2 draws from mapped buffers). With WINED3D_WOW64_BUFFERS=stream the pending upload
+owns malloc'd memory the application is still writing to, and every such flush freed it:
+use-after-free and double free (d3d9 visual test_dynamic_map_synchronization).
+---
+ dlls/wined3d/cs.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
+index b5b3e237f9e..4eeba579f85 100644
+--- a/dlls/wined3d/cs.c
++++ b/dlls/wined3d/cs.c
+@@ -3574,8 +3574,15 @@ void CDECL wined3d_device_context_flush_mapped_buffer(struct wined3d_device_cont
+         return;
+ 
+     if (client->mapped_upload.flags & UPLOAD_BO_UPLOAD_ON_UNMAP)
++    {
++        struct upload_bo bo = client->mapped_upload;
++
++        /* The application keeps writing to system memory handed out by
++         * wined3d_cs_map_upload_sysmem(); only the final unmap may free it. */
++        bo.flags &= ~UPLOAD_BO_FREE_ON_UNMAP;
+         wined3d_device_context_upload_bo(context, &buffer->resource, 0,
+-                &client->mapped_box, &client->mapped_upload, buffer->resource.size, buffer->resource.size);
++                &client->mapped_box, &bo, buffer->resource.size, buffer->resource.size);
++    }
+ 
+     if (client->mapped_upload.flags & UPLOAD_BO_RENAME_ON_UNMAP)
+     {
+-- 
+2.39.5 (Apple Git-154)
+

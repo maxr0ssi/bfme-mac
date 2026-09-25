@@ -33,9 +33,9 @@ class Report:
         return all(self.results)
 
 
-def snapshot(path):
+def snapshot(path, skeletons=None):
     """What Blender imports from a model: bones, and per mesh its parent, materials, geometry."""
-    scene.import_w3d(path)
+    scene.import_w3d(path, skeletons)
     arms = [o for o in bpy.data.objects if o.type == "ARMATURE"]
     s = {"n_arm": len(arms), "bones": {}, "meshes": {}}
     for b in arms[0].data.bones:

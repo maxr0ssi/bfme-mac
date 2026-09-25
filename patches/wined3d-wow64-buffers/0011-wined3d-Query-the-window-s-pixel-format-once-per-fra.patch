@@ -1,0 +1,116 @@
+From 6467d778fd46a2779e5d59cec400109eed9bd527 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Thu, 24 Sep 2026 11:17:05 -0400
+Subject: [PATCH] wined3d: Query the window's pixel format once per frame and
+ cache vertex attribute divisors.
+
+wined3d_context_gl_enter() asked for the DC's pixel format on every context acquire - a unix call
+per draw, 5.6% of the CS thread in a WW3D2-style bench on macOS - to catch applications changing
+it behind wined3d's back; check once per present instead. glVertexAttribDivisor() was issued for
+every attribute on every stream load (2.2%); remember the per-VAO value.
+---
+ dlls/wined3d/context_gl.c | 24 +++++++++++++++++++++---
+ dlls/wined3d/swapchain.c  |  1 +
+ dlls/wined3d/wined3d_gl.h |  4 +++-
+ 3 files changed, 25 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/wined3d/context_gl.c b/dlls/wined3d/context_gl.c
+index 62a59e3d701..7909bbbbbef 100644
+--- a/dlls/wined3d/context_gl.c
++++ b/dlls/wined3d/context_gl.c
+@@ -1349,6 +1349,7 @@ static void wined3d_context_gl_update_window(struct wined3d_context_gl *context_
+     context_gl->dc_is_private = FALSE;
+     context_gl->dc_has_format = FALSE;
+     context_gl->needs_set = 1;
++    context_gl->pixel_format_checked = 0;
+     context_gl->valid = 1;
+     context_gl->internal_format_set = 0;
+ 
+@@ -1678,12 +1679,17 @@ static void wined3d_context_gl_enter(struct wined3d_context_gl *context_gl)
+             context_gl->restore_dc = wglGetCurrentDC();
+             context_gl->needs_set = 1;
+         }
+-        else if (!context_gl->needs_set && !(context_gl->dc_is_private && context_gl->dc_has_format))
++        else if (!context_gl->needs_set && !(context_gl->dc_is_private && context_gl->dc_has_format)
++                && !context_gl->pixel_format_checked)
+         {
++            /* Querying the pixel format is a round trip to the host (a unix
++             * call per context acquire, i.e. per draw). The application
++             * changing it behind our back is rare; check once per frame. */
+             int current = context_gl->gl_info->gl_ops.wgl.p_wglGetPixelFormat(context_gl->dc);
+ 
+             if ((current && current != context_gl->pixel_format) || (!current && !context_gl->internal_format_set))
+                 context_gl->needs_set = 1;
++            context_gl->pixel_format_checked = 1;
+         }
+     }
+ }
+@@ -4877,6 +4883,18 @@ static const void *get_vertex_attrib_pointer(const struct wined3d_stream_info_el
+     return offset;
+ }
+ 
++/* The divisor is vertex array object state, and a context_gl only ever uses one VAO. */
++static void wined3d_context_gl_set_attrib_divisor(struct wined3d_context_gl *context_gl,
++        unsigned int i, unsigned int divisor)
++{
++    const struct wined3d_gl_info *gl_info = context_gl->gl_info;
++
++    if (context_gl->attrib_divisors[i] == divisor)
++        return;
++    GL_EXTCALL(glVertexAttribDivisor(i, divisor));
++    context_gl->attrib_divisors[i] = divisor;
++}
++
+ static void wined3d_context_gl_unload_numbered_array(struct wined3d_context_gl *context_gl, unsigned int i)
+ {
+     const struct wined3d_gl_info *gl_info = context_gl->gl_info;
+@@ -4884,7 +4902,7 @@ static void wined3d_context_gl_unload_numbered_array(struct wined3d_context_gl *
+     GL_EXTCALL(glDisableVertexAttribArray(i));
+     checkGLcall("glDisableVertexAttribArray");
+     if (gl_info->supported[ARB_INSTANCED_ARRAYS])
+-        GL_EXTCALL(glVertexAttribDivisor(i, 0));
++        wined3d_context_gl_set_attrib_divisor(context_gl, i, 0);
+ 
+     context_gl->c.numbered_array_mask &= ~(1u << i);
+ }
+@@ -4946,7 +4964,7 @@ static void wined3d_context_gl_load_numbered_arrays(struct wined3d_context_gl *c
+ 
+             if (element->instanced)
+                 divisor = element->divisor ? element->divisor : UINT_MAX;
+-            GL_EXTCALL(glVertexAttribDivisor(i, divisor));
++            wined3d_context_gl_set_attrib_divisor(context_gl, i, divisor);
+         }
+         else if (element->divisor)
+         {
+diff --git a/dlls/wined3d/swapchain.c b/dlls/wined3d/swapchain.c
+index 6b2ad8d6954..ca70d1033c3 100644
+--- a/dlls/wined3d/swapchain.c
++++ b/dlls/wined3d/swapchain.c
+@@ -625,6 +625,7 @@ static void swapchain_gl_present(struct wined3d_swapchain *swapchain,
+ 
+         /* call wglSwapBuffers through the gl table to avoid confusing the Steam overlay */
+         gl_info->gl_ops.wgl.p_wglSwapBuffers(context_gl->dc);
++        context_gl->pixel_format_checked = 0;
+     }
+ 
+     if (context->d3d_info->fences)
+diff --git a/dlls/wined3d/wined3d_gl.h b/dlls/wined3d/wined3d_gl.h
+index 24d7ebf663b..5585e9cba27 100644
+--- a/dlls/wined3d/wined3d_gl.h
++++ b/dlls/wined3d/wined3d_gl.h
+@@ -611,9 +611,11 @@ struct wined3d_context_gl
+     uint32_t needs_set : 1;
+     uint32_t internal_format_set : 1;
+     uint32_t valid : 1;
+-    uint32_t padding : 25;
++    uint32_t pixel_format_checked : 1; /* Since the last present or window change. */
++    uint32_t padding : 24;
+ 
+     uint32_t default_attrib_value_set;
++    unsigned int attrib_divisors[MAX_ATTRIBS]; /* Current glVertexAttribDivisor() values. */
+ 
+     GLenum tracking_parm; /* Which source is tracking current colour. */
+     GLenum untracked_materials[2];
+-- 
+2.39.5 (Apple Git-154)
+
