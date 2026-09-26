@@ -63,7 +63,7 @@ cameras.
 
 | Part | Healthy | Construction | Damaged / really damaged / rubble | Snow | LOD M/L |
 |---|---|---|---|---|---|
-| body (`DBArchRnge_SKN`) | second pass built, checks pass, **awaiting review** | old (`DBArchRnge_A`) | old (no derived models: D1/D2/D3 do not carry a rigid `ARCHERYRANGE`) | variant `dbarchrngH_snow.dds` painted | old |
+| body (`DBArchRnge_SKN`) | second pass built, checks pass, **awaiting review** | old (`DBArchRnge_A`) | damaged: derived `DBArchRnge_D1` (EA's `ARCHERY`, the same body on a bone turned 180°) on our `dbarchrngH_D` sheet, **awaiting review**; D2/D3 old | variant `dbarchrngH_snow.dds` painted | old |
 | banner (`DBHCArchRnge`) | old | | | | |
 
 `bake_hidden` leaves the archer, the smith, their props, the ground plate and the night windows

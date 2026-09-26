@@ -311,6 +311,24 @@ class Barracks(Building):
         s += kit.banner(a, V((t[0], t[1], 0)), V((n[0], n[1], 0)), 0.0, 22.4, 2.6, 5.8, d=1.9)
         return s
 
+    night_surfaces = ("ROCK",)                  # EA's night windows are in the rock
+
+    @staticmethod
+    def night_lights(kit):
+        """The gate (EA's doorway inside our portal) and EA's four windows in the rock, two either
+        side of the gate behind the racks, one on each flank."""
+        from sagekit.nightlights import Light
+        a, t, n = gate_frame()
+        door = [(-5.2, 0.2), (5.2, 0.2), (5.2, 15.0), (3.8, 19.5), (-3.8, 19.5), (-5.2, 15.0)]     # our portal's
+        # jambs up to EA's doorway head (z 19.5, under the tympanum)
+        out = [Light(tuple(a + n * 32.3), tuple(t), tuple(n), door, kind="door", reach=5.0, name="gate")]
+        for u in (-17.5, 17.3):
+            out.append(Light.rect(tuple(n * 31.5), tuple(t), tuple(n), u - 2.3, u + 2.3, 10.8, 16.6, reach=4.0,
+                                  name="front %+.0f" % u))
+        out.append(Light.rect((-33.0, -27.3, 0), (0, 1, 0), (-1, 0, 0), -2.3, 2.3, 6.1, 11.9, reach=4.0, name="west"))
+        out.append(Light.rect((29.1, 33.0, 0), (1, 0, 0), (0, 1, 0), -2.3, 2.3, 6.1, 11.9, reach=4.0, name="north"))
+        return out
+
     def emphasis(self, c, n):
         u, d = (c.x + c.y) / R2, (c.x - c.y) / R2
         if abs(u - GATE_U) < 14 and d > 30:

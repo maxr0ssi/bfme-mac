@@ -1,5 +1,6 @@
 """The Dwarven look: honey granite, burnished gold and bronze, gold-inlaid runes on dark basalt
 (the user's pick, "palette A"), chosen over a cool blue-grey Erebor variant."""
+from sagekit.nightlights import NightLook
 from sagekit.style import Palette, Style
 
 from .atlas import DwarvenAtlas
@@ -38,9 +39,16 @@ class DwarvenStyle(Style):
     sheet_dir = "art\\compiledtextures\\db"
     # the Doors of Durin: ithildin blue-silver that glows, not stone to recolour
     sheet_skip = Style.sheet_skip + ("magicdoor", "underminedoor")
+    # the siege works' anvil (DBForge.ANVIL and its state models) is painted from the Elven forge's sheet
+    shared_sheets = {"EBForge.tga": "DBAnvil.tga"}
     master_variants = {"damaged": "DBFortress1_D.tga", "snow": "DBFortress1_Snow.tga", "stonework": "DBFortress_U.tga"}
     budget_mb = 256
     house_template = "DBHCArchRnge"         # copied for buildings EA gave no house-colour model
+    # night lights: forge fire seen through the stone - deep ember at the edges, orange, a hot
+    # straw-yellow core low in each opening (the Dwarves' own sheet: never Gondor's gbnightwindows)
+    night = NightLook("DBNight.tga", ramp=[(0.0, (0, 0, 0)), (0.18, (0.22, 0.04, 0.0)), (0.45, (0.78, 0.30, 0.04)),
+                                           (0.75, (1.0, 0.58, 0.16)), (1.0, (1.0, 0.86, 0.52))],
+                      gain={"door": 0.7})         # a doorway is large: a lower glow than a window
 
     def sheet_size(self, name):
         return 2048 if name.lower().startswith("dbfortress1") else 1024

@@ -51,21 +51,23 @@ def collect(faction, install):
             p = os.path.join(root, n)
             files[os.path.relpath(p, sheets).replace("/", "\\")] = open(p, "rb").read()
     buildings = built(faction)
-    superseded = {b.base for b, _ in buildings if b.base}   # their model ships from the dependent's build
+    # a chained recipe's base: its model and derived models ship from the dependent's build, which
+    # carries the base's redesign too (Building.derived_models)
+    superseded = {b.base for b, _ in buildings if b.base}
     for b, ws in buildings:
         out = ws.path("out")
-        mine = install.model_path(b.source).lower()
+        models = {b.model_file} | {b.shipped_name(m).lower() + ".w3d" for m in ws.derived + ws.lifecycle} \
+            if b.id in superseded else set()
+        mine = {install.model_path(m[:-4]).lower() for m in models}
         for root, _, names in os.walk(out):
             for n in names:
                 rel = os.path.relpath(os.path.join(root, n), out).replace("/", "\\")
-                if rel.lower().endswith(".ini") or b.id in superseded and rel.lower() == mine:
+                if rel.lower().endswith(".ini") or rel.lower() in mine:
                     continue
                 files[rel] = open(os.path.join(root, n), "rb").read()
         for member, ops in b.ini_ops(install, ws.variants).items():
             ini_ops.setdefault(member, []).extend(ops)
-        ops = b.cache_ops(ws.variants, ws.derived)
-        if b.id in superseded:
-            ops = [op for op in ops if op != ("patch", b.model_file)]
+        ops = [op for op in b.cache_ops(ws.variants, ws.derived + ws.lifecycle) if not (op[0] == "patch" and op[1] in models)]
         for live, ops in install.route_cache_ops(ops).items():
             cache_ops.setdefault(live, []).extend((op, ws) for op in ops)
     record, house_out = house.shipped(faction)          # house-colour models (sagekit/house.py)

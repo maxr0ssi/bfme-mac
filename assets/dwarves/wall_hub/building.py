@@ -79,15 +79,24 @@ class WallHub(Building):
     }
 
     def design(self, kit):
-        from mathutils import Vector as V
-        from sagekit.blender.geometry import loft, sweep
-        solids = []
-        path = inset_hex(INSET)                                          # 1. coping + chevrons
-        ring, segs = sweep([(p.x, p.y) for p in path + path[:1]], COPING, COPING_TAGS)
-        solids += ring
+        return self.parapet(kit) + self.corner_blocks() + self._crown() + self.banners(kit)
+
+    @staticmethod
+    def parapet(kit):
+        """1. the coping round the rim with the chevron parapet on all six sides."""
+        from sagekit.blender.geometry import sweep
+        path = inset_hex(INSET)
+        solids, segs = sweep([(p.x, p.y) for p in path + path[:1]], COPING, COPING_TAGS)
         for a, b, t, n in segs:
             solids += kit.chevron_parapet(a, t, n, (b - a).length, d0=-1.7, d1=INSET)
-        H = [V(p) for p in HEX]                                          # 2. stepped corner blocks
+        return solids
+
+    @staticmethod
+    def corner_blocks():
+        """2. a stepped block with a gilded point on each of the six corners."""
+        from mathutils import Vector as V
+        from sagekit.blender.geometry import loft
+        solids, H = [], [V(p) for p in HEX]
         for i in range(6):
             c, e1, e2 = H[i], (H[i + 1 - 6] - H[i]).normalized(), (H[i - 1] - H[i]).normalized()
 
@@ -101,15 +110,22 @@ class WallHub(Building):
             apex = c + (e1 + e2) * (s + w / 2)
             solids.append(loft([top, [V((apex.x, apex.y, CORNER_POINT))] * 4], ["trim"], cap0=("top", False),
                                cap1=("top", False)))
-        solids += self._crown()                                          # 3. central stepped crown
-        z_top, width, length = BANNER                                    # 4. banners
+        return solids
+
+    @staticmethod
+    def banners(kit, shift=None):
+        """4. a banner on each slanted face; shift: {face: move along it, from its middle}."""
+        from mathutils import Vector as V
+        solids, H = [], [V(p) for p in HEX]
+        z_top, width, length = BANNER
         for i in SLANTED:
             a, b = H[i], H[(i + 1) % 6]
             t = (b - a).normalized()
             n = V((t.y, -t.x, 0))
             if n.dot(V((a.x + b.x, a.y + b.y, 0))) < 0:
                 n = -n
-            solids += kit.banner(V((a.x, a.y, 0)), V((t.x, t.y, 0)), n, (b - a).length / 2, z_top, width, length, d=0.05)
+            u = (b - a).length / 2 + (shift or {}).get(i, 0.0)
+            solids += kit.banner(V((a.x, a.y, 0)), V((t.x, t.y, 0)), n, u, z_top, width, length, d=0.05)
         return solids
 
     @staticmethod

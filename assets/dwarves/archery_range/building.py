@@ -466,6 +466,25 @@ class ArcheryRange(Building):
                 s.append(corbel(a, t, n, (i + 0.5) * L / k, zb0 - 0.9))
         return s
 
+    # ------------------------------------------------------------------ night lights
+    @staticmethod
+    def night_lights(kit):
+        """EA's hall windows (kept in our walls between the pilasters, under the cornice), the
+        tower's windows under the crown, and the gatehouse door: forge light from inside."""
+        from sagekit.nightlights import Light
+        X, Y, mX, mY = (1, 0, 0), (0, 1, 0), (-1, 0, 0), (0, -1, 0)
+        out = []
+        for x, n, ys in ((HALL_W, mX, (-14.1, -3.5, 10.0, 20.4)), (HALL_E, X, (-14.2, 19.2))):
+            out += [Light.rect((x, 0, 0), Y, n, y - 1.7, y + 1.7, 10.0, 21.0, reach=3.0, name="hall %+.0f" % y) for y in ys]
+        out += [Light.rect((0, HALL_S, 0), X, mY, x - 1.7, x + 1.7, 10.0, 21.0, reach=3.0, name="gable %.0f" % x)
+                for x in (26.5, 36.0)]
+        out += [Light.rect((TOWER[1], 0, 0), Y, X, y - 1.7, y + 1.7, 30.4, 40.4, reach=3.0, name="tower E %.0f" % y)
+                for y in (36.2, 44.7)]
+        out += [Light.rect((0, TOWER[3], 0), X, Y, x - 1.7, x + 1.7, 30.4, 40.4, reach=3.0, name="tower N %.0f" % x)
+                for x in (26.8, 35.5)]
+        out.append(Light.rect((DOOR_BACK, DOOR_AXIS, 0), Y, X, -6.9, 6.9, 0.3, 19.8, kind="door", reach=5.0, name="gate"))
+        return out
+
     def emphasis(self, c, n):
         if c.x > 45.0 and abs(c.y - DOOR_AXIS) < 18:
             return 1.5                       # the gatehouse front

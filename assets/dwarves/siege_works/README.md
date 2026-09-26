@@ -27,6 +27,10 @@ leave down the front grille ramp toward the rally point at -Y. The mesh hangs fr
 - **Exit**: two squat battered pylons flank the grille ramp, like small versions of the fortress's
   gate pylons. Each has a stepped plinth, rune belt, triangle cornice and a stepped cap with a point.
 - **Paint**: the faction style (honey granite, bronze trim, gold-inlaid runes), automatic.
+- **Anvil** (EA's `ANVIL` mesh, untouched geometry): EA paints it from the Elven forge's sheet
+  `EBForge.tga`. It now samples `DBAnvil.tga`, the Dwarven recoloured copy (`shared_sheets` in
+  `assets/dwarves/style.py`), in `DBForge` and `_D1`/`_D2`/`_D3`; its normal map stays EA's
+  `EBForge_NRM.tga`. Before/after: `renders/compare_anvil.png`.
 
 Kept clear: the pit and the hatch leaves' swing (hinges at x = -52.5 and x = -2.7, open height
 z ~ -19.7), the exit ramp, the stairs, the anvil, the smoke bone. No other mesh or bone touched.

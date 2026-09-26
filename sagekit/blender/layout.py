@@ -93,6 +93,11 @@ def add_solids(obj, solids, atlas, world=False):
                         lp[uv0].uv = uv
                     added += 1
                     stats[base] = stats.get(base, 0) + 1
+            # a convex polygon with collinear points (a swept roof's soffit) fans into zero-area
+            # triangles, skipped above: their vertices would be left loose
+            loose = [v for v in vmap.values() if not v.link_faces]
+            if loose:
+                bmesh.ops.delete(bm, geom=loose, context="VERTS")
     bm.to_mesh(me)
     bm.free()
     me.update()
@@ -135,9 +140,12 @@ def face_weights(me, building, mw=None):
     return w
 
 
-def _seams(me):
+def _seams(me, facets=False):
     """Seams on original faces at hard edges (> 40 degrees) and folds of their atlas mapping; new
-    faces are islands per planar polygon."""
+    faces are islands per planar polygon. `facets` (Building.facet_islands): True seams every edge
+    of the original faces; a number (degrees) seams them also where EA's own atlas coordinates
+    break (EA's islands) and where the faces turn more than that - lighter on a big organic body
+    (the Elven fortress's mallorn trunks: 20)."""
     bm = bmesh.new()
     bm.from_mesh(me)
     auv = bm.loops.layers.uv["ATLAS"]
@@ -155,10 +163,18 @@ def _seams(me):
         if f1[tagl] or f2[tagl]:
             e.seam = f1[tagl] != f2[tagl] or not (f1.normal.dot(f2.normal) > 0.9999)
             continue
-        if f1.normal.angle(f2.normal, 0) > math.radians(40) or uv_sign(f1) != uv_sign(f2):
+        if facets is True or f1.normal.angle(f2.normal, 0) > math.radians(40) or uv_sign(f1) != uv_sign(f2):
+            e.seam = True
+        elif facets and (f1.normal.angle(f2.normal, 0) > math.radians(facets) or ea_break(e, f1, f2, auv)):
             e.seam = True
     bm.to_mesh(me)
     bm.free()
+
+
+def ea_break(e, f1, f2, auv):
+    """Whether EA's atlas coordinates differ across edge e (an island border of EA's own layout)."""
+    uv = [{lp.vert.index: lp[auv].uv for lp in f.loops} for f in (f1, f2)]
+    return any((uv[0][v.index] - uv[1][v.index]).length > 1e-4 for v in e.verts)
 
 
 def _edit(obj, fn):
@@ -185,7 +201,7 @@ def own_layout(obj, building):
     buf = [0.0] * (2 * len(me.loops))
     me.uv_layers["UVMap"].data.foreach_get("uv", buf)
     me.uv_layers.new(name="ATLAS").data.foreach_set("uv", buf)
-    _seams(me)
+    _seams(me, getattr(building, "facet_islands", False))
     me.uv_layers.active = me.uv_layers["UVMap"]
     _edit(obj, lambda: bpy.ops.uv.unwrap(method="ANGLE_BASED", fill_holes=True, correct_aspect=True, margin=0.001))
 

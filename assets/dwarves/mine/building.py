@@ -249,6 +249,22 @@ class Mine(Building):
                 out += chevrons(a, t, n, L, CHEVRON_Z, -2.1, -0.3)
         return out
 
+    night_surfaces = ("DBMINE01",)            # the rock carries EA's back window
+
+    @staticmethod
+    def night_lights(kit):
+        """The tunnel mouth (forge light from the mine), a window on each chamfer where EA's night
+        windows were (beside the pylons), and EA's window in the rock at the back."""
+        from sagekit.nightlights import Light
+        mouth = [(-10.87, 0.2), (10.87, 0.2), (10.87, MOUTH_TOP), (MOUTH_SHOULDER[1], 26.9), (0.0, MOUTH_POINT),
+                 (-MOUTH_SHOULDER[-1], 26.9), (-10.87, MOUTH_TOP)]
+        out = [Light((FRONT, 0, 0), (0, 1, 0), (1, 0, 0), mouth, kind="door", reach=7.0, name="tunnel mouth")]
+        for s in (1, -1):                     # the chamfer from the front face (18.22, +-13.93) back
+            out.append(Light.rect((FRONT, s * 13.93, 0), (-0.622, s * 0.783, 0), (0.783, s * 0.622, 0), 3.7, 8.5,
+                                  19.0, 24.4, reach=3.0, name="chamfer %+d" % s))
+        out.append(Light.rect((-37.3, 1.34, 0), (0, 1, 0), (-1, 0, 0), -2.4, 2.4, 24.2, 29.4, reach=4.0, name="rock"))
+        return out
+
     def emphasis(self, c, n):
         if c.x > 14.5 and abs(c.y) < 18.0:
             return 1.5                        # portal, pylons, gable, braziers: the RTS camera's view

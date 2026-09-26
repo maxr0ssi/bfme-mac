@@ -56,7 +56,7 @@ and 2, when V2 is hidden.
 
 | Part | Healthy | Snow | Other states |
 |---|---|---|---|
-| `V2` (level 3) | built, checks pass, **awaiting review** | variant `DBArchRngT_snow` painted | EA's (damaged models carry no V2) |
+| `V2` (level 3) | built, checks pass, **awaiting review** | variant `DBArchRngT_snow` painted | damaged: our V2 in `DBArchRnge_D1` (`DBArchRngT_D` sheet), **awaiting review**; the rest EA's |
 
 The renders show the whole model at level 3. The range's own body (`ARCHERYRANGE`) renders grey
 in them: the render step looks up the model's other textures in the game's archives and in the

@@ -36,6 +36,12 @@ class Atlas:
     painted = ()                    # regions whose new faces are a material of their own (repainted by
                                     # a TagRamp, e.g. banner cloth): never stone, no masonry or moss
     mask_hints = {}                 # mask name -> [(x0, y0, x1, y1)] in upscale pixels
+    ground_sat = (0.08, 0.2)        # saturation ramp over which teal-blue texels outside the band hints
+                                    # read as band ground (enamel): a faction whose plain stone and bark
+                                    # are themselves blue-grey raises it (sagekit/paint/masks.py)
+    keep = {}                       # name -> [(x0, y0, x1, y1)] original px: EA's painted motifs the flat
+                                    # sheet recolour leaves as painted where they are not stone (the Elven
+                                    # eagle; sagekit/paint/sheets.py)
 
     @classmethod
     def region_names(cls):

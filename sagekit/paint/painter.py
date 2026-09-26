@@ -1,6 +1,6 @@
 """Run a style's paint stack over a building's canvas and write the game's textures.
 
-diffuse:  <name>.png + <name>.dds (DXT1, full mips) at the tier size
+diffuse:  <name>.png + <name>.dds (DXT1, full mips; DXT5 with EA's cut-out alpha) at the tier size
 normal:   <name>_nrm.tga at the tier's normal size: the original detail re-expressed in the new
           tangent space + bevelled edges + every layer's relief, in the game's convention
 """
@@ -8,16 +8,18 @@ import os
 
 import numpy as np
 
-from ..formats.textures import write_dds_dxt1
+from ..formats.textures import write_dds, write_dds_dxt1
 from . import imageio
 
 
-def save_png(rgb, path):
+def save_png(rgb, path, alpha=None):
     import bpy
     h, w = rgb.shape[:2]
     px = np.ones((h, w, 4), np.float32)
     px[..., :3] = rgb
-    im = bpy.data.images.new(os.path.basename(path), w, h, alpha=False)
+    if alpha is not None:
+        px[..., 3] = alpha
+    im = bpy.data.images.new(os.path.basename(path), w, h, alpha=alpha is not None)
     im.colorspace_settings.name = "sRGB"
     im.pixels.foreach_set(px.ravel())
     im.filepath_raw = path
@@ -45,17 +47,24 @@ class Painter:
         base = imageio.to_srgb(self.cv.load("atlas")).astype(np.float32)
         return np.clip(col * np.clip((v + eps) / (base + eps), 0, most), 0, 1)
 
-    def write_diffuse(self, col, outdir, name, sizes):
-        """One DDS per size (the first is the shipped one, others fallbacks named <name>_<size>)."""
+    def write_diffuse(self, col, outdir, name, sizes, alpha=None):
+        """One DDS per size (the first is the shipped one, others fallbacks named <name>_<size>);
+        with `alpha` (EA's cut-outs baked into our layout, sagekit/alpha.py) DXT5, else DXT1."""
         os.makedirs(outdir, exist_ok=True)
         filled = imageio.pull_push(col, self.cv.covm)
+        fa = None if alpha is None else imageio.pull_push(alpha[..., None], self.cv.covm)[..., 0]
         out = {}
         for i, size in enumerate(sizes):
             img = imageio.downsample(filled, filled.shape[0] // size)
             stem = name if i == 0 else "%s_%d" % (name, size)
             png = os.path.join(outdir, stem + ".png")
-            save_png(img, png)
-            out[size] = write_dds_dxt1(png, os.path.join(outdir, stem + ".dds"))
+            if fa is None:
+                save_png(img, png)
+                out[size] = write_dds_dxt1(png, os.path.join(outdir, stem + ".dds"))
+                self.log("wrote", stem, out[size])
+                continue
+            save_png(img, png, imageio.downsample(fa, fa.shape[0] // size))
+            out[size] = write_dds(png, os.path.join(outdir, stem + ".dds"), alpha=True)
             self.log("wrote", stem, out[size])
         return out
 

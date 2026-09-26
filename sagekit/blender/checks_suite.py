@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 from ..formats.assetcache import AssetCache
-from ..formats.textures import dds_info, dxt1_size, full_chain, tga24_size, tga_header
+from ..formats.textures import dds_info, dds_size, full_chain, tga24_size, tga_header
 from ..formats.w3d import W3DFile
 from ..paint import imageio
 from .checks import new_triangle_normals, snapshot, tangent_convention, uv_overlap
@@ -16,8 +16,11 @@ def run(b, ws, r):
     from . import checks as _checks
     _checks.WORLD = b.world_space
     O, N = snapshot(ws.source_model, ws.src), snapshot(shipped, ws.src)
-    WO, WN = W3DFile(ws.source_model), W3DFile(shipped)
-    meshes = sorted(O["meshes"])
+    from ..sharedsheets import checks as shared_checks, renamed      # EA's, shared sheets as we ship them
+    WO, WN = W3DFile(renamed(ws, open(ws.source_model, "rb").read())), W3DFile(shipped)
+    from ..nightlights import names_of, night_meshes                 # rebuilt by the night-lights standard:
+    night = night_meshes(names_of(ws), WO.data)                     # checked in blender/nightlights.py
+    meshes = sorted(n for n in O["meshes"] if n not in night)
     others = [n for n in meshes if n != target]
 
     r.section("structure")
@@ -27,7 +30,7 @@ def run(b, ws, r):
         abs(a - c) > 1e-3 for x, y in zip(O["bones"][k][:2], N["bones"][k][:2]) for a, c in zip(x, y))]
     moved += [k for k in O["bones"] if k in N["bones"] and O["bones"][k][2] != N["bones"][k][2]]
     r.check("bones not moved / re-parented", not moved, str(moved) if moved else "")
-    r.check("exactly the original meshes", sorted(N["meshes"]) == meshes, str(sorted(N["meshes"])))
+    r.check("exactly the original meshes", sorted(N["meshes"]) == sorted(O["meshes"]), str(sorted(N["meshes"])))
     for n in meshes:
         a, m = O["meshes"][n], N["meshes"].get(n)
         if m is None:
@@ -36,7 +39,10 @@ def run(b, ws, r):
                 (m["parent_type"], m["parent_bone"]) == (a["parent_type"], a["parent_bone"]),
                 "%s/%s" % (m["parent_type"], m["parent_bone"]))
         r.check("%s keeps its one material" % n, m["mats"] == a["mats"] and m["mat_idx"] == {0}, str(m["mats"]))
-        r.check("%s zero-area faces / loose verts" % n, m["zero_area"] == 0 and m["loose"] == 0, "%d / %d" % (m["zero_area"], m["loose"]))
+        # EA's own meshes may carry degenerate faces (the Elven gate's door leaves: 6 each); ours must not
+        zero_ok = m["zero_area"] == 0 if n == target else m["zero_area"] <= a["zero_area"]
+        r.check("%s zero-area faces / loose verts" % n, zero_ok and m["loose"] <= (0 if n == target else a["loose"]),
+                "%d / %d" % (m["zero_area"], m["loose"]))
         # EA's own meshes may tile past [0,1] (props, effect cards); ours must not
         out_ok = m["uv_out"] == 0 if n == target else m["uv_out"] <= a["uv_out"]
         r.check("%s UV layers as the original, %s" % (n, "inside [0,1]" if n == target else "no more outside [0,1]"),
@@ -45,16 +51,18 @@ def run(b, ws, r):
         same = sorted(O["meshes"][n]["tri_keys"]) == sorted(N["meshes"][n]["tri_keys"])
         r.check("%s geometry untouched" % n, same, "%d tris" % N["meshes"][n]["tris"])
     a, m = O["meshes"][target], N["meshes"][target]
+    from ..owncopy import checks as own_checks, extent        # an own copy's target takes over `replaces`
+    lim = dict(zip(("bbmin", "bbmax"), extent(b, ws, a["bbmin"], a["bbmax"])))
     r.check("%s triangles <= %d" % (target, b.tri_budget), m["tris"] <= b.tri_budget, "%d -> %d" % (a["tris"], m["tris"]))
     for i, ax in enumerate("XY"):
         e = b.footprint_margin + 1e-3
-        r.check("%s %s footprint inside the original [%.2f, %.2f]%s" % (target, ax, a["bbmin"][i], a["bbmax"][i],
+        r.check("%s %s footprint inside the original [%.2f, %.2f]%s" % (target, ax, lim["bbmin"][i], lim["bbmax"][i],
                                                                       " + %.1f" % b.footprint_margin if b.footprint_margin else ""),
-                m["bbmin"][i] >= a["bbmin"][i] - e and m["bbmax"][i] <= a["bbmax"][i] + e,
+                m["bbmin"][i] >= lim["bbmin"][i] - e and m["bbmax"][i] <= lim["bbmax"][i] + e,
                 "new [%.2f, %.2f]" % (m["bbmin"][i], m["bbmax"][i]))
-    h0, h1 = a["bbmax"][2] - a["bbmin"][2], m["bbmax"][2] - m["bbmin"][2]
+    h0, h1 = lim["bbmax"][2] - lim["bbmin"][2], m["bbmax"][2] - m["bbmin"][2]
     r.check("%s height growth <= %d%%" % (target, 100 * b.max_z_growth),
-            h1 <= h0 * (1 + b.max_z_growth) + 1e-3 and m["bbmin"][2] >= a["bbmin"][2] - 1e-3,
+            h1 <= h0 * (1 + b.max_z_growth) + 1e-3 and m["bbmin"][2] >= lim["bbmin"][2] - 1e-3,
             "%.2f -> %.2f (%+.1f%%)" % (h0, h1, 100 * (h1 / h0 - 1)))
     cnt, disagree, visible, back_seen = new_triangle_normals(m, a)
     r.check("new triangles: winding matches vertex normals", disagree == 0, "%d of %d disagree" % (disagree, cnt))
@@ -72,12 +80,14 @@ def run(b, ws, r):
             str({n: hex(WN.meshes[n].version) for n in meshes}))
 
     r.section("texture files")
+    from ..alpha import dds_fourcc
+    fmt = dds_fourcc(ws)                    # DXT5 when EA's sheet has cut-out alpha (sagekit/alpha.py)
     dds = ws.shipped_texture(b.own_diffuse, ".dds")
     for path, size in ((dds, b.tier.diffuse), (ws.tex(b.own_diffuse[:-4].lower() + "_%d.dds" % (b.tier.diffuse // 2)), b.tier.diffuse // 2)):
         i = dds_info(path)
-        exp = dxt1_size(size, size, full_chain(size))
-        r.check("%s: %d, DXT1, full mip chain" % (os.path.basename(path), size),
-                (i["width"], i["height"], i["fourcc"], i["mips"], i["bytes"]) == (size, size, "DXT1", full_chain(size), exp),
+        exp = dds_size(size, size, full_chain(size), fmt)
+        r.check("%s: %d, %s, full mip chain" % (os.path.basename(path), size, fmt),
+                (i["width"], i["height"], i["fourcc"], i["mips"], i["bytes"]) == (size, size, fmt, full_chain(size), exp),
                 "%dx%d %s, %d mips, %d bytes" % (i["width"], i["height"], i["fourcc"], i["mips"], i["bytes"]))
     if b.own_normal:
         tga = ws.shipped_texture(b.own_normal, ".tga")
@@ -87,7 +97,7 @@ def run(b, ws, r):
                 "type %d, %d bpp, descriptor 0x%02x" % (nt["type"], nt["bpp"], nt["desc"]))
         r.check("%s: %d x %d, uncompressed" % (os.path.basename(tga), b.tier.normal, b.tier.normal),
                 (tga_header(tga)["width"], tga_header(tga)["height"]) == (b.tier.normal, b.tier.normal)
-                and os.path.getsize(tga) == tga24_size(b.tier.normal, b.tier.normal, len(ref["footer"])), "%d bytes" % os.path.getsize(tga))
+                and os.path.getsize(tga) == tga24_size(b.tier.normal, b.tier.normal, len(ref["footer"]), ref["bpp"]), "%d bytes" % os.path.getsize(tga))
         v = nt["pixels"] * 2 - 1
         ln = np.linalg.norm(v, axis=-1)
         r.check("normal map decodes to unit normals facing out", abs(float(np.median(ln)) - 1) < 0.03 and float(np.percentile(v[..., 2], 1)) > 0.2,
@@ -129,30 +139,47 @@ def run(b, ws, r):
         path = ws.shipped_texture(mine, ".dds")
         size = b.tier.diffuse // 2
         i = dds_info(path) if os.path.exists(path) else None
-        r.check("%s (for EA's %s): %d, DXT1, full mips" % (mine, ea, size),
-                i is not None and (i["width"], i["fourcc"], i["mips"]) == (size, "DXT1", full_chain(size)),
+        r.check("%s (for EA's %s): %d, %s, full mips" % (mine, ea, size, fmt),
+                i is not None and (i["width"], i["fourcc"], i["mips"]) == (size, fmt, full_chain(size)),
                 "%s" % ("missing" if i is None else "%dx%d %s %d mips" % (i["width"], i["height"], i["fourcc"], i["mips"])))
-    for model in ws.derived:
-        member = "art\\w3d\\%s\\%s.w3d" % (model[:2].lower(), model.lower())
+    for ea, mine in sorted(ws.normal_variants.items()):     # our normal map under a state's name
+        path, own_nrm = ws.shipped_texture(mine, ".tga"), ws.shipped_texture(b.own_normal, ".tga")
+        r.check("%s (for EA's %s): a copy of %s" % (mine, ea, b.own_normal), os.path.exists(path) and
+                os.path.exists(own_nrm) and open(path, "rb").read() == open(own_nrm, "rb").read(), "")
+    for model, body in ws.derived_bodies.items():
+        shipped_as = b.shipped_name(model).lower()
+        member = "art\\w3d\\%s\\%s.w3d" % (shipped_as[:2], shipped_as)
         new, ea = W3DFile(ws.out(member)), W3DFile(os.path.join(ws.path("src"), model.lower() + ".w3d")) \
             if os.path.exists(os.path.join(ws.path("src"), model.lower() + ".w3d")) else None
-        mesh = new.meshes[target]
-        mine = {k.lower(): v for k, v in list(own.items()) + list(ws.variants.items())}   # EA's files vary the case
-        want = sorted({mine.get(t.lower(), t) for t in ea.meshes[target].textures}) if ea else None
-        r.check("%s: %s carries our body (%d tris)" % (model, target, len(mesh.tris)),
+        if body is None:                    # a chained recipe passes on its base's derived file
+            r.check("%s: as %s derived it" % (model, b.base), ea is not None and new.data == ea.data, "")
+            continue
+        mesh = new.meshes[body]
+        mine = ws.own_names                 # EA's files vary the case
+        want = sorted({mine.get(t.lower(), t) for t in ea.meshes[body].textures}) if ea else None
+        theirs = [t for t in mesh.textures if t.lower() not in {v.lower() for v in mine.values()}]
+        r.check("%s: %s carries our body (%d tris)" % (model, body, len(mesh.tris)),
                 len(mesh.tris) == len(WN.meshes[target].tris) and not mesh.skinned, "")
+        box, where = placed(ws, new, body, WN, target)
+        r.check("%s: %s where the healthy body is (%s)" % (model, body, where), box is not None,
+                "box %s" % [round(x, 2) for x in box or ()])
         if ea:
-            r.check("%s: %s textures %s" % (model, target, mesh.textures), mesh.textures == want, "want %s" % want)
-            others = [n for n in ea.meshes if n != target]
+            r.check("%s: %s textures %s, ours only" % (model, body, mesh.textures), mesh.textures == want and not theirs,
+                    "want %s%s" % (want, "; EA's %s" % theirs if theirs else ""))
+            others = [n for n in ea.meshes if n != body and n not in night_meshes(names_of(ws), ea.data)]
             r.check("%s: EA's other meshes byte-identical" % model,
-                    all(new.meshes[n].bytes == ea.meshes[n].bytes for n in others), ", ".join(others))
+                    all(new.meshes[n].bytes == W3DFile(renamed(ws, ea.data)).meshes[n].bytes for n in others), ", ".join(others))
 
+    own_checks(b, ws, r)
+    from .alpha import checks as alpha_checks
+    alpha_checks(b, ws, r)              # EA's cut-outs carried over
+    shared_checks(b, ws, r)
     r.section("asset caches (the build's copies)")
     caches = [AssetCache(p) for p in ws.caches()]
     r.check("at least one cache copy", bool(caches), ", ".join(ws.caches()))
     home = lambda f: next((c for c in caches if c.has_model(f)), None)  # noqa: E731
     for model, path in [(b.model_file, shipped)] + [
-            (m.lower() + ".w3d", ws.out("art\\w3d\\%s\\%s.w3d" % (m[:2].lower(), m.lower()))) for m in ws.derived]:
+            (n + ".w3d", ws.out("art\\w3d\\%s\\%s.w3d" % (n[:2], n))) for n in (b.shipped_name(m).lower() for m in ws.derived)]:
         cache = home(model)
         if cache is None:
             r.info(model, "not in the asset caches: the game parses it directly")
@@ -160,7 +187,7 @@ def run(b, ws, r):
         st = cache.stale_entries(path, model)
         r.check("record of %s matches the file" % model, not st, "%d stale" % len(st))
     names = {n for c in caches for n in c.texture_names()}
-    mine = list(own.values()) + list(ws.variants.values())
+    mine = list(own.values()) + list(ws.variants.values()) + list(ws.normal_variants.values())
     r.check("own textures registered (%d)" % len(mine), all(t.lower().encode() in names for t in mine), "%d asset records" % len(names))
     obj = "%s.%s" % (ws.container, target)
     dep = next((d for d in (c.dependencies(b.model_file, obj) for c in caches) if d is not None), None)
@@ -168,4 +195,25 @@ def run(b, ws, r):
         r.info(obj, "no object record in the game's caches (none in EA's either): nothing to switch")
     else:
         r.check("%s depends on %s" % (target, b.own_diffuse.lower()), b.own_diffuse.lower() in [d.lower() for d in dep], str(dep))
+    from .nightlights import checks as night_checks
+    night_checks(b, ws, r)              # night lights on our surface, the faction's texture only
+    from .checks_lifecycle import run as lifecycle_checks
+    lifecycle_checks(b, ws, r)          # construction / really damaged / rubble models
     return r.summary()
+
+
+def placed(ws, new, body, healthy, target):
+    """(model-space box, how) if the derived body sits where the healthy one does: as it stands (a
+    construction model's bone animates from a bind pose of its own) or through the two models'
+    bones (a re-rigged body); (None, "moved") if neither."""
+    from ..formats.w3dframes import IDENTITY, mesh_frames, model_box
+
+    def skl(name):
+        p = os.path.join(ws.src, name)
+        return open(p, "rb").read() if os.path.exists(p) else None
+    a, h = new.meshes[body], healthy.meshes[target]
+    for how, fa, fh in (("as it stands", IDENTITY, IDENTITY),
+                        ("in model space", mesh_frames(new.data, skl).get(body), mesh_frames(healthy.data, skl).get(target))):
+        if fa and fh and all(abs(x - y) < 0.01 for x, y in zip(model_box(a, fa), model_box(h, fh))):
+            return model_box(a, fa), how
+    return None, "moved"

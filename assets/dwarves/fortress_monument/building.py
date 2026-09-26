@@ -40,8 +40,8 @@ def _figure_seams():
         return
     seams = layout._seams
 
-    def fixed(me):
-        seams(me)
+    def fixed(me, *args):                   # (layout's own options pass through)
+        seams(me, *args)
         bm = bmesh.new()
         bm.from_mesh(me)
         tagl = bm.faces.layers.int[layout.TAG_ATTR]

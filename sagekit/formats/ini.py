@@ -45,6 +45,7 @@ class State:
         self.model = None
         self.textures = []                  # [(old, new)] texture swaps
         self.animations = []                # 'SKELETON.ANIMATION'
+        self.modes = []                     # their AnimationMode (ONCE, MANUAL, LOOP...), in order
 
     def __repr__(self):
         return "<%s %s model=%s tex=%s anim=%s>" % (self.kind, " ".join(sorted(self.flags)) or "DEFAULT",
@@ -125,6 +126,8 @@ def parse_draws(text, defines=None):
                     state.textures.append((parts[0], parts[1]))
             elif state is not None and k == "animationname":
                 state.animations.append(value(val))
+            elif state is not None and k == "animationmode":
+                state.modes.append(value(val).upper())
             elif depth == 1:
                 draw.fields[key] = value(val)
         draws.append(draw)
@@ -207,12 +210,91 @@ def add_draw(text, obj, tag, model):
     raise ValueError("no Draw module in object %s" % obj)
 
 
+def add_state(text, obj, tag, flags, model):
+    """A `ModelConditionState = <flags>` showing `model` ("None": nothing) at the end of one Draw
+    module of one object, unless the module already has a state with exactly those flags."""
+    lines = text.splitlines(keepends=True)
+    cur, depth, at, have = None, 0, None, False
+    for i, raw in enumerate(lines):
+        line = strip(raw)
+        m = OBJECT_RE.match(line)
+        if m and not raw[:1].isspace():
+            cur = m.group(2)
+            continue
+        m = DRAW_RE.match(line)
+        if m and cur == obj and m.group(2) == tag:
+            depth, at = 1, i
+            continue
+        if not depth:
+            continue
+        low = line.lower()
+        key, _, val = (x.strip() for x in line.partition("="))
+        if low.startswith("beginscript"):
+            depth += 1
+        elif low.startswith("endscript"):
+            depth -= 1
+        elif key.lower() in STATE_OPENERS or key.lower() == ANIM_OPENER and depth == 2:
+            depth += 1
+            if key.lower() == "modelconditionstate" and set(val.upper().split()) == set(flags):
+                have = True
+        elif low == "end":
+            depth -= 1
+            if depth == 0:
+                if have:
+                    return text
+                pad = lines[at][:len(lines[at]) - len(lines[at].lstrip())]
+                nl = "\r\n" if raw.endswith("\r\n") else "\n"
+                block = [pad + "\tModelConditionState = " + " ".join(flags), pad + "\t\tModel = " + model, pad + "\tEnd"]
+                lines[i:i] = [x + nl for x in block]
+                return "".join(lines)
+    raise ValueError("no Draw module %s in object %s" % (tag, obj))
+
+
+def set_model(text, obj, tag, old, new):
+    """`Model = old` -> `Model = new` in the condition states of one Draw module of one object (a
+    model of our own shown in place of a model other factions share; sagekit/owncopy.py). Only
+    that module's states: the object's other modules and every other object keep EA's model.
+    Comments and spacing stay; idempotent."""
+    lines = text.splitlines(keepends=True)
+    cur, depth = None, 0
+    for i, raw in enumerate(lines):
+        line = strip(raw)
+        m = OBJECT_RE.match(line)
+        if m and not raw[:1].isspace():
+            cur, depth = m.group(2), 0
+            continue
+        m = DRAW_RE.match(line)
+        if m:
+            depth = 1 if cur == obj and m.group(2) == tag else 0
+            continue
+        if not depth or not line:
+            continue
+        low = line.lower()
+        key, _, val = (x.strip() for x in line.partition("="))
+        if low.startswith("beginscript"):
+            depth += 1
+        elif low.startswith("endscript"):
+            depth -= 1
+        elif key.lower() in STATE_OPENERS or key.lower() == ANIM_OPENER and depth == 2:
+            depth += 1
+        elif low == "end":
+            depth -= 1
+        elif depth >= 2 and key.lower() == "model" and val.lower() == old.lower():
+            lines[i] = re.sub(r"(=\s*)" + re.escape(val), lambda mm: mm.group(1) + new, raw, count=1)
+    return "".join(lines)
+
+
 def apply_ops(text, ops):
     """Apply [('swaps', base, {ea: (own, own variant)}) | ('lod_off', object, tag) |
-    ('field', object, tag, key, value) | ('draw', object, tag, model)] in order."""
+    ('field', object, tag, key, value) | ('draw', object, tag, model) |
+    ('state', object, tag, [flags], model) | ('model', object, tag, old, new)] in order."""
     for op in ops:
         if op[0] == "draw":
             text = add_draw(text, *op[1:])
+        elif op[0] == "model":
+            text = set_model(text, *op[1:])
+        elif op[0] == "state":
+            text = add_state(text, *op[1:])
         elif op[0] == "swaps":
             text = add_texture_swaps(text, op[1], op[2])
         elif op[0] == "lod_off":

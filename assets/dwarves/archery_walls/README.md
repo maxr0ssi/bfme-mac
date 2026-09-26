@@ -53,9 +53,9 @@ at every level, so cloth moved into it would show before the walls are built.
 
 ## Status
 
-| Part | Healthy | Snow |
-|---|---|---|
-| `V1A` (level 2) | built, checks pass, **awaiting review** | variant `DBArchRngW_snow` painted |
+| Part | Healthy | Snow | Damaged |
+|---|---|---|---|
+| `V1A` (level 2) | built, checks pass, **awaiting review** | variant `DBArchRngW_snow` painted | our walls whole in `DBArchRnge_D1` (`also_derived`: EA's D1 walls are the healthy ones with 44 faces chipped off), `DBArchRngW_D` sheet, **awaiting review** |
 | `V1` | EA's, recoloured | |
 
 The renders show the whole model. The range's body renders grey in them because the render step

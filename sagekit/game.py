@@ -82,7 +82,11 @@ class Install:
         for op in ops:
             if op[0] == "texture":
                 _, new, like, model, obj = op
-                live = next((p for p, c in self.asset_caches().items() if c.has_texture(like)), None)
+                have = [p for p, c in self.asset_caches().items() if c.has_texture(like)]
+                # the cache that also has the object, if another files the sheet first (RotWK re-files
+                # EBForge.tga; the Dwarven DBFORGE.ANVIL that depends on it is in BFME2's)
+                live = next((p for p in have if model and self.asset_caches()[p].dependencies(model, obj) is not None),
+                            have[0] if have else None)
                 if live is None:
                     raise FileNotFoundError("no asset.dat files texture %s" % like)
                 if model and self.asset_caches()[live].dependencies(model, obj) is None:

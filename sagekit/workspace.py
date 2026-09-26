@@ -35,6 +35,12 @@ class Workspace:
     def source_model(self):
         return self.path("src", self.b.model_file)
 
+    @property
+    def reference_model(self):
+        """The model as the game draws it today, for the before render: the source model, or for an
+        own copy (sagekit/owncopy.py) EA's shared model the copy was made from."""
+        return self.path("src", self.b.source.lower() + ".w3d") if self.b.own_model else self.source_model
+
     def upscale_of(self, texture):
         """The 4x upscale of any sheet (by texture name) in src/."""
         return self.path("src", "%s_x%d.png" % (texture[:-4].lower(), self.b.style.atlas.upscale))
@@ -70,10 +76,36 @@ class Workspace:
         return json.load(open(p)) if os.path.exists(p) else {}
 
     @property
+    def normal_variants(self):
+        """{EA state normal map: our normal map's copy} as extract recorded it (Building.normal_variants)."""
+        p = self.path("work", "normal_variants.json")
+        return json.load(open(p)) if os.path.exists(p) else {}
+
+    @property
+    def own_names(self):
+        """{EA texture (lower case): ours} for every texture a model carrying our body may draw."""
+        out = {k.lower(): v for k, v in self.b.texture_names().items()}
+        out.update({k.lower(): v for k, v in list(self.variants.items()) + list(self.normal_variants.items())})
+        return out
+
+    @property
     def derived(self):
         """Models rebuilt from our body (EA's damaged-but-standing ones), as extract recorded them."""
+        return list(self.derived_bodies)
+
+    @property
+    def derived_bodies(self):
+        """{derived model: its mesh that takes our body, or None: shipped as the base derived it}."""
         p = self.path("work", "derived.json")
-        return json.load(open(p)) if os.path.exists(p) else []
+        d = json.load(open(p)) if os.path.exists(p) else {}
+        return d if isinstance(d, dict) else {m: self.b.target for m in d}      # older builds: a list
+
+    @property
+    def lifecycle(self):
+        """Models rebuilt around our body by the lifecycle step (construction, really damaged,
+        rubble), as its Blender job recorded them."""
+        p = self.path("work", "lifecycle.json")
+        return [m["model"] for m in json.load(open(p))["models"] if m["built"]] if os.path.exists(p) else []
 
     @property
     def house(self):
@@ -147,4 +179,12 @@ class Workspace:
         if a.normal:
             out[self.b.own_normal.lower()] = self.shipped_texture(self.b.own_normal, ".tga")
             out[a.normal.lower()] = self.atlas_normal
+        for mine in self.variants.values():         # the state sheets derived models are painted from
+            out[mine.lower()] = self.shipped_texture(mine, ".dds")
+        for mine in self.normal_variants.values():  # our normal map under a state's name
+            out[mine.lower()] = self.shipped_texture(mine, ".tga")
+        from .sharedsheets import texture_map as shared     # the faction's copies of shared EA sheets
+        out.update(shared(self))
+        from .nightlights import texture_map as night       # the faction's night-light texture
+        out.update(night(self))
         return out

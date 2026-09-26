@@ -40,7 +40,7 @@ def compute(a, atlas, coherent=False):
     bronze = np.clip(warm - gold - wood, 0, 1) * (1 - stone)
     plate = rect_mask(atlas, ["plate"], h, w) * (1 - smooth(lum, 0.55, 0.7)) * (1 - wood) * (1 - gold)
     bronze = np.maximum(bronze, plate)
-    teal = smooth(S, 0.08, 0.2) * (H > 120) * (H < 220)
+    teal = smooth(S, *getattr(atlas, "ground_sat", (0.08, 0.2))) * (H > 120) * (H < 220)
     # glyphs: the light strokes inside the frieze bands; band ground: the rest of the band
     glyph = band_r * smooth(lum, 0.52, 0.66) * (1 - smooth(S, 0.25, 0.4))
     local = roll_blur(lum, 3)

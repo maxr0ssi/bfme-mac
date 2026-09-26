@@ -98,8 +98,8 @@ def patch():
     if getattr(orig, "sagekit_split", False):
         return
 
-    def seams(me):
-        orig(me)
+    def seams(me, *args):                   # (layout's own options, e.g. facet_islands, pass through)
+        orig(me, *args)
         obj = next(o for o in bpy.data.objects if o.type == "MESH" and o.data == me)
         _seam_old(me, layout.TAG_ATTR, 15.0)
         for angle in (5.0, None, None):

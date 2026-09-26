@@ -6,7 +6,13 @@ Building.house_tags regions) out of the body into work/house_cloth.json; this st
 building's cloth to the house-colour model it is shown with (several buildings may share one: the
 fortress and its upgrades all feed DBHCFortress), splices the result into EA's file and records
 what install must do: the model's cache record, and MultiPlayerOnly = No on its Draw modules (EA
-shows house banners in multiplayer only; ours are part of the building).
+shows house banners in multiplayer only; ours are part of the building), and no model in the states
+whose lifecycle model cuts or moves the faces the banners hang on (sagekit/lifecycle.py).
+
+A house model another faction draws too (Arnor draws NBHCElvnBarx and EBHCMalTree beside the Elven
+barracks and mallorn) is never changed: Building.own_house_copy names an own copy ("copy_of"), which
+ships EA's file renamed with our cloth, and only this faction's Draw modules show it (the own_model
+pattern, sagekit/owncopy.py).
 
     build/assets/<faction>/_house/  src/ EA's models, work/ exports, out/ what ships, house.json
 """
@@ -17,6 +23,7 @@ import time
 
 from . import paths
 from .formats.w3d import W3DFile, fix, rename_model, splice_mesh
+from .lifecycle import house_ops
 from .game import Install
 from .pipeline import blender_slot, game_running
 from .registry import building_ids, load
@@ -47,6 +54,7 @@ def groups(faction):
         g = out.setdefault(ws.house["model"].lower(), dict(ws.house, draws=[], cloth=[]))
         g["cloth"].append(ws.house_cloth)
         g["draws"] += [d for d in ws.house["draws"] if d not in g["draws"]]
+        g.setdefault("buildings", []).append(bid)
     return out
 
 
@@ -57,14 +65,19 @@ def build(faction, force=False, log=print):
     record = {"models": [], "ini": {}}
     for key, g in sorted(groups(faction).items()):
         member = install.model_path(g["model"])
-        if g.get("template"):                               # a model of our own: EA's template renamed,
-            orig = rename_model(install.read(install.model_path(g["template"])), g["template"], g["model"])
-        else:                                               # its flag replaced by our cloth
+        ea = g.get("template") or g.get("copy_of")         # a model of our own: EA's template, or EA's
+        if ea:                                              # shared model (own copy), renamed; its flag
+            orig = rename_model(install.read(install.model_path(ea)), ea, g["model"])      # replaced by our cloth
+        else:
             orig = install.read(member)
         src = os.path.join(r, "src", key + ".w3d")
         with open(src, "wb") as fh:
             fh.write(orig)
-        export = os.path.join(r, "work", key + ".w3d")      # named like the original: the exporter
+        skl = W3DFile(orig).skeleton()          # a skinned house model (EBHCStable): its skeleton
+        if skl:                                 # file goes next to it, where the importer looks
+            with open(os.path.join(r, "src", skl), "wb") as fh:
+                fh.write(install.read(install.model_path(skl[:-4])))
+        export =os.path.join(r, "work", key + ".w3d")      # named like the original: the exporter
         while game_running() and not force:                 # names its containers after the file
             time.sleep(10)
         with blender_slot():
@@ -87,8 +100,15 @@ def build(faction, force=False, log=print):
             fh.write(out)
         record["models"].append(member)
         for ini, obj, tag in g["draws"]:
-            op = ("draw", obj, tag, g["model"]) if g.get("template") else ("field", obj, tag, "MultiPlayerOnly", "No")
-            record["ini"].setdefault(ini, []).append(op)
+            if g.get("template"):
+                ops = [("draw", obj, tag, g["model"])]
+            else:                   # an own copy: shown in place of EA's by this faction's modules only
+                ops = [("model", obj, tag, g["copy_of"], g["model"])] if g.get("copy_of") else []
+                ops.append(("field", obj, tag, "MultiPlayerOnly", "No"))
+            record["ini"].setdefault(ini, []).extend(ops)
+        for bid in g["buildings"]:          # not over rubble or a building site (sagekit/lifecycle.py)
+            for ini, ops in house_ops(Workspace(load(bid)), g["draws"]).items():
+                record["ini"].setdefault(ini, []).extend(op for op in ops if op not in record["ini"][ini])
         log("  %-16s %4d -> %4d triangles (cloth from %d building%s)" % (
             g["model"], len(W3DFile(orig).meshes[g["mesh"]].tris), len(mesh.tris), len(g["cloth"]),
             "" if len(g["cloth"]) == 1 else "s"))

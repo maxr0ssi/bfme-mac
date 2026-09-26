@@ -18,17 +18,34 @@ def clear():
 
 
 def import_w3d(path, skeletons=None):
-    """Import a model. A skinned model's skeleton is a separate file the importer only looks for
-    next to the model; if it is not there it is taken from `skeletons` (the extracted sources)."""
+    """Import a model into a clean scene (a skinned one's skeleton: beside_skeleton)."""
     clear()
+    add_w3d(path, skeletons)
+
+
+def beside_skeleton(path, skeletons=None):
+    """A skinned model's skeleton is a separate file the importer only looks for next to the model:
+    if it is not there, the path of a temporary copy with the skeleton from `skeletons` (the
+    extracted sources) beside it; else `path`."""
     skl = W3DFile(path).skeleton()
     here = os.path.join(os.path.dirname(path), skl or "")
-    if skl and not os.path.exists(here) and skeletons:
-        tmp = tempfile.mkdtemp(prefix="sagekit-import-")
-        shutil.copy(path, tmp)
-        shutil.copy(os.path.join(skeletons, skl), tmp)
-        path = os.path.join(tmp, os.path.basename(path))
-    bpy.ops.import_mesh.westwood_w3d(filepath=path)
+    if not skl or os.path.exists(here) or not skeletons or not os.path.exists(os.path.join(skeletons, skl)):
+        return path
+    tmp = tempfile.mkdtemp(prefix="sagekit-import-")
+    shutil.copy(path, tmp)
+    shutil.copy(os.path.join(skeletons, skl), tmp)
+    return os.path.join(tmp, os.path.basename(path))
+
+
+def add_w3d(path, skeletons=None):
+    """Import a model into the scene as it is (a house-colour model beside its building)."""
+    path = beside_skeleton(path, skeletons)
+    try:
+        bpy.ops.import_mesh.westwood_w3d(filepath=path)
+    except RuntimeError as e:               # the add-on reports FX material properties it has no
+        if "not implemented" not in str(e):     # socket for (EA's DBWallGateN_A: bumpHeight) as an
+            raise                               # error after importing everything: carry on
+        print("WARN import %s: %s" % (os.path.basename(path), str(e).strip()), flush=True)
     plain_placeholders()
 
 

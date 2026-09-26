@@ -12,6 +12,7 @@ import bpy
 import mathutils
 import numpy as np
 
+from ..formats.w3dlight import material
 from . import scene
 
 # name: (distance in bounding-box diagonals, elevation, azimuth, lens)
@@ -114,7 +115,10 @@ def game_material(obj, mesh, texmap):
         n.image.colorspace_settings.name = "Non-Color" if noncolor else "sRGB"
         nt.links.new(uv.outputs[0], n.inputs[0])
         return n
-    nt.links.new(tex(texmap[diff], False).outputs[0], bsdf.inputs["Base Color"])
+    dn = tex(texmap[diff], False)
+    nt.links.new(dn.outputs[0], bsdf.inputs["Base Color"])
+    # a caller's stand-in for the mesh without its bytes (the lifecycle renders' Posed) draws opaque
+    cut_out(nt, dn, bsdf, material(mesh.bytes)["alpha"] if hasattr(mesh, "bytes") else None)
     me.materials.clear()
     me.materials.append(mat)
     if nrm is None or not mesh.tangents:
@@ -156,37 +160,87 @@ def game_material(obj, mesh, texmap):
     nt.links.new(nz.outputs[0], bsdf.inputs["Normal"])
 
 
+def cut_out(nt, tex, bsdf, mode):
+    """The texture's alpha as the game uses it (sagekit/formats/w3dlight.py material): 'test' cuts
+    at half (EA's leaf cards, tree boards: without it their cut-out texels render as black squares),
+    'blend' mixes, None ignores it (EA's NormalMapped bodies draw with AlphaTestEnable off)."""
+    if not mode:
+        return
+    tex.image.alpha_mode = "STRAIGHT"
+    a = tex.outputs["Alpha"]
+    if mode == "test":
+        gt = nt.nodes.new("ShaderNodeMath")
+        gt.operation, gt.inputs[1].default_value = "GREATER_THAN", 0.5
+        nt.links.new(a, gt.inputs[0])
+        a = gt.outputs[0]
+    nt.links.new(a, bsdf.inputs["Alpha"])
+
+
 # the player colour the renders show house-colour meshes in (the game tints them per player)
 PREVIEW_HOUSE_COLOUR = (0.05, 0.13, 0.55, 1.0)
 
 
-def add_house_colour(path):
-    """Import a house-colour model into the scene (the building's cloth) and paint its HC_ meshes
-    in the preview player colour."""
+def add_house_colour(path, own=None, skeletons=None):
+    """Import a house-colour model into the scene (the building's cloth) and paint its cloth meshes
+    (sagekit/housemesh.py) in the preview player colour. own: this building's cloth polygons
+    (work/house_cloth.json, world space): a model several buildings feed (the fortress and its
+    upgrades all hang their banners on EBHCFortress) is drawn with only this building's faces, so
+    the preview shows no other building's banners floating round it (the game draws them all, each
+    with its own building). skeletons: where a skinned house model's skeleton is (EBHCStable)."""
     before = set(bpy.data.objects)
-    bpy.ops.import_mesh.westwood_w3d(filepath=path)
-    scene.plain_placeholders()
+    scene.add_w3d(path, skeletons)
     mat = bpy.data.materials.new("house_colour_preview")
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes["Principled BSDF"]
     bsdf.inputs["Base Color"].default_value = PREVIEW_HOUSE_COLOUR
     bsdf.inputs["Roughness"].default_value = 0.85
+    from ..formats.w3d import W3DFile
+    from ..housemesh import house_meshes                # HC_ meshes, or EA's cloth by its texture (EBHCFortress)
+    cloth = {n.upper() for n in house_meshes(W3DFile(path))}
     for o in set(bpy.data.objects) - before:
-        if o.type == "MESH" and o.name.upper().startswith("HC_"):
+        if o.type == "MESH" and o.name.upper() in cloth:
             o.data.materials.clear()
             o.data.materials.append(mat)
+            if own is not None:
+                n = len(o.data.polygons)
+                print("house colour: %d of %d faces are this building's" % (only_own(o, own), n))
 
 
-def render_views(building, w3d_path, w3d, texmap, prefix, views, res, samples, skeletons=None, house=None):
+def only_own(obj, path, tol=0.02):
+    """Delete the faces of obj whose corners are not all corners of the polygons in `path` (world
+    space, as the geometry step wrote them and the house step added them); returns how many stay."""
+    import json
+
+    import bmesh
+    from mathutils.kdtree import KDTree
+    pts = [p for poly in json.load(open(path)) for p in poly]
+    kd = KDTree(max(len(pts), 1))
+    for i, p in enumerate(pts):
+        kd.insert(p, i)
+    kd.balance()
+    mw = obj.matrix_world
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    gone = [f for f in bm.faces if not pts or any(kd.find(mw @ v.co)[2] > tol for v in f.verts)]
+    bmesh.ops.delete(bm, geom=gone, context="FACES")
+    bm.to_mesh(obj.data)
+    bm.free()
+    return len(obj.data.polygons)
+
+
+def render_views(building, w3d_path, w3d, texmap, prefix, views, res, samples, skeletons=None, house=None, frame=None):
+    """frame: the mesh the automatic views frame (default the target; a derived model may name
+    its body otherwise); house: add_house_colour's arguments (path, own cloth, skeletons)."""
     scene.import_w3d(w3d_path, skeletons)
     if house:
-        add_house_colour(house)
-    rig(res, samples, building.bake_hidden)
+        add_house_colour(*house)
+    from ..nightlights import day_hidden
+    rig(res, samples, day_hidden(building, w3d.data))
     for name, mesh in w3d.meshes.items():
         obj = bpy.data.objects.get(name)
         if obj is not None and not obj.hide_render and mesh.textures and all(t.lower() in texmap for t in mesh.textures):
             game_material(obj, mesh, texmap)
-    presets = views_for(building, bpy.data.objects[building.target])
+    presets = views_for(building, bpy.data.objects[frame or building.target])
     for v in views:
         c = camera(v, *presets[v])
         sc = bpy.context.scene

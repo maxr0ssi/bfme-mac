@@ -58,15 +58,8 @@ Here u = (x + y)/sqrt 2 runs across the front and d = (x - y)/sqrt 2 runs toward
 ## Framework notes (worked around here, `fixes.py` and `derived_models`)
 
 1. **32-bit normal map.** EA's `ebbarracks_nrm.tga` is 32-bit (BGRA, alpha 255 everywhere,
-   descriptor 0x08). `sagekit/paint/imageio.py` has two faults with it:
-   - `read_tga24` assumes 3 bytes a pixel, so it returns the last quarter of the pixels as the
-     "footer";
-   - the painter then wrote our 24-bit map followed by 1 MB of stray pixels, and the "original
-     TGA format" check failed.
-
-   `fixes.py` reads the file at its real depth and writes our map in EA's exact format: 32-bit,
-   alpha 255, the same descriptor and footer. It also gives the checks' `tga24_size` the
-   reference's depth. 24-bit files behave as before.
+   descriptor 0x08). This was first worked around here; `sagekit/paint/imageio.py` now reads and
+   writes 32-bit TGAs itself (82 of EA's normal maps are 32-bit), so the workaround is gone.
 2. **EA's degenerate triangles.** EA's `RACKPIKE` has 2 zero-area triangles of its own. The
    "zero-area faces" check counts them against us, even though the mesh chunk is byte-identical.
    `fixes.py` discounts them for that mesh only.

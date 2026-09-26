@@ -48,7 +48,7 @@ also exactly EA's height + 20 %, the check's limit for a 53-high model.
 
 | Part | Healthy | Damaged (`DBWallN_D1`) / snow / stonework | Really damaged, collapsing (`_D2`, `_D3`) | Construction (`_A`), placement (`_CUR`) |
 |---|---|---|---|---|
-| body (`DBWallN`) | done, rendered, not installed | derived: our body on the variant sheets | old (EA's broken bodies, recoloured sheets) | old (EA's own meshes: 128 / 112 triangles) |
+| body (`DBWallN`) | done, rendered, not installed | derived: our body on the variant sheets | old (EA's broken bodies, recoloured sheets) | construction old (EA's own mesh, 128 triangles); placement cursor `DBWallN_CUR`: our segment (`also_derived`: EA's cursor is the segment with 32 faces left out, same bone and box), **awaiting review** |
 
 ## Framework notes
 

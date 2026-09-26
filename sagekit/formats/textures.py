@@ -41,8 +41,9 @@ def full_chain(size):
     return size.bit_length()
 
 
-def tga24_size(w, h, footer=26):
-    return 18 + w * h * 3 + footer
+def tga24_size(w, h, footer=26, bpp=24):
+    """Bytes of an uncompressed TGA (24-bit, or 32-bit like 82 of EA's normal maps)."""
+    return 18 + w * h * bpp // 8 + footer
 
 
 def tga_header(path):
@@ -54,7 +55,17 @@ def tga_header(path):
 
 def write_dds_dxt1(png_path, dds_path):
     """DXT1 with a full mip chain via ImageMagick (cluster fit)."""
+    return write_dds(png_path, dds_path)
+
+
+def write_dds(png_path, dds_path, alpha=False):
+    """DXT1 (or DXT5 keeping the PNG's alpha: sagekit/alpha.py) with a full mip chain, cluster fit."""
     w = int(subprocess.check_output([MAGICK, "identify", "-format", "%w", png_path]).decode())
-    subprocess.check_call([MAGICK, png_path, "-define", "dds:compression=dxt1", "-define",
+    subprocess.check_call([MAGICK, png_path, "-define", "dds:compression=%s" % ("dxt5" if alpha else "dxt1"), "-define",
                            "dds:mipmaps=%d" % (full_chain(w) - 1), "-define", "dds:cluster-fit=true", dds_path])
     return dds_info(dds_path)
+
+
+def dds_size(w, h, mips, fourcc="DXT1"):
+    """Bytes of a DXT1 or DXT3/DXT5 DDS (16-byte blocks: twice DXT1's texel data)."""
+    return 128 + (dxt1_size(w, h, mips) - 128) * (1 if fourcc == "DXT1" else 2)

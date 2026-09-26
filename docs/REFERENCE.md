@@ -13,7 +13,7 @@ env.sh          sourced by every script: WINE_BUILD=<name> selects engines/<name
 scripts/        launch, setup and diagnostic scripts (below)
 tools/          Python helpers (.big archives, PE flags, dump parsing) + lswin.swift
 sagekit/        the art engine: formats, game install, taxonomy, Blender pipeline, painter, checks
-assets/         our buildings as recipes (a Style per faction, a Building per building) - assets/README.md
+assets/         our buildings as recipes (a Style per faction, a Building per building) - assets/README.md, map in docs/ART.md
 config/         bfme2.reg, rotwk.reg (registry the launcher would write), options-bfme2.ini
 ahk/            portable AutoHotkey + the scripts that drive the game window and menus
 patches/        Wine bug write-ups, patches/wined3d (binary-patched DLLs), patches/nxcompat (NX_COMPAT experiment)
@@ -184,8 +184,18 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 
 - `python3 -m sagekit list|validate|inventory|budget|build` — builds new art for a building from
   your install: `inventory dwarves/fortress` lists every part and lifecycle state the game draws,
-  `build dwarves/fortress` runs extract → Blender geometry/bake/paint → export → fix-up → asset
-  cache → checks → before/after renders into `build/assets/`. Rules and layout: `assets/README.md`.
+  `build dwarves/fortress` runs extract → Blender geometry/bake/paint → export → night lights
+  (`sagekit/nightlights.py`) → fix-up → derive → lifecycle (construction, really damaged and rubble models rebuilt around the new body along EA's
+  pieces and animations, `sagekit/lifecycle.py`) → asset cache → checks → before/after renders into
+  `build/assets/` (`renders/lifecycle/<model>.png` for the lifecycle models). Rules and layout:
+  `assets/README.md`.
+  `names dwarves --write` regenerates `assets/dwarves/NAMES.md`, every model and texture name the
+  faction ships (pick new names against it).
+  `owners elves` lists the models and sheets the faction shares with other factions (scan cached in
+  `build/assets/_ownership.json`; `sheets` skips shared sheets, `validate` fails a recipe that would
+  change another faction's art). `new elves --write` writes one stub recipe per design unit of EA's
+  (never over an existing one). `measure elves/fortress` measures EA's body into `work/measure.json`
+  (footprint, planes, levels, setbacks, openings, heads, symmetry; `sagekit/measure.py` for design()).
 - `tools/w3d_fixup.py <original.w3d> <exported.w3d>` — repairs what the OpenSAGE Blender add-on drops or
   changes on re-export (materials and texture references, mesh version 5.0, surface types, pivot
   fixups, and it generates the AABTREE collision trees BFME2 requires). Details in `docs/MODDING.md` §h.

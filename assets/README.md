@@ -4,6 +4,9 @@ New art for BFME2 / RotWK, built from each player's own install by `sagekit` (th
 `sagekit/`). This folder holds **only recipes**: Python classes and notes. Never EA files, never
 built output (that goes to `build/assets/`, which git ignores).
 
+The map of the engine (steps, modules, standards, where each faction stands) is
+[docs/ART.md](../docs/ART.md); what comes next is [docs/FACTIONS-PLAN.md](../docs/FACTIONS-PLAN.md).
+
 ## Rules of the game
 
 1. **One palette per faction.** A faction's `style.py` defines one `Style`: palette, materials,
@@ -49,7 +52,8 @@ python3 -m sagekit inventory dwarves/fortress
 python3 -m sagekit build dwarves/fortress
 ```
 
-`build` runs `extract → geometry → bake → paint → export → fixup → ship → cache → checks → render`;
+`build` runs `extract → geometry → bake → paint → export → night → fixup → derive → lifecycle → ship →
+shared → ini → cache → checks → render`;
 `--from STEP --to STEP` runs a slice (iterating on a design: `--from geometry --to render`). The
 result is in `build/assets/<faction>/<building>/`: `out/` holds exactly what ships (archive paths),
 `renders/compare_*.png` the before/after, `work/logs/` every step's log.
@@ -60,6 +64,9 @@ result is in `build/assets/<faction>/<building>/`: `out/` holds exactly what shi
 2. Write `building.py`: `source` (the healthy model), `target` (the mesh to redesign), `tier`,
    measurements taken from the original, and `design(kit)` built from the faction's shapes.
    Buildings of the faction share the atlas, so new faces are mapped onto real painted stone.
+   A recipe that rebuilds a volume of EA's instead of dressing it names EA's faces to remove,
+   `clear = [Box(...), Piece(...), Where(...)]` (`sagekit/clear.py`); the geometry step clears them
+   before `design()`.
 3. `build` until `checks` passes and the renders look right; then a person reviews.
 
 ## What sagekit already knows (so a recipe never has to)
@@ -78,6 +85,64 @@ add-ons like the fortress's flame launchers, oil casks, statues, catapult tower)
 stonework, placement, LOD medium/low, and the **upgrades** that switch a part on
 (`fortress_improvement_1`, `upgrade_fortress_monument`, ...). A building's `parts` and
 `built_states` say what its recipe covers; `[x]` marks done.
+
+The construction, really damaged and rubble models follow our body automatically: `derive` gives
+the ones whose body is EA's healthy one our body as it is (in the state's variant of our sheet; a
+state drawn with a normal map of its own, like `NBElvnBarx_D_NRM`, gets ours, shipped again under
+that name's length as `nbelvnbarH_D_NRM`); `lifecycle` rebuilds the rest along EA's
+pieces, cuts and animations (EA's break faces close the cuts, caps close our solids where they
+part, our banners are hidden while the building is built or broken). Each model is built with our
+added solids split along EA's pieces and with them whole, and the one the checks like best ships;
+one below the checks' standard stays EA's and `work/lifecycle.json` says why (as it says why a
+model is derived instead). A recipe tunes it per model with `lifecycle = {"DBTower_D3":
+{"tolerance": 3.0}}` (settings in `sagekit/lifecycle.py`); `renders/lifecycle/<model>.png` shows
+EA's model against ours at the frames the player sees, derived models included.
+
+## Models other factions share
+
+When the model is drawn by other factions too (the Dwarven castle walls' tower, postern and
+trebuchet draw Gondor's `GBWallTwr`, `GBWallPG`, `GBWallTreb`), redesigning it in place would change
+them as well. The recipe then declares `own_model = "DBWallTwr2"` (and optionally `replaces`, EA's
+stand-in meshes its target takes over): the build works on a renamed copy, ships it under the new
+name with its own texture, and only this faction's Draw modules are repointed to it
+(`sagekit/owncopy.py`; example `dwarves/oldwall_tower`). The name must be one EA's files don't use.
+
+The same holds for house-colour models: when another faction draws the house model a building's cloth
+goes to (Arnor draws `NBHCElvnBarx` and `EBHCMalTree` beside the Elven barracks and mallorn), the
+house step ships an own copy (`EBHCElvnBarx`, `EBHCMalTree2`) shown by this faction's Draw modules
+only (`Building.own_house_copy`); nothing to declare in the recipe.
+
+## Sheets other factions share
+
+A mesh we ship untouched can still be painted from another faction's sheet: the Dwarven siege
+works' anvil samples the Elven forge's `EBForge.tga` (Isengard, Mordor and the Goblins share
+`WBCave`). Recolouring that sheet would change the other factions, so the faction's `style.py`
+declares a copy of its own, `shared_sheets = {"EBForge.tga": "DBAnvil.tga"}` (same name length:
+W3D patches names in place). The build's `shared` step renames the sheet (and its _D/_Snow
+variants) in every model the building ships, recolours it like `sagekit sheets` does, ships and
+registers it, and adds the copy's INI state swaps; EA's sheet and its normal map stay EA's
+(`sagekit/sharedsheets.py`). One copy per faction: every building that shows the sheet uses it.
+
+## Night lights
+
+EA lights a building at night by showing sub-objects its INI names (`NightWindowName = N_Window
+N_Glow`; scripts hide them by name while a building is placed). EA placed them on EA's shapes, and
+some draw other factions' sheets (the Dwarven archery range drew Gondor's `gbnightwindows`). Night
+lights are a faction standard, like house colour: the recipe marks its real windows and doors,
+`night_lights(kit)` → `[Light.rect(...), Light(a, t, n, outline, kind="door")]` in design
+coordinates (`night_surfaces` names EA meshes they may lie on too, e.g. the rock), and the style
+sets the glow, `night = NightLook("DBNight.tga", ramp=...)`: the faction's own texture, painted
+from the ramp (window, door, slit and halo motifs). The `night` step casts each light onto our
+finished body; fixup, derive and the lifecycle step rebuild EA's night meshes from them under EA's
+names, drawn additively like EA's; a mesh with nothing to show (no lights, a building site, a
+leftover no INI names) keeps its name and shows nothing. The texture ships, is registered and the
+night meshes depend on it; the checks hold every night triangle to our surface; `renders/night/`
+shows EA's night look against ours. A light needn't lie on a surface: `Light.glow(centre, size)` is
+a free-hanging glow card like the ones EA hangs round its warm lanterns (flat, 24 across, in the
+glow mesh), held to our surface by its centre. A `base` recipe declares no lights and no cloth (its
+mesh is shown per upgrade level, the night and house models at every level) unless it sets
+`always_shown = True` (a chained mesh drawn at every level: the Elven pasture's fence).
+`sagekit/nightlights.py`.
 
 ## Tools the pipeline needs
 

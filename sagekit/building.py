@@ -15,13 +15,17 @@ from .taxonomy import State, Tier, own_texture_name, own_variant_name
 
 
 
-def same_body(a, b, tol=0.5):
+def same_body(a, b, tol=0.5, frames=None, tris=True):
     """Whether a state's body is the healthy body, give or take dents: the same triangle count and
     the same bounding box (EA's lightly damaged bodies move a few vertices by up to ~2 units; its
-    broken, collapsed and re-framed bodies lose or gain triangles or change their extent)."""
-    def box(m):
-        return [f(p[i] for p in m.verts) for f in (min, max) for i in range(3)]
-    return len(a.tris) == len(b.tris) and all(abs(x - y) <= tol for x, y in zip(box(a), box(b)))
+    broken, collapsed and re-framed bodies lose or gain triangles or change their extent).
+    frames: the two meshes' model-space frames (sagekit/formats/w3dframes.py), when the bodies
+    hang on differently turned bones; tris=False compares place and extent alone."""
+    from .formats.w3dframes import IDENTITY, model_box
+    fa, fb = frames or (IDENTITY, IDENTITY)
+    return (not tris or len(a.tris) == len(b.tris)) and \
+        all(abs(x - y) <= tol for x, y in zip(model_box(a, fa), model_box(b, fb)))
+
 
 class Building:
     style = None                    # a Style instance (shared by the faction)
@@ -49,9 +53,18 @@ class Building:
         return self.id.split("/")[1]
 
     # ------------------------------------------------------------------ derived names
+    own_model = None                # ship the redesign as a new model of this name, leaving EA's
+                                    # `source` to the other factions that draw it (sagekit/owncopy.py)
+    replaces = ()                   # with own_model: EA's stand-in meshes the target takes over (dropped)
+
+    def shipped_name(self, model):
+        """The name EA model `model` (the source or one of its derived models) ships under."""
+        from .owncopy import shipped_name
+        return shipped_name(self, model)
+
     @property
     def model_file(self):
-        return self.source.lower() + ".w3d"
+        return self.shipped_name(self.source).lower() + ".w3d"
 
     @property
     def sheet_atlas(self):
@@ -62,6 +75,7 @@ class Building:
             return master
         from .atlas import Atlas
         a = Atlas()
+        a.ground_sat = master.ground_sat            # the faction's colour rules read its own sheets too
         a.texture = self.sheet
         a.normal = self.sheet[:-4] + "_NRM.tga" if self.sheet_normal == "auto" else self.sheet_normal
         return a
@@ -89,28 +103,79 @@ class Building:
 
     base = None                     # id of a Building whose finished model this one redesigns further
                                     # (a second mesh of the same model); built after it, shipped instead
+    always_shown = False            # with base: the mesh is drawn at every upgrade level (the green pasture's
+                                    # fence), so it may carry cloth and night lights; False keeps a chained
+                                    # mesh shown per upgrade level (the Dwarven archery tower's, walls',
+                                    # obelisks') from both: they would hang in the air before the upgrade
+
+    @property
+    def per_level(self):
+        """A chained mesh the game shows per upgrade level (no cloth, no night lights of its own)."""
+        return bool(self.base) and not self.always_shown
+
+    also_derived = ()               # models whose target mesh is not EA's healthy body but takes ours
+                                    # anyway (EA's placement cursor, a simplified copy; a light-damage body
+                                    # with a few faces chipped off): matched on place and extent alone
 
     def derived_models(self, install):
-        """Models of the body family (besides the source) whose target mesh is EA's healthy body
-        itself (same triangles, same frame): the construction and lightly damaged states, which
-        take our body as it is. EA's broken, collapsed or re-framed bodies (really damaged,
-        rubble, the forge's construction) are left to EA, recoloured by the faction sheets."""
+        """Models besides the source that ship with our body: the construction and lightly damaged
+        states whose body is EA's healthy one (derived_bodies). A recipe chained on a `base` rides
+        along in its base's models - it splices its mesh into the base's derived files, so the
+        chain's last building ships them carrying every link's redesign."""
         if self.base:
-            return []                               # the base's lifecycle models stay the base's
+            return self.base_building().derived_models(install)
+        return list(self.derived_bodies(install))
+
+    def derived_bodies(self, install):
+        """{model: its mesh that takes our target's body}: by our target's name, else the one mesh
+        there that is our body under another name (EA renames: DBArchRnge_D1.ARCHERY,
+        DBFStatus_D1.DBFSTATUS_D1). EA's broken, collapsed or re-framed bodies (really damaged,
+        rubble, the forge's construction) are left to EA, recoloured by the faction sheets."""
+        out = {}
+        for m in self.derived_models(install) if self.base else self.drawn_models(install):
+            fits = self.bodies_in(install, m)
+            if self.target in fits or len(fits) == 1:
+                out[m] = self.target if self.target in fits else next(iter(fits))
+            elif m.lower() in {x.lower() for x in self.also_derived}:
+                raise ValueError("%s: no one mesh of %s is where %s is (%s)" % (self.id, m, self.target, list(fits)))
+        return out
+
+    def bodies_in(self, install, model):
+        """{mesh: frame taking our body's mesh-local coordinates into the mesh's} for the meshes of
+        `model` that are EA's healthy target (same_body): as they stand (identity; EA's construction
+        models animate their bones from a bind pose of their own), else in model space (their bone
+        turned: DBArchRnge_D1's body hangs on a bone turned 180 degrees about z)."""
         from .formats.w3d import W3DFile
-        healthy = W3DFile(install.read(install.model_path(self.source))).meshes[self.target]
+        from .formats.w3dframes import IDENTITY, compose, inverse, mesh_frames
+        read_skl = lambda skl: install.read(install.model_path(skl[:-4]))        # noqa: E731
+        data = install.read(install.model_path(self.source))
+        healthy, hf = W3DFile(data).meshes[self.target], mesh_frames(data, read_skl)[self.target]
+        data = install.read(install.model_path(model))
+        frames = mesh_frames(data, read_skl)
+        tol, tris = (2.5, False) if model.lower() in {x.lower() for x in self.also_derived} else (0.5, True)
+        out = {}
+        for n, mesh in W3DFile(data).meshes.items():
+            if mesh.skinned:
+                continue
+            if same_body(mesh, healthy, tol, tris=tris):
+                out[n] = IDENTITY
+            elif same_body(mesh, healthy, tol, (frames[n], hf), tris):
+                out[n] = compose(inverse(frames[n]), hf)
+        return out
+
+    def drawn_models(self, install):
+        """The models (besides the source) that the Draw modules this building covers show."""
         out = []
         for draws in self.objects(install).values():
             for d in draws:
-                if not self.covers(d):
-                    continue
-                for m in d.models():
-                    if m.lower() == self.source.lower() or m in out or not install.has_model(m):
-                        continue
-                    mesh = W3DFile(install.read(install.model_path(m))).meshes.get(self.target)
-                    if mesh is not None and not mesh.skinned and same_body(mesh, healthy):
-                        out.append(m)
+                if self.covers(d):
+                    out += [m for m in d.models() if m.lower() != self.source.lower()
+                            and m.lower() not in map(str.lower, out) and install.has_model(m)]
         return out
+
+    def base_building(self):
+        from .registry import load
+        return load(self.base) if self.base else None
 
     def variants(self, install):
         """{EA variant texture: our variant} for every state that swaps the body's sheet for
@@ -130,11 +195,28 @@ class Building:
                             continue                        # EA's typos (DBFortress_Snow): the swap shows nothing
                         out[new] = own_variant_name(atlas.texture, own, new)
         from .formats.w3d import W3DFile
-        for m in self.derived_models(install):       # damaged models painted from their own sheet
-            for t in W3DFile(install.read(install.model_path(m))).meshes[self.target].textures:
+        for m, mesh in self.derived_bodies(install).items():     # damaged models painted from their own sheet
+            for t in W3DFile(install.read(install.model_path(m))).meshes[mesh].textures:
                 low = t.lower()
                 if "_nrm" not in low and low != atlas.texture.lower() and low not in {k.lower() for k in out}:
                     out[t] = own_variant_name(atlas.texture, own, t)
+        return out
+
+    def normal_variants(self, install):
+        """{EA state normal map: ours}: a derived body whose state is painted with a normal map of
+        its own (NBElvnBarx_D1 draws NBElvnBarx_D_NRM) must read ours, laid out for our UVs, not
+        EA's. Ours ships again under a name as long as EA's (W3D patches names in place), e.g.
+        nbelvnbarH_D_NRM.tga, a copy of nbelvnbarH_NRM.tga."""
+        atlas = self.sheet_atlas
+        if not self.own_normal:
+            return {}
+        from .formats.w3d import W3DFile
+        out = {}
+        for m, mesh in self.derived_bodies(install).items():
+            for t in W3DFile(install.read(install.model_path(m))).meshes[mesh].textures:
+                low = t.lower()
+                if "_nrm" in low and low != atlas.normal.lower() and low not in {k.lower() for k in out}:
+                    out[t] = own_variant_name(atlas.texture, self.own_diffuse, t)
         return out
 
     def renames(self):
@@ -146,13 +228,19 @@ class Building:
         ('patch', model file)] - applied to a copy at build time and to the game at install."""
         own = self.texture_names()
         atlas = self.sheet_atlas
-        container = self.source.upper()
+        container = self.shipped_name(self.source).upper()
         ops = [("texture", own[atlas.texture].lower(), atlas.texture.lower(), self.model_file,
                 "%s.%s" % (container, self.target))]
         if atlas.normal:
             ops.append(("texture", own[atlas.normal].lower(), atlas.normal.lower(), None, None))
         ops += [("texture", mine.lower(), ea.lower(), None, None) for ea, mine in sorted((variants or {}).items())]
-        return ops + [("patch", self.model_file)] + [("patch", m.lower() + ".w3d") for m in derived]
+        from .workspace import Workspace                        # our normal map under state names
+        ops += [("texture", mine.lower(), ea.lower(), None, None) for ea, mine in sorted(Workspace(self).normal_variants.items())]
+        from .sharedsheets import cache_ops as shared            # the faction's copies of shared EA sheets
+        ops += shared(self)
+        from .nightlights import cache_ops as night              # the faction's night-light texture
+        ops += night(self)
+        return ops + [("patch", self.model_file)] + [("patch", self.shipped_name(m).lower() + ".w3d") for m in derived]
 
     def ini_ops(self, install, variants):
         """{INI archive path: [op]} (sagekit/formats/ini.py apply_ops): our own texture swaps next to
@@ -166,6 +254,15 @@ class Building:
                 ops = out.setdefault(d.file, [("swaps", atlas.texture, swaps)])
                 if self.covers(d) and d.fields.get("StaticModelLODMode", "").lower() == "yes":
                     ops.append(("lod_off", obj, d.tag))
+        if self.own_model:                                  # an own copy: our model in place of EA's
+            from .owncopy import ini_ops
+            from .workspace import Workspace                 # and the lifecycle step's models
+            models = [self.source] + self.derived_models(install) + Workspace(self).lifecycle
+            for member, ops in ini_ops(self, install, models).items():
+                out.setdefault(member, []).extend(ops)
+        from .sharedsheets import ini_ops as shared         # state swaps of the shared sheets' copies
+        for member, ops in shared(self).items():
+            out.setdefault(member, []).extend(ops)
         return out
 
     # ------------------------------------------------------------------ lifecycle (from the game)
@@ -184,6 +281,10 @@ class Building:
                                     # pieces whose faces lie on its edge (collision comes from the INI)
     world_space = False             # True: design(), bakes, texel weights and checks work in world axes
                                     # (for a target hung on a rotated bone, e.g. a wall end lying on its side)
+    facet_islands = False           # True: every original face of the target is a UV island of its own (as new
+                                    # faces are): organic bodies - a trunk, a horn of rock - whose smooth shells
+                                    # unwrap onto themselves; a number (degrees): seams at EA's own island
+                                    # borders and where faces turn more than that (sagekit/blender/layout.py)
     house_tags = ("cloth",)         # faces of these atlas regions leave the body for the house-colour
                                     # model shown with it, which the game tints in the player's colour
 
@@ -201,12 +302,39 @@ class Building:
                     if found and m.lower() != found["model"].lower() or not install.has_model(m):
                         continue
                     if found is None:
-                        hc = [n for n in W3DFile(install.read(install.model_path(m))).meshes if n.upper().startswith("HC_")]
+                        from .housemesh import house_meshes     # HC_ meshes, or by their house-colour texture
+                        hc = house_meshes(W3DFile(install.read(install.model_path(m))))
                         if not hc:
                             continue
                         found = {"model": m, "mesh": hc[0], "draws": []}
                     found["draws"].append([d.file, obj, d.tag])
+        if found and self.house_shared(install, found["model"]):
+            return self.own_house_copy(install, found)
         return found or self.new_house_model(install)
+
+    def house_shared(self, install, model):
+        """Whether another faction's objects draw EA's house-colour model `model` too (Arnor's Elven
+        barracks and mallorn draw NBHCElvnBarx and EBHCMalTree; sagekit/ownership.py)."""
+        from .ownership import load
+        return bool(load(install).other_model(model, self.faction))
+
+    def own_house_copy(self, install, found):
+        """A shared house-colour model as a model of our own (the own_model pattern,
+        sagekit/owncopy.py): EA's file renamed, its flag replaced by our cloth, shown in place of
+        EA's by this faction's Draw modules only (found["draws"]: the objects of the style's INI
+        folder), so the other factions keep EA's flag. Named with the faction's house prefix
+        (the style's house_template: EBHC) and EA's stem, EBHCElvnBarx for NBHCElvnBarx; with our
+        shipped model's stem when EA's already carries the prefix (EBHCMalTree2 for EBMalTree2)."""
+        template = getattr(self.style, "house_template", None) or found["model"]
+        name = template[:2].upper() + "HC" + found["model"][4:]
+        if name.lower() == found["model"].lower():
+            stem = self.shipped_name(self.source)
+            stem = stem[:-4] if stem.lower().endswith("_skn") else stem
+            name = template[:2].upper() + "HC" + stem[2:]
+        name = name[:15]
+        if install.has_model(name) or any(c.has_model(name.lower() + ".w3d") for c in install.asset_caches().values()):
+            raise ValueError("%s: own copy %s of house-colour model %s is a name EA's files use" % (self.id, name, found["model"]))
+        return dict(found, model=name, copy_of=found["model"])
 
     HOUSE_DRAW = None               # the Draw tag of a house-colour model of our own (None: one per
                                     # model, so an object showing two of them keeps both)
@@ -218,7 +346,10 @@ class Building:
         template = getattr(self.style, "house_template", None)
         if not template:
             return None
-        name = ("DBHC" + self.source[2:])[:15]
+        # the faction's prefix, from its template: DBHC (DBHCArchRnge), EBHC (EBHCBbattleTwr)
+        name = (template[:2].upper() + "HC" + self.shipped_name(self.source)[2:])[:15]
+        if install.has_model(name) or any(c.has_model(name.lower() + ".w3d") for c in install.asset_caches().values()):
+            raise ValueError("%s: own house-colour model %s is a name EA's files use" % (self.id, name))
         draws = sorted({(d.file, obj) for obj, ds in self.objects(install).items() for d in ds if self.is_body(d)})
         tag = self.HOUSE_DRAW or "ModuleTag_Draw_" + name
         return {"model": name, "mesh": "HC_BANNER", "template": template, "draws": [[f, obj, tag] for f, obj in draws]}
@@ -232,6 +363,10 @@ class Building:
         return draw.tag in self.parts if self.parts else self.is_body(draw)
 
     # ------------------------------------------------------------------ design hooks (Blender side)
+    clear = ()                      # EA's faces of the target removed before design() (a rebuilt body):
+                                    # [sagekit.clear spec]: Box, Piece, Where or a predicate on the face
+                                    # centre (target coordinates); ALL clears the whole mesh
+
     def design(self, kit):
         """-> [Solid]: every new solid, in the target mesh's local coordinates."""
         raise NotImplementedError
@@ -242,4 +377,12 @@ class Building:
 
     def decals(self):
         """Building-specific paint layers added on top of the style's (e.g. sigils at set spots)."""
+        return []
+
+    night_surfaces = ()             # meshes besides the target the night lights may lie on (EA's rock)
+
+    def night_lights(self, kit):
+        """-> [sagekit.nightlights.Light]: the design's real windows and doors, lit at night in
+        the style's NightLook (design coordinates, like design()). None declared: the building's
+        night meshes show nothing (unless a base link lights them)."""
         return []

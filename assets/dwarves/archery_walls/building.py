@@ -57,6 +57,9 @@ class ArcheryWalls(Building):
     sheet = "dbarchrnge.tga"
     own_textures = {"dbarchrnge.tga": "DBArchRngW.tga"}
     house_tags = ()                 # the cloth stays in V1A: the house-colour model is shown at every level
+    # EA's lightly damaged range chips a few faces off its walls (V1A: 95 of 139 triangles, same
+    # place and extent): the damaged range shows our walls whole, on the damaged sheet
+    also_derived = ("DBArchRnge_D1",)
     bake_hidden = NOT_BAKED
     views = {                                   # the yard from the south-west, and the south wall close
         "rts": ((-6, 0, 20), 330, 50, -128, 50),

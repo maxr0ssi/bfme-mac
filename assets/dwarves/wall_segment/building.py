@@ -56,6 +56,9 @@ class WallSegment(Building):
     # postern's own (DBHCWallPGN). The framework's shared default tag would make the second
     # add_draw a silent no-op there, so this model's module gets a tag of its own
     HOUSE_DRAW = "ModuleTag_Draw_HCWallN"
+    # the placement cursor (the ghost shown while a wall is dragged out) is EA's segment with a few
+    # faces left out (112 of 144 triangles), on the same bone, box and material: it shows ours whole
+    also_derived = ("DBWallN_CUR",)
     views = {
         "rts": ((0, 0, 30), 205, 48, -24, 50),
         "close": ((0, 0, 34), 140, 20, -18, 45),

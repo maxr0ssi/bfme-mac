@@ -61,6 +61,23 @@ class SheetCanvas:
         raise AttributeError(name)
 
 
+def keep_motifs(col, cv):
+    """The atlas's `keep` rects (original px, top-down) show EA's own colours wherever the masks do
+    not take them for stone: a painted figure (the Elven eagle, EBFE) keeps its feathers, the stone
+    round it takes the palette."""
+    keep = getattr(cv.atlas, "keep", None)
+    if not keep:
+        return col
+    h, w = cv.lum.shape
+    f = h / float(cv.atlas.size)
+    k = np.zeros((h, w), np.float32)
+    for rects in keep.values():
+        for x0, y0, x1, y1 in rects:
+            k[h - int(y1 * f):h - int(y0 * f), int(x0 * f):int(x1 * f)] = 1.0      # rows are bottom-up here
+    k = (k * np.clip(1 - cv.w_stone, 0, 1))[..., None]
+    return col * (1 - k) + cv.rgb * k
+
+
 def recolour_sheet(style, src_dds, out_dds, size, upscaler):
     info = dds_info(src_dds)
     alpha = info["fourcc"] in ("DXT3", "DXT5")
@@ -75,6 +92,7 @@ def recolour_sheet(style, src_dds, out_dds, size, upscaler):
         col = None
         for layer in style.sheet_layers():
             col = layer.apply(col, cv, style.palette)
+        col = keep_motifs(col, cv)
         col = np.clip(col, 0, 1)[::-1]                       # back to top-down rows
         a = np.ones(col.shape[:2] + (1,), np.float32)
         if alpha:

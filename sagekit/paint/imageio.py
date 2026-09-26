@@ -25,14 +25,20 @@ game_to_gl = gl_to_game
 
 
 def write_tga24(path, rgb01, ref_header=None, ref_footer=None):
-    """24-bit uncompressed TGA, bottom-up rows (descriptor 0), BGR, with the TRUEVISION footer:
-    byte for byte the layout of the game's normal maps. rgb01: (h, w, 3), rows bottom-up."""
+    """Uncompressed TGA, bottom-up rows, BGR, with the TRUEVISION footer: byte for byte the layout
+    of the game's normal maps. Most are 24-bit; 82 of EA's are 32-bit (alpha 255 everywhere), and
+    ours keeps the reference's depth so the file matches EA's layout. rgb01: (h, w, 3), rows
+    bottom-up."""
     h, w = rgb01.shape[:2]
+    bpp = 32 if ref_header and ref_header[16] == 32 else 24
     hdr = bytearray(ref_header) if ref_header else bytearray(18)
     hdr[2] = 2
     struct.pack_into("<HH", hdr, 12, w, h)
-    hdr[16], hdr[17] = 24, 0
+    hdr[16] = bpp
+    hdr[17] = hdr[17] & 0x0F if bpp == 32 else 0      # keep the alpha-bits nibble, rows bottom-up
     px = np.clip(np.rint(rgb01 * 255), 0, 255).astype(np.uint8)[..., ::-1]
+    if bpp == 32:
+        px = np.concatenate([px, np.full((h, w, 1), 255, np.uint8)], -1)
     with open(path, "wb") as f:
         f.write(bytes(hdr))
         f.write(px.tobytes())
@@ -40,17 +46,19 @@ def write_tga24(path, rgb01, ref_header=None, ref_footer=None):
 
 
 def read_tga24(path):
+    """An uncompressed 24- or 32-bit TGA as (h, w, 3) floats, rows bottom-up (a 32-bit file's alpha
+    is dropped: EA's are 255 everywhere)."""
     with open(path, "rb") as fh:
         d = fh.read()
     idl, cmt, typ = d[0], d[1], d[2]
     w, h = struct.unpack_from("<HH", d, 12)
     bpp, desc = d[16], d[17]
-    off = 18 + idl
-    px = np.frombuffer(d, np.uint8, w * h * 3, off).reshape(h, w, 3)[..., ::-1].astype(np.float32) / 255
+    off, n = 18 + idl, 4 if bpp == 32 else 3
+    px = np.frombuffer(d, np.uint8, w * h * n, off).reshape(h, w, n)[..., 2::-1].astype(np.float32) / 255
     if desc & 0x20:
         px = px[::-1]
     return dict(type=typ, width=w, height=h, bpp=bpp, desc=desc, cmap=cmt, idlen=idl, header=d[:18],
-                footer=d[off + w * h * 3:], pixels=px)
+                footer=d[off + w * h * n:], pixels=px)
 
 
 def to_srgb(lin):

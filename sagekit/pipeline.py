@@ -7,9 +7,12 @@ runs a slice, so iterating on a design is `--from geometry --to render`.
     bake       G-buffers into that layout                                       (Blender)
     paint      the style's layer stack -> diffuse DDS + normal TGA              (Blender)
     export     the scene as W3D                                                 (Blender)
+    night      the recipe's windows and doors cast onto our body as night lights (nightlights.py)
     fixup      repair the export, point the target at its own textures, splice it into EA's file
     derive     EA's damaged-but-standing models with our body in the state texture spliced in
+    lifecycle  EA's construction / really damaged / rubble models with our body in EA's pieces (Blender)
     ship       the files that ship, at their archive paths, under out/
+    shared     shared EA sheets in those files -> the faction's recoloured copies (sharedsheets.py)
     ini        the faction INIs with our texture swaps next to EA's, LOD swapping off
     cache      a pristine asset.dat copy with the building's cache ops, verified
     checks     the standard check suite                                         (Blender)
@@ -29,6 +32,7 @@ from .formats.assetcache import AssetCache
 from .formats.ini import apply_ops
 from .formats.textures import compiled_path
 from .formats.w3d import W3DFile, fix, splice_mesh
+from .formats.w3dframes import moved
 from .game import Install
 from .workspace import Workspace
 
@@ -36,7 +40,7 @@ RUN_PY = os.path.join(paths.REPO, "sagekit", "blender", "run.py")
 REALESRGAN = os.path.join(paths.REPO, "downloads", "realesrgan", "realesrgan-ncnn-vulkan")
 
 
-BLENDER_SLOTS = int(os.environ.get("SAGEKIT_BLENDER_SLOTS", "2"))
+BLENDER_SLOTS = int(os.environ.get("SAGEKIT_BLENDER_SLOTS", "4"))
 
 
 class StepFailed(Exception):
@@ -113,6 +117,15 @@ class Extract(Step):
         g, b = self.p.install, self.b
         a, master = b.sheet_atlas, b.style.atlas
         model = self.source()
+        if b.own_model and not b.base:          # an own copy (sagekit/owncopy.py); EA's stays for the before render
+            from .owncopy import check_free, prepare
+            with open(self.ws.reference_model, "wb") as fh:
+                fh.write(model)
+            try:
+                check_free(b, g, [b.source] + b.derived_models(g))
+                model = prepare(b, b.source, model)
+            except ValueError as e:
+                raise StepFailed(str(e))
         with open(self.ws.source_model, "wb") as fh:
             fh.write(model)
         body = W3DFile(model).meshes.get(b.target)
@@ -125,16 +138,20 @@ class Extract(Step):
         variants = b.variants(g)
         with open(self.ws.path("work", "variants.json"), "w") as fh:
             json.dump(variants, fh, indent=1)
-        # a `base` building redesigns a mesh the game shows per upgrade level, but the house-colour
-        # model is always drawn: its cloth stays on the mesh
-        house = b.house_model(g) if b.house_tags and not b.base else None
+        normals = b.normal_variants(g)                  # our normal map under the states' names
+        with open(self.ws.path("work", "normal_variants.json"), "w") as fh:
+            json.dump(normals, fh, indent=1)
+        # a `base` building redesigns a mesh the game may show per upgrade level, but the house-colour
+        # model is always drawn: its cloth stays on the mesh, unless the mesh is always shown too
+        house = b.house_model(g) if b.house_tags and not b.per_level else None
         if house:
             with open(self.ws.path("work", "house.json"), "w") as fh:
                 json.dump(house, fh, indent=1)
         elif os.path.exists(self.ws.path("work", "house.json")):
             os.remove(self.ws.path("work", "house.json"))
+        bodies = b.derived_bodies(g)
         with open(self.ws.path("work", "derived.json"), "w") as fh:
-            json.dump(b.derived_models(g), fh)
+            json.dump({m: bodies.get(m) for m in b.derived_models(g)}, fh, indent=1)
         members = [(compiled_path(a.texture, ".dds"), self.ws.atlas_dds)]
         skl = W3DFile(model).skeleton()
         if skl:                                 # a skinned model: its skeleton is a file of its own
@@ -156,7 +173,10 @@ class Extract(Step):
                                               ", ".join("%s -> %s" % kv for kv in variants.items()) or "none"))
 
     def upscale(self, member, out_png):
-        """The sheet decoded and upscaled 4x (kept: slow-ish and deterministic)."""
+        """The sheet decoded and upscaled 4x (kept: slow-ish and deterministic); its cut-out alpha
+        beside it when it has any (sagekit/alpha.py: Real-ESRGAN sees the colour only)."""
+        from .alpha import upscale as upscale_alpha
+        upscale_alpha(self.p.install.read(member), out_png, self.b.style.atlas.upscale)
         if os.path.exists(out_png):
             return
         if not os.path.exists(REALESRGAN):
@@ -202,6 +222,15 @@ class Export(Step):
         self.blender("export", blend=self.ws.stage("geometry"))
 
 
+class Night(Step):
+    """Night lights from our design, glowing in the faction's look (sagekit/nightlights.py)."""
+    name = "night"
+
+    def run(self):
+        from . import nightlights
+        nightlights.run(self)
+
+
 class Fixup(Step):
     """Only the redesigned mesh ships from Blender: the export is repaired against the original
     (w3d.fix), its target mesh re-pointed at our textures, and spliced into EA's own file - every
@@ -214,21 +243,25 @@ class Fixup(Step):
         print("\n".join("  " + x for x in report if x.startswith(self.b.target)))
         mesh = W3DFile(fixed).meshes[self.b.target].bytes
         out = splice_mesh(orig, self.b.target, mesh, self.ws.container)
+        from .nightlights import carry          # night meshes: our lights, in the faction's look
+        out = carry(self.b, self.b.source, out, install=self.p.install)
         os.makedirs(os.path.dirname(self.ws.shipped_model), exist_ok=True)
         with open(self.ws.shipped_model, "wb") as fh:
             fh.write(out)
 
 
 class Derive(Step):
-    """The damaged-but-standing models (EA's D2): our new body in the matching state texture,
-    spliced into EA's file in place of their body mesh; their debris and animation untouched."""
+    """The damaged-but-standing models (EA's D1): our new body in the matching state texture,
+    spliced into EA's file in place of their body mesh (under EA's name for it, in its bone's
+    frame); their debris and animation untouched. A chained recipe splices into its base's
+    derived file, and passes on the ones whose mesh is not its body there as the base made them."""
     name = "derive"
 
     def run(self):
-        names = {k.lower(): v for k, v in self.b.texture_names().items()}
-        names.update({k.lower(): v for k, v in self.ws.variants.items()})
+        names = self.ws.own_names                       # diffuse, normal, state variants, state normals
         export = open(self.ws.export_model, "rb").read()
-        keep = {self.p.install.model_path(m).lower() for m in [self.b.source] + list(self.ws.derived)}
+        keep = {self.p.install.model_path(self.b.shipped_name(m)).lower()
+                for m in [self.b.source] + list(self.ws.derived) + self.ws.lifecycle}
         models = self.ws.path("out", "art", "w3d")
         for root, _, files in os.walk(models):          # models an earlier run derived and this one does not
             for f in files:
@@ -236,20 +269,53 @@ class Derive(Step):
                 if rel not in keep:
                     os.remove(os.path.join(root, f))
                     print("  removed %s (no longer derived)" % rel)
-        for model in self.ws.derived:
-            member = self.p.install.model_path(model)
-            orig = self.p.install.read(member)
+        for model, mesh in self.ws.derived_bodies.items():
+            member = self.p.install.model_path(self.b.shipped_name(model))
+            orig = self.start(model)
+            if self.b.own_model and not self.b.base:
+                from .owncopy import prepare
+                orig = prepare(self.b, model, orig)
             with open(self.ws.path("src", model.lower() + ".w3d"), "wb") as fh:
                 fh.write(orig)
-            ea = W3DFile(orig).meshes[self.b.target]
-            renames = [(self.b.target, t, names[t.lower()]) for t in ea.textures if t.lower() in names]
-            fixed, _ = fix(orig, export, renames)
-            out = splice_mesh(orig, self.b.target, W3DFile(fixed).meshes[self.b.target].bytes, ea.container)
             dest = self.ws.out(member)
             os.makedirs(os.path.dirname(dest), exist_ok=True)
+            if mesh is None:
+                with open(dest, "wb") as fh:
+                    fh.write(orig)
+                print("  %s: as %s derived it" % (member, self.b.base))
+                continue
+            ea = W3DFile(orig).meshes[mesh]
+            renames = [(mesh, t, names[t.lower()]) for t in ea.textures if t.lower() in names]
+            body = moved(export, self.b.target, mesh, self.b.bodies_in(self.p.install, model)[mesh])
+            fixed, _ = fix(orig, body, renames)
+            out = splice_mesh(orig, mesh, W3DFile(fixed).meshes[mesh].bytes, ea.container)
+            from .nightlights import carry      # night meshes: our lights through the body's frame
+            out = carry(self.b, model, out, install=self.p.install)
             with open(dest, "wb") as fh:
                 fh.write(out)
-            print("  %s: %s -> %s" % (member, ", ".join(t for t in ea.textures), ", ".join(r[2] for r in renames)))
+            print("  %s: %s%s -> %s" % (member, "" if mesh == self.b.target else mesh + ": ", ", ".join(ea.textures),
+                                        ", ".join(r[2] for r in renames)))
+
+    def start(self, model):
+        """The file our body goes into: the base's derived one for a chained recipe, else EA's."""
+        if self.b.base:
+            base = Workspace(self.b.base_building())
+            if model in base.derived:
+                path = base.out(self.p.install.model_path(model))
+                if not os.path.exists(path):
+                    raise StepFailed("build %s first: %s splices into its %s" % (self.b.base, self.b.id, model))
+                return open(path, "rb").read()
+        return self.p.install.read(self.p.install.model_path(model))
+
+
+class Lifecycle(Step):
+    """EA's construction, really damaged and rubble models rebuilt around our body, following EA's
+    pieces, cuts and animations (sagekit/lifecycle.py)."""
+    name = "lifecycle"
+
+    def run(self):
+        from . import lifecycle
+        lifecycle.run(self)
 
 
 class Ship(Step):
@@ -258,20 +324,35 @@ class Ship(Step):
     def run(self):
         files = [(self.b.own_diffuse, ".dds")] + ([(self.b.own_normal, ".tga")] if self.b.own_normal else [])
         files += [(v, ".dds") for v in self.ws.variants.values()]
+        files += [(v, ".tga") for v in self.ws.normal_variants.values()]
+        from .nightlights import ship as night          # the faction's night-light texture
+        files += night(self.ws)
         keep = {os.path.normcase(self.ws.shipped_texture(name, ext)) for name, ext in files}
         for root, _, names in os.walk(self.ws.path("out", "art", "compiledtextures")):
             for f in names:                         # textures an earlier run shipped and this one does not
                 if os.path.normcase(os.path.join(root, f)) not in keep:
                     os.remove(os.path.join(root, f))
                     print("  removed %s (no longer shipped)" % f)
-        for name, ext in files:
-            src, dest = self.ws.tex(name[:-4].lower() + ext), self.ws.shipped_texture(name, ext)
+        copies = {v.lower(): self.b.own_normal for v in self.ws.normal_variants.values()}
+        for name, ext in files:                         # a state normal: a copy of ours
+            src = self.ws.tex(copies.get(name.lower(), name)[:-4].lower() + ext)
+            dest = self.ws.shipped_texture(name, ext)
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             shutil.copy2(src, dest)
         for root, _, files in os.walk(self.ws.path("out")):
             for f in sorted(files):
                 p = os.path.join(root, f)
                 print("  %-60s %10d" % (os.path.relpath(p, self.ws.path("out")), os.path.getsize(p)))
+
+
+class Shared(Step):
+    """Meshes we ship painted from a sheet other factions draw too get the faction's own
+    recoloured copy of it (sagekit/sharedsheets.py); after ship, which clears textures it does not know."""
+    name = "shared"
+
+    def run(self):
+        from . import sharedsheets
+        sharedsheets.run(self)
 
 
 class Ini(Step):
@@ -293,7 +374,7 @@ class Cache(Step):
 
     def run(self):
         shutil.rmtree(self.ws.path("cache"), ignore_errors=True)
-        routed = self.p.install.route_cache_ops(self.b.cache_ops(self.ws.variants, self.ws.derived))
+        routed = self.p.install.route_cache_ops(self.b.cache_ops(self.ws.variants, self.ws.derived + self.ws.lifecycle))
         for live, ops in routed.items():
             cache = AssetCache(self.p.install.asset_caches()[live].path)
             cache.path = self.ws.cache_copy(live)
@@ -339,12 +420,27 @@ class Render(Step):
     FONT = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
 
     def run(self, views=None, res="1600x1100", spp="64"):
+        """The healthy model, then every derived model that carries this building's body (EA's
+        original of it against ours: renders/compare_<model>_<view>.png)."""
         views = views or ",".join(self.b.views or ("rts", "close", "ingame"))
         r = self.ws.path("renders")
-        for who, model in (("orig", self.ws.source_model), ("new", self.ws.shipped_model)):
-            self.blender("render", log_as="render_" + who, w3d=model, prefix=os.path.join(r, who + "_"),
-                         views=views, res=res, spp=spp, **self.references(model, recoloured=who == "new"))
-        self.labelled(r, views, res)
+        pairs = [("", self.ws.reference_model, self.ws.shipped_model, self.b.target)]
+        for model, body in self.ws.derived_bodies.items():
+            if body:
+                member = self.p.install.model_path(model)
+                ea = self.ws.path("work", "ref", model.lower() + ".w3d")
+                os.makedirs(os.path.dirname(ea), exist_ok=True)
+                with open(ea, "wb") as fh:
+                    fh.write(self.p.install.read(member))
+                pairs.append((model.lower() + "_", ea, self.ws.out(self.p.install.model_path(self.b.shipped_name(model))), body))
+        for tag, orig, new, body in pairs:
+            for who, model in (("orig", orig), ("new", new)):
+                self.blender("render", log_as="render_%s%s" % (tag, who), w3d=model, prefix=os.path.join(r, who + "_" + tag),
+                             views=views, res=res, spp=spp, frame=body, **self.references(model, recoloured=who == "new"))
+            self.labelled(r, views, res, tag)
+        from . import lifecycle, nightlights
+        lifecycle.render(self)                  # the construction / damaged / rubble models
+        nightlights.render(self)                # night views: EA's night meshes against ours
 
     def references(self, model, recoloured=False):
         """{texture: file} for the textures of the model's other meshes (props, ground patches,
@@ -385,20 +481,21 @@ class Render(Step):
                 out[t.lower()] = dest
         return out
 
-    def labelled(self, r, views, res):
+    def labelled(self, r, views, res, tag=""):
         for v in views.split(","):
             labelled = []
             for who, text in (("orig", "original"), ("new", "%s (%s)" % (self.b.id, self.b.style.palette.name))):
-                p = os.path.join(r, "_%s_%s.png" % (who, v))
-                self.tool(["magick", os.path.join(r, "%s_%s.png" % (who, v)), "-font", self.FONT, "-gravity", "NorthWest",
+                p = os.path.join(r, "_%s_%s%s.png" % (who, tag, v))
+                text += " - " + tag[:-1] if tag else ""
+                self.tool(["magick", os.path.join(r, "%s_%s%s.png" % (who, tag, v)), "-font", self.FONT, "-gravity", "NorthWest",
                            "-fill", "#f2ead8", "-undercolor", "#0008", "-pointsize", "34", "-annotate", "+18+14", " %s " % text, p])
                 labelled.append(p)
-            out = os.path.join(r, "compare_%s.png" % v)
+            out = os.path.join(r, "compare_%s%s.png" % (tag, v))
             self.tool(["magick", labelled[0], "-size", "10x%s" % res.split("x")[1], "xc:#141414", labelled[1], "+append", out])
             print("  " + os.path.relpath(out, paths.REPO))
 
 
-STEPS = [Extract, Geometry, Bake, Paint, Export, Fixup, Derive, Ship, Ini, Cache, Checks, Render]
+STEPS = [Extract, Geometry, Bake, Paint, Export, Night, Fixup, Derive, Lifecycle, Ship, Shared, Ini, Cache, Checks, Render]
 
 
 GAME_RE = re.compile(r"lotrbfme2|game\.dat", re.I)

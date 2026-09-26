@@ -53,6 +53,7 @@ class SiegeWorks(Building):
         "top": ((6.3, -2.35, 30.0), 300.0, 89.5, -90, 50),
         "hall": ((0.0, 30.0, 40.0), 150.0, 30, -75, 45),
         "chimney": ((27.7, 38.3, 70.0), 90.0, 35, -45, 45),
+        "anvil": ((2.7, 40.0, 31.0), 60.0, 30, -60, 45),   # the roof anvil: EA's Elven sheet vs our copy
     }
 
     def design(self, kit):
@@ -250,6 +251,17 @@ class SiegeWorks(Building):
                 ([(s - 1.5, z[2]), (s + 1.5, z[2]), (s, z[3])], [None, "top", "top"], "stoneA")):
             out.append(prism_uz(a, t, n, poly, -1.9, -0.25, tags, front, "stoneA"))
         return out
+
+    night_surfaces = ("ROCK",)                  # EA's night windows are in the rock
+
+    @staticmethod
+    def night_lights(kit):
+        """EA's two windows in the rock either side of the works (world (-39, 38.6, 23.4) facing
+        west, (40.6, 45.3, 23.4) facing east), in DWARFBUILDING coordinates."""
+        from sagekit.nightlights import Light
+        z = 23.4 + GROUND
+        return [Light.rect((-65.7, 0.29, 0), (0, 1, 0), (-1, 0, 0), -2.4, 2.4, z - 2.9, z + 2.9, reach=4.0, name="west"),
+                Light.rect((11.9, 6.99, 0), (0, 1, 0), (1, 0, 0), -2.4, 2.4, z - 2.9, z + 2.9, reach=4.0, name="east")]
 
     def emphasis(self, c, n):
         if c.z > 8:

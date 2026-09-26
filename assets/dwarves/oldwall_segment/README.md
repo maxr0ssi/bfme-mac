@@ -44,6 +44,9 @@ Footprint EA's (x +-28.1, y +-62.93), ends and walkway unchanged; top 63.92 -> 6
 |---|---|---|
 | body (`DBWallRamp2`) | done, rendered, not installed | none exist: the object has no other condition states and no `_A`/`_D*` models |
 
+`upgrade.py` (next to `wall.py`) builds the three upgrade pieces on the same section:
+`oldwall_postern`, `oldwall_tower`, `oldwall_trebuchet` (own copies of Gondor's models).
+
 ## Framework notes
 
 - The three old castle-wall models are painted from a placeholder sheet, so the two-sheet build's

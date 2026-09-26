@@ -7,6 +7,10 @@
     build <faction/building> [--from STEP] [--to STEP]
     sheets <faction> [--only NAME]     recolour every texture sheet of the faction to its palette
     house <faction>                    add the buildings' cloth to the house-colour models (player colour)
+    names <faction> [--write]          every model and texture name the faction ships (assets/<faction>/NAMES.md)
+    owners <faction> [--refresh]       what the faction draws that other factions draw too (sagekit/ownership.py)
+    new <faction> [--write]            one stub recipe per design unit of EA's (sagekit/scaffold.py)
+    measure <faction/building>         EA's body measured into work/measure.json (sagekit/measure.py)
     install <faction> | revert <faction>   put everything built into the game / take it out
 """
 import argparse
@@ -25,9 +29,12 @@ def cmd_list(a):
 
 def cmd_validate(a):
     names, bad = {}, 0
+    game = _game_checks()
     for bid in registry.building_ids():
         try:
             b = registry.load(bid)
+            if game:                            # EA's names and other factions' art (ownership.py)
+                game[0](b)
             for old, new in b.texture_names().items():
                 if len(old) != len(new):
                     raise ValueError("%s -> %s: own texture names must keep the original's length" % (old, new))
@@ -42,11 +49,31 @@ def cmd_validate(a):
     return 1 if bad else 0
 
 
+def _game_checks():
+    """(check(b),) raising ValueError for an own texture name EA's files use or art another faction
+    draws; () when the game is not installed (validate then checks the recipes alone)."""
+    from . import names, ownership
+    try:
+        g = Install()
+        stems, own = names.ea_texture_stems(g), ownership.load(g)
+    except OSError as e:
+        print("note: game files not readable (%s): names and ownership not checked" % e)
+        return ()
+
+    def check(b):
+        names.check_free(b, stems)
+        probs = ownership.recipe_problems(b, own)
+        if probs:
+            raise ValueError("; ".join(probs))
+    return (check,)
+
+
 def cmd_budget(a):
     per, over = {}, 0
     for bid in registry.building_ids():
         b = registry.load(bid)
-        per.setdefault(b.faction, [b.style.budget_mb, 0])[1] += b.tier.bytes()
+        from .alpha import extra_bytes         # DXT5 where EA's sheet has cut-outs (once extracted)
+        per.setdefault(b.faction, [b.style.budget_mb, 0])[1] += b.tier.bytes() + extra_bytes(b)
     for f, (limit, used) in sorted(per.items()):
         if a.__dict__.get("faction") and f != a.faction:
             continue
@@ -116,7 +143,16 @@ def cmd_sheets(a):
     style = _style(a.faction)
     g = Install()
     root = os.path.join(paths.BUILD, a.faction, "_sheets")
-    todo = [m for m in style.sheets(g) if not a.only or a.only.lower() in m]
+    from .ownership import faction_sheets
+    keep, skipped = faction_sheets(style, g)            # never another faction's sheet (ownership.py)
+    for m, others, copy in skipped:
+        print("skip %-28s drawn by %s too%s" % (m.split("\\")[-1], ", ".join(sorted(others)),
+                                               " (copied per build as %s)" % copy if copy else ""))
+        stale = os.path.join(root, "out", *m.split("\\"))
+        if os.path.exists(stale):                       # a recolour from before the ownership rule:
+            os.remove(stale)                            # install packs everything in out/
+            print("     removed its earlier recolour")
+    todo = [m for m in keep if not a.only or a.only.lower() in m]
 
     def one(member):
         name = member.split("\\")[-1]
@@ -142,6 +178,36 @@ def cmd_house(a):
     """Add every building's cloth to the faction's house-colour models (sagekit/house.py)."""
     from .house import build
     build(a.faction, force=a.force)
+
+
+def cmd_names(a):
+    from . import names
+    if a.write:
+        print("wrote", names.write(a.faction))
+    else:
+        print(names.markdown(a.faction), end="")
+
+
+def cmd_owners(a):
+    from .ownership import load, report
+    if a.refresh:
+        load(refresh=True)
+    print("\n".join(report(a.faction)))
+
+
+def cmd_new(a):
+    from .scaffold import run
+    return run(a.faction, a.write)
+
+
+def cmd_measure(a):
+    """EA's body measured (sagekit/measure.py), on Blender's Python (numpy)."""
+    import os
+    import subprocess
+    from . import paths
+    r = subprocess.run([paths.blender_python(), "-m", "sagekit.blender.measure", a.building], cwd=paths.REPO,
+                       env=dict(os.environ, PYTHONPATH=paths.REPO))
+    return r.returncode
 
 
 def cmd_install(a):
@@ -185,6 +251,16 @@ def main(argv=None):
     p = sub.add_parser("house")
     p.add_argument("faction")
     p.add_argument("--force", action="store_true")
+    p = sub.add_parser("names")
+    p.add_argument("faction")
+    p.add_argument("--write", action="store_true")
+    p = sub.add_parser("owners")
+    p.add_argument("faction")
+    p.add_argument("--refresh", action="store_true", help="rescan the game even if the cache is current")
+    p = sub.add_parser("new")
+    p.add_argument("faction")
+    p.add_argument("--write", action="store_true", help="write the stubs (never over an existing recipe)")
+    sub.add_parser("measure").add_argument("building")
     for name in ("install", "revert"):
         sub.add_parser(name).add_argument("faction")
     a = ap.parse_args(argv)

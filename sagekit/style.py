@@ -35,6 +35,8 @@ class Style:
 
     sheet_dir = None                # the faction's building sheets, e.g. art\\compiledtextures\\db
     sheet_skip = ("_nrm", "_nmr", "_hf")        # normal maps and height fields are not recoloured
+    shared_sheets = {}              # {EA sheet other factions draw too: the faction's recoloured copy},
+                                    # same length, e.g. {"EBForge.tga": "DBAnvil.tga"} (sagekit/sharedsheets.py)
 
     def sheets(self, install):
         """Archive paths of every sheet of the faction to recolour."""
@@ -48,12 +50,18 @@ class Style:
     def sheet_atlas(self, name):
         """The Atlas whose mask hints apply to a sheet (the faction atlas for its own sheet family)."""
         from .atlas import Atlas
-        return self.atlas if name.lower().startswith(self.atlas.stem.lower()) else Atlas()
+        if name.lower().startswith(self.atlas.stem.lower()):
+            return self.atlas
+        a = Atlas()
+        a.ground_sat = self.atlas.ground_sat        # the faction's colour rules read its other sheets too
+        return a
 
     def sheet_layers(self):
         """The colour layers for flat sheets (no geometry): [sagekit.paint.layers.Layer]."""
         raise NotImplementedError
 
+    night = None                    # NightLook: the faction's night lights (sagekit/nightlights.py);
+                                    # None keeps EA's night meshes
     master_variants = {}            # {"damaged": "DBFortress1_D.tga", ...} the faction atlas's variants
 
     def master_variant(self, variant):
