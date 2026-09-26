@@ -8,10 +8,10 @@
 #   --revert     remove the DLL and gamepatch.ini (a dinput8.dll that was there before comes back
 #                from dinput8.dll.orig)
 #   --test       build and run every standalone test (bit-exactness etc.) in a throwaway prefix,
-#                results in logs/gamepatch/ (the full inverse-sqrt and particle-colour tests take
-#                ~5 min each on all cores)
+#                results in logs/gamepatch/ (the full inverse-sqrt, particle-colour and logic-math
+#                tests take ~5 min each on all cores)
 #   --status     what is installed
-#   --bundle     build/gamepatch/bundle/: the two files a friend drops into his RotWK folder
+#   --bundle     build/gamepatch/bundle/: the two files a friend drops into their RotWK folder
 set -eu
 export BFME_ROOT="${0:A:h:h}" WINE_BUILD="${WINE_BUILD:-w10}"
 . "$BFME_ROOT/env.sh"
@@ -51,7 +51,7 @@ case "${1:-}" in
     grep -v 'mvk-info\|VK_\|^	' "$L/$label.raw" > "$L/$label.txt"; rm -f "$L/$label.raw"
     local r=$(tail -1 "$L/$label.txt"); r=${r%$'\r'}; echo "$label: $r"; [[ "$r" == PASS ]]   # Wine writes CRLF
   }
-  for t in t_regs t_misc t_dxlock t_quat t_hittest t_invsqrt t_shadow t_perf t_particle t_anim t_adecode t_rstats; do
+  for t in t_regs t_misc t_dxlock t_quat t_hittest t_invsqrt t_shadow t_perf t_particle t_anim t_adecode t_rstats t_pstats t_logic t_ftol2; do
     runt $t "$OUT/$t.exe" "$EXE" || st=1
   done
   WINEDLLOVERRIDES="mscoree,mshtml=;dinput8=n,b" runt t_attach "$OUT/t_attach.exe" \

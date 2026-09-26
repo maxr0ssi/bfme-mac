@@ -23,10 +23,16 @@ surrounds the opening without entering it).
 - **Flanks:** a rune panel between bronze bands, with a small stepped triangle over it, on each
   side of the tower above the stepped slabs; battered plinths at the foot of the side slabs,
   either side of the low cross buttress.
-- **Paint:** the faction style (honey granite, burnished gold and bronze, gold-inlaid runes).
+- **Banners:** a long Erebor-blue banner (gold rod, gold piping, rune band) on each of the four
+  chamfered corners of the shaft under the head (z 42.5..61.4), hung in the corner's notch 2.6 out
+  of the chamfer, its rod set into the facet that squares the corner out: the chamfers face the
+  RTS camera square-on. The medallion over the door and the flank rune panels stay clear. The same
+  banners as the Erebor tower's.
+- **Paint:** the faction style (honey granite, burnished gold and bronze, gold-inlaid runes, Erebor-blue
+  enamel behind every rune band).
 
 Footprint unchanged (x -55.4..0.6, y -19.1..19.2), height 94.0 -> 104.6 (+11.2 %, limit 20 %),
-379 -> 1,249 triangles. `checks`: 39/39 pass.
+379 -> 1,457 triangles. `checks`: 36/36 pass.
 
 ## Status (`python3 -m sagekit inventory dwarves/hall`)
 

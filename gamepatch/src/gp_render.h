@@ -74,4 +74,23 @@ extern uint32_t gp_rst_sw_fn, gp_rst_lod_fn;   /* the originals the two logging 
 void gp_rst_get(LONG *out, unsigned n);        /* the counters, in the order of p_rstats.c's rst_t */
 extern LONG gp_rst_logged; extern uint32_t gp_rst_last_caller; extern int gp_rst_last_arg;
 
+/* particlestats (p_pstats.c, p_pstats.S): timers/counters of the RenderParticles pass, per pass */
+enum { PS_MGR, PS_ROBJ, PS_COLOR, PS_SORT, PS_PBUF, PS_N };   /* timed kinds */
+#define PS_KINDS 9                                            /* draw module kinds of the system walk */
+typedef struct {
+    LONG calls[PS_N][2];                         /* [kind][0 main, 1 shadow-map pass] */
+    LONG armed[2], robj_particles[2], sort_nodes[2];
+    LONG live, walks, systems[PS_KINDS], particles[PS_KINDS], terrain, walk_cut;
+} gp_pst_t;
+extern gp_pst_t gp_pst;
+int  gp_patch_particlestats(void);
+void gp_pst_exit_log(void);
+void gp_pst_force_report(void);                /* tests: log the 60 s lines now */
+uint64_t gp_pst_ticks(unsigned kind, int pass);
+void gp_pst_mgr_stub(void); void gp_pst_robj_stub(void); void gp_pst_c1_stub(void); void gp_pst_c2_stub(void);
+void gp_pst_c3_stub(void); void gp_pst_sort_stub(void); void gp_pst_pbuf_stub(void);
+extern uint32_t gp_pst_mgr_cont, gp_pst_robj_cont, gp_pst_c1_cont, gp_pst_c2_cont, gp_pst_c3_cont;
+extern uint32_t gp_pst_sort_cont, gp_pst_pbuf_cont;
+extern uint32_t gp_pst_sort_head_va;            /* 0xd9b2bc (tests may move it) */
+
 #endif

@@ -17,10 +17,15 @@ the fortress) keeps its rim as it is.
   fortress's `chevron_parapet`, lowered onto a shorter coping so the height stays in budget).
 - **Rune frieze:** a gold rune band with bronze edges along both side walls, under EA's triangle
   frieze and above the carved panels.
-- **Paint:** the faction style (honey granite, burnished gold and bronze, gold-inlaid runes).
+- **Banners:** six Erebor-blue banners (gold rod, gold piping, rune band), 6.5 wide and 17 long,
+  hung from under the parapet's corbels (z 31.3..49.1): one on each prow face, over the point of
+  its carved niche and clear of the corner shield; two on each side wall, in the gaps between the
+  carved niches, hung over the rune frieze.
+- **Paint:** the faction style (honey granite, burnished gold and bronze, gold-inlaid runes, Erebor-blue
+  enamel behind every rune band).
 
 Footprint unchanged (x -56.7..16.2, y -32.6..26.5), height 53.0 -> 61.8 (+16.6 %, limit 20 %),
-242 -> 906 triangles. `checks`: 46/46 pass.
+242 -> 1,200 triangles. `checks`: 43/43 pass.
 
 ## Status (`python3 -m sagekit inventory dwarves/catapult_tower`)
 

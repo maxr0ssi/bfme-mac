@@ -33,6 +33,8 @@ class Atlas:
     density = 3.0                   # atlas px per world unit on plain stone (as the game's walls)
     max_shrink = 1.45               # a face this much bigger than a tile is shrunk into one
     regions = {}                    # name -> Region
+    painted = ()                    # regions whose new faces are a material of their own (repainted by
+                                    # a TagRamp, e.g. banner cloth): never stone, no masonry or moss
     mask_hints = {}                 # mask name -> [(x0, y0, x1, y1)] in upscale pixels
 
     @classmethod

@@ -24,6 +24,16 @@ CROWN = [(-2.9, 110.8), (2.3, 110.8), (1.6, 114.8), (1.6, 115.3), (0.6, 115.3), 
          (-1.6, 116.2), (-2.9, 116.2)]
 CROWN_TAGS = [None, "stoneB", "trim", "top", "stoneA", "top", "top", "top", "stoneA"]
 ROOF_TOP = (-5.4, 0.0, 125.0)               # the roof's flat top ring: x -12.3..1.5, |y| 6.9
+# the shaft is an octagon from z 57.1 to 75.2: flat faces 12 wide (the medallion on +X, the rune
+# panels on ±Y) and four chamfers 8.4 wide, listed going round (t x n = -z), which face the RTS
+# camera square-on. Above and below the chamfer a sloped facet squares the corner out (to z 80 and
+# 52.3, 4.2 out at the corner): z = 75.2 + 1.143 d over it and 57.1 - 1.143 d under it, d out of
+# the chamfer, inside the corner's triangle (d <= u <= 8.4 - d)
+CHAMFERS = [((0.6, -12.0), (6.5, -6.0)), ((6.5, 6.0), (0.6, 12.0)),
+            ((-11.4, 12.0), (-17.4, 6.0)), ((-17.4, -6.0), (-11.4, -12.0))]
+# a banner hung in the open 2.6 out of each chamfer, in the corner's notch: its rod (d 1.5..3.6) set
+# into the upper facet, its point (z 54.4) just clear of the lower one. (z_top, width, length, d)
+CHAMFER_BANNER = (76.2, 7.0, 21.8, 2.6)
 
 
 def lifted(profile, dz):
@@ -61,7 +71,22 @@ class EreborTower(Building):
             y = sy * 16.1                                               # 4. battered plinths
             for x0, x1 in ((-13.9, -8.3), (-2.5, 3.1)):   # the slab: x -13.9..3.1
                 solids += kit.talus([(x0, y), (x1, y)], course=False, low=True)
+        solids += self._banners(kit)                                    # 5. Erebor-blue banners
         return solids
+
+    @staticmethod
+    def _banners(kit):
+        """A long banner down each chamfered corner of the shaft, hung from the facet that squares
+        the corner out to the head and ending above the connecting wall (z 52.2); it hangs free of
+        the chamfer, so every face of it is kept."""
+        from mathutils import Vector as V
+        s = []
+        for p, q in CHAMFERS:
+            a, b = V((p[0], p[1], 0)), V((q[0], q[1], 0))
+            t = (b - a).normalized()
+            z_top, width, length, d = CHAMFER_BANNER
+            s += kit.banner(a, t, V((t.y, -t.x, 0)), (b - a).length / 2, z_top, width, length, d=d, free=True)
+        return s
 
     @staticmethod
     def _pinnacle():

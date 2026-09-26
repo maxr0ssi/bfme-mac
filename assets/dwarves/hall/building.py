@@ -26,6 +26,18 @@ CROWN_TAGS = [None, "stoneB", "trim", "top", "stoneA", "top", "top", "top", "sto
 # x 0.6 (the head's front, the bounding box) with its inner ring just outside the opening
 DOOR_ARCH = [(6.8, 0.0), (6.8, 30.8), (3.6, 35.2), (0.0, 37.4)]
 DOOR_OUT, DOOR_LINTEL = 10.0, 42.4
+# banners: under the head the shaft is an octagon from z 45.0 to 60.4 (flat faces 12.2 wide: the
+# medallion over the door, the rune panels on the flanks) with four chamfers 8.6 wide, listed going
+# round (t x n = -z), which face the RTS camera square-on. Above and below each chamfer a sloped
+# facet squares the corner out (4.3 out at the corner, to z 63.0 over it and 40.5 under it):
+# z = 60.4 + 0.603 d over it and 45.0 - 1.044 d under it, d out of the chamfer, inside the
+# corner's triangle (d <= u <= 8.6 - d). The Erebor tower's banners, on the same octagon.
+CHAMFERS = [((-8.5, -12.2), (-2.4, -6.1)), ((-2.4, 6.1), (-8.5, 12.2)),
+            ((-20.7, 12.2), (-26.8, 6.1)), ((-26.8, -6.1), (-20.7, -12.2))]
+# a banner hung in the open 2.6 out of each chamfer, in the corner's notch: its rod (d 1.5..3.6) set
+# into the upper facet, its point (z 42.5) just clear of the lower one and over the door frame's
+# lintel (z 42.4, |y| <= 10) and the connecting wall (|y| <= 4.1). (z_top, width, length, d)
+CHAMFER_BANNER = (60.6, 7.0, 18.1, 2.6)
 
 
 class Hall(Building):
@@ -59,7 +71,21 @@ class Hall(Building):
             y = sy * 15.8                                               # 5. battered plinths
             for x0, x1 in ((-23.3, -17.1), (-12.1, -6.1)):
                 solids += kit.talus([(x0, y), (x1, y)], course=False, low=True)
+        solids += self._banners(kit)                                    # 6. Erebor-blue banners
         return solids
+
+    @staticmethod
+    def _banners(kit):
+        """A long banner down each chamfered corner of the shaft, hung from the facet that squares
+        the corner out towards the head; it hangs free of the chamfer, so every face of it is kept."""
+        from mathutils import Vector as V
+        z_top, width, length, d = CHAMFER_BANNER
+        s = []
+        for p, q in CHAMFERS:
+            a, b = V((p[0], p[1], 0)), V((q[0], q[1], 0))
+            t = (b - a).normalized()
+            s += kit.banner(a, t, V((t.y, -t.x, 0)), (b - a).length / 2, z_top, width, length, d=d, free=True)
+        return s
 
     @staticmethod
     def _ziggurat():

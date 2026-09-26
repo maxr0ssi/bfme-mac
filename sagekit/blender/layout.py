@@ -28,9 +28,33 @@ def tag_names(atlas):
     return ["old"] + list(atlas.regions)
 
 
-def add_solids(obj, solids, atlas):
+def take_faces(obj, solids, tags, path, world=False):
+    """Remove the kept polygons tagged with `tags` from `solids` and write them to `path` as JSON,
+    in world space ([[[x, y, z], ...], ...]); returns how many. Used for cloth that belongs in the
+    house-colour model rather than the body."""
+    import json
+    out = []
+    for solid in solids:
+        rest = []
+        for poly in solid.polys:
+            pts, tag, keep = poly
+            if tag.split("|")[0] in tags:
+                if keep:
+                    out.append([list(V(p) if world else obj.matrix_world @ V(p)) for p in pts])
+            else:
+                rest.append(poly)
+        solid.polys = rest
+    with open(path, "w") as fh:
+        json.dump(out, fh)
+    return len(out)
+
+
+def add_solids(obj, solids, atlas, world=False):
     """Append every kept polygon of `solids` to obj's mesh with atlas UVs. Pieces of one polygon
-    (tiling cuts) share vertices, so each polygon becomes one island in the new layout."""
+    (tiling cuts) share vertices, so each polygon becomes one island in the new layout. world: the
+    solids are in world axes (Building.world_space): mapped there (the mapper's bands run along the
+    horizontal), then brought into the mesh's own space."""
+    inv = obj.matrix_world.inverted() if world else None
     tags = tag_names(atlas)
     mapper = AtlasMapper(atlas)
     me = obj.data
@@ -54,7 +78,7 @@ def add_solids(obj, solids, atlas):
                     vmap[k] = bm.verts.new(p)
                 return vmap[k]
             for ppts, uvs in mapper.map(pts, tag):
-                ppts = [V(p) for p in ppts]
+                ppts = [inv @ V(p) if inv is not None else V(p) for p in ppts]
                 if poly_area(ppts)[0] < 1e-4:          # slivers left by tiling cuts
                     continue
                 vs = [vert(p) for p in ppts]
@@ -84,14 +108,18 @@ def sky_dirs(n, el_lo, el_hi):
     return out
 
 
-def face_weights(me, building):
+def face_weights(me, building, mw=None):
     """Per face: how much the RTS camera sees it (rays toward 30..65 degree elevations, any
-    azimuth, 0..1) times the building's emphasis; undersides get less."""
-    bvh = BVHTree.FromPolygons([v.co.copy() for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+    azimuth, 0..1) times the building's emphasis; undersides get less. mw: mesh-to-world matrix for
+    a building designed in world axes."""
+    from mathutils import Matrix
+    mw = mw or Matrix.Identity(4)
+    rot = mw.to_3x3()
+    bvh = BVHTree.FromPolygons([mw @ v.co for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
     dirs = sky_dirs(48, 30, 65)
     w = []
     for p in me.polygons:
-        n, c = p.normal, p.center
+        n, c = (rot @ p.normal).normalized(), mw @ p.center
         seen = 0
         for d in dirs:
             k = n.dot(d)
@@ -161,7 +189,7 @@ def own_layout(obj, building):
     me.uv_layers.active = me.uv_layers["UVMap"]
     _edit(obj, lambda: bpy.ops.uv.unwrap(method="ANGLE_BASED", fill_holes=True, correct_aspect=True, margin=0.001))
 
-    w = face_weights(me, building)
+    w = face_weights(me, building, obj.matrix_world if building.world_space else None)
     bm = bmesh.new()
     bm.from_mesh(me)
     bm.faces.ensure_lookup_table()

@@ -141,7 +141,7 @@ class Ashlar(Layer):
             m = cv.masks
             s = np.maximum(smooth(m["plain"], 0.15, 0.5), cv.tag_is(*self.new_stone).astype(np.float32))
             return s * (1 - np.clip(m["bronze"] + m["gold"] + m["wood"] + m["ground"] + m["glyph"] + m["iron"]
-                                    + m["rock"] + m["tiles"], 0, 1))
+                                    + m["rock"] + m["tiles"], 0, 1)) * (1 - cv.painted)
         return cv.memo(("stone_mask", id(self)), compute)
 
     def mortar(self, cv):

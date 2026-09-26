@@ -33,6 +33,9 @@ class Report:
         return all(self.results)
 
 
+WORLD = False       # geometry in world axes (Building.world_space; checks_suite sets it per building)
+
+
 def snapshot(path, skeletons=None):
     """What Blender imports from a model: bones, and per mesh its parent, materials, geometry."""
     scene.import_w3d(path, skeletons)
@@ -44,6 +47,10 @@ def snapshot(path, skeletons=None):
         if o.type != "MESH":
             continue
         me = o.data
+        if WORLD:                               # bake the object's transform into a copy of its mesh
+            me = me.copy()
+            me.transform(o.matrix_world)
+            me.update()
         bm = bmesh.new()
         bm.from_mesh(me)
         cs = [v.co for v in me.vertices]

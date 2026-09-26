@@ -1,0 +1,160 @@
+From 6a75350ee2130b179301ce889a4beb2c872eb710 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Fri, 25 Sep 2026 12:05:17 -0400
+Subject: [PATCH 20/21] wined3d: Push only the float shader constants that
+ changed since the last push.
+
+Every draw pushed each float constant range the application set since the previous draw,
+whether or not the values changed. D3DX effects set whole constant tables: CommitChanges()
+uploads a 90-bone palette (180 registers) for each GPU-skinned mesh however many bones the
+mesh has, and BeginPass() and the stateblock restore at End() set every register the shaders
+use. Each pushed register was copied twice more, re-versioned in the GLSL constant heap and
+uploaded again by glUniform4fv().
+
+Keep a copy of the last pushed values and leave out registers whose bits did not change:
+the push constant buffer already holds them, and the shader backend already had them marked
+changed when they were written. WINED3D_CONST_FILTER=0 restores the old behaviour.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/device.c          |  4 ++
+ dlls/wined3d/stateblock.c      | 69 +++++++++++++++++++++++++++++++++-
+ dlls/wined3d/wined3d_private.h |  6 +++
+ 3 files changed, 77 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/wined3d/device.c b/dlls/wined3d/device.c
+index dc029828bff..df851347626 100644
+--- a/dlls/wined3d/device.c
++++ b/dlls/wined3d/device.c
+@@ -1698,6 +1698,8 @@ void wined3d_device_uninit_3d(struct wined3d_device *device)
+             wined3d_buffer_decref(buffer);
+     }
+     memset(device->push_constants, 0, sizeof(device->push_constants));
++    memset(device->pushed_vs_consts_f_valid, 0, sizeof(device->pushed_vs_consts_f_valid));
++    memset(device->pushed_ps_consts_f_valid, 0, sizeof(device->pushed_ps_consts_f_valid));
+ 
+     wined3d_device_context_emit_reset_state(&device->cs->c, true);
+     state_cleanup(state);
+@@ -5086,6 +5088,8 @@ HRESULT CDECL wined3d_device_reset(struct wined3d_device *device,
+                 wined3d_buffer_decref(device->push_constants[i]);
+             device->push_constants[i] = NULL;
+         }
++        memset(device->pushed_vs_consts_f_valid, 0, sizeof(device->pushed_vs_consts_f_valid));
++        memset(device->pushed_ps_consts_f_valid, 0, sizeof(device->pushed_ps_consts_f_valid));
+         state_unbind_resources(state);
+     }
+ 
+diff --git a/dlls/wined3d/stateblock.c b/dlls/wined3d/stateblock.c
+index 95e1ce8d06d..c66bde4f3d5 100644
+--- a/dlls/wined3d/stateblock.c
++++ b/dlls/wined3d/stateblock.c
+@@ -3054,6 +3054,65 @@ static struct wined3d_shader *get_ffp_pixel_shader(struct wined3d_device *device
+     return ps->shader;
+ }
+ 
++/* WINED3D_CONST_FILTER=0 pushes every float constant the application set, as before. */
++static bool wined3d_const_filter_enabled(void)
++{
++    static int enabled = -1;
++    char value[8];
++
++    if (enabled < 0)
++    {
++        enabled = !GetEnvironmentVariableA("WINED3D_CONST_FILTER", value, sizeof(value)) || value[0] != '0';
++        TRACE("Float constant filter %s.\n", enabled ? "enabled" : "disabled");
++    }
++    return enabled;
++}
++
++/* Push the float constants [start, start + count) of "values", leaving out the ones whose bits equal
++ * what was last pushed to the same push constant buffer ("pushed", valid where "valid" is set): the
++ * buffer already holds those bits, and every register it holds was marked changed when its current
++ * bits were written, so the shader backend has them or reloads them either way. Runs of new values
++ * separated by at most 4 unchanged registers are pushed together. */
++static void wined3d_device_push_changed_consts_f(struct wined3d_device *device, bool vs,
++        unsigned int start, unsigned int count, const struct wined3d_vec4 *values)
++{
++    struct wined3d_vec4 *pushed = vs ? device->pushed_vs_consts_f : device->pushed_ps_consts_f;
++    uint32_t *valid = vs ? device->pushed_vs_consts_f_valid : device->pushed_ps_consts_f_valid;
++    unsigned int i, end = start + count, run_start = 0, run_end = 0;
++    bool in_run = false;
++
++    for (i = start; i < end; ++i)
++    {
++        const uint32_t *p = (const uint32_t *)&pushed[i], *v = (const uint32_t *)&values[i];
++
++        if (wined3d_bitmap_is_set(valid, i) && !((p[0] ^ v[0]) | (p[1] ^ v[1]) | (p[2] ^ v[2]) | (p[3] ^ v[3])))
++            continue;
++        pushed[i] = values[i];
++        wined3d_bitmap_set(valid, i);
++        if (in_run && i - run_end <= 4)
++        {
++            run_end = i + 1;
++            continue;
++        }
++        if (in_run)
++        {
++            if (vs)
++                wined3d_device_set_vs_consts_f(device, run_start, run_end - run_start, &values[run_start]);
++            else
++                wined3d_device_set_ps_consts_f(device, run_start, run_end - run_start, &values[run_start]);
++        }
++        run_start = i;
++        run_end = i + 1;
++        in_run = true;
++    }
++    if (!in_run)
++        return;
++    if (vs)
++        wined3d_device_set_vs_consts_f(device, run_start, run_end - run_start, &values[run_start]);
++    else
++        wined3d_device_set_ps_consts_f(device, run_start, run_end - run_start, &values[run_start]);
++}
++
+ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
+         struct wined3d_stateblock *stateblock)
+ {
+@@ -3088,7 +3147,10 @@ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
+         if (!wined3d_bitmap_get_range(changed->vs_consts_f, WINED3D_MAX_VS_CONSTS_F, start, &range))
+             break;
+ 
+-        wined3d_device_set_vs_consts_f(device, range.offset, range.size, &state->vs_consts_f[range.offset]);
++        if (wined3d_const_filter_enabled())
++            wined3d_device_push_changed_consts_f(device, true, range.offset, range.size, state->vs_consts_f);
++        else
++            wined3d_device_set_vs_consts_f(device, range.offset, range.size, &state->vs_consts_f[range.offset]);
+     }
+ 
+     map = changed->vertexShaderConstantsI;
+@@ -3114,7 +3176,10 @@ void CDECL wined3d_device_apply_stateblock(struct wined3d_device *device,
+         if (!wined3d_bitmap_get_range(changed->ps_consts_f, WINED3D_MAX_PS_CONSTS_F, start, &range))
+             break;
+ 
+-        wined3d_device_set_ps_consts_f(device, range.offset, range.size, &state->ps_consts_f[range.offset]);
++        if (wined3d_const_filter_enabled())
++            wined3d_device_push_changed_consts_f(device, false, range.offset, range.size, state->ps_consts_f);
++        else
++            wined3d_device_set_ps_consts_f(device, range.offset, range.size, &state->ps_consts_f[range.offset]);
+     }
+ 
+     map = changed->pixelShaderConstantsI;
+diff --git a/dlls/wined3d/wined3d_private.h b/dlls/wined3d/wined3d_private.h
+index 95594f00663..5b72690df5c 100644
+--- a/dlls/wined3d/wined3d_private.h
++++ b/dlls/wined3d/wined3d_private.h
+@@ -3032,6 +3032,12 @@ struct wined3d_device
+     struct wined3d_cs *cs;
+ 
+     struct wined3d_buffer *push_constants[WINED3D_PUSH_CONSTANTS_COUNT];
++    /* The float shader constants wined3d_device_apply_stateblock() last pushed, and which of them are
++     * known to be in push_constants[] (cleared when those buffers are released). */
++    struct wined3d_vec4 pushed_vs_consts_f[WINED3D_MAX_VS_CONSTS_F];
++    struct wined3d_vec4 pushed_ps_consts_f[WINED3D_MAX_PS_CONSTS_F];
++    uint32_t pushed_vs_consts_f_valid[WINED3D_BITMAP_SIZE(WINED3D_MAX_VS_CONSTS_F)];
++    uint32_t pushed_ps_consts_f_valid[WINED3D_BITMAP_SIZE(WINED3D_MAX_PS_CONSTS_F)];
+ 
+     /* Context management */
+     struct wined3d_context **contexts;
+-- 
+2.39.5 (Apple Git-154)
+

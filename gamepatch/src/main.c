@@ -6,12 +6,13 @@
  *
  * Switches: GAMEPATCH=0 disables every patch; GAMEPATCH_<NAME>=0/1 one patch (NAME = DXLOCK,
  * INVSQRT, NORMTAIL, HITTEST, QUATMAT, SHUTDOWN, LIMITER, FLOOR, PERFMARKER, PASSTIMERS, ANIMDEDUP,
- * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS); otherwise [patches] <name>=0/1 in gamepatch.ini
+ * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2); otherwise [patches] <name>=0/1 in gamepatch.ini
  * next to the DLL; default on, except limiter, passtimers and shadowpar (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
  * to the DLL. */
 #include "gp.h"
 #include "gp_render.h"
 #include "par_shadow.h"
+#include "gp_logic.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -109,6 +110,12 @@ static void attach(HMODULE self)
     run("shadowpar", gp_patch_shadowpar, &ok, 0);    /* off until tested in game: see gamepatch.ini */
     run("shadowstats", gp_patch_shadowstats, &ok, 1); /* counters only */
     run("renderstats", gp_patch_renderstats, &ok, 1); /* counters only */
+    run("particlestats", gp_patch_particlestats, &ok, 1); /* counters only */
+    run("mat2quat", gp_patch_mat2quat, &ok, 1);
+    run("distcalc", gp_patch_distcalc, &ok, 1);
+    run("bsphere", gp_patch_bsphere, &ok, 1);
+    run("worldcell", gp_patch_worldcell, &ok, 1);
+    run("ftol2", gp_patch_ftol2, &ok, 1);
     gp_log("%d patches applied", ok);
 }
 
@@ -124,6 +131,8 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gp_render_exit_log();
         gp_shadow_exit_log();
         gp_rst_exit_log();
+        gp_pst_exit_log();
+        gp_logic_exit_log();
     }
     (void)reserved;
     return TRUE;

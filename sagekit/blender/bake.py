@@ -39,8 +39,9 @@ class Baker:
     same sheet): the faction atlas the new faces are mapped onto. variant_pngs: {pass name:
     (sheet variant png, master variant png or None)}."""
 
-    def __init__(self, obj, res, outdir, sheet, master=None, variant_pngs=None):
+    def __init__(self, obj, res, outdir, sheet, master=None, variant_pngs=None, world=False):
         self.variant_pngs = variant_pngs or {}
+        self.world = world                  # pos/nrm in world axes (Building.world_space)
         self.obj, self.res, self.outdir = obj, res, outdir
         self.sheet, self.master = sheet, master
         self.atlas_png, self.atlas_nrm, self.atlas = sheet.png, sheet.nrm, sheet.atlas
@@ -165,12 +166,18 @@ class Baker:
         self.emit(self.node("ShaderNodeUVMap", uv_map="ATLAS").outputs[0])
         self.bake("auv", channels=2)
         self.reset()
-        self.emit(self.node("ShaderNodeTexCoord").outputs["Object"])
+        if self.world:
+            self.emit(self.node("ShaderNodeNewGeometry").outputs["Position"])
+        else:
+            self.emit(self.node("ShaderNodeTexCoord").outputs["Object"])
         self.bake("pos")
         self.reset()
-        vt = self.node("ShaderNodeVectorTransform", vector_type="NORMAL", convert_from="WORLD", convert_to="OBJECT")
-        self.link(self.node("ShaderNodeNewGeometry").outputs["True Normal"], vt.inputs[0])
-        self.emit(vt.outputs[0])
+        if self.world:
+            self.emit(self.node("ShaderNodeNewGeometry").outputs["True Normal"])
+        else:
+            vt = self.node("ShaderNodeVectorTransform", vector_type="NORMAL", convert_from="WORLD", convert_to="OBJECT")
+            self.link(self.node("ShaderNodeNewGeometry").outputs["True Normal"], vt.inputs[0])
+            self.emit(vt.outputs[0])
         self.bake("nrm")
         self.reset()
         rgb = self.node("ShaderNodeRGB")

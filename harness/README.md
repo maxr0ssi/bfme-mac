@@ -44,7 +44,7 @@ A staged or pushed blob is rejected when any of these holds:
 ## Tier 2 — per change
 
 - **Commit budget**: warn over 400 changed lines, block over 600 (`HARNESS_ALLOW_LARGE=1`).
-- **README index**: every top-level script and `tools/*.py` is named in `README.md`.
+- **Script index**: every script (`.sh`, `.py`, `.swift`) is named in `docs/REFERENCE.md` (or the README).
 
 Universal escape for line rules: `harness-allow` on the line. The blob gate and secrets have none.
 

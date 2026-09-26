@@ -1,0 +1,111 @@
+From 91b043c637022b70fbdbafcc20e3239689c357fc Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Fri, 25 Sep 2026 13:03:52 -0400
+Subject: [PATCH] d3dx9: Skip constant states that cannot set anything in
+ CommitChanges().
+
+CommitChanges() walks every state of the active pass for each mesh, about 22 in the games'
+effects, and more than half of them are constants (ZEnable = TRUE and the like). Without
+update_all a constant state that is not a shader or sampler is always reported clean by
+d3dx9_get_param_value_ptr(), and d3dx9_apply_state() returns D3D_OK for it without a device
+call, so leave it out of the walk. Also read WINE_D3DX9_FXOPT once: the default, all bits set,
+used to read as "not read yet" and went through getenv() on every call. Bit 0x4 of
+WINE_D3DX9_FXOPT switches the skip.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/d3dx9_36/d3dx9_private.h |  1 +
+ dlls/d3dx9_36/effect.c        | 18 ++++++++++++++++++
+ dlls/d3dx9_36/preshader.c     | 10 +++++++---
+ 3 files changed, 26 insertions(+), 3 deletions(-)
+
+diff --git a/dlls/d3dx9_36/d3dx9_private.h b/dlls/d3dx9_36/d3dx9_private.h
+index 963334f068d..af78bf38c6b 100644
+--- a/dlls/d3dx9_36/d3dx9_private.h
++++ b/dlls/d3dx9_36/d3dx9_private.h
+@@ -609,6 +609,7 @@ struct d3dx_parameter *get_parameter_by_name(struct d3dx_parameters_store *store
+ /* WINE_D3DX9_FXOPT: bit mask of the effect framework shortcuts to use, all by default. */
+ #define D3DX_FXOPT_FAST_PRESHADER   0x1 /* direct register access in preshader instructions */
+ #define D3DX_FXOPT_PRESHADER_SKIP   0x2 /* rerun only preshader instructions whose inputs changed */
++#define D3DX_FXOPT_SKIP_CONSTANT    0x4 /* CommitChanges() does not visit constant states that set nothing */
+ unsigned int d3dx_fxopt(void);
+ 
+ HRESULT d3dx_create_param_eval(struct d3dx_parameters_store *parameters, void *byte_code,
+diff --git a/dlls/d3dx9_36/effect.c b/dlls/d3dx9_36/effect.c
+index 2e48573e2a0..ccab203d34a 100644
+--- a/dlls/d3dx9_36/effect.c
++++ b/dlls/d3dx9_36/effect.c
+@@ -1611,6 +1611,18 @@ static HRESULT d3dx_set_shader_constants(struct d3dx_effect *effect, struct d3dx
+     return ret;
+ }
+ 
++/* Without update_all, a constant state other than a shader or sampler never sets anything:
++ * d3dx9_get_param_value_ptr() reports it clean, and d3dx9_apply_state() returns D3D_OK. */
++static inline BOOL d3dx9_state_is_inert(const struct d3dx_state *state, BOOL update_all)
++{
++    enum STATE_CLASS class;
++
++    if (update_all || state->type != ST_CONSTANT)
++        return FALSE;
++    class = state_table[state->operation].class;
++    return class != SC_VERTEXSHADER && class != SC_PIXELSHADER && class != SC_SETSAMPLER;
++}
++
+ static HRESULT d3dx9_apply_state(struct d3dx_effect *effect, struct d3dx_pass *pass,
+         struct d3dx_state *state, unsigned int parent_index, BOOL update_all)
+ {
+@@ -1621,6 +1633,9 @@ static HRESULT d3dx9_apply_state(struct d3dx_effect *effect, struct d3dx_pass *p
+ 
+     TRACE("operation %u, index %u, type %u.\n", state->operation, state->index, state->type);
+ 
++    if (d3dx9_state_is_inert(state, update_all) && (d3dx_fxopt() & D3DX_FXOPT_SKIP_CONSTANT))
++        return D3D_OK;
++
+     if (FAILED(hr = d3dx9_get_param_value_ptr(pass, state, &param_value, &param,
+             update_all, &param_dirty)))
+     {
+@@ -1753,12 +1768,15 @@ static HRESULT d3dx9_apply_pass_states(struct d3dx_effect *effect, struct d3dx_p
+     HRESULT ret;
+     HRESULT hr;
+     ULONG64 new_update_version = next_effect_update_version(effect);
++    BOOL skip_inert = !update_all && (d3dx_fxopt() & D3DX_FXOPT_SKIP_CONSTANT);
+ 
+     TRACE("effect %p, pass %p, state_count %u.\n", effect, pass, pass->state_count);
+ 
+     ret = D3D_OK;
+     for (i = 0; i < pass->state_count; ++i)
+     {
++        if (skip_inert && d3dx9_state_is_inert(&pass->states[i], FALSE))
++            continue;
+         if (FAILED(hr = d3dx9_apply_state(effect, pass, &pass->states[i], ~0u, update_all)))
+         {
+             WARN("Error applying state, hr %#lx.\n", hr);
+diff --git a/dlls/d3dx9_36/preshader.c b/dlls/d3dx9_36/preshader.c
+index 7986a5ccd6f..4433c660372 100644
+--- a/dlls/d3dx9_36/preshader.c
++++ b/dlls/d3dx9_36/preshader.c
+@@ -1675,14 +1675,18 @@ static void exec_set_arg(struct d3dx_regstore *rs, const struct d3dx_pres_reg *r
+ 
+ unsigned int d3dx_fxopt(void)
+ {
+-    static LONG fxopt = -1;
++    static unsigned int fxopt;
++    static BOOL fxopt_read;
+     const char *env;
+ 
+-    if (fxopt == -1)
++    /* A separate flag: the default, all bits set, used to read as "not read yet" and sent every
++     * call through getenv(). */
++    if (!fxopt_read)
+     {
+         env = getenv("WINE_D3DX9_FXOPT");
+         fxopt = env ? strtoul(env, NULL, 0) : ~0u;
+-        TRACE("WINE_D3DX9_FXOPT %#lx.\n", fxopt);
++        fxopt_read = TRUE;
++        TRACE("WINE_D3DX9_FXOPT %#x.\n", fxopt);
+     }
+     return fxopt;
+ }
+-- 
+2.39.5 (Apple Git-154)
+

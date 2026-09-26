@@ -99,10 +99,23 @@ class Step:
 class Extract(Step):
     name = "extract"
 
+    def source(self):
+        """The model this building redesigns: EA's, or its base building's finished one."""
+        if self.b.base:
+            from .registry import load
+            path = Workspace(load(self.b.base)).shipped_model
+            if not os.path.exists(path):
+                raise StepFailed("build %s first: %s redesigns its finished model" % (self.b.base, self.b.id))
+            return open(path, "rb").read()
+        return self.p.install.read(self.p.install.model_path(self.b.source))
+
     def run(self):
         g, b = self.p.install, self.b
         a, master = b.sheet_atlas, b.style.atlas
-        body = W3DFile(g.read(g.model_path(b.source))).meshes.get(b.target)
+        model = self.source()
+        with open(self.ws.source_model, "wb") as fh:
+            fh.write(model)
+        body = W3DFile(model).meshes.get(b.target)
         if body is None:
             raise StepFailed("%s has no mesh %s" % (b.source, b.target))
         if a.texture.lower() not in [t.lower() for t in body.textures]:
@@ -112,10 +125,18 @@ class Extract(Step):
         variants = b.variants(g)
         with open(self.ws.path("work", "variants.json"), "w") as fh:
             json.dump(variants, fh, indent=1)
+        # a `base` building redesigns a mesh the game shows per upgrade level, but the house-colour
+        # model is always drawn: its cloth stays on the mesh
+        house = b.house_model(g) if b.house_tags and not b.base else None
+        if house:
+            with open(self.ws.path("work", "house.json"), "w") as fh:
+                json.dump(house, fh, indent=1)
+        elif os.path.exists(self.ws.path("work", "house.json")):
+            os.remove(self.ws.path("work", "house.json"))
         with open(self.ws.path("work", "derived.json"), "w") as fh:
             json.dump(b.derived_models(g), fh)
-        members = [(g.model_path(b.source), self.ws.source_model), (compiled_path(a.texture, ".dds"), self.ws.atlas_dds)]
-        skl = W3DFile(g.read(g.model_path(b.source))).skeleton()
+        members = [(compiled_path(a.texture, ".dds"), self.ws.atlas_dds)]
+        skl = W3DFile(model).skeleton()
         if skl:                                 # a skinned model: its skeleton is a file of its own
             members.append((g.model_path(skl[:-4]), os.path.join(self.ws.src, skl)))
         if a.normal:
@@ -237,6 +258,12 @@ class Ship(Step):
     def run(self):
         files = [(self.b.own_diffuse, ".dds")] + ([(self.b.own_normal, ".tga")] if self.b.own_normal else [])
         files += [(v, ".dds") for v in self.ws.variants.values()]
+        keep = {os.path.normcase(self.ws.shipped_texture(name, ext)) for name, ext in files}
+        for root, _, names in os.walk(self.ws.path("out", "art", "compiledtextures")):
+            for f in names:                         # textures an earlier run shipped and this one does not
+                if os.path.normcase(os.path.join(root, f)) not in keep:
+                    os.remove(os.path.join(root, f))
+                    print("  removed %s (no longer shipped)" % f)
         for name, ext in files:
             src, dest = self.ws.tex(name[:-4].lower() + ext), self.ws.shipped_texture(name, ext)
             os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -311,7 +338,8 @@ class Render(Step):
     name = "render"
     FONT = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
 
-    def run(self, views="rts,close,ingame", res="1600x1100", spp="64"):
+    def run(self, views=None, res="1600x1100", spp="64"):
+        views = views or ",".join(self.b.views or ("rts", "close", "ingame"))
         r = self.ws.path("renders")
         for who, model in (("orig", self.ws.source_model), ("new", self.ws.shipped_model)):
             self.blender("render", log_as="render_" + who, w3d=model, prefix=os.path.join(r, who + "_"),
@@ -327,8 +355,18 @@ class Render(Step):
         ref = self.ws.path("work", "ref")
         sheets = os.path.join(paths.BUILD, self.b.style.faction, "_sheets", "out")
         os.makedirs(ref, exist_ok=True)
+        bases, b = [], self.b                       # textures a base building shipped (its own sheet)
+        while b.base:
+            from .registry import load
+            b = load(b.base)
+            bases.append(Workspace(b))
         for mesh in W3DFile(model).meshes.values():
             for t in mesh.textures:
+                shipped = [p for ws in bases for p in (ws.shipped_texture(t, ".dds"), ws.shipped_texture(t, ".tga"))
+                           if os.path.exists(p)]
+                if shipped and t.lower() not in have:
+                    out[t.lower()] = shipped[0]
+                    continue
                 mine = os.path.join(sheets, *compiled_path(t, ".dds").split("\\"))
                 if recoloured and os.path.exists(mine):
                     out[t.lower()] = mine

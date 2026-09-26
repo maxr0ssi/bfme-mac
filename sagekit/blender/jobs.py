@@ -1,5 +1,6 @@
 """What each pipeline step does inside Blender. Every job takes the Building and string options;
 paths come from sagekit.workspace so host and Blender agree on them."""
+import os
 import time
 
 import bmesh
@@ -8,7 +9,7 @@ import bpy
 from .. import workspace
 from ..formats.w3d import W3DFile
 from . import scene
-from .layout import add_solids, own_layout
+from .layout import add_solids, own_layout, take_faces
 
 
 def _target(b):
@@ -22,9 +23,15 @@ def job_geometry(b):
     obj = _target(b)
     meshes = [o.name for o in bpy.data.objects if o.type == "MESH"]
     before = {n: scene.tri_count(bpy.data.objects[n].data) for n in meshes}
-    bb0 = scene.bbox(obj.data)
-    added, stats = add_solids(obj, b.design(b.style.shapes()), b.style.atlas)
-    bb1 = scene.bbox(obj.data)
+    bb0 = scene.bbox(obj.data, obj.matrix_world if b.world_space else None)
+    solids = b.design(b.style.shapes())
+    if os.path.exists(ws.house_cloth):
+        os.remove(ws.house_cloth)
+    if ws.house:                            # cloth goes to the house-colour model (the player's colour)
+        print("house colour:", take_faces(obj, solids, b.house_tags, ws.house_cloth, b.world_space), "faces ->",
+              ws.house["model"])
+    added, stats = add_solids(obj, solids, b.style.atlas, b.world_space)
+    bb1 = scene.bbox(obj.data, obj.matrix_world if b.world_space else None)
     print("TRIS before", before)
     print("TRIS after ", {n: scene.tri_count(bpy.data.objects[n].data) for n in meshes}, "added", added, stats)
     print("BBOX before", [round(x, 2) for x in bb0[0]], [round(x, 2) for x in bb0[1]])
@@ -47,7 +54,7 @@ def job_bake(b):
                                              ws.upscale_of(b.style.master_variant(ea)) if master else None)
                 for ea, mine in ws.variants.items()}
     Baker(_target(b), b.tier.diffuse, ws.bake_dir, Sheet(ws.atlas_upscale, ws.atlas_normal, b.sheet_atlas),
-          master, variants).run(hide=b.bake_hidden)
+          master, variants, world=b.world_space).run(hide=b.bake_hidden)
 
 
 def job_paint(b):
@@ -58,7 +65,7 @@ def job_paint(b):
 
     def log(*a):
         print("[paint %5.1fs]" % (time.time() - t0), *a, flush=True)
-    p = Painter(Canvas(ws.bake_dir, b.style.atlas, _target(b)), b.style.palette, b.style.layers(b), log)
+    p = Painter(Canvas(ws.bake_dir, b.style.atlas, _target(b), b.world_space), b.style.palette, b.style.layers(b), log)
     col = p.diffuse()
     p.write_diffuse(col, ws.tex_dir, b.own_diffuse[:-4].lower(), [b.tier.diffuse, b.tier.diffuse // 2])
     for mine in ws.variants.values():
@@ -79,8 +86,15 @@ def job_render(b, w3d, prefix, views="rts,close", res="1600x1100", spp="64", **t
     ws = workspace.Workspace(b)
     texmap = ws.texture_map()
     texmap.update({k.lower(): v for k, v in textures.items()})
+    house = None                            # the new building's cloth, in its house-colour model
+    if os.path.basename(prefix).startswith("new") and ws.house:
+        from ..game import Install
+        from ..house import shipped
+        _, out = shipped(b.style.faction)
+        path = out and os.path.join(out, *Install.model_path(ws.house["model"]).split("\\"))
+        house = path if path and os.path.exists(path) else None
     render_views(b, w3d, W3DFile(w3d), texmap, prefix, views.split(","), tuple(int(x) for x in res.split("x")), int(spp),
-                 ws.src)
+                 ws.src, house)
 
 
 def job_checks(b):

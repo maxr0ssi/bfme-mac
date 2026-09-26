@@ -14,7 +14,7 @@ The archives an earlier experiment installed (hand-made tests) are moved to buil
 import os
 import shutil
 
-from . import paths, registry
+from . import house, paths, registry
 from .formats.assetcache import AssetCache
 from .formats.big import pack
 from .formats.ini import apply_ops
@@ -50,20 +50,47 @@ def collect(faction, install):
         for n in names:
             p = os.path.join(root, n)
             files[os.path.relpath(p, sheets).replace("/", "\\")] = open(p, "rb").read()
-    for b, ws in built(faction):
+    buildings = built(faction)
+    superseded = {b.base for b, _ in buildings if b.base}   # their model ships from the dependent's build
+    for b, ws in buildings:
         out = ws.path("out")
+        mine = install.model_path(b.source).lower()
         for root, _, names in os.walk(out):
             for n in names:
                 rel = os.path.relpath(os.path.join(root, n), out).replace("/", "\\")
-                if not rel.lower().endswith(".ini"):
-                    files[rel] = open(os.path.join(root, n), "rb").read()
+                if rel.lower().endswith(".ini") or b.id in superseded and rel.lower() == mine:
+                    continue
+                files[rel] = open(os.path.join(root, n), "rb").read()
         for member, ops in b.ini_ops(install, ws.variants).items():
             ini_ops.setdefault(member, []).extend(ops)
-        for live, ops in install.route_cache_ops(b.cache_ops(ws.variants, ws.derived)).items():
+        ops = b.cache_ops(ws.variants, ws.derived)
+        if b.id in superseded:
+            ops = [op for op in ops if op != ("patch", b.model_file)]
+        for live, ops in install.route_cache_ops(ops).items():
             cache_ops.setdefault(live, []).extend((op, ws) for op in ops)
+    record, house_out = house.shipped(faction)          # house-colour models (sagekit/house.py)
+    if record:
+        where = HouseOut(house_out)
+        for member in record["models"]:
+            files[member] = open(where.out(member), "rb").read()
+            model = member.split("\\")[-1]
+            for live, ops in install.route_cache_ops([("patch", model)]).items():
+                cache_ops.setdefault(live, []).extend((op, where) for op in ops)
+        for member, ops in record["ini"].items():
+            ini_ops.setdefault(member, []).extend(tuple(op) for op in ops)
     for member, ops in ini_ops.items():
         files[member] = apply_ops(install.read(member).decode("latin-1"), ops).encode("latin-1")
     return files, cache_ops
+
+
+class HouseOut:
+    """Where the house-colour step's files are, with the Workspace.out interface install uses."""
+
+    def __init__(self, out_dir):
+        self.dir = out_dir
+
+    def out(self, archive_path):
+        return os.path.join(self.dir, *archive_path.split("\\"))
 
 
 def install_faction(faction, log=print):

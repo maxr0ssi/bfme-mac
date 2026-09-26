@@ -25,8 +25,8 @@ ROOT = os.path.dirname(HERE)
 BIGTOOL = os.path.join(HERE, "bigtool.py")
 PACK_NAME = "!!!!!!!!!!group-pack.big"   # ten "!" beat the HD Edition's eight
 GAMEDIRS = {
-    "rotwk": "prefixes/stable/drive_c/Program Files (x86)/Electronic Arts/RotWK",
-    "bfme2": "prefixes/stable/drive_c/Program Files (x86)/Electronic Arts/BFME2",
+    "rotwk": "prefixes/w10/drive_c/Program Files (x86)/Electronic Arts/RotWK",
+    "bfme2": "prefixes/w10/drive_c/Program Files (x86)/Electronic Arts/BFME2",
 }
 
 # (member, block header regex or None for anywhere, key, new value). Each must hit at least once.

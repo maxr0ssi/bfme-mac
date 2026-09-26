@@ -12,10 +12,11 @@ TAG_SCALE = 100.0
 
 
 class Canvas:
-    def __init__(self, bake_dir, atlas, target_obj=None):
+    def __init__(self, bake_dir, atlas, target_obj=None, world=False):
         self.dir = bake_dir
         self.atlas = atlas
         self.target_obj = target_obj            # bpy object, for ray casts (ledges)
+        self.world = world                      # the bakes are in world axes (Building.world_space)
         self.tags = ["old"] + list(atlas.regions)
 
         self._memo = {}
@@ -102,11 +103,17 @@ class Canvas:
 
     # ------------------------------------------------------------------ material weights
     @cached_property
+    def painted(self):
+        """1 on new faces of the atlas's `painted` regions (a material of their own), else 0."""
+        names = [n for n in self.atlas.painted if n in self.tags]
+        return self.tag_is(*names).astype(np.float32) if names else np.zeros(self.tagi.shape, np.float32)
+
+    @cached_property
     def w_stone(self):
         """Weight of 'anything not otherwise a material' (the stone ramp)."""
         m = self.masks
         return np.clip(1 - (m["bronze"] + m["gold"] + m["wood"] + m["ground"] + m["glyph"] + m["iron"]
-                            + m["rock"] + m["tiles"]), 0, 1)
+                            + m["rock"] + m["tiles"]), 0, 1) * (1 - self.painted)
 
     @cached_property
     def metal(self):
@@ -148,7 +155,9 @@ class Canvas:
         from mathutils import Vector
         from mathutils.bvhtree import BVHTree
         me = self.target_obj.data
-        bvh = BVHTree.FromPolygons([v.co.copy() for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+        mw = self.target_obj.matrix_world if self.world else None
+        bvh = BVHTree.FromPolygons([mw @ v.co if mw is not None else v.co.copy() for v in me.vertices],
+                                   [tuple(p.vertices) for p in me.polygons])
         h, w = self.covm.shape
         P = self.pos[::step, ::step].reshape(-1, 3)
         N = self.nrm[::step, ::step].reshape(-1, 3)

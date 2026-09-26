@@ -87,11 +87,16 @@ class Building:
     def own_normal(self):
         return self.texture_names().get(self.sheet_atlas.normal) if self.sheet_atlas.normal else None
 
+    base = None                     # id of a Building whose finished model this one redesigns further
+                                    # (a second mesh of the same model); built after it, shipped instead
+
     def derived_models(self, install):
         """Models of the body family (besides the source) whose target mesh is EA's healthy body
         itself (same triangles, same frame): the construction and lightly damaged states, which
         take our body as it is. EA's broken, collapsed or re-framed bodies (really damaged,
         rubble, the forge's construction) are left to EA, recoloured by the faction sheets."""
+        if self.base:
+            return []                               # the base's lifecycle models stay the base's
         from .formats.w3d import W3DFile
         healthy = W3DFile(install.read(install.model_path(self.source))).meshes[self.target]
         out = []
@@ -110,6 +115,7 @@ class Building:
     def variants(self, install):
         """{EA variant texture: our variant} for every state that swaps the body's sheet for
         another (damaged, snow, stonework): e.g. {"DBFortress1_D.tga": "DBFortressH_D.tga"}."""
+        from .formats.textures import compiled_path
         atlas, own = self.sheet_atlas, self.own_diffuse
         out = {}
         for draws in self.objects(install).values():
@@ -118,8 +124,11 @@ class Building:
                     continue
                 for st in d.states:
                     for old, new in st.textures:
-                        if old.lower() == atlas.texture.lower():
-                            out[new] = own_variant_name(atlas.texture, own, new)
+                        if old.lower() != atlas.texture.lower() or new.lower() in {k.lower() for k in out}:
+                            continue                        # one variant per sheet, whatever EA's case
+                        if not install.owner(compiled_path(new, ".dds")):
+                            continue                        # EA's typos (DBFortress_Snow): the swap shows nothing
+                        out[new] = own_variant_name(atlas.texture, own, new)
         from .formats.w3d import W3DFile
         for m in self.derived_models(install):       # damaged models painted from their own sheet
             for t in W3DFile(install.read(install.model_path(m))).meshes[self.target].textures:
@@ -170,6 +179,49 @@ class Building:
         names = {d.object for d in draws
                  if any(m.lower() == fam or m.lower().startswith(fam + "_") for m in d.models())}
         return {n: [d for d in draws if d.object == n] for n in sorted(names)}
+
+    footprint_margin = 0.0          # how far new geometry may pass the original's footprint (units): for
+                                    # pieces whose faces lie on its edge (collision comes from the INI)
+    world_space = False             # True: design(), bakes, texel weights and checks work in world axes
+                                    # (for a target hung on a rotated bone, e.g. a wall end lying on its side)
+    house_tags = ("cloth",)         # faces of these atlas regions leave the body for the house-colour
+                                    # model shown with it, which the game tints in the player's colour
+
+    def house_model(self, install):
+        """The house-colour model drawn with this building's object(s) - a model with an `HC_` mesh
+        in a Draw module that allows model colour: {"model", "mesh", "draws": [[ini file, object,
+        draw tag]]}, or None (the cloth then stays in the body, in the palette's colour)."""
+        from .formats.w3d import W3DFile
+        found = None
+        for obj, draws in self.objects(install).items():
+            for d in draws:
+                if self.covers(d) or d.fields.get("OkToChangeModelColor", "").lower() != "yes":
+                    continue
+                for m in d.models():
+                    if found and m.lower() != found["model"].lower() or not install.has_model(m):
+                        continue
+                    if found is None:
+                        hc = [n for n in W3DFile(install.read(install.model_path(m))).meshes if n.upper().startswith("HC_")]
+                        if not hc:
+                            continue
+                        found = {"model": m, "mesh": hc[0], "draws": []}
+                    found["draws"].append([d.file, obj, d.tag])
+        return found or self.new_house_model(install)
+
+    HOUSE_DRAW = None               # the Draw tag of a house-colour model of our own (None: one per
+                                    # model, so an object showing two of them keeps both)
+
+    def new_house_model(self, install):
+        """For an object without a house-colour model: one of our own, copied from the style's
+        `house_template` (EA's model's names changed; its flag replaced by our cloth) and shown by a
+        Draw module added to every object drawing the body. None if the style has no template."""
+        template = getattr(self.style, "house_template", None)
+        if not template:
+            return None
+        name = ("DBHC" + self.source[2:])[:15]
+        draws = sorted({(d.file, obj) for obj, ds in self.objects(install).items() for d in ds if self.is_body(d)})
+        tag = self.HOUSE_DRAW or "ModuleTag_Draw_" + name
+        return {"model": name, "mesh": "HC_BANNER", "template": template, "draws": [[f, obj, tag] for f, obj in draws]}
 
     def is_body(self, draw):
         fam = self.source.lower()

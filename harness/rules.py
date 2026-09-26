@@ -321,7 +321,8 @@ def tree_rules(tracked, read):
         if p not in patterns:
             out.append((".gitignore", 0, f"protective pattern '{p}' is missing — it is what keeps "
                         f"game data and Wine builds out of the repo", ""))
-    readme = read("README.md") or ""
+    # the index lives in docs/REFERENCE.md; the README (the landing page) may name scripts too
+    readme = (read("README.md") or "") + (read("docs/REFERENCE.md") or "")
     for path in tracked:
         if path.startswith(SCRIPT_DIRS_EXEMPT) or not path.endswith((".sh", ".py", ".swift")):
             continue
@@ -331,6 +332,6 @@ def tree_rules(tracked, read):
                 and os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), top, "__init__.py")):
             continue
         if os.path.basename(path) not in readme:
-            out.append((path, 0, "not mentioned in README.md — every script gets a one-line entry "
-                        "under 'What's in here' so the next person (or model) knows it exists", ""))
+            out.append((path, 0, "not mentioned in docs/REFERENCE.md — every script gets a one-line "
+                        "entry there so the next person (or model) knows it exists", ""))
     return out

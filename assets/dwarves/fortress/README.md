@@ -12,11 +12,19 @@ The faction's hero building (`Tier.HERO`: 4096 texture, 2048 normal map), own te
 - **Gate:** battered pylons (stepped plinth, rune belt, pilaster ribs, corbelled frieze, stepped
   cap), a rune lintel with a stepped crown, king pillars with the statue relief, and a deep
   four-ring pointed arch frame around the original opening.
-- **Paint:** the faction palette (honey granite, burnished gold and bronze, gold-inlaid runes),
+- **Banners:** a long Erebor-blue banner (gold rod, gold piping, rune band; 7 x 22) on each of the
+  eight outer tower faces, hung free 3.6 out of the shaft under the point of the face's shield
+  (rod set into the rib under it, point at z 59: above the walls' parapets and the barrel
+  upgrade's oil gates, which reach z 57.2). Two banner poles (height 42, banners 6 x 18) flank the
+  mouth of the gate's approach ramp at x 118, on the rock beside the paving: from the RTS camera
+  they stand below the gate, not across it. The gate, its braziers and statue are untouched;
+  checked against the rebuilt barrel, monument, brazier and statue add-ons at the same origin.
+- **Paint:** the faction palette (honey granite, burnished gold and bronze, gold-inlaid runes,
+  Erebor-blue enamel behind every rune band),
   dressed-stone blocks, baked occlusion and edge wear, grime under ledges, a gilded double-chevron
   sigil on every tower shield.
 
-Footprint unchanged, height +13 % (limit 20 %), 7,704 triangles (budget 15,000).
+Footprint unchanged, height +13 % (limit 20 %), 8,306 triangles (budget 15,000); `checks`: 57/57 pass.
 
 ## Status (`python3 -m sagekit inventory dwarves/fortress`)
 

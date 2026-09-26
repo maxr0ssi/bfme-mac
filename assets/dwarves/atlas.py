@@ -18,7 +18,9 @@ class DwarvenAtlas(Atlas):
         "hex": Region((193, 56, 399, 78), Region.BAND, period=HEX_W / 3.0),  # hexagon chain
         "pilaster": Region((43, 256, 50, 345), Region.STRETCH),         # vertical pilaster strip
         "statue": Region((196, 240, 222, 345), Region.STRETCH),         # dwarf statue in its niche
+        "cloth": Region((416, 346, 494, 508), Region.STRETCH),          # banner cloth (repainted blue)
     }
+    painted = ("cloth",)
     mask_hints = {
         "rune": [(96, 1424, 1048, 1556)],
         "tri": [(1030, 1424, 1652, 1560), (700, 1024, 768, 1386), (1262, 1322, 1626, 1386)],

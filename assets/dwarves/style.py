@@ -13,7 +13,10 @@ PALETTE = Palette(
                    (.9, (.98, .84, .52)), (1, (1, .95, .78))],
         "gold": [(0, (.20, .12, .02)), (.4, (.66, .46, .12)), (.65, (.93, .74, .30)), (.85, (1, .90, .55)), (1, (1, .98, .85))],
         "wood": [(0, (.10, .04, .02)), (.4, (.38, .16, .07)), (.7, (.62, .32, .14)), (1, (.86, .58, .32))],
-        "ground": [(0, (.04, .04, .04)), (.4, (.11, .10, .09)), (.7, (.20, .18, .16)), (1, (.34, .30, .26))],
+        # Erebor blue: the enamel ground of every rune/triangle/hexagon band, and banner cloth
+        "ground": [(0, (.03, .06, .15)), (.4, (.07, .15, .36)), (.7, (.13, .25, .52)), (1, (.24, .38, .70))],
+        "cloth": [(0, (.03, .06, .16)), (.35, (.08, .17, .42)), (.6, (.14, .28, .62)), (.85, (.28, .43, .80)),
+                  (1, (.48, .62, .92))],
         "inlay": [(0, (.45, .30, .08)), (.5, (.88, .66, .22)), (.8, (1, .86, .45)), (1, (1, .97, .78))],
         "iron": [(0, (.03, .03, .03)), (.5, (.12, .11, .10)), (1, (.36, .34, .31))],
         "rock": [(0, (.06, .05, .04)), (.4, (.26, .22, .17)), (.7, (.45, .39, .30)), (1, (.70, .63, .52))],
@@ -33,8 +36,11 @@ class DwarvenStyle(Style):
     atlas = DwarvenAtlas()
     ini_dir = "data\\ini\\object\\goodfaction\\structures\\dwarven"
     sheet_dir = "art\\compiledtextures\\db"
+    # the Doors of Durin: ithildin blue-silver that glows, not stone to recolour
+    sheet_skip = Style.sheet_skip + ("magicdoor", "underminedoor")
     master_variants = {"damaged": "DBFortress1_D.tga", "snow": "DBFortress1_Snow.tga", "stonework": "DBFortress_U.tga"}
     budget_mb = 256
+    house_template = "DBHCArchRnge"         # copied for buildings EA gave no house-colour model
 
     def sheet_size(self, name):
         return 2048 if name.lower().startswith("dbfortress1") else 1024
@@ -52,6 +58,7 @@ class DwarvenStyle(Style):
         return [
             L.Recolour(),
             L.TagRamp("trim", "trim"),            # new cornices, step reveals and frame bands: bronze
+            L.TagRamp("cloth", "cloth", gain=0.85, lift=0.22),     # banners: Erebor blue
             L.MetalRims(),
             L.BuildingDecals(building),
             L.WoodGrain(),

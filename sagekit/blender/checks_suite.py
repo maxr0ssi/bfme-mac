@@ -13,6 +13,8 @@ from .checks import new_triangle_normals, snapshot, tangent_convention, uv_overl
 def run(b, ws, r):
     target = b.target
     shipped = ws.shipped_model
+    from . import checks as _checks
+    _checks.WORLD = b.world_space
     O, N = snapshot(ws.source_model, ws.src), snapshot(shipped, ws.src)
     WO, WN = W3DFile(ws.source_model), W3DFile(shipped)
     meshes = sorted(O["meshes"])
@@ -45,8 +47,10 @@ def run(b, ws, r):
     a, m = O["meshes"][target], N["meshes"][target]
     r.check("%s triangles <= %d" % (target, b.tri_budget), m["tris"] <= b.tri_budget, "%d -> %d" % (a["tris"], m["tris"]))
     for i, ax in enumerate("XY"):
-        r.check("%s %s footprint inside the original [%.2f, %.2f]" % (target, ax, a["bbmin"][i], a["bbmax"][i]),
-                m["bbmin"][i] >= a["bbmin"][i] - 1e-3 and m["bbmax"][i] <= a["bbmax"][i] + 1e-3,
+        e = b.footprint_margin + 1e-3
+        r.check("%s %s footprint inside the original [%.2f, %.2f]%s" % (target, ax, a["bbmin"][i], a["bbmax"][i],
+                                                                      " + %.1f" % b.footprint_margin if b.footprint_margin else ""),
+                m["bbmin"][i] >= a["bbmin"][i] - e and m["bbmax"][i] <= a["bbmax"][i] + e,
                 "new [%.2f, %.2f]" % (m["bbmin"][i], m["bbmax"][i]))
     h0, h1 = a["bbmax"][2] - a["bbmin"][2], m["bbmax"][2] - m["bbmin"][2]
     r.check("%s height growth <= %d%%" % (target, 100 * b.max_z_growth),
@@ -133,7 +137,8 @@ def run(b, ws, r):
         new, ea = W3DFile(ws.out(member)), W3DFile(os.path.join(ws.path("src"), model.lower() + ".w3d")) \
             if os.path.exists(os.path.join(ws.path("src"), model.lower() + ".w3d")) else None
         mesh = new.meshes[target]
-        want = sorted({own.get(t, ws.variants.get(t, t)) for t in (ea.meshes[target].textures if ea else [])}) if ea else None
+        mine = {k.lower(): v for k, v in list(own.items()) + list(ws.variants.items())}   # EA's files vary the case
+        want = sorted({mine.get(t.lower(), t) for t in ea.meshes[target].textures}) if ea else None
         r.check("%s: %s carries our body (%d tris)" % (model, target, len(mesh.tris)),
                 len(mesh.tris) == len(WN.meshes[target].tris) and not mesh.skinned, "")
         if ea:

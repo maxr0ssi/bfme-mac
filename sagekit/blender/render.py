@@ -156,8 +156,31 @@ def game_material(obj, mesh, texmap):
     nt.links.new(nz.outputs[0], bsdf.inputs["Normal"])
 
 
-def render_views(building, w3d_path, w3d, texmap, prefix, views, res, samples, skeletons=None):
+# the player colour the renders show house-colour meshes in (the game tints them per player)
+PREVIEW_HOUSE_COLOUR = (0.05, 0.13, 0.55, 1.0)
+
+
+def add_house_colour(path):
+    """Import a house-colour model into the scene (the building's cloth) and paint its HC_ meshes
+    in the preview player colour."""
+    before = set(bpy.data.objects)
+    bpy.ops.import_mesh.westwood_w3d(filepath=path)
+    scene.plain_placeholders()
+    mat = bpy.data.materials.new("house_colour_preview")
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = PREVIEW_HOUSE_COLOUR
+    bsdf.inputs["Roughness"].default_value = 0.85
+    for o in set(bpy.data.objects) - before:
+        if o.type == "MESH" and o.name.upper().startswith("HC_"):
+            o.data.materials.clear()
+            o.data.materials.append(mat)
+
+
+def render_views(building, w3d_path, w3d, texmap, prefix, views, res, samples, skeletons=None, house=None):
     scene.import_w3d(w3d_path, skeletons)
+    if house:
+        add_house_colour(house)
     rig(res, samples, building.bake_hidden)
     for name, mesh in w3d.meshes.items():
         obj = bpy.data.objects.get(name)

@@ -27,10 +27,11 @@ MESH, VERTICES, NORMALS, MESH_HEADER3, TRIANGLES = 0x00, 0x02, 0x03, 0x1F, 0x20
 VERTEX_INFLUENCES = 0x0E
 SHADERS, VERTEX_MATERIALS, TEXTURES, MATERIAL_PASS = 0x29, 0x2A, 0x30, 0x38
 TEXTURE_STAGE, STAGE_TEXCOORDS, SHADER_MATERIALS = 0x48, 0x4A, 0x50
+MATERIAL_INFO, VERTEX_MATERIAL_IDS, SHADER_IDS, TEXTURE_IDS = 0x28, 0x39, 0x3A, 0x49
 TANGENTS, BITANGENTS, AABTREE = 0x60, 0x61, 0x90
 AABTREE_HEADER, AABTREE_POLYINDICES, AABTREE_NODES = 0x91, 0x92, 0x93
 HIERARCHY, HIERARCHY_HEADER, PIVOTS, PIVOT_FIXUPS = 0x100, 0x101, 0x102, 0x103
-HLOD, HLOD_HEADER = 0x700, 0x701
+HLOD, HLOD_HEADER, HLOD_SUB_OBJECT = 0x700, 0x701, 0x704
 ANIMATION, ANIMATION_HEADER, COMPRESSED_ANIMATION, COMPRESSED_ANIMATION_HEADER = 0x200, 0x201, 0x280, 0x281
 BOX = 0x740
 
@@ -261,6 +262,30 @@ def rename_textures(raw, renames, mesh):
     return raw
 
 
+
+def _as_legacy(new, t2, o2, s2, raw, legacy, info, vch, renames, name):
+    """One sub-chunk of an exported shader-material mesh, rewritten for the original's single-pass
+    material: tangents dropped, the original's material info / vertex material / shader / textures
+    (renamed) in place of the shader material, a full pass (ids + our UVs). None drops the chunk."""
+    if t2 in (TANGENTS, BITANGENTS):
+        return None
+    if t2 == MESH_HEADER3 and vch:
+        return raw[:8 + 68] + vch + raw[8 + 72:]
+    if t2 == MATERIAL_INFO and info:
+        return info
+    if t2 == SHADER_MATERIALS:
+        textures = legacy[TEXTURES]
+        if renames:
+            textures = rename_textures(textures, renames, name)
+        return legacy.get(VERTEX_MATERIALS, b"") + legacy.get(SHADERS, b"") + textures
+    if t2 == MATERIAL_PASS:
+        uv = b"".join(new[p:p + 8 + q] for p, q in sub(new, o2, s2, STAGE_TEXCOORDS))
+        zero = struct.pack("<I", 0)
+        stage = chunk_bytes(TEXTURE_IDS, zero, False) + uv
+        return chunk_bytes(MATERIAL_PASS, chunk_bytes(VERTEX_MATERIAL_IDS, zero, False) + chunk_bytes(SHADER_IDS, zero, False)
+                           + chunk_bytes(TEXTURE_STAGE, stage, True), True)
+    return raw
+
 def fix(orig, new, renames=()):
     """(fixed bytes, report lines) for an exported model, using the original as the reference."""
     for _, old, new_name in renames:
@@ -268,6 +293,7 @@ def fix(orig, new, renames=()):
             raise ValueError("rename %s=%s: names must have the same length" % (old, new_name))
     report = []
     o_mats, o_fix, o_pivots, o_ver, o_surf, o_legacy = {}, None, None, {}, {}, {}
+    o_info, o_vch = {}, {}
     for t, o, s, _ in chunks(orig, 0, len(orig)):
         if t == MESH:
             name = _mesh_name(orig, o, s)
@@ -277,6 +303,10 @@ def fix(orig, new, renames=()):
             hd = sub(orig, o, s, MESH_HEADER3)
             if hd:
                 o_ver[name] = orig[hd[0][0] + 8:hd[0][0] + 12]
+                o_vch[name] = orig[hd[0][0] + 8 + 68:hd[0][0] + 8 + 72]
+            mi = sub(orig, o, s, MATERIAL_INFO)
+            if mi:
+                o_info[name] = orig[mi[0][0]:mi[0][0] + 8 + mi[0][1]]
             o_surf[name] = _surface_types(orig, o, s)
             o_legacy[name] = {k: orig[p:p + 8 + q] for k in LEGACY for p, q in sub(orig, o, s, k)[:1]}
         elif t == HIERARCHY:
@@ -290,8 +320,18 @@ def fix(orig, new, renames=()):
         if t == MESH:
             name = _mesh_name(new, o, s)
             parts = bytearray()
+            # the original draws this mesh with the older single-pass material (no shader material)
+            # while the export carries a shader material: rebuild it in the original's format
+            to_legacy = name not in o_mats and TEXTURES in o_legacy.get(name, {}) and bool(sub(new, o, s, SHADER_MATERIALS))
+            if to_legacy:
+                report.append("%s: shader material converted to the original's single-pass material" % name)
             for t2, o2, s2, h2 in chunks(new, o + 8, o + 8 + s):
                 raw = new[o2:o2 + 8 + s2]
+                if to_legacy:
+                    raw = _as_legacy(new, t2, o2, s2, raw, o_legacy[name], o_info.get(name), o_vch.get(name),
+                                     renames, name)
+                    if raw is None:
+                        continue
                 if t2 == MESH_HEADER3 and name in o_ver and raw[8:12] != o_ver[name]:
                     raw = raw[:8] + o_ver[name] + raw[12:]
                     report.append("%s: mesh header version restored (%s)" % (name, o_ver[name][::-1].hex()))
@@ -317,7 +357,7 @@ def fix(orig, new, renames=()):
                         _count(new, o2, s2) == _count(o_mats[name], 0, len(o_mats[name]) - 8):
                     raw = rename_textures(o_mats[name], renames, name)
                     report.append("%s: shader materials restored from original%s" % (name, " (renamed)" if raw != o_mats[name] else ""))
-                elif t2 == SHADER_MATERIALS:
+                elif t2 == SHADER_MATERIALS and not to_legacy:
                     report.append("%s: shader materials NOT restored (no matching mesh/material count)" % name)
                 parts += raw
             if not sub(new, o, s, AABTREE):
@@ -358,3 +398,37 @@ def splice_mesh(model, mesh_name, mesh_chunk, container):
     if not done:
         raise ValueError("no mesh %s to replace" % mesh_name)
     return bytes(out)
+
+
+def rename_model(data, old, new):
+    """The model's own name changed in every fixed-width field that carries it: the hierarchy, each
+    mesh's container, the HLOD's model and hierarchy names and its sub-objects ('OLD.MESH'). For
+    a copy of a model under another file name (the file name is the model's name)."""
+    if len(new) > 15:
+        raise ValueError("model name %s longer than 15 characters" % new)
+    d = bytearray(data)
+    old_u, new_u = old.upper().encode("latin-1"), new.upper().encode("latin-1")
+
+    def put(o, width, value):
+        d[o:o + width] = value.ljust(width, b"\0")[:width]
+
+    def swap(o, width):
+        v = bytes(d[o:o + width]).split(b"\0")[0]
+        if v.upper() == old_u:
+            put(o, width, new_u)
+        elif v.upper().startswith(old_u + b"."):
+            put(o, width, new_u + v[len(old_u):])
+    for t, o, s, _ in chunks(d, 0, len(d)):
+        for t2, o2, s2, sub in chunks(d, o + 8, o + 8 + s):
+            if t == HIERARCHY and t2 == HIERARCHY_HEADER:
+                swap(o2 + 12, 16)
+            elif t == MESH and t2 == MESH_HEADER3:
+                swap(o2 + 32, 16)
+            elif t == HLOD and t2 == HLOD_HEADER:
+                swap(o2 + 16, 16)
+                swap(o2 + 32, 16)
+            elif t == HLOD and sub:                     # LOD arrays: sub-objects are bone + name[32]
+                for t3, o3, _, _ in chunks(d, o2 + 8, o2 + 8 + s2):
+                    if t3 == HLOD_SUB_OBJECT:
+                        swap(o3 + 12, 32)
+    return bytes(d)

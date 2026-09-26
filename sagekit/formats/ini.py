@@ -158,6 +158,11 @@ def add_texture_swaps(text, base, swaps):
 
 def lod_off(text, obj, tag):
     """StaticModelLODMode = No in one Draw module (so low settings do not swap in EA's <model>L)."""
+    return set_field(text, obj, tag, "StaticModelLODMode", "No")
+
+
+def set_field(text, obj, tag, key, value):
+    """`key = value` in one Draw module of one object (the field must exist; EA's value replaced)."""
     lines = text.splitlines(keepends=True)
     cur_obj, in_draw = None, False
     for i, raw in enumerate(lines):
@@ -170,14 +175,48 @@ def lod_off(text, obj, tag):
         if m:
             in_draw = cur_obj == obj and m.group(2) == tag
             continue
-        if in_draw and re.match(r"^StaticModelLODMode\s*=", line, re.I):
-            lines[i] = re.sub(r"(=\s*)\w+", r"\1No", raw, count=1)
+        if in_draw and re.match(r"^%s\s*=" % re.escape(key), line, re.I):
+            lines[i] = re.sub(r"(=\s*)\w+", lambda m: m.group(1) + value, raw, count=1)
             in_draw = False
     return "".join(lines)
 
 
+def add_draw(text, obj, tag, model):
+    """A W3DScriptedModelDraw `tag` showing `model` with model colour allowed (the game tints its HC_
+    meshes in the player's colour), inserted before object `obj`'s first Draw. Idempotent."""
+    lines = text.splitlines(keepends=True)
+    cur = None
+    for i, raw in enumerate(lines):
+        line = strip(raw)
+        m = OBJECT_RE.match(line)
+        if m and not raw[:1].isspace():
+            cur = m.group(2)
+            continue
+        if cur != obj:
+            continue
+        m = DRAW_RE.match(line)
+        if m and m.group(2) == tag:
+            return text
+        if m:
+            pad = raw[:len(raw) - len(raw.lstrip())]
+            nl = "\r\n" if raw.endswith("\r\n") else "\n"
+            block = [pad + "Draw = W3DScriptedModelDraw " + tag, pad + "\tOkToChangeModelColor = Yes",
+                     pad + "\tDefaultModelConditionState", pad + "\t\tModel = " + model, pad + "\tEnd", pad + "End", ""]
+            lines[i:i] = [x + nl for x in block]
+            return "".join(lines)
+    raise ValueError("no Draw module in object %s" % obj)
+
+
 def apply_ops(text, ops):
-    """Apply [('swaps', base, {ea: (own, own variant)}) | ('lod_off', object, tag)] in order."""
+    """Apply [('swaps', base, {ea: (own, own variant)}) | ('lod_off', object, tag) |
+    ('field', object, tag, key, value) | ('draw', object, tag, model)] in order."""
     for op in ops:
-        text = add_texture_swaps(text, op[1], op[2]) if op[0] == "swaps" else lod_off(text, op[1], op[2])
+        if op[0] == "draw":
+            text = add_draw(text, *op[1:])
+        elif op[0] == "swaps":
+            text = add_texture_swaps(text, op[1], op[2])
+        elif op[0] == "lod_off":
+            text = lod_off(text, op[1], op[2])
+        else:
+            text = set_field(text, *op[1:])
     return text

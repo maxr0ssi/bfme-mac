@@ -6,6 +6,7 @@
     budget [faction]                   memory the own textures take, per faction
     build <faction/building> [--from STEP] [--to STEP]
     sheets <faction> [--only NAME]     recolour every texture sheet of the faction to its palette
+    house <faction>                    add the buildings' cloth to the house-colour models (player colour)
     install <faction> | revert <faction>   put everything built into the game / take it out
 """
 import argparse
@@ -137,6 +138,12 @@ def cmd_sheets(a):
     return 1 if any(r.startswith("FAIL") for r in results) else 0
 
 
+def cmd_house(a):
+    """Add every building's cloth to the faction's house-colour models (sagekit/house.py)."""
+    from .house import build
+    build(a.faction, force=a.force)
+
+
 def cmd_install(a):
     from .install import install_faction
     from .pipeline import game_running
@@ -174,6 +181,9 @@ def main(argv=None):
     p = sub.add_parser("sheets")
     p.add_argument("faction")
     p.add_argument("--only")
+    p.add_argument("--force", action="store_true")
+    p = sub.add_parser("house")
+    p.add_argument("faction")
     p.add_argument("--force", action="store_true")
     for name in ("install", "revert"):
         sub.add_parser(name).add_argument("faction")

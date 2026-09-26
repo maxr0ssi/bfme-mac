@@ -1,0 +1,111 @@
+From 81f41e1d1365a02e8641ac1b458d5287f77f5166 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Fri, 25 Sep 2026 12:08:02 -0400
+Subject: [PATCH 21/21] wined3d: Carry push constant data in the push constants
+ op.
+
+A push of shader constants (at least one per draw that changes any) was an update of the push
+constant buffer from a heap copy (malloc, the upload bookkeeping of map_upload_bo(), an
+UPDATE_SUB_RESOURCE op, free() on the CS thread) followed by a PUSH_CONSTANTS op. When the push
+constant buffer is CPU memory, which only the CS reads, copy the data into the PUSH_CONSTANTS op
+and let it do the same buffer update before marking the constants changed: the buffer receives
+the same bytes in the same queue order. WINED3D_INLINE_PUSH_CONSTANTS=0 restores the old path.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/cs.c | 54 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 54 insertions(+)
+
+diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
+index 8a3a451df8e..6babce6e395 100644
+--- a/dlls/wined3d/cs.c
++++ b/dlls/wined3d/cs.c
+@@ -418,6 +418,11 @@ struct wined3d_cs_push_constants
+     unsigned int start_idx;
+     unsigned int count;
+     uint32_t update_mask;
++    /* With data_size set, the op also writes its data (which follows it) to "buffer" at
++     * byte_offset, the update wined3d_device_context_push_constants() otherwise queues separately. */
++    struct wined3d_buffer *buffer;
++    unsigned int byte_offset, data_size;
++    BYTE data[1];
+ };
+ 
+ struct wined3d_cs_reset_state
+@@ -2204,6 +2209,15 @@ static void wined3d_cs_exec_push_constants(struct wined3d_cs *cs, const void *da
+     /* The constant buffers were already updated; this op is just to mark the
+      * constants as invalid in the device state. */
+ 
++    if (op->data_size)
++    {
++        struct upload_bo bo = {.addr = {.buffer_object = NULL, .addr = op->data}, .flags = 0};
++        struct wined3d_context *context = context_acquire(device, NULL, 0);
++
++        wined3d_buffer_update_sub_resource(op->buffer, context, &bo, op->byte_offset, op->data_size);
++        context_release(context);
++    }
++
+     ffp_start_idx = op->start_idx / sizeof(struct wined3d_vec4);
+     ffp_end_idx = (op->start_idx + op->count + sizeof(struct wined3d_vec4)) / sizeof(struct wined3d_vec4);
+ 
+@@ -2232,10 +2246,25 @@ static void wined3d_device_context_emit_push_constants(struct wined3d_device_con
+     op->update_mask = update_mask;
+     op->start_idx = start_idx;
+     op->count = count;
++    op->data_size = 0;
+ 
+     wined3d_device_context_submit(&cs->c, WINED3D_CS_QUEUE_DEFAULT);
+ }
+ 
++/* WINED3D_INLINE_PUSH_CONSTANTS=0 queues push constants as an upload plus a separate op, as before. */
++static bool wined3d_inline_push_constants_enabled(void)
++{
++    static int enabled = -1;
++    char value[8];
++
++    if (enabled < 0)
++    {
++        enabled = !GetEnvironmentVariableA("WINED3D_INLINE_PUSH_CONSTANTS", value, sizeof(value)) || value[0] != '0';
++        TRACE("Inline push constants %s.\n", enabled ? "enabled" : "disabled");
++    }
++    return enabled;
++}
++
+ void wined3d_device_context_push_constants(struct wined3d_device_context *context,
+         enum wined3d_push_constants type, uint32_t update_mask, unsigned int start_idx,
+         unsigned int count, const void *constants)
+@@ -2248,6 +2277,31 @@ void wined3d_device_context_push_constants(struct wined3d_device_context *contex
+     if (!prepare_push_constant_buffer(context, type))
+         return;
+ 
++    /* A CPU push constant buffer is only read by the CS: carry the data in the op itself instead
++     * of a heap copy handed over by a separate update (no allocation, one op instead of two). */
++    if (!context->device->adapter->d3d_info.gpu_push_constants && context == &context->device->cs->c
++            && byte_size && wined3d_inline_push_constants_enabled())
++    {
++        struct wined3d_cs *cs = wined3d_cs_from_context(context);
++        struct wined3d_cs_push_constants *op;
++
++        op = wined3d_device_context_require_space(&cs->c,
++                offsetof(struct wined3d_cs_push_constants, data[byte_size]), WINED3D_CS_QUEUE_DEFAULT);
++        op->opcode = WINED3D_CS_OP_PUSH_CONSTANTS;
++        op->type = type;
++        op->update_mask = update_mask;
++        op->start_idx = start_idx;
++        op->count = count;
++        op->buffer = context->device->push_constants[type];
++        op->byte_offset = byte_offset;
++        op->data_size = byte_size;
++        memcpy(op->data, constants, byte_size);
++        wined3d_device_context_reference_resource(&cs->c, &op->buffer->resource);
++
++        wined3d_device_context_submit(&cs->c, WINED3D_CS_QUEUE_DEFAULT);
++        return;
++    }
++
+     wined3d_box_set(&box, byte_offset, 0, byte_offset + byte_size, 1, 0, 1);
+     wined3d_device_context_emit_update_sub_resource(context,
+             &context->device->push_constants[type]->resource, 0, &box, constants, byte_size, byte_size);
+-- 
+2.39.5 (Apple Git-154)
+

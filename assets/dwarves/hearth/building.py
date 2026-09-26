@@ -14,6 +14,7 @@ PILLARS = [(-7.95, 7.95), (7.95, -7.95)]        # pillar centres (4 x 4, z 7.7 .
 BEAM_TOP, BEAM_FLAT = 33.8, 5.1                  # flat top at z 33.8 for |u| <= 5.1, sloping to the caps
 RIM_OUT, SIDE = 10.55, 7.0                         # fire ring: outer faces, straight half-length
 STAR_POINTS = [(20.0, 0.0), (-20.0, 0.0), (0.0, 20.0), (0.0, -20.0)]   # diamond pads on the plate's axes
+BANNER_DIAG = 22.6                 # banner poles at +-(16, 16): distance along the (1, 1) diagonal
 
 
 class Hearth(Building):
@@ -29,7 +30,21 @@ class Hearth(Building):
         solids += self._rim()
         for cx, cy in STAR_POINTS:
             solids += self._marker(cx, cy)
+        solids += self._banners(kit)
         return solids
+
+    @staticmethod
+    def _banners(kit):
+        """Two Erebor-blue banner poles on the plate's free diagonal corners (+,+) and (-,-), left and
+        right of the fire ring as the camera sees it, their banners facing the camera (+X, -Y). The
+        feet stand outside the ring's corner buttresses (x + y <= 27 at the ground) and inside the
+        tile border (17.7); the house-colour banner's corner (+X, -Y) and the fire bed stay clear."""
+        from mathutils import Vector as V
+        n, t = V((R2, -R2, 0)), V((R2, R2, 0))
+        s = []
+        for sgn in (1, -1):
+            s += kit.banner_pole(V((0, 0, 0)), t, n, sgn * BANNER_DIAG, 26.0, 4.2, 13.0)
+        return s
 
     @staticmethod
     def _rim():

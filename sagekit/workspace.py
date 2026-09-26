@@ -75,6 +75,18 @@ class Workspace:
         p = self.path("work", "derived.json")
         return json.load(open(p)) if os.path.exists(p) else []
 
+    @property
+    def house(self):
+        """The house-colour model this building's cloth goes to (Building.house_model), as extract
+        recorded it, or None."""
+        p = self.path("work", "house.json")
+        return json.load(open(p)) if os.path.exists(p) else None
+
+    @property
+    def house_cloth(self):
+        """The cloth faces the geometry step took out of the body: [[[x, y, z], ...]] in world space."""
+        return self.path("work", "house_cloth.json")
+
     def variant_upscale(self, ea_texture):
         return self.upscale_of(ea_texture)
 

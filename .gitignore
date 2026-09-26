@@ -29,3 +29,5 @@ ahk/*.log
 __pycache__/
 .DS_Store
 .claude/settings.local.json
+# uninstall.sh moves engines/prefixes here; the user deletes them
+.trash-*/

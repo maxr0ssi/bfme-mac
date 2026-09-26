@@ -12,6 +12,7 @@ Applied on top of `wine-10.0` by `scripts/d3dx9-fix.sh`, which builds only
 | 0005 | local | Preshader instructions run through direct register pointers (`WINE_D3DX9_FXOPT` bit 0x1) |
 | 0006 | local | Only the preshader instructions whose inputs changed are rerun (bit 0x2) |
 | 0007 | local | Parameter handles checked without a `strncmp()` call |
+| 0008 | local | CommitChanges() skips constant states that cannot set anything; `WINE_D3DX9_FXOPT` read once (bit 0x4) |
 
 **Why.** With Microsoft's native d3dx9_27 (installed by winetricks) the second half of the
 loading bar is D3DX turning textures into GPU formats in x87 floating-point code, which
@@ -52,3 +53,5 @@ frame (shadow-map pass + main view) went from 10.9 to 3.3 ms, `BeginPass` 9.5 �
 `CommitChanges` 2.9 → 0.7 µs; every device call the effects issue (hashed through an
 `ID3DXEffectStateManager`) is identical, and Wine's d3dx9_36 effect tests pass unchanged
 (233,887 tests, 0 failures, 26 todo). `WINE_D3DX9_FXOPT=0` restores the old paths at run time.
+
+0008 leaves the ~12 constant, non-shader states of each pass out of CommitChanges()'s walk (they never make a device call there) and fixes `d3dx_fxopt()`, which re-read the environment on every call when the variable was unset: CommitChanges 0.45 → 0.39 µs per mesh.

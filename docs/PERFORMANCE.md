@@ -177,6 +177,8 @@ standalone copy of the test under `WINEDEBUG=warn+heap` ("delayed freed block"),
 | 0016 | stream mode: DISCARD locks of dynamic textures get sysmem for the box, uploaded on unlock | `--dyntex 8`: 43.3 → 24.4 ms (bench) |
 | 0017–0018 | rasterizer-setup shader compiled once per source; only active uniforms looked up at link (first 16 links cross-checked) | new program at first draw 3.2–3.8 → 2.9 ms |
 | 0019 | linked GLSL programs recorded to `AppData/Local/wined3d/<exe>.glslprograms`, rebuilt in idle CS time next session (`WINED3D_PROGRAM_CACHE=0` = off) | first-draw program build 3.4 → 0.8 ms (warm) |
+| 0020 | float shader constants pushed to the CS only where their bits changed since the last push (`WINED3D_CONST_FILTER=0` = off) | effects bench: render thread 8.2 → 6.1 ms/frame; §12 |
+| 0021 | a constant push carries its data in the PUSH_CONSTANTS op instead of a heap copy + upload op (`WINED3D_INLINE_PUSH_CONSTANTS=0` = off) | DrawIndexedPrimitive 0.77 → 0.65 µs per draw; §12 |
 | build | 32-bit DLLs compiled with `-msse2 -mfpmath=sse` | x87 instructions: wined3d 6,684 → 801, d3dx9_27 11,486 → 138 |
 
 Revert everything: `scripts/wine-fixes.sh --revert` (restores `.orig-w10` DLLs, removes `wined3d.so`).
@@ -396,7 +398,7 @@ files, that interpreter was ~70 % of d3dx9's time.
 | 0006 | each preshader keeps a copy of its input registers: no change, no run; otherwise only the instructions depending on changed registers run, plus the writers of the values they read and the last writer of each output they write | only used when a preshader never reads a temp or output before writing it (it is then a pure function of its inputs); not for relative addressing outside the constant table, tx_1 inputs, failing instructions, or outputs sharing registers with parameter constants |
 | 0007 | handle checks compare the 4 magic bytes inline instead of calling `strncmp()` | same bytes read, stopping at the first difference |
 
-`WINE_D3DX9_FXOPT` (bit mask, default all): `0` = old code paths, `1` = only 0005, `2` = only 0006.
+`WINE_D3DX9_FXOPT` (bit mask, default all): `0` = old code paths, `1` = only 0005, `2` = only 0006, `4` = only 0008 (CommitChanges skips constant states that cannot set anything; exact because without update_all those states are reported clean and return D3D_OK without a device call).
 
 **Results** (bench: defaultw3d + normalmapped + terrain, 300 batches × up to 3 meshes, shadow pass +
 main view, `--mode dev`, median of 5 × 4 s):
@@ -458,9 +460,10 @@ What is dead or redundant (verified statically unless marked):
   end of the flush (0x574440 → 0x524ded → 0x5228a0), which also primes the render-state cache the
   main pass filters against. Skipping or approximating it changes the effect call stream and the D3D
   stream. Rejected.
-- Particles, decal shadows, terrain extras and volume shadows already skip themselves in this pass
-  (the checks above); what is left is a loop over the particle systems with one virtual call each.
-  Nothing worth cutting.
+- Decal shadows, terrain extras and volume shadows skip themselves in this pass (the checks above).
+  Particles do **not** reduce to "one virtual call per system": the RenderObject draw module and the
+  sorting-renderer flush under the same marker do real work here, and neither is dead (§10.4; an
+  earlier version of this line said "nothing worth cutting").
 - CPU skinning twice (shadow + main) could be reused exactly (full input snapshot), but FX meshes are
   skinned on the CPU only when the effect has no `MaxSkinningBones` or the mesh uses more bones
   (0x58c05a at 0x58c118/0x58c1a6); RotWK's Shaders.big gives defaultw3d.fxo 90 and normalmapped.fxo 32,
@@ -482,3 +485,205 @@ pose evaluations / animdedup skips of each pass (p_anim gp_ad_pass). `t_rstats` 
 hands the original its registers, xmm0-7 and arguments in order, returns the original's eax, ecx,
 edx, xmm0-7 and stack, keeps ebx esi edi ebp, counts one call and a positive time for its kind in the
 pass of 0xdd1e44; [5] the extra cost per timed call: 19 ns (~830 a frame, ~0.02 ms).
+
+### 10.4 The RenderParticles pass, main view and shadow map (2026-09-25, static; particlestats)
+
+Measured (passtimers, 09:31:43, 57.6 ms/frame): `UpdateShadowMap/RenderParticles` 5.27 ms self,
+`RenderParticles` (main view) 4.63 ms self. What the marker covers (RTS3DScene::Flush,
+0x4716c7..0x471708):
+
+- **0x4716ee → 0x44c3ea → W3DFXParticleSystemManager::render 0x44c84a**, called only in scene mode 0
+  with scene+0x18 clear, working only when armed (mgr+0xa8, set by Customized_Render at 0x47016c in
+  both passes, cleared at 0x44c86e). Simulation is not here: the manager update (0x5f5123, emission,
+  per-particle modules, deaths) runs once per frame at 0x449d48, before UpdateShadowMap (0x449df5).
+  Per system (std::list mgr+0x4c): a temporary handle (0x44c4be/0x44c4e2), type 6 (terrain) skipped,
+  sort-level systems (0xdd1e19) bucketed and drawn after the loop, "SMUD" heat-smudge systems (client
+  RNG 0x6d33ab per particle; only with TheGlobalData+0x25 set, inferred to be UseHeatEffects, which the
+  group pack turns off),
+  else the CAT_DRAW module's vt+0x10, whose return is added to mgr+0x5c. Six modules (default,
+  streak, quad, butterfly, lightning, gpu) return 0 at their first test when 0xdd1e44 is set
+  (0x961e09 0x9624c9 0x962a41 0x963491 0x963db0 0x9658c7, verified): in the shadow pass no gather, no
+  point-group expansion, no vertex loop (0x579da0, particlevtx), no VB lock, no sort insert, no draw.
+  The **RenderObject module 0x964c00 has no such test**. For every particle inside the pass camera's
+  box (the light camera's in the shadow pass) it builds the transform and calls the particle's render
+  object Set_Transform (vt+0x54), sets colour/opacity with 0x50e040 / 0x50e244 / 0x50e413 (per
+  sub-mesh: DX lock 0x51eec0, an FX parameter found by name, e.g. "ColorEmissive", and the material
+  parameter block recorded again, 0x551f8f; fixed-function meshes: the vertex material 0x53c800) and
+  un-hides it (vt+0x194). The tail: mgr vt+0x3c, 0x494117 (returns at once in the shadow pass).
+- **0x4716f4 → 0x52ec60 SortingRendererClass::Flush**, unconditional: it draws every sorted
+  (alpha-blended) polygon inserted since the pass began (0x52fee0 inserts when sorting 0xd9b034 is on,
+  which it always is), not only particles: in the main view also translucent meshes and W3D emitters.
+  With nothing queued it still unbinds VB/IB (0x51ce40/0x51ced0) and restores the saved transforms.
+
+Shadow pass, what reaches what:
+- Render-object particles are ordinary scene objects (created hidden and added to the scene at
+  0x5fbd62/0x5fbd86). The main view culls them (Visibility_Check) and draws them (renderOneObject, FX
+  flush 0x516d80) *before* its own RenderParticles, so it uses the transform, colour and visibility
+  the shadow pass's RenderParticles wrote (a new particle is un-hidden there first). Skipping the
+  module in the shadow pass would draw those particles one frame late or not at all: **not exact**.
+- W3D model emitters (ParticleBufferClass::Render 0x5aed50, vtable slot 0xbed2a0) have no shadow
+  test; the object loop renders them in the shadow pass too, and their blended point groups
+  (0x5798f4) go to the sorting renderer, which the flush above draws into the shadow map (R32F colour
+  target 0x47d421 + D24S8, cleared to 1.0) with the particles' own shader: colour writes on, so they
+  can change shadow-map texels (inferred; how many there are is what particlestats counts).
+- Other state: mgr+0x5c (on-screen count) also gets the shadow pass's RenderObject counts but is
+  reset by the main view's RenderTerrainParticles (0x44cd44) before it adds its own and is read only
+  by debug displays (0x448659, 0x5f984b); the temporary handles net out; 0xd9b035 is restored.
+
+So no part of the shadow pass's particle work that costs anything is dead. Nothing is patched.
+`particlestats` (on, counters only; p_pstats.c/.S, `t_pstats`) times, per pass: the manager render,
+the RenderObject module (systems, particles) and its colour setters, the sorting flush (with the
+nodes it draws) and emitter renders, and every 16th frame counts systems by draw module kind. Its 60 s
+lines say which of the two is the ~5 ms. If it is the colour setters (a parameter block recorded again
+per particle mesh per pass with unchanged values), an exact cache there is the next candidate; it
+would help both passes and is not a shadow-pass skip.
+
+### 10.5 Game-logic x87 code (2026-09-25, static + standalone tests; not yet run in the game)
+
+What of `logs/battle-msync2` (46 ms frames, 21.7 FPS; `battle-ai1` as a second opinion) is left
+outside rendering, shadow volumes and the patches above, by leaf samples of 3297 (256-byte regions;
+functions from `build/rotwk-re/funcs.txt`). "Calls/frame" = region time / measured per-call cost of
+the original (both standalone under Rosetta), i.e. inferred, and an upper bound where the region
+holds other code too.
+
+| rank | region (m2 / ai1 samples) | function | x87 | calls/frame | done |
+|---|---|---|---|---|---|
+| 1 | 0x1b1c00 (32 / 30) | 0x5b1c00 animation channel decode | 4 of 126 insns, integer | - | not x87; animdecode already cuts calls |
+| 2 | 0x72bd00 (28 / 29) | 0xb2bd10 Matrix3D -> quaternion, 21 call sites in 12 functions (HAnim/HTree blending, 0xb27c80) | fsqrt, fdivr, double consts | ~800 | **mat2quat** |
+| 3 | 0x2e8d00 (28 / 25) | 0x6e8ce6 world -> pathfinder cell (81 call sites), + its integer wrappers 0x6e8d88/0x6e8dd5 | 24 (<= 14 per call) + 2 floor calls | ~1,800 | **worldcell** |
+| 4 | 0x63ae00 (22 / 38) | 0xa3ae50 distance to a bounding circle, 2D (distance-proc table 0xdbdaf8, per candidate of iterateObjects 0xa3bdb0; hot IP right after its fsqrt in ai1) | 21, fsqrt | ~800 | **distcalc** (+ centre 2D 0xa3a7a0) |
+| 5 | 0x365900 (19 / -) | 0x7658c3 / 0x765945 path length (octile via CRT fabs; Euclid via CRT sqrt) | 30 + CRT | - | next candidate (fabs part only: CRT sqrt stays, see above) |
+| 6 | 0x6d1900 (18 / 11) | 0xad1920 GeometryInfo::getMaxHeightAbovePosition (56 callers), 0xad17e0 calcPointToLineDistSquared tail | 14 / 89 | - | next candidate |
+| 7 | 0x06a600 (- / 23) | 0x46a575 terrain height (virtual, 4 floor calls, invsqrt) | 70 | - | next candidate (floor already SSE) |
+| 8 | 0x19bc00 (- / 14) | 0x59bc50 bounding sphere from box (virtual) | fsqrt only | <1,000 | **bsphere** |
+| 9 | 0x63cf00 (- / 13) | 0xa3cfa4 `_ftol2` (~580 call sites; region shared with the EH prolog 0xa3cef0) | 6 | <3,000 | **ftol2** |
+| 10 | 0x2f9e00 (- / 11) | 0x6f9850 pathfinder search step | 43 of 611 | - | mixed, not pure math |
+
+The static scan (x87 instructions per function, direct-call closure of GameLogic::update 0x62e4e8:
+8,086 functions) finds denser functions (0xad1d60 117 x87, 0x466c4c 106, 0xad30e0 96, 0x82dfb7 96,
+0xad4660/0xad2040/0xad2770 geometry 82-91), but none reaches the top-25 regions of either profile
+(so each < ~0.4 %). The logic's remaining time is spread thin: a leaf profile cannot show it better;
+an inclusive profile (eipsample stack scan + `tools/callstacks.py --root 0x62e4e8`) of today's battle
+is the next measurement.
+
+Patches (code `gamepatch/src/p_logic.c/.S`, `p_ftol2.S`, `gp_logic.h`; tests `t_logic`, `t_ftol2`
+with a full-state harness `tests/lm_harness.h`: every general register, xmm0-7 (128 bits), x87 control
+word / stack top / tags / all non-empty 80-bit registers, MXCSR control bits, argument slots + two
+canaries, output memory with guards, and the order of virtual getter calls; originals read from the
+exe at run time; the installers patch a relocated copy with their byte/hash checks). Same scheme as
+quatmat: SSE only in the game's FPU mode, MXCSR flags cleared, OE/UE/IE/ZE or a NaN result -> the
+original x87 instructions on the same inputs; all on by default.
+
+| patch | site | what | proof | per call |
+|---|---|---|---|---|
+| mat2quat | hash 0xb2bd10+0x168, `jmp` at 0xb2bd10 | both branches (trace > 0; largest diagonal via the game's own next[] table) in SSE; leaves eax/ecx/edx/xmm0/xmm1 and the float in its matrix-pointer slot exactly as the original | 10 M matrices (rotations, scaled, random, wide, bit patterns, specials, trace near 0/-1, output aliasing the matrix): 0 mismatches, 5.8 % ran x87 | 468/394 -> 49/52 ns |
+| distcalc | hashes 0xa3a7a0+0x26, 0xa3ae50+0x53; `jmp` at both | centre 2D and bounding circle 2D in SSE after the same getter calls (same order, same ecx); ecx/edx/xmm left as the last getter leaves them, d2 in the object slot; x87 fallback: the original's d2 instructions, then a jump into its own tail | 10 M inputs each through a mock Object whose getters change ecx/edx/xmm0-1: 0 mismatches (except eax of 0xa3ae50: the FPU status word the original's sign test leaves; only reachable through the table, so no caller reads it) | 144 -> 63, 391 -> 75 ns |
+| bsphere | hash 0x59bc50+0x82; 0x59bcb9 `flds/fsqrt/fstps` -> `call` + 4-byte nop | sqrtss | all 2^32 inputs: 0 mismatches; 10 M whole-function calls with a mock box | 175 -> 19 ns (function) |
+| worldcell | hash 0x6e8ce6+0xa2; `jmp` at 0x6e8ce6 (8 B) | x*0.1f [+0.5f] -> roundss floor -> cvtss2si; floor(y) float left in the `exact` slot | all 2^32 coordinate values x both flags; 10 M random (cell edges, tiny, huge, specials) with msvcr71 floor and with gp_floor in the IAT: 0 mismatches (edx, and xmm when msvcr71's floor runs, are what that external function leaves) | 168 -> 46 ns |
+| ftol2 | hash 0xa3cfa4+0x75; `jmp` at 0xa3cfa4 | `fstp tbyte` + integer emulation of fistp / diff-at-24-bit / correction, ecx included (untouched on the n = 0 / indefinite path, as the original) | all 2^32 floats, 50 M doubles, 50 M 80-bit values (int64s, halves, around 2^63, unnormals, pseudo-denormals, inf/NaN): 0 mismatches; 3 deliberate rounding bugs are each caught by 1 M randoms | 54 -> 3.7 ns |
+
+Other x87 modes (PC_53, PC_64, RC down/up/chop, MXCSR RC down, FTZ+DAZ): every call runs the
+original, 0 mismatches. Expected saving from the regions above: mat2quat ~0.35, distcalc ~0.25,
+worldcell ~0.2, bsphere and ftol2 up to ~0.15 each: about 1 ms of a 46 ms frame. In-game proof that
+they run: the `logicmath:` line every 60 s (calls and x87 runs per entry) and the exit line.
+
+## 12. Per-draw cost of the FX path, and what Flush does besides the FX flush (2026-09-25)
+
+**Scene.** `tools/d3dx9fxbench.c --mode dev --draw 1` now draws: every mesh binds one of 32 vertex/index
+buffer pairs (only when it changes, like DX8Wrapper) and draws, the frame ends with Present (no vsync).
+`--bones 20,60` sets 20–60 bones per skinned object (SetRawValue of nbones × 32 bytes, as the game's
+skeleton setter 0x54d926 does), `--batch-ints 1` keeps the per-object ints (NumJointsPerVertex, ...) the same
+within a batch (the game flushes rigid and GPU-skinned meshes as separate lists). defaultw3d + normalmapped +
+terrain, 350 batches × 1–8 meshes, shadow pass + main view: 730 BeginPass and 3,237 draws a frame, about the
+game's ~700 batches and ~3,000 draws (renderstats). Timed per API call (rdtsc), frame time, and the wait in
+Present (= render thread); "busy" = frame − Present = the application thread.
+
+**What one mesh costs on the application thread** (bench, 13:50, load ~5, per-call timers and the share
+of each function in a frame-pointer profile, `tools/fpsample.c` + `tools/fpsym.py`; the sampler itself
+slows the thread by ~10 %):
+
+| layer | bfme-fixes µs/mesh | + 0008/0020/0021 | what |
+|---|---|---|---|
+| d3dx9, per-object setters | 0.32 | 0.30 | ~10 Set* calls (world, bones by SetRawValue, point light, ints) |
+| d3dx9, CommitChanges itself | 0.43 | 0.37 | walks all ~22 states of the pass (12 constant, 7 FXLC, 2 array selectors, 1 parameter), reruns dirty preshaders; `set_constants` copies each dirty parameter into the register store and uploads it |
+| d3d9 + wined3d inside CommitChanges | 0.06 | 0.06 | SetVertexShaderConstantF (mutex, memcpy into the stateblock, changed bits), a few SetRenderState |
+| DrawIndexedPrimitive: float-constant push | 0.27 | 0.11 | before: malloc + copy + UPDATE_SUB_RESOURCE op + PUSH_CONSTANTS op per changed range; after: compare with the last push, one op with the changed registers |
+| DrawIndexedPrimitive: rest of apply_stateblock | 0.26 | 0.27 | stream source / index buffer, recursive mutex per set call, bitmap scans |
+| DrawIndexedPrimitive: CS draw op | 0.13 | 0.12 | queue space + referencing every bound resource |
+| DrawIndexedPrimitive: managed textures | 0.07 | 0.07 | `wined3d_device_update_texture()` checks per bound managed texture |
+| DrawIndexedPrimitive: mutex, bitmaps, misc | 0.19 | 0.18 | |
+| bind VB/IB | 0.09 | 0.08 | SetStreamSource + SetIndices when they change |
+| **total** | **1.83** | **1.56** | the game's "Rendering mesh FXShader" self time is 1.8–2.5 µs incl. its own setter code |
+
+Per batch another ~3.3 µs (BeginPass 2.2: every state and every constant of both shaders set again;
+batch parameters 0.5; End 0.25 with the stateblock restore; ApplyParameterBlock 0.2; Begin 0.1).
+No WoW64/unix call is on this path on the application thread (only the CS thread calls into GL).
+
+CommitChanges uploads a whole constant table entry whenever its parameter was set: a GPU-skinned mesh sends
+the 90-bone palette (180 registers, 2.9 KB) however many bones it has (d3dx9fxbench: 215,000 VS constant
+registers a frame, 3.4 MB). wined3d then pushed every one of them to the CS, which copied them into the push
+constant buffer, re-versioned each in the GLSL constant heap and re-sent them with glUniform4fv.
+
+**Render thread** (same scene): 60–66 % inside opengl32 (driver), `walk_constant_heap` 4.7 % +
+`update_heap_entry` 3.4 % before the fixes, 2.0 % + 1.5 % after.
+
+**Fixes**
+
+| patch | what | exact because |
+|---|---|---|
+| wined3d 0020 | `wined3d_device_apply_stateblock()` keeps a copy of the float constants it last pushed and pushes only registers whose bits changed (runs closer than 5 registers merged). `WINED3D_CONST_FILTER=0` = off | the push constant buffer already holds the skipped bits, and each register it holds was marked changed in the GLSL constant heap when those bits were written, so every program either loaded them since or reloads them (version > program version); the copy is invalidated whenever the push constant buffers are released (device reset / uninit). The D3D call stream is untouched |
+| wined3d 0021 | a push of constants carries its data inside the PUSH_CONSTANTS op (one op, no heap copy, no upload bookkeeping, no free() on the CS thread) when the push constant buffer is CPU memory. `WINED3D_INLINE_PUSH_CONSTANTS=0` = off | the CS writes the same bytes to the same buffer with the same function, in the same queue order, before marking the same registers |
+| d3dx9 0008 | CommitChanges leaves out constant states that are not shaders or samplers; `d3dx_fxopt()` reads `WINE_D3DX9_FXOPT` once (the default, all bits set, used to look like "not read yet" and cost a getenv() per call; only load-time callers existed so far). `WINE_D3DX9_FXOPT` bit 0x4 | without update_all such a state is reported clean by `d3dx9_get_param_value_ptr()` and `d3dx9_apply_state()` returns D3D_OK for it without a device call |
+
+**Gates.** d3dx9fxbench `--hash` (every device call the effects make, through a state manager): identical to
+the bfme-fixes build in 6 scenes (incl. all 13 game effects with all techniques, 1–90 bones, shared
+palettes) and with `WINE_D3DX9_FXOPT` 0, 3, 4 and unset; the new bench gives the old bench's hash for the old
+arguments. Image checksums (d3dx9fxbench `--crc`, the effect scene actually drawn and read back every
+frame, 6 scenes, 4 frames each): identical to the bfme-fixes build, also with each switch off. Wine's
+d3dx9_36 `effect` tests: 233,887 tests, 0 failures, 26 todo, unchanged (FXOPT unset and 0). d3d9 `visual`: 262
+failures, identical list; `stateblock`: 14,738 tests, 0 failures. d3d9bench `--crc`: 68fe2221, 64abfac0,
+5eb28a61 and five more scenes unchanged.
+
+One trap met on the way, kept in the bench: with bone indices ≥ 2 the skinning shaders read past their
+constant array. That is undefined, and on this driver the pixels then depend on which uniforms were
+re-sent before the draw (a bfme-fixes build, a build with every uniform re-sent before every draw, and one
+with 0020 gave three different images; glGetUniformfv showed the right values in all of them). `--crc`
+uses indices 0 and 1, where all builds agree. The game's meshes index bones they have, inside the palette
+d3dx9 uploads (inferred).
+
+**Results** (bench, `--batch-ints 1`; other sessions' 12–14-core tests came and went, so each line is a
+median of interleaved runs and the rounds with load > 10 are the noisy ones):
+
+| run | build | frame | render thread (Present wait) | application thread | CommitChanges | DrawIndexed |
+|---|---|---|---|---|---|---|
+| 13:20, 5 rounds, load 7 | bfme-fixes | 16.92 ms | 8.16 ms | 8.63 ms | | |
+| | + 0008, 0020, 0021 | 13.96 ms | 6.14 ms | 7.88 ms | | |
+| | same, all three switched off | 16.91 ms | 8.15 ms | 8.74 ms | | |
+| 13:50, profiler attached, load 5 | bfme-fixes (2 runs) | 15.86 / 15.90 ms | 7.00 / 7.07 ms | 8.86 / 8.83 ms | 0.49 / 0.50 µs | 0.93 / 0.92 µs |
+| | + 0008, 0020, 0021 | 12.97 ms | 5.10 ms | 7.87 ms | 0.43 µs | 0.75 µs |
+| 11:55–12:10, one patch at a time, load ~5 | 0020 alone | 14.44 → 12.02 ms | −2.4 ms | ±0 (7.74 → 7.78) | | |
+| | + 0021 | | | 7.65 → 7.25 ms | 0.45 µs | 0.77 → 0.65 µs |
+| | + 0008 | | | 7.38 → 7.15 ms | 0.46 → 0.39 µs | |
+
+d3d9bench (WW3D's own vs_1_1 path, which re-sets changed matrices for every object): default scene
+23.0 → 21.9 ms, heavy scene unchanged within the noise (35.0 / 35.2 ms).
+
+**Expected in the game:** 0.2–0.27 µs less per FX mesh on the game thread (DrawIndexedPrimitive −0.12
+to −0.18, CommitChanges −0.06) and ~0.1 µs per BeginPass: with ~3,000 meshes and ~700 batches a frame,
+~0.6–0.8 ms of a 55–63 ms battle frame (inferred from the bench; the game's own per-mesh setter code is
+not touched). The render thread saves ~2–3 ms a frame (constant heap, uploads, the second copy), which
+shows only while the render thread is the limit.
+
+**The ~5 ms per pass of Flush outside the FX flush** (static analysis): Visibility_Check 0x470b83 puts every
+visible object with a drawable into one of three scene lists (occluders +0x7fc/+0x808 flag 0x2, potential
+occludees by player +0x800/+0x80c flag 0x4, the rest +0x804/+0x810 flag 0x10; caps from TheGlobalData+0x978..
++0x980), and Customized_Render's object loop skips everything with those flags (0x47008a, `test $0x1e`).
+Those objects are rendered by 0x470176, called from RTS3DScene::Flush at 0x470f7c whenever the scene pass mode
+is 0 (the shadow-map pass included): per player bucket stencil render states, then renderOneObject for each
+object (0x4704cb/0x4704f3 occludees, 0x4705c4/0x4705eb occluders, 0x4706c7/0x4706f0 the rest), with an FX
+flush around each object that carries per-player stencil bits and after each list. So nearly every unit and
+building's renderOneObject (light environment, bounding sphere, drawable state, HLod → Mesh::Render queuing)
+runs inside Flush, and renderstats' renderOneObject timers (0x47009f/0x47010c) see only the 20–100 objects
+without drawable flags. At the 6–7 µs per object those timers measure, 5 ms is ~750–850 objects per pass.
+It is game code per object, not per draw; the draws it queues are the FX flush's. To confirm in the game:
+time the call at 0x470f7c and count renderOneObject from its six call sites (renderstats).

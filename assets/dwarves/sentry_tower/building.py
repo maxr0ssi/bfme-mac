@@ -63,7 +63,23 @@ class SentryTower(Building):
                 (V((0, -vy, 0)), V((1, 0)), V((0, -1)), vx + 0.45, (79.93 - vz) / vx, vy - sy_)):
             solids += chevron_band(a, t, n, L, vz + 0.15, slope, 2.6, -0.3, 0.45)
             solids.append(keystone(V((a.x - n.x * reach, a.y - n.y * reach, 0)), t, n, reach + 0.45, 64.4, vz, slope))
+        # 5. Erebor-blue banners on the corner pillars flanking the two camera-facing arm panels (-Y
+        #    and +X): hung under the turret corbels (z 93.4), well below the archer bones (z 100.7+),
+        #    0.5 proud so they fall clear of the chevron band down to the head's corner (z 79.9);
+        #    hung free (back closed): the gap behind them is open to the sky
+        solids += self._banners(kit)
         return solids
+
+    @staticmethod
+    def _banners(kit):
+        from mathutils import Vector as V
+        u = (PILLAR[0] + PILLAR[1]) / 2                        # the pillar face's middle, 10.7 out
+        s = []
+        for a, t, n in ((V((0, -HEAD_V[2], 0)), V((1, 0, 0)), V((0, -1, 0))),     # -Y face
+                        (V((HEAD_V[1], 0, 0)), V((0, 1, 0)), V((1, 0, 0)))):     # +X face
+            for side in (-1, 1):
+                s += kit.banner(a, t, n, side * u, 92.4, 3.6, 12.5, d=0.5, free=True)
+        return s
 
     def emphasis(self, c, n):
         if c.z > 95:

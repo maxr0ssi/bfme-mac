@@ -20,6 +20,12 @@ COPING_TAGS = ["trim", "stoneA", "trim", "top", "stoneA", None]
 CHEVRON_DZ = 54.8 - 56.6                      # the fortress chevrons, standing on this coping
 FRIEZE = [(0, 38.0), (0.6, 38.6), (0.6, 42.6), (0, 43.2)]   # rune frieze on the side walls
 FRIEZE_TAGS = ["trim", "rune", "trim", None]
+# banners hung under the corbels (z 49.2): (RIM segment, u from its start, d off the wall). The
+# side walls carry three pointed niches each (x -35.9, -19.0, -2.2, shoulders at z 33, points at
+# 37): a banner in each gap, over the rune frieze (0.6 proud); on each prow face one over the
+# niche's point (u 12.1), clear of the corner shield (u >= 16.5, z 41..51)
+BANNERS = [(0, 13.9, 0.7), (0, 30.9, 0.7), (1, 12.1, 0.0), (2, 12.1, 0.0), (3, 14.1, 0.7), (3, 31.1, 0.7)]
+BANNER = (48.3, 6.5, 17.0)                    # z_top, width, length
 
 
 class CatapultTower(Building):
@@ -47,6 +53,9 @@ class CatapultTower(Building):
         for sy in (-1, 1):                                                   # 2. rune frieze
             path = [(-41.5, sy * 22.5), (3.5, sy * 22.5)]
             solids += sweep(path, FRIEZE, FRIEZE_TAGS, center=CENTRE)[0]
+        for i, u, d in BANNERS:                                              # 3. Erebor-blue banners
+            a, b, t, n = segs[i]
+            solids += kit.banner(a, t, n, u, *BANNER, d=d, free=d > 0)
         return solids
 
     def emphasis(self, c, n):

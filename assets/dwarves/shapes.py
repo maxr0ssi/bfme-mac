@@ -8,6 +8,8 @@ goes; `dz` lifts a whole motif for buildings of another height (0 keeps the fort
     step_gable       a stepped triangle rising over a crown ring
     pointed_arch     the gate's deep stepped pointed frame (the most Dwarven element)
     king_pillar      a tall angular pillar carrying the statue relief
+    banner           an Erebor-blue cloth banner with gold piping and a rune band, on a bronze rod
+    banner_pole      a freestanding bronze pole on a stepped stone foot, flying a banner
     talus            a battered plinth along a wall, with a string course
 """
 import math
@@ -177,3 +179,41 @@ class DwarvenShapes:
             prism_uz(a, t, n, [(-hw + 0.6, z[4]), (hw - 0.6, z[4]), (0, z[5])], 0, 4.8,
                      [None, "top", "top"], "stoneA", None),
         ]
+
+    # ------------------------------------------------------------------ cloth
+    @staticmethod
+    def banner(a, t, n, u, z_top, width, length, d=0.0, free=False):
+        """A hanging banner on a wall face (anchor a, along t, out along n, u its centre; d the
+        face's own offset out of the anchor line): a bronze rod, the cloth ending in a point, gold
+        piping down both edges and a gold rune band across. The cloth's back lies on the face,
+        unless `free` (hung in the open: every face kept). The gold parts are closed solids of their
+        own: the cloth may leave the body for the house-colour model (Building.house_tags)."""
+        h, tail = width / 2, min(2.6, width * 0.55)
+        zb = z_top - length
+        back = "cloth" if free else None
+        cloth = [(u, zb), (u + h, zb + tail), (u + h, z_top), (u - h, z_top), (u - h, zb + tail)]
+        out = [prism_uz(a, t, n, cloth, d - 0.05, d + 0.3, ["cloth", "cloth", None, "cloth", "cloth"], "cloth", back)]
+        for e in (-1, 1):                           # piping down each edge
+            u0, u1 = sorted((u + e * (h - 0.2), u + e * (h + 0.25)))
+            out.append(prism_uz(a, t, n, [(u0, zb + tail), (u1, zb + tail), (u1, z_top), (u0, z_top)], d - 0.1, d + 0.45,
+                                ["trim", "trim", "trim", "trim"], "trim", "trim"))
+        zr = z_top - 2.6                            # rune band across, under the rod
+        out.append(prism_uz(a, t, n, [(u - h, zr - 1.7), (u + h, zr - 1.7), (u + h, zr), (u - h, zr)], d + 0.1, d + 0.42,
+                            ["trim", "trim", "top", "trim"], "rune", "trim"))
+        out.append(prism_uz(a, t, n, [(u - h - 0.9, z_top - 0.1), (u + h + 0.9, z_top - 0.1), (u + h + 0.9, z_top + 0.8),
+                                      (u - h - 0.9, z_top + 0.8)], d - (1.1 if free else 0.1), d + 1.0, ["trim"] * 4, "trim",
+                            "trim"))
+        return out
+
+    def banner_pole(self, a, t, n, u, height, width, length):
+        """A freestanding banner pole at u on the line (a, t), the banner facing n: a stepped stone
+        foot, a bronze pole with a gilded point, and a banner hung in front of it from a crossbar."""
+        def box(u0, u1, z0, z1, d0, d1, tags, cap):
+            return prism_uz(a, t, n, [(u0, z0), (u1, z0), (u1, z1), (u0, z1)], d0, d1, tags, cap, cap)
+        out = [box(u - 1.6, u + 1.6, 0.0, 1.4, -1.6, 1.6, [None, "stoneB", "top", "stoneB"], "stoneB"),
+               box(u - 1.1, u + 1.1, 1.4, 2.6, -1.1, 1.1, [None, "trim", "top", "trim"], "trim"),
+               box(u - 0.45, u + 0.45, 2.6, height, -0.45, 0.45, [None, "trim", None, "trim"], "trim"),
+               prism_uz(a, t, n, [(u - 0.8, height), (u + 0.8, height), (u, height + 2.4)], -0.8, 0.8,
+                        ["trim", "trim", "trim"], "trim", "trim")]
+        out += self.banner(a, t, n, u, height - 1.2, width, length, d=0.6, free=True)
+        return out

@@ -89,6 +89,7 @@ def tri_count(me):
     return sum(len(p.vertices) - 2 for p in me.polygons)
 
 
-def bbox(me):
-    cs = [v.co for v in me.vertices]
+def bbox(me, mw=None):
+    """(min, max) of a mesh's vertices, in world axes when given its object's matrix."""
+    cs = [mw @ v.co if mw is not None else v.co for v in me.vertices]
     return [min(c[i] for c in cs) for i in range(3)], [max(c[i] for c in cs) for i in range(3)]

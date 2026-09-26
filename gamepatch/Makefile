@@ -17,15 +17,22 @@ PATCHES += src/p_perf.c src/p_particle.c src/p_anim.c src/p_perf.S src/p_particl
 # counters for the UltraHigh render model and the shadow-mode switch log (renderstats)
 PATCHES += src/p_rstats.c src/p_rstats.S
 TESTS   += $(OUT)/t_rstats.exe
+# timers for the RenderParticles pass, main vs shadow-map pass (particlestats)
+PATCHES += src/p_pstats.c src/p_pstats.S
+TESTS   += $(OUT)/t_pstats.exe
 TESTS   += $(OUT)/t_perf.exe $(OUT)/t_particle.exe $(OUT)/t_anim.exe $(OUT)/t_adecode.exe
 # shadow volumes on the worker pool of parallel/pool (shadowpar), edge chaining (edgemap), counters
 # (shadowstats)
 CFLAGS  += -I../parallel/pool
 PATCHES += src/par_shadow.c src/par_shjob.c src/p_edgemap.c src/p_shstats.c src/p_shadow.S ../parallel/pool/parallel.c
 TESTS   += $(OUT)/t_shadow.exe
+# game-logic x87 replacements: mat2quat, distcalc, bsphere, worldcell, ftol2 (declarations gp_logic.h)
+PATCHES += src/p_logic.c src/p_logic.S src/p_ftol2.S
+TESTS   += $(OUT)/t_logic.exe $(OUT)/t_ftol2.exe
 
 all: $(DLL) $(TESTS)
-$(DLL) $(TESTS): src/gp_render.h
+$(DLL) $(TESTS): src/gp_render.h src/gp_logic.h
+$(OUT)/t_logic.exe $(OUT)/t_ftol2.exe: tests/lm_harness.h
 
 $(OUT):
 	mkdir -p $(OUT)

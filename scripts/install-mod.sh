@@ -1,10 +1,9 @@
 #!/bin/zsh
-# scripts/install-mod.sh <bfme2|rotwk> <workshop-guid | directory | zip> — drop a mod's files
+# scripts/install-mod.sh <bfme2|rotwk> <directory | zip> — drop a mod's files
 # (.big archives and anything else it ships) into a game folder, keeping a restorable copy of
 # everything it overwrites as <file>.premod.bak, and logging what it did to mods-installed.log
 # next to the game. Art-only mods are multiplayer-safe; anything touching an .ini is not, and
 # every peer needs the identical files (see MULTIPLAYER.md, docs/MODDING.md).
-#   scripts/install-mod.sh rotwk official-2            a community workshop GUID (tools/fetch_game.py)
 #   scripts/install-mod.sh bfme2 ~/Downloads/mymod     a directory tree of files to copy in
 #   scripts/install-mod.sh rotwk ~/Downloads/mod.zip   a zip of the same
 #   scripts/install-mod.sh rotwk --revert              put the .premod.bak originals back
@@ -79,13 +78,8 @@ elif [ -f "$src" ] && [[ "$src" == *.zip ]]; then
   mkdir -p "$srcdir"
   echo "unzipping ${src:t} -> $srcdir"
   unzip -oq "$src" -d "$srcdir"
-elif [ -e "$src" ]; then
-  echo "$src is neither a directory nor a .zip"; exit 1
 else
-  # Not a path: treat it as a community workshop GUID and let fetch_game.py verify the MD5s.
-  srcdir="$BFME_ROOT/build/mod-staging/$src"
-  echo "fetching workshop package '$src' -> $srcdir"
-  python3 "$BFME_ROOT/tools/fetch_game.py" "$src" "$srcdir"
+  echo "$src is neither a directory nor a .zip"; exit 1
 fi
 [ -d "$srcdir" ] || { echo "nothing to install from $src"; exit 1; }
 

@@ -34,6 +34,15 @@ CROWN_TAGS = [None, "stoneB", "trim", "top", "stoneA", "top", "top", "top", "sto
 GATE_Y, BRAZIER_Y = 10.4, 19.8
 GATE_AXIS, GATE_OUT, GATE_LINTEL = -0.3, BRAZIER_Y, 44.2
 ARCH = [(11.8, 0.0), (11.8, 21.5), (8.5, 35.0), (0.0, 38.0)]
+# banners. Each tower shaft face (flat, 2.3 inside the head box, from z 52.3) meets the head in a
+# V-shaped flare (z 74.6 at the middle, 86.1 at the corners, 2.3 out); one big shield per face
+# stands 3.8 out, its point at z 83.2 in the middle, joined to the flare's point by a thin rib
+# (2.3 out at z 77..80.9, 3.8 out at 83.2). A banner hangs free under the shield's point, 3.6 out
+# of the face, its rod set into the rib; its point ends above the barrel upgrade's oil gates (to
+# z 57) on the ±Y faces. (z_top, width, length, d). The two poles stand at the ramp's mouth
+# (paving x 103.9..126.6, |y| <= 18.5 about the axis -0.3, rock out to |y| ~25).
+TOWER_BANNER = (81.0, 7.0, 22.0, 3.6)
+RAMP_POLES_X, RAMP_POLES_Y = 118.0, (-22.6, 22.0)
 # the shield sigil: a double chevron under a bar, on each tower's bronze shields
 SIGIL = [((-2.3, 91.0), (0.0, 86.4)), ((0.0, 86.4), (2.3, 91.0)), ((-1.2, 91.0), (0.0, 88.6)), ((0.0, 88.6), (1.2, 91.0)),
          ((-2.7, 91.9), (2.7, 91.9)), ((0.0, 91.9), (0.0, 93.0))]
@@ -88,7 +97,34 @@ class Fortress(Building):
             solids += kit.talus(path)
         for path in LOW_WALLS:
             solids += kit.talus(path, course=False, low=True)
+        solids += self._banners(kit)                                       # 8. Erebor-blue banners
         return solids
+
+    @staticmethod
+    def _banners(kit):
+        """A long banner down the middle of each tower's two outer shaft faces, hung free under the
+        point of the face's shield and over the walls' parapets. Two banner poles flank the mouth
+        of the gate's approach ramp, on the rock beside the paving, far enough out that the RTS
+        camera sees them below the gate, not across it."""
+        from mathutils import Vector as V
+        s = []
+        z_top, width, length, d = TOWER_BANNER
+
+        def hang(a, t, n, u):
+            return kit.banner(a, t, n, u, z_top, width, length, d=d, free=True)
+        for (xa, xb, ya, yb), (cx, cy) in zip(TOWERS, TOWER_CENTRES):
+            # shaft faces 2.3 inside the head box; t x n = -z on every face
+            if ya < 0:
+                s += hang(V((0, ya + 2.3, 0)), V((1, 0, 0)), V((0, -1, 0)), cx)
+            else:
+                s += hang(V((0, yb - 2.3, 0)), V((-1, 0, 0)), V((0, 1, 0)), -cx)
+            if xa > 0:
+                s += hang(V((xb - 2.3, 0, 0)), V((0, 1, 0)), V((1, 0, 0)), cy)
+            else:
+                s += hang(V((xa + 2.3, 0, 0)), V((0, -1, 0)), V((-1, 0, 0)), -cy)
+        for y in RAMP_POLES_Y:
+            s += kit.banner_pole(V((RAMP_POLES_X, 0, 0)), V((0, 1, 0)), V((1, 0, 0)), y, 42.0, 6.0, 18.0)
+        return s
 
     @staticmethod
     def _pylon(sy):

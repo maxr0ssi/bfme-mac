@@ -24,6 +24,19 @@
  * the ints that select shaders keep their defaults, except NumJointsPerVertex / NumShadows /
  * NumPointLights and bools, which vary within a small range.
  *
+ * Draws (--draw 1, for timing the whole per-mesh path in --mode dev or fwd): every mesh then also binds one of
+ * --vbs vertex/index buffer pairs (SetVertexDeclaration/SetStreamSource/SetIndices only when they change, as
+ * the game's DX8Wrapper does) and draws --tris triangles (degenerate unless --crc; the vertex layout has every
+ * input the games' vertex shaders read); each frame ends with Present (no vsync).
+ * --bones lo,hi: skinned objects set lo..hi bones of the palette (SetRawValue of nbones * 32 bytes, as the
+ * game's skeleton setter 0x54d926 does from the HTree; default 1,4); --share P: a mesh reuses the previous
+ * mesh's object (same world matrix and palette: sub-meshes of one unit) with probability P percent; --batch-ints 1:
+ * the per-object ints and bools (NumJointsPerVertex, point light count, ...) are the same for every mesh of a batch,
+ * as in the game, where rigid and GPU-skinned meshes are flushed as separate lists. --crc (with --draw 1 --mode dev
+ * or fwd and --frames N): the vertices get deterministic positions, normals, blend indices and weights, the
+ * textures a pattern, every frame is cleared and read back, and a CRC of all frames is printed: the image-level
+ * check that two d3dx9/d3d9/wined3d builds turn the same effect calls into the same pixels.
+ *
  * Modes: --mode mgr (default) records every device call d3dx9 makes through an ID3DXEffectStateManager and
  * does not forward it: the time is d3dx9's own work. --mode fwd records and forwards to the real device.
  * --mode dev sets no state manager (d3dx9 calls the device, like the game). With --hash the recorded call
@@ -39,6 +52,7 @@
  *        --frames N (0 = time based) --secs S --warmup S --batches N --meshes N --seed N --shadow 0|1
  *        --techs a,b (main-view techniques of the first effect; default Default_M = the medium shader LOD;
  *        "" = all valid) --mode mgr|fwd|dev --hash --list (print the parameter grouping and exit)
+ *        --draw 0|1 --vbs N --tris N --bones lo,hi --share P --batch-ints 0|1 --crc
  */
 #define COBJMACROS
 #include <windows.h>
@@ -56,9 +70,9 @@
 #define MAXT 256
 #define MAXFX 16
 enum { G_NONE, G_SCENE, G_OBJ, G_MAT };
-enum { T_SCENE, T_OBJ, T_TECH, T_BLOCK, T_TEX, T_BEGIN, T_PASS, T_COMMIT, T_ENDPASS, T_END, T_N };
+enum { T_SCENE, T_OBJ, T_TECH, T_BLOCK, T_TEX, T_BEGIN, T_PASS, T_COMMIT, T_ENDPASS, T_END, T_BIND, T_DRAW, T_PRESENT, T_N };
 static const char *tname[T_N] = {"batch-params", "object-params", "SetTechnique", "ApplyParamBlock",
-    "SetTexture", "Begin", "BeginPass", "CommitChanges", "EndPass", "End"};
+    "SetTexture", "Begin", "BeginPass", "CommitChanges", "EndPass", "End", "bind-buffers", "DrawIndexed", "Present"};
 
 typedef HRESULT (WINAPI *create_fn)(IDirect3DDevice9 *, const void *, UINT, const D3DXMACRO *,
         ID3DXInclude *, DWORD, ID3DXEffectPool *, ID3DXEffect **, ID3DXBuffer **);
@@ -69,8 +83,14 @@ typedef struct {
     D3DXHANDLE block[16]; D3DXHANDLE textures[8]; int ntex; D3DXHANDLE shadow;
 } Fx;
 
-static struct { const char *dll, *fx[MAXFX], *techs; int nfx, frames, batches, meshes, mode, hash, list, shadow; double secs, warmup, main_share; unsigned seed; } cfg =
-    {NULL, {0}, "Default_M", 0, 0, 300, 3, 0, 0, 0, 1, 5.0, 1.0, 0.8, 1};
+static struct { const char *dll, *fx[MAXFX], *techs; int nfx, frames, batches, meshes, mode, hash, list, shadow;
+    double secs, warmup, main_share; unsigned seed; int draw, vbs, tris, bones_lo, bones_hi, share, batch_ints, crc; } cfg =
+    {NULL, {0}, "Default_M", 0, 0, 300, 3, 0, 0, 0, 1, 5.0, 1.0, 0.8, 1, 0, 32, 16, 1, 4, 0, 0, 0};
+static DWORD img_crc; static int img_nonbg;
+#define MAXVB 256
+#define VSTRIDE 112  /* every input the games' vertex shaders read (2-bone skinning: POSITION1, NORMAL1) */
+static IDirect3DVertexBuffer9 *vbs[MAXVB]; static IDirect3DIndexBuffer9 *ibs[MAXVB];
+static IDirect3DVertexDeclaration9 *decl; static int cur_vb = -1;
 static Fx fxs[MAXFX];
 static IDirect3DDevice9 *dev;
 static IDirect3DTexture9 *tex[8];
@@ -92,7 +112,7 @@ static void h_obj(void *o)
     if (i == nobjs && nobjs < 256) objs[nobjs++] = o;
     h_u32(o ? i + 1 : 0);
 }
-static unsigned long long nid[20];
+static unsigned long long nid[20], nvsregs, npsregs;
 #define REC(id) do { ncalls++; nid[id]++; if (cfg.hash) h_u32(id); } while (0)
 #define FWD (cfg.mode == 1)
 
@@ -121,7 +141,7 @@ static HRESULT WINAPI sm_fvf(ID3DXEffectStateManager *s, DWORD f)
 static HRESULT WINAPI sm_vs(ID3DXEffectStateManager *s, IDirect3DVertexShader9 *v)
 { REC(11); if (cfg.hash) h_obj(v); return FWD ? IDirect3DDevice9_SetVertexShader(dev, v) : S_OK; }
 static HRESULT WINAPI sm_vsf(ID3DXEffectStateManager *s, UINT r, const FLOAT *d, UINT n)
-{ REC(12); if (cfg.hash) { h_u32(r); h_u32(n); h_bytes(d, n * 16); } return FWD ? IDirect3DDevice9_SetVertexShaderConstantF(dev, r, d, n) : S_OK; }
+{ REC(12); nvsregs += n; if (cfg.hash) { h_u32(r); h_u32(n); h_bytes(d, n * 16); } return FWD ? IDirect3DDevice9_SetVertexShaderConstantF(dev, r, d, n) : S_OK; }
 static HRESULT WINAPI sm_vsi(ID3DXEffectStateManager *s, UINT r, const INT *d, UINT n)
 { REC(13); if (cfg.hash) { h_u32(r); h_u32(n); h_bytes(d, n * 16); } return FWD ? IDirect3DDevice9_SetVertexShaderConstantI(dev, r, d, n) : S_OK; }
 static HRESULT WINAPI sm_vsb(ID3DXEffectStateManager *s, UINT r, const BOOL *d, UINT n)
@@ -129,7 +149,7 @@ static HRESULT WINAPI sm_vsb(ID3DXEffectStateManager *s, UINT r, const BOOL *d, 
 static HRESULT WINAPI sm_ps(ID3DXEffectStateManager *s, IDirect3DPixelShader9 *p)
 { REC(15); if (cfg.hash) h_obj(p); return FWD ? IDirect3DDevice9_SetPixelShader(dev, p) : S_OK; }
 static HRESULT WINAPI sm_psf(ID3DXEffectStateManager *s, UINT r, const FLOAT *d, UINT n)
-{ REC(16); if (cfg.hash) { h_u32(r); h_u32(n); h_bytes(d, n * 16); } return FWD ? IDirect3DDevice9_SetPixelShaderConstantF(dev, r, d, n) : S_OK; }
+{ REC(16); npsregs += n; if (cfg.hash) { h_u32(r); h_u32(n); h_bytes(d, n * 16); } return FWD ? IDirect3DDevice9_SetPixelShaderConstantF(dev, r, d, n) : S_OK; }
 static HRESULT WINAPI sm_psi(ID3DXEffectStateManager *s, UINT r, const INT *d, UINT n)
 { REC(17); if (cfg.hash) { h_u32(r); h_u32(n); h_bytes(d, n * 16); } return FWD ? IDirect3DDevice9_SetPixelShaderConstantI(dev, r, d, n) : S_OK; }
 static HRESULT WINAPI sm_psb(ID3DXEffectStateManager *s, UINT r, const BOOL *d, UINT n)
@@ -234,6 +254,7 @@ static void set_param(Fx *f, Param *p, int frame, int pass, unsigned obj)
     if (n > 4096) n = 4096;
     if (p->d.Type != D3DXPT_FLOAT)
     {
+        if (cfg.batch_ints && is_obj) vseed = mix(mix(obj & ~63u, idx), 0);   /* same for every mesh of a batch */
         int v = p->vary ? p->lo + (int)(vrand() % (p->hi - p->lo + 1)) : *(int *)p->def;
         if (p->d.Type == D3DXPT_BOOL) FXC(SetBool, fx, p->h, v);
         else FXC(SetInt, fx, p->h, v);
@@ -244,7 +265,8 @@ static void set_param(Fx *f, Param *p, int frame, int pass, unsigned obj)
     {
         UINT rn = p->rawbytes / 4, used = rn;
         if (rn > 4096) rn = used = 4096;
-        if (!strncmp(p->d.Name, "WorldBones", 10)) used = 8 * (1 + obj % 4);  /* 1-4 bones: quaternion + translation */
+        if (!strncmp(p->d.Name, "WorldBones", 10))   /* quaternion + translation per bone */
+            used = 8 * (cfg.bones_lo + obj % (unsigned)(cfg.bones_hi - cfg.bones_lo + 1));
         if (used > rn) used = rn;
         for (i = 0; i < used; ++i) buf[i] = vseed ? vfrand(-1.0f, 1.0f) : 0.0f;
         FXC(SetRawValue, fx, p->h, buf, 0, used * 4);
@@ -277,7 +299,7 @@ static void set_group(Fx *f, int g, int frame, int pass, unsigned obj, int k)
 }
 
 /* the visible scene: fixed batches (effect, material, main technique, meshes), the same every frame */
-typedef struct { Fx *f; int block, tech, meshes, tex[8]; unsigned obj; } Batch;
+typedef struct { Fx *f; int block, tech, meshes, tex[8]; unsigned obj, mobj[64]; } Batch;
 static Batch *scene; static int nscene;
 
 static void build_scene(void)
@@ -295,8 +317,70 @@ static void build_scene(void)
         s->block = lcg() % 16;
         for (t = 0; t < 8; ++t) s->tex[t] = lcg() % 8;
         s->obj = (unsigned)b * 64;
+        if (s->meshes > 64) s->meshes = 64;
+        for (t = 0; t < s->meshes; ++t)   /* sub-meshes of one unit share its object (transform, palette) */
+            s->mobj[t] = cfg.share && t && (int)(lcg() % 100) < cfg.share ? s->mobj[t - 1] : s->obj + t;
         ++nscene;
     }
+}
+
+static void make_buffers(void)
+{
+    static const D3DVERTEXELEMENT9 el[] = {
+        {0, 0, D3DDECLTYPE_FLOAT3, 0, D3DDECLUSAGE_POSITION, 0}, {0, 12, D3DDECLTYPE_FLOAT3, 0, D3DDECLUSAGE_NORMAL, 0},
+        {0, 24, D3DDECLTYPE_FLOAT2, 0, D3DDECLUSAGE_TEXCOORD, 0}, {0, 32, D3DDECLTYPE_UBYTE4, 0, D3DDECLUSAGE_BLENDINDICES, 0},
+        {0, 36, D3DDECLTYPE_FLOAT2, 0, D3DDECLUSAGE_BLENDWEIGHT, 0}, {0, 44, D3DDECLTYPE_FLOAT3, 0, D3DDECLUSAGE_TANGENT, 0},
+        {0, 56, D3DDECLTYPE_FLOAT3, 0, D3DDECLUSAGE_BINORMAL, 0}, {0, 68, D3DDECLTYPE_D3DCOLOR, 0, D3DDECLUSAGE_COLOR, 0},
+        {0, 72, D3DDECLTYPE_FLOAT4, 0, D3DDECLUSAGE_TEXCOORD, 1}, {0, 88, D3DDECLTYPE_FLOAT3, 0, D3DDECLUSAGE_POSITION, 1},
+        {0, 100, D3DDECLTYPE_FLOAT3, 0, D3DDECLUSAGE_NORMAL, 1}, D3DDECL_END()};
+    UINT nv = cfg.tris + 2, i; void *p; WORD *ix;
+    IDirect3DDevice9_CreateVertexDeclaration(dev, el, &decl);
+    for (i = 0; i < (UINT)cfg.vbs; ++i)
+    {
+        IDirect3DDevice9_CreateVertexBuffer(dev, nv * VSTRIDE, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &vbs[i], NULL);
+        IDirect3DVertexBuffer9_Lock(vbs[i], 0, 0, &p, 0); memset(p, 0, nv * VSTRIDE);
+        /* float fields in [-1, 1), colours, bone indices 0 or 1 (2 and up read past the skinning shaders' constant
+         * array: undefined, and the image then depends on the upload history): deterministic per buffer */
+        if (cfg.crc)
+        {
+            UINT k, j; float *f; BYTE *b;
+            rng = 7777u + i;
+            for (k = 0; k < nv; ++k)
+            {
+                f = (float *)((BYTE *)p + k * VSTRIDE); b = (BYTE *)p + k * VSTRIDE;
+                for (j = 0; j < 8; ++j) f[j] = frand(-1.0f, 1.0f);
+                for (j = 32; j < 36; ++j) b[j] = lcg() % 2;
+                for (j = 9; j < 17; ++j) f[j] = frand(-1.0f, 1.0f);
+                f[9] = frand(0.0f, 1.0f); f[10] = 1.0f - f[9]; *(DWORD *)(b + 68) = lcg() | 0xff000000u;
+                f[18] = (float)(lcg() % 2); f[19] = (float)(lcg() % 2);
+                f[20] = f[9]; f[21] = f[10];
+                for (j = 22; j < 28; ++j) f[j] = frand(-1.0f, 1.0f);
+            }
+        }
+        IDirect3DVertexBuffer9_Unlock(vbs[i]);
+        IDirect3DDevice9_CreateIndexBuffer(dev, cfg.tris * 6, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibs[i], NULL);
+        IDirect3DIndexBuffer9_Lock(ibs[i], 0, 0, (void **)&ix, 0);
+        for (p = ix + 3 * cfg.tris, nv = 0; (void *)ix < p; ix += 3, ++nv)
+            if (cfg.crc) { ix[0] = nv; ix[1] = nv + 1; ix[2] = nv + 2; } else { ix[0] = 0; ix[1] = 1; ix[2] = 2; }
+        nv = cfg.tris + 2;
+        IDirect3DIndexBuffer9_Unlock(ibs[i]);
+    }
+    IDirect3DDevice9_SetVertexDeclaration(dev, decl);
+}
+
+/* one mesh's buffers (changed only when they differ from the last mesh's, like DX8Wrapper) and its draw */
+static void draw_mesh(unsigned obj)
+{
+    int v = (int)(mix(obj, 4242) % (unsigned)cfg.vbs);
+    if (v != cur_vb)
+    {
+        T0();
+        IDirect3DDevice9_SetStreamSource(dev, 0, vbs[v], 0, VSTRIDE);
+        IDirect3DDevice9_SetIndices(dev, ibs[v]);
+        cur_vb = v;
+        T1(T_BIND);
+    }
+    { T0(); IDirect3DDevice9_DrawIndexedPrimitive(dev, D3DPT_TRIANGLELIST, 0, 0, cfg.tris + 2, 0, cfg.tris); T1(T_DRAW); }
 }
 
 static void render_batch(Batch *s, D3DXHANDLE tech, int fr, int pass)
@@ -315,9 +399,10 @@ static void render_batch(Batch *s, D3DXHANDLE tech, int fr, int pass)
         if (cfg.hash) h_u32(hr);
         for (m = 0; m < s->meshes; ++m)
         {
-            set_group(f, G_OBJ, fr, pass, s->obj + m, T_OBJ);
+            set_group(f, G_OBJ, fr, pass, s->mobj[m], T_OBJ);
             { T0(); hr = FXC(CommitChanges, f->fx); T1(T_COMMIT); }
             if (cfg.hash) h_u32(hr);
+            if (cfg.draw) draw_mesh(s->mobj[m]);
         }
         { T0(); FXC(EndPass, f->fx); T1(T_ENDPASS); }
     }
@@ -325,14 +410,46 @@ static void render_batch(Batch *s, D3DXHANDLE tech, int fr, int pass)
 }
 
 /* UltraHigh: the shadow-map pass (UpdateShadowMap 0x47d5c9) first, then the main view */
+/* --crc: read the frame back and fold it into img_crc */
+static void frame_crc(void)
+{
+    IDirect3DSurface9 *bb, *sys; D3DSURFACE_DESC d; D3DLOCKED_RECT lr; UINT y, x, k;
+    IDirect3DDevice9_GetBackBuffer(dev, 0, 0, D3DBACKBUFFER_TYPE_MONO, &bb);
+    IDirect3DSurface9_GetDesc(bb, &d);
+    IDirect3DDevice9_CreateOffscreenPlainSurface(dev, d.Width, d.Height, d.Format, D3DPOOL_SYSTEMMEM, &sys, NULL);
+    IDirect3DDevice9_GetRenderTargetData(dev, bb, sys);
+    IDirect3DSurface9_LockRect(sys, &lr, NULL, D3DLOCK_READONLY);
+    for (y = 0; y < d.Height; ++y)
+        for (x = 0; x < d.Width; ++x)
+        {
+            DWORD px = ((DWORD *)((BYTE *)lr.pBits + y * lr.Pitch))[x] & 0xffffff;
+            img_nonbg += px != 0x203040;
+            for (k = 0; k < 24; k += 8)
+            {
+                img_crc ^= (px >> k) & 0xff;
+                for (int j = 0; j < 8; ++j) img_crc = (img_crc >> 1) ^ (0xedb88320u & (0u - (img_crc & 1)));
+            }
+        }
+    IDirect3DSurface9_UnlockRect(sys);
+    IDirect3DSurface9_Release(sys); IDirect3DSurface9_Release(bb);
+}
+
 static void frame(int fr)
 {
     int b;
+    if (cfg.draw) IDirect3DDevice9_BeginScene(dev);
+    if (cfg.crc) IDirect3DDevice9_Clear(dev, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 0x203040, 1.0f, 0);
     if (cfg.shadow)
         for (b = 0; b < nscene; ++b)
             if (scene[b].f->shadow) render_batch(&scene[b], scene[b].f->shadow, fr, 0);
     for (b = 0; b < nscene; ++b)
         render_batch(&scene[b], scene[b].f->tech[scene[b].tech], fr, 1);
+    if (cfg.draw)
+    {
+        IDirect3DDevice9_EndScene(dev);
+        if (cfg.crc) frame_crc();
+        { T0(); IDirect3DDevice9_Present(dev, NULL, NULL, NULL, NULL); T1(T_PRESENT); }
+    }
 }
 
 static BYTE *readfile(const char *path, DWORD *size)
@@ -352,7 +469,7 @@ int main(int argc, char **argv)
     D3DPRESENT_PARAMETERS pp = {0};
     IDirect3D9 *d3d; HWND wnd; HMODULE mod; create_fn create;
     LARGE_INTEGER qf, q0, q1; unsigned long long r0;
-    double *ft = malloc(sizeof(double) * 100000), total = 0; int i, j, nf = 0, warm = 0, frames_run;
+    double *ft = malloc(sizeof(double) * 100000), total = 0; int i, j, k, nf = 0, warm = 0, frames_run;
     char path[MAX_PATH];
 
     for (i = 1; i < argc; ++i)
@@ -360,6 +477,7 @@ int main(int argc, char **argv)
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : "0";
         if (!strcmp(a, "--hash")) { cfg.hash = 1; continue; }
         if (!strcmp(a, "--list")) { cfg.list = 1; continue; }
+        if (!strcmp(a, "--crc")) { cfg.crc = 1; continue; }
         ++i;
         if (!strcmp(a, "--dll")) cfg.dll = v;
         else if (!strcmp(a, "--fx") && cfg.nfx < MAXFX) cfg.fx[cfg.nfx++] = v;
@@ -372,6 +490,13 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--techs")) cfg.techs = v;
         else if (!strcmp(a, "--seed")) cfg.seed = strtoul(v, NULL, 0);
         else if (!strcmp(a, "--shadow")) cfg.shadow = atoi(v);
+        else if (!strcmp(a, "--draw")) cfg.draw = atoi(v);
+        else if (!strcmp(a, "--vbs")) cfg.vbs = max(1, min(MAXVB, atoi(v)));
+        else if (!strcmp(a, "--tris")) cfg.tris = max(1, min(10000, atoi(v)));
+        else if (!strcmp(a, "--share")) cfg.share = atoi(v);
+        else if (!strcmp(a, "--batch-ints")) cfg.batch_ints = atoi(v);
+        else if (!strcmp(a, "--bones")) { cfg.bones_lo = max(1, atoi(v)); cfg.bones_hi = strchr(v, ',') ? atoi(strchr(v, ',') + 1) : cfg.bones_lo;
+            if (cfg.bones_hi < cfg.bones_lo) cfg.bones_hi = cfg.bones_lo; }
         else if (!strcmp(a, "--mode")) cfg.mode = !strcmp(v, "fwd") ? 1 : !strcmp(v, "dev") ? 2 : 0;
         else { fprintf(stderr, "unknown argument %s\n", a); return 1; }
     }
@@ -384,11 +509,20 @@ int main(int argc, char **argv)
 
     wnd = CreateWindowA("STATIC", "d3dx9fxbench", WS_OVERLAPPEDWINDOW, 0, 0, 64, 64, NULL, NULL, NULL, NULL);
     d3d = Direct3DCreate9(D3D_SDK_VERSION);
-    pp.Windowed = TRUE; pp.SwapEffect = D3DSWAPEFFECT_DISCARD; pp.BackBufferWidth = 64; pp.BackBufferHeight = 64;
+    pp.Windowed = TRUE; pp.SwapEffect = D3DSWAPEFFECT_DISCARD; pp.BackBufferWidth = pp.BackBufferHeight = cfg.crc ? 256 : 64;
+    pp.BackBufferFormat = D3DFMT_X8R8G8B8;
     pp.EnableAutoDepthStencil = TRUE; pp.AutoDepthStencilFormat = D3DFMT_D24S8;
+    pp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
     if (FAILED(IDirect3D9_CreateDevice(d3d, 0, D3DDEVTYPE_HAL, wnd, D3DCREATE_HARDWARE_VERTEXPROCESSING, &pp, &dev)))
     { fprintf(stderr, "no device\n"); return 1; }
-    for (i = 0; i < 8; ++i) IDirect3DDevice9_CreateTexture(dev, 4, 4, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tex[i], NULL);
+    for (i = 0; i < 8; ++i)
+    {
+        D3DLOCKED_RECT lr;
+        IDirect3DDevice9_CreateTexture(dev, 4, 4, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tex[i], NULL);
+        IDirect3DTexture9_LockRect(tex[i], 0, &lr, NULL, 0);
+        for (j = 0; j < 4; ++j) for (k = 0; k < 4; ++k) ((DWORD *)((BYTE *)lr.pBits + j * lr.Pitch))[k] = 0x80000000u | (i * 0x1f3d5b79u + j * 0x51 + k * 0x3700);
+        IDirect3DTexture9_UnlockRect(tex[i], 0);
+    }
 
     for (j = 0; j < cfg.nfx; ++j)
     {
@@ -419,6 +553,7 @@ int main(int argc, char **argv)
     }
     if (cfg.list) return 0;
     build_scene();
+    if (cfg.draw) make_buffers();
 
     QueryPerformanceFrequency(&qf);
     QueryPerformanceCounter(&q0); r0 = __rdtsc(); Sleep(200); QueryPerformanceCounter(&q1);
@@ -444,9 +579,11 @@ int main(int argc, char **argv)
         if (tcalls[i]) printf("%s %.2f x%.0f  ", tname[i], tcount[i] * tick_ns / 1000.0 / tcalls[i], (double)tcalls[i] / nf);
     printf("\nRESULT frames=%d mean=%.3f p50=%.3f p95=%.3f ms/frame, device calls/frame=%.0f (mode %s)\n",
             nf, total / nf, ft[nf / 2], ft[nf * 95 / 100], (double)ncalls / frames_run, cfg.mode == 0 ? "mgr" : cfg.mode == 1 ? "fwd" : "dev");
+    if (nvsregs) printf("constant registers per frame: vs %.0f, ps %.0f\n", (double)nvsregs / frames_run, (double)npsregs / frames_run);
     printf("device calls per frame by kind:");
     for (j = 1; j < 19; ++j) if (nid[j]) printf(" %d:%.0f", j, (double)nid[j] / frames_run);
     printf("\n");
     if (cfg.hash) printf("HASH %016llx calls=%llu frames=%d\n", hash, ncalls, frames_run);
+    if (cfg.crc) printf("CRC %08lx frames=%d (non-background pixels per frame: %d)\n", img_crc, frames_run, img_nonbg / frames_run);
     return 0;
 }

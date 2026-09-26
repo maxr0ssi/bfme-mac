@@ -51,8 +51,16 @@ make_app() {  # make_app <App name> <play script> <exe for the icon> <bundle id 
 }
 
 if [ "$1" = "--remove" ]; then
-  rm -rf "$dest/Battle for Middle-earth II.app" "$dest/Rise of the Witch-king.app"
-  echo "removed both apps from $dest"; exit 0
+  # only apps that launch this checkout's scripts; another checkout's apps are left alone
+  for app in "$dest/Battle for Middle-earth II.app" "$dest/Rise of the Witch-king.app"; do
+    [ -d "$app" ] || continue
+    if osadecompile "$app/Contents/Resources/Scripts/main.scpt" 2>/dev/null | grep -qF "'$BFME_ROOT/scripts/"; then
+      rm -rf "$app"; echo "removed $app"
+    else
+      echo "left $app: it launches another checkout"
+    fi
+  done
+  exit 0
 fi
 make_app "Battle for Middle-earth II" play-bfme2.sh "BFME2/lotrbfme2.exe" bfme2
 make_app "Rise of the Witch-king"    play-rotwk.sh "RotWK/lotrbfme2ep1.exe" rotwk

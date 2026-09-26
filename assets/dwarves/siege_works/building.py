@@ -71,7 +71,33 @@ class SiegeWorks(Building):
         solids += self._curb_friezes()                                       # 6. rune friezes
         for x0, x1 in ((-61.2, -54.8), (-0.6, 5.8)):                         # 7. exit pylons
             solids += self._pylon(x0, x1, -83.6, -76.0)
+        solids += self._banners(kit)                                         # 8. Erebor-blue banners
         return solids
+
+    # ------------------------------------------------------------------ banners
+    @staticmethod
+    def _banners(kit):
+        """Erebor-blue banners on the camera-facing (+X, -Y) sides only:
+        - the chimney: one down each of its +X and -Y sides, hung from the crown ring under the
+          stepped gable and falling free in front of the cap, the corbels and the rune belt;
+        - the hall front (y -5.4): one on each end pier (x -47.5..-43.3 and -12.2..-7.8, the
+          stretches without openings: the forge's fire cards glow through the others), hung under
+          the parapet's corbels;
+        - the exit pylons: one on each pylon's -Y face under its rune belt, the rods clear of the
+          exit ramp (x -53.9..-1.5).
+        Nothing over the pit (x -54..-1 on the pit side), nothing in the siege engines' path."""
+        from mathutils import Vector as V
+        s = []
+        fx, fy = FLUE
+        s += kit.banner(V((CAP[3][0], 0, 0)), V((0, 1, 0)), V((1, 0, 0)), fy, 27.0, 5.0, 16.0, d=0.5, free=True)
+        s += kit.banner(V((0, CAP[1][1], 0)), V((1, 0, 0)), V((0, -1, 0)), fx, 27.0, 5.0, 16.0, d=0.5, free=True)
+        hall = (V((0, -5.4, 0)), V((1, 0, 0)), V((0, -1, 0)))
+        for u in (-45.3, -10.0):
+            s += kit.banner(*hall, u, -30.3, 3.6, 11.5, free=True)   # rods overhang the pier edges: closed
+        exit_ = (V((0, -82.8, 0)), V((1, 0, 0)), V((0, -1, 0)))  # the pylons' -Y face at the top of the batter
+        for u in (-58.0, 2.6):
+            s += kit.banner(*exit_, u, -35.4, 3.8, 10.4, d=0.75, free=True)
+        return s
 
     # ------------------------------------------------------------------ walls
     @staticmethod

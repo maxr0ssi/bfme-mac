@@ -61,6 +61,11 @@ class Bunker(Building):
         solids += sweep(OCTAGON, BELT, BELT_TAGS, center=(0, CY))[0]
         # 6. a battered plinth along the long -Y side (the RTS camera's side), flush with the door wall
         solids += plinth()
+        # 7. Erebor-blue banners hung from the crown down the middle of the two camera-facing shield
+        #    panels (+X over the door, -Y): the rod just under the crest slab (z 60.24), the point
+        #    ending over the panel's own V point (z 44.45); inside the footprint (x 14.37, y -14.54)
+        solids += kit.banner(V((13.34, 0, 0)), V((0, 1, 0)), V((1, 0, 0)), CY, 59.4, 5.0, 14.0)
+        solids += kit.banner(V((0, -13.45, 0)), V((1, 0, 0)), V((0, -1, 0)), 0.0, 59.4, 5.0, 14.0)
         return solids
 
     def emphasis(self, c, n):
