@@ -156,7 +156,8 @@ class W3DFile:
                 if t == HIERARCHY and t2 == HIERARCHY_HEADER:
                     name = "H*" + _cstr(d[o2 + 12:o2 + 28])
                 elif t == MESH and t2 == MESH_HEADER3:
-                    name = "%s.%s" % (_cstr(d[o2 + 32:o2 + 48]), _cstr(d[o2 + 16:o2 + 32]))
+                    box, mesh = _cstr(d[o2 + 32:o2 + 48]), _cstr(d[o2 + 16:o2 + 32])
+                    name = "%s.%s" % (box, mesh) if box else mesh     # a lone mesh: GBFITOWER, as the cache has it
                 elif t == HLOD and t2 == HLOD_HEADER:
                     name = _cstr(d[o2 + 16:o2 + 32])
                 elif (t, t2) in ((ANIMATION, ANIMATION_HEADER), (COMPRESSED_ANIMATION, COMPRESSED_ANIMATION_HEADER)):
@@ -402,8 +403,9 @@ def splice_mesh(model, mesh_name, mesh_chunk, container):
 
 def rename_model(data, old, new):
     """The model's own name changed in every fixed-width field that carries it: the hierarchy, each
-    mesh's container, the HLOD's model and hierarchy names and its sub-objects ('OLD.MESH'). For
-    a copy of a model under another file name (the file name is the model's name)."""
+    mesh's container, the HLOD's model and hierarchy names and its sub-objects ('OLD.MESH'), and an
+    embedded animation's name and hierarchy. For a copy of a model under another file name (the
+    file name is the model's name)."""
     if len(new) > 15:
         raise ValueError("model name %s longer than 15 characters" % new)
     d = bytearray(data)
@@ -427,7 +429,10 @@ def rename_model(data, old, new):
             elif t == HLOD and t2 == HLOD_HEADER:
                 swap(o2 + 16, 16)
                 swap(o2 + 32, 16)
-            elif t == HLOD and sub:                     # LOD arrays: sub-objects are bone + name[32]
+            elif (t, t2) in ((ANIMATION, ANIMATION_HEADER), (COMPRESSED_ANIMATION, COMPRESSED_ANIMATION_HEADER)):
+                swap(o2 + 12, 16)                       # an embedded animation: its name and hierarchy
+                swap(o2 + 28, 16)
+            elif t == HLOD and sub:                    # LOD arrays: sub-objects are bone + name[32]
                 for t3, o3, _, _ in chunks(d, o2 + 8, o2 + 8 + s2):
                     if t3 == HLOD_SUB_OBJECT:
                         swap(o3 + 12, 32)

@@ -1,9 +1,8 @@
-"""Elven wall segment (ElvenCastleWallSegment, model EBWallN): EA's slender lancet wall given the
-walls' crown and the Elven windows. Over EA's V cornice and pointed hoods: a filigree band (silver
-knots on sea-green enamel between gilt beads), a silver-moulded coping and a row of lancet merlons
-on each face; round each of EA's two lancet windows per face a silver arch frame with sea-green
-enamel reveals and a gilt leaf finial; in each window a leaf banner in the player's colour hung in
-front of the lattice.
+"""Elven wall segment (ElvenCastleWallSegment, model EBWallN): EA's slender lancet wall kept whole -
+its two lancet windows a face with their lattice glass, the pointed hoods with EA's gold leaf
+emblems, the V cornice - and given the walls' crown: over EA's cornice a filigree band (silver
+knots between gilt beads), a mithril coping (the citadel's ring coping) and a light cresting of
+gold-edged leaf merlons on each face. No banners: segments repeat many times along a wall.
 
 The segment tiles: its ends (y = +-19) meet the next segment, a hub, the gate or a wall end, and
 the engine may stretch it along y. Only the crown reaches the ends (its runs continue into the
@@ -31,6 +30,7 @@ class WallSegment(Building):
     sheet_normal = "EBFortress_NRM.tga"
     own_textures = {"EBFortress.tga": "EBFortresB.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCWallSegment"
+    house_tags = ()                 # no banners: segments repeat many times along a wall
     # the placement cursor: EA's segment on the same bone and box (checked by the derive step)
     also_derived = ("EBWallN_CUR",)
     views = {
@@ -40,8 +40,8 @@ class WallSegment(Building):
     }
 
     def design(self, kit):
-        from .wall import SEG_WINDOWS, segment_windows, straight_crown
-        return straight_crown(kit, -HALF, HALF) + segment_windows(kit, SEG_WINDOWS)
+        from .wall import straight_crown
+        return straight_crown(kit, -HALF, HALF)
 
     def emphasis(self, c, n):
         if c.z > 48:

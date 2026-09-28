@@ -64,5 +64,7 @@ hurts frame pacing.
 
 ## Don't change
 
-- The `LARGEADDRESSAWARE` (4 GB) flag on `game.dat` and the exe must stay off under Wine (crash).
+- The `LARGEADDRESSAWARE` (4 GB) flag: on for RotWK, as RotWK 2.02 ships it (the installer keeps it;
+  the crash once blamed on it was Wine 11's, [MEMORY-4GB.md](MEMORY-4GB.md)); off for BFME2, as
+  retail ships it. `tools/pe_laa.py --off` reverts.
 - Keep the prefix at Windows 10 (`winecfg -v win10`); Windows XP crashes wined3d at startup.

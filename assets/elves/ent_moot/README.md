@@ -25,10 +25,13 @@ It stays a clearing: nothing is built, with no gold, lanterns or cloth.
   turns its broad face to the middle.
 - **Fallen stones:** one or two lie at each stone's foot.
 - **Paint:** the stones take the atlas's bark grain, which is never masonry (no ashlar joints). It is
-  painted in the stone ramp, lifted to the grey of EA's recoloured boulders (`decals()`), with moss
+  painted in the natural rock ramp, warmed and darkened with the palette's earth tint to match
+  EA's boulders (`decals()`), with moss
   from the style's layers.
 - **Open ground:** the middle, where the Ents gather, and the four tree places stay open. `design()`
   refuses a stone within 14 of a tree.
+
+Earlier pass measurements (retained for history; current build evidence is in `work/logs/checks.log`):
 
 Footprint and height unchanged (the horn stays the highest point). Triangles 381 -> 1,205.
 Texel density median 2.5 px/unit: the floor is most of the area. `checks`: 75/75.
@@ -39,13 +42,16 @@ report's framework notes).
 
 ## Status
 
+The latest earthy-rock pass is built and passes the offline checks; review is still
+required before installation.
+
 | Part | Healthy | Construction | Damaged / really damaged | Rubble | Snow | LOD |
 |---|---|---|---|---|---|---|
 | body (`FBEntmoot`) | built, checks pass, **awaiting review** | built (`FBEntmoot_A`, lifecycle) | derived (`FBEntmoot_D1`, `_D2`) | built (`FBEntmoot_D3`, lifecycle) | `FBEntmooH_snow` painted | none |
 
 ## Notes for review
 
-- **Rock colour.** The faction's recolour turns EA's warm brown boulders and horn moonstone-grey,
-  with yellow lichen flecks where the masks read gold. The new stones match that grey. Keeping the
-  moot earthy would need the style's rock handling for this sheet (a decision for Max).
+- **Rock colour.** The sheet's rock regions are explicitly masked as natural rock, then warmed
+  and darkened with the faction's earth accent. The boulders, horn and new blunt standing stones
+  stay earthy; there is no gold or masonry treatment.
 - **Night.** The model has no night meshes; nothing is lit.

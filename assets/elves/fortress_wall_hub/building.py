@@ -5,11 +5,11 @@ EA's EBEFWHub draws the castle wall hub's body a second time: EBWALLRMPRTN01 (37
 free-standing hub's EBWALLRMPRTN (elves/wall_hub) vertex for vertex, beside a wall run of its own
 out of the west side into the fortress (EBWALLRMPRTN, 148, EA's and untouched) and EA's dome
 (SPHERE01, on a bone at 47.09: r 20.65, z 51.06..67.6), which stays. So the recipe is the wall
-hub's design whole, imported from elves/wall_hub (the walls' crown of band, coping and lancet
-merlons round the rim; silver arch frames and leaf banners in the six lancet windows; crystal
-lanterns on the rim): a fortress corner and the free-standing hubs read as one wall. The windows
-at 144 and 216 degrees flank the wall run (it meets the hub within 14 degrees of the -x axis) and
-keep their banners; no lantern stands at 180.
+hub's design whole, imported from elves/wall_hub (EA's body kept whole; the walls' band and
+mithril coping round the rim; EA's lattice dome crowned in gold - gilt ribs, a collar, a leaf
+coronet and finial; five crystal lanterns on silver posts on the rim; no banners): a fortress
+corner and the free-standing hubs read as one wall. The wall run meets the hub within 14 degrees of
+the -x axis: no lantern stands at 180.
 
 The construction state shows EBWallRmprtN_A, the free-standing hub's own model: elves/wall_hub
 ships it carrying its body (the same design), so this recipe neither derives nor rebuilds it."""
@@ -29,7 +29,8 @@ class FortressWallHub(WallHub):
     sheet_normal = "EBFortress_NRM.tga"
     own_textures = {"EBFortress.tga": "EBFortresX.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCFortressWallHub"
-    lifecycle = {WALL_HUB_MODEL: {"skip": "elves/wall_hub's own model: it ships it with the same design"}}
+    lifecycle = {WALL_HUB_MODEL: {"skip": "elves/wall_hub's own model: it ships it with the same design"},
+                 "EBEFWHub_D3": {"match": "rest"}}
     views = {
         "rts": ((-8.0, 0.0, 30.0), 230, 48, -24, 50),
         "close": ((-4.0, 0.0, 36.0), 140, 20, -18, 45),

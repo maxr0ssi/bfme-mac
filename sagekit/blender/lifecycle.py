@@ -51,15 +51,17 @@ class Link:
     """One recipe's body in the model: a chained recipe (`base`) redesigns another mesh of the same
     model, so a lifecycle model carries every link's body, each on its own texture."""
 
-    def __init__(self, b, healthy):
+    def __init__(self, b, healthy, offset=(0, 0, 0)):
         self.b, self.ws = b, Workspace(b)
         self.names = {k.lower(): v for k, v in list(b.texture_names().items()) + list(self.ws.variants.items())}
-        Vh = healthy.world(b.target, healthy.pose(None))
+        Vh = healthy.world(b.target, healthy.pose(None)) + offset
         Th = np.array(healthy.w3d.meshes[b.target].tris)
         self.ea_tree, (_, self.ea_normals, _) = tree(Vh, Th), face_frame(Vh, Th)
         chunk = W3DFile(self.ws.export_model).meshes[b.target].bytes
         m = W3DFile(chunk).meshes[b.target]
-        W = healthy.pose(None)[0][healthy.bones.get(b.target, 0)]
+        W = list(healthy.pose(None)[0][healthy.bones.get(b.target, 0)])
+        for axis in range(3):
+            W[axis * 4 + 3] += offset[axis]
         self.ours = {"chunk": chunk, "V": np.array([P.point(W, v) for v in m.verts]), "T": np.array(m.tris), "W": W}
         cloth = self.ws.house_cloth
         self.cloth = json.load(open(cloth)) if self.ws.house and os.path.exists(cloth) else []
@@ -77,10 +79,15 @@ class Build(Cutter):
         self.S = Model(os.path.join(src, entry["model"].lower() + ".w3d"),
                        os.path.join(src, entry["skeleton"]) if entry["skeleton"] else None,
                        os.path.join(src, a["file"]) if a else None)
+        offset = np.asarray(self.s.get("match_offset", (0, 0, 0)), float)
+        if offset.shape != (3,) or not np.isfinite(offset).all():
+            raise ValueError("match_offset must contain three finite coordinates")
+        if np.any(offset):
+            links = [Link(L.b, healthy, offset) for L in links]
         self.H, self.links = healthy, links
         self.warnings = []
         self.names = {k: v for L in links for k, v in L.names.items()}         # EA's names, any link's
-        Vh = [healthy.world(L.b.target, healthy.pose(None)) for L in links]
+        Vh = [healthy.world(L.b.target, healthy.pose(None)) + offset for L in links]
         Th = [np.array(healthy.w3d.meshes[L.b.target].tris) for L in links]
         off = np.cumsum([0] + [len(v) for v in Vh])[:-1]
         self.ea_tree = self.all_tree = tree(np.concatenate(Vh), np.concatenate([t + o for t, o in zip(Th, off)]))
@@ -565,3 +572,21 @@ def clamped_barycentric(p, a, b, c):
     w = (d00 * d21 - d01 * d20) / den
     bc = np.clip(np.array([1 - v - w, v, w]), 0, None)
     return bc / bc.sum()
+
+
+def check_match_offset():
+    """Standalone Blender check using the player's built floodgate doors; never launches the game."""
+    from ..registry import load
+    b = load("elves/floodgate_doors")
+    ws = Workspace(b)
+    e = next(e for e in json.load(open(ws.path("work", "lifecycle_plan.json"))) if e["model"] == "EBFFGate_DRA")
+    healthy = Model(ws.path("src", b.source.lower() + ".w3d"))
+    link = Link(b, healthy)
+    default = Build(b, ws, dict(e, settings=dict(e["settings"], match_offset=(0, 0, 0))), healthy, [link])
+    shifted = Build(b, ws, e, healthy, [link])
+    assert default.links[0] is link  # zero preserves the existing path and reference data
+    assert shifted.links[0] is not link
+    np.testing.assert_allclose(shifted.links[0].ours["V"], link.ours["V"] + e["settings"]["match_offset"])
+    assert shifted.fit(shifted.body(), shifted.S.frames - 1) > 0.999
+    assert default.fit(default.body(), default.S.frames - 1) < 0.5
+    print("match_offset: default unchanged; EA construction doors align with healthy geometry")

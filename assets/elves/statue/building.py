@@ -28,6 +28,11 @@ C = (-0.25, -1.55)                              # the octagon's centre
 PHASE = -4.0                                    # its corners' angle (degrees) + 45 k
 RINGS = [(-0.06, 11.7), (2.34, 11.7), (3.51, 10.6), (12.54, 9.56), (13.19, 9.2), (26.07, 8.5), (26.96, 8.1)]
 LANTERN_R = 13.9                                # the corner columns, on the diagonals of the footprint
+BANNER_FACES = (0, 6)                           # either side of the face the RTS camera looks at (7, -26.5 deg)
+
+
+def column_xy(ang):
+    return C[0] + LANTERN_R * math.cos(math.radians(ang)), C[1] + LANTERN_R * math.sin(math.radians(ang))
 
 
 def radius(z):
@@ -76,8 +81,8 @@ class Statue(Building):
     def design(self, kit):
         s = []
         s += self._mouldings(kit)                # 1. slope coping, knotwork band, gilt bead, cornice
-        for k in range(8):                      # 2. lancet niches / leaf banners round the upper die
-            s += self._niche(kit, k) if k % 2 == 0 else self._banner(kit, k)
+        for k in range(8):                      # 2. gold-traceried niches round the upper die, two banners
+            s += self._banner(kit, k) if k in BANNER_FACES else self._niche(kit, k)
         for k in range(4):                      # 3. lantern columns in the footprint's corners
             s += self._lantern_column(kit, 45 + 90 * k)
         return s
@@ -110,10 +115,11 @@ class Statue(Building):
     # ------------------------------------------------------------------ 2. niches and banners
     @staticmethod
     def _niche(kit, k):
-        """A tall lancet niche on face k of the upper die: gold leaf tracery on slate (the atlas's
-        lancet panel) inside a silver arch frame with a sea-green reveal and a gilt leaf at its tip.
-        Anchored at the arch's top, where the battered face is furthest back: the frame stands 0.4
-        proud there and 0.85 at its foot."""
+        """A tall lancet niche on face k of the upper die: a spray of three gilt leaves (the gold
+        tracery) on a deep slate ground, inside a silver arch frame with a slate reveal and a gilt
+        leaf at its tip, over a silver sill. Anchored at the arch's top, where the battered face is
+        furthest back (the face stands 0.38 further out at the niche's foot: the leaves at d 0.55
+        stay proud of it all the way down)."""
         from sagekit.blender.geometry import prism_uz
         z0, spring, apex = 14.1, 19.9, 22.6
         a, t, n = face(k, apex)
@@ -121,7 +127,10 @@ class Statue(Building):
         panel = kit.arch_outline(half + 0.45, spring, apex + 0.45, 0.0, 6)
         poly = [(-panel[0][0], z0), (panel[0][0], z0)] + [(x, z) for x, z in panel[:-1]] + \
                [(-x, z) for x, z in reversed(panel)]
-        out = [prism_uz(a, t, n, poly, -0.6, 0.12, [None] * len(poly), "lancet", None)]
+        out = [prism_uz(a, t, n, poly, -0.6, 0.12, [None] * len(poly), "enamel", None)]
+        out.append(kit.leaf_blade(a, t, n, 0.0, z0 + 0.3, 7.6, 1.7, thick=0.2, d=0.55))
+        for side in (1, -1):
+            out.append(kit.leaf_blade(a, t, n, 0.0, z0 + 0.6, 4.4, 1.0, lean=0.3 * side, thick=0.2, d=0.5))
         out += kit.arch(a, t, n, 0.0, half, z0, spring, apex, w=0.62, d0=-0.6, d1=0.4, ogee=0.2, k=6)
         # a sill under the niche
         out.append(prism_uz(a, t, n, [(-half - 0.9, z0 - 0.55), (half + 0.9, z0 - 0.55), (half + 0.9, z0), (-half - 0.9, z0)],
@@ -141,8 +150,7 @@ class Statue(Building):
         slab, a shaft with a leaf capital and a crystal lantern (the statue's light) on top."""
         from sagekit.blender.geometry import loft
         from ..shapes import ring
-        cx = C[0] + LANTERN_R * math.cos(math.radians(ang))
-        cy = C[1] + LANTERN_R * math.sin(math.radians(ang))
+        cx, cy = column_xy(ang)
         out = [loft([ring(cx, cy, 1.45, -0.06, 8, phase=math.pi / 8), ring(cx, cy, 1.45, 2.2, 8, phase=math.pi / 8),
                      ring(cx, cy, 1.55, 2.45, 8, phase=math.pi / 8), ring(cx, cy, 1.25, 2.9, 8, phase=math.pi / 8)],
                     ["stoneA", "trim", "coping"], cap0=("stoneB", False), cap1=("top", True))]

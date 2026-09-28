@@ -4,7 +4,7 @@ that grip it; the stair that climbs to it becomes Galadriel's. Each of EA's two 
 slabs gains a silver balustrade down both sides (turned balusters on every tread, a rounded rail
 falling with the flight), a lantern column with a crystal lantern at each corner of its foot, and
 where the flights meet, on the landing's point, a taller lantern column; two gilt banner poles on
-the landing's back corners fly leaf banners and pennants in the player's colour over the approach
+the landing's back corners fly leaf banners in the player's colour over the approach
 to the dais.
 
 EA's model is four meshes on identity bones (mesh = model coordinates): EBGALMIRR3 the pedestal and
@@ -66,6 +66,14 @@ class MirrorOfGaladriel(Building):
         "stair": ((10.0, 0.0, 4.0), 72, 16, 5, 45),
     }
 
+    @property
+    def sheet_atlas(self):
+        """EA's sheet with the stair's slabs hinted as plain stone: their olive grime is not metal
+        (colour alone flecked the new ivory slabs with orange)."""
+        a = super().sheet_atlas
+        a.mask_hints = {"stone": [(420, 0, 2048, 1860)]}
+        return a
+
     def design(self, kit):
         s = []
         for sy in (1, -1):
@@ -88,12 +96,12 @@ class MirrorOfGaladriel(Building):
     @staticmethod
     def _landing(kit):
         """A taller lantern column on the landing's point, where the flights part, and two gilt
-        banner poles on its back corners facing the approach (+x); their pennants fly along +y."""
+        banner poles on its back corners facing the approach (+x), without extra pennants."""
         from mathutils import Vector as V
         out = lantern_column(kit, 6.6, 0.0, 4.9, 7.6, 5.0)
         t, n = V((0, 1, 0)), V((1, 0, 0))
         for y in (2.0, -2.0):
-            out += raised(kit.banner_pole(V((-1.95, y, 0)), t, n, 0.0, 18.3, 2.6, 7.2), 0.05)
+            out += raised(kit.banner_pole(V((-1.95, y, 0)), t, n, 0.0, 18.3, 2.6, 7.2, pennant=False), 0.05)
         return out
 
     def emphasis(self, c, n):
@@ -115,7 +123,21 @@ def lantern_column(kit, x, y, z0, height, lamp):
     out = [turned(x, y, [(0.95, z0 - 0.3), (0.95, z0 + 1.0), (1.08, z0 + 1.25), (0.75, z0 + 1.6)], ["stoneA", "coping", "trim"],
                   k=8, cap0=("stoneB", False), cap1=("top", True))]
     out += kit.column(x, y, z0 + 1.6, z0 + height, r=0.5, k=8, leaves=5)
+    out += leaf_collar(kit, x, y, z0 + 1.45, 0.5, 6, 1.5)          # gold leaves round the shaft's foot
+    out.append(turned(x, y, [(0.62, z0 + 0.52 * height - 0.2), (0.7, z0 + 0.52 * height), (0.62, z0 + 0.52 * height + 0.2)],
+                      ["gilt", "gilt"], k=8, cap0=("gilt", True), cap1=("gilt", True)))      # a gilt ring mid-shaft
     out += kit.crystal_lantern(x, y, z0 + height, h=lamp, r=0.7)
+    return out
+
+
+def leaf_collar(kit, x, y, z, r, count, length):
+    """A ring of gilt leaf blades round a shaft of radius r, rising from z and leaning out a little."""
+    from mathutils import Vector as V
+    out = []
+    for i in range(count):
+        ang = 2 * math.pi * (i + 0.25) / count
+        t, n = V((math.cos(ang), math.sin(ang), 0)), V((-math.sin(ang), math.cos(ang), 0))
+        out.append(kit.leaf_blade(V((x, y, 0)), t, n, 0.85 * r, z, length, 0.9 * r * 1.6, lean=0.3, thick=0.1))
     return out
 
 
@@ -139,7 +161,7 @@ def balustrade_down(path):
             zr = z_top + (z_foot - z_top) * (run + f * L) / total
             zt = z0 if f < 0.5 else z1
             out.append(turned(x, y, [(0.2, zt - 0.25), (0.28, zt + 0.55), (0.14, zr - 0.8), (0.2, zr - 0.2), (0.16, zr + 0.1)],
-                              ["trim", "stoneB", "trim", "trim"], k=6, cap0=("top", False), cap1=("top", False)))
+                              ["trim", "trim", "trim", "trim"], k=6, cap0=("top", False), cap1=("top", False)))
             tops.append((x, y, zr))
         run += L
     out.append(rail(tops, 0.24, "trim"))

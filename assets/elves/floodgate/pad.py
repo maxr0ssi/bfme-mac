@@ -63,3 +63,41 @@ def band(kit, x0, x1, faces, z0, z1):
     for y, side in faces:
         out += kit.filigree_band([(x0, y), (x1, y)], z0, z1, d=0.3, center=((x0 + x1) / 2, y - side))
     return out
+
+
+def lantern_newel(kit, cx, cy, z, turn, half=1.0, newel=3.6, crystal=5.4, r=1.05):
+    """A square ivory newel standing on z (a balustrade's rail runs into it), a silver cap, and a
+    starlight crystal in a gilt cup with a gilt leaf tip on it: the citadel's ring lantern, sized
+    for a pad building. `turn` (radians) squares the newel to the line it stands in."""
+    import math
+
+    from sagekit.blender.geometry import loft
+
+    from ..shapes import ring
+
+    def sq(h, zz):
+        return ring(cx, cy, h * math.sqrt(2), zz, 4, phase=turn + math.pi / 4)
+    z1 = z + newel
+    out = [loft([sq(half, z), sq(half, z1 - 0.7), sq(half + 0.25, z1 - 0.45), sq(half + 0.25, z1)],
+                ["stoneA", "trim", "trim"], cap0=("stoneB", False), cap1=("trim", True))]
+    return out + kit.crystal_lantern(cx, cy, z1 - 0.05, h=crystal, r=r)
+
+
+def ridge_cap(pts, y0, y1, below=0.4, above=0.45, x_axis=True, ends=("trim", "trim")):
+    """A silver cap along a sloping top line [(u, z)] (u along x when x_axis, else along y), across
+    the wall from y0 to y1 (the other horizontal axis): one prism per segment, their shared ends
+    buried; the underside kept (it overhangs the wall's faces)."""
+    from mathutils import Vector as V
+
+    from sagekit.blender.geometry import prism_uz
+    if x_axis:
+        a, t, n, d0, d1 = V((0, 0, 0)), V((1, 0, 0)), V((0, -1, 0)), -y1, -y0
+    else:
+        a, t, n, d0, d1 = V((0, 0, 0)), V((0, 1, 0)), V((1, 0, 0)), y0, y1
+    out = []
+    last = len(pts) - 2
+    for i, ((ua, za), (ub, zb)) in enumerate(zip(pts, pts[1:])):
+        q = [(ua, za - below), (ub, zb - below), (ub, zb + above), (ua, za + above)]
+        tags = ["trim", ends[1] if i == last else None, "trim", ends[0] if i == 0 else None]
+        out.append(prism_uz(a, t, n, q, d0, d1, tags, "trim", "trim"))
+    return out

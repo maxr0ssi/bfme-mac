@@ -3,10 +3,15 @@
 A design unit is a healthy model a player builds (a structure or wall object of the faction, not a
 helper, campaign variant or map castle piece) whose body - its largest static mesh painted from a
 building sheet, a mesh with a normal map first, one standing on the ground before one raised on
-another (a statue's figure) - has at least 100 triangles; meshes the rule cannot tell from it are
-named in the stub's docstring. Each Draw module of an
-object is one family (the fortress's upgrades are Draw modules of the citadel: each is a unit with
-`parts`); a model drawn by several objects is one unit; a body that is another unit's body under a
+another (a statue's figure) - has at least 100 triangles (a wall piece's: 50, and its tallest mesh,
+not the wall stubs beside a hub or tower); meshes the rule cannot tell from it are named in the
+stub's docstring. A mesh the object's SubObjectsUpgrades both show and hide (the farm's level-up
+walls V1, V2 and their stand-ins) comes after the others; a structure's model with no mesh on a
+building sheet may be painted from a unit sheet (the statue's GUHeroStat). Each Draw module of an object is one
+family (the fortress's upgrades are Draw modules of the citadel: each is a unit with `parts`), and
+each build variation in it (BUILD_VARIATION_ONE / _TWO: GBFDOTOWA, GBFDOTOWB) a unit of its own
+(`<name>_b`); a ChildObject counts with the Draw modules it inherits (GondorFarm: FarmInterface's);
+a model drawn by several objects is one unit; a body that is another unit's body under a
 second model (EBBbattleTwrS, the snow tower) is a variant, not a unit; a second static mesh of 1000+
 triangles on a building sheet is a unit of its own, chained on the first with `base`.
 
@@ -29,6 +34,11 @@ STRUCTURES = {"men": "goodfaction\\structures\\men", "elves": "goodfaction\\stru
               "mordor": "evilfaction\\structures\\mordor", "goblins": "evilfaction\\structures\\wild",
               "angmar": "evilfaction\\structures\\angmar"}
 MIN_TRIS, SECOND_TRIS, TILT = 100, 1000, 5.0
+MIN_WALL_TRIS = 50          # wall pieces are low (Gondor's hub OBJECT03 has 94 triangles)
+VARIATION_SUFFIX = {"BUILD_VARIATION_ONE": "", "BUILD_VARIATION_TWO": "_b", "BUILD_VARIATION_THREE": "_c"}
+UNIT_SHEET = re.compile(r"^.u", re.I)       # GUHeroStat: a unit sheet (a statue's figure)
+SUBOBJECTS = re.compile(r"^\s*(Show|Hide)SubObjects\s*=\s*([^;/]*)", re.I)
+KINDOF = re.compile(r"^\s*KindOf\s*=\s*([^;/]*)", re.I)
 GROUNDED = 0.1              # a body's foot within this share of the model's height of its ground
 
 # the survey's scope rules (faction_survey: analyse.py)
@@ -120,24 +130,57 @@ def category(obj, file, models):
 
 
 def healthy(draw):
-    """(the model a Draw module shows when healthy, the upgrade flags that switch it on)."""
-    states = [st for st in draw.states if st.kind == "model" and st.model and st.model.lower() != "none"]
-    for st in states:
-        if all(UPGRADE_FLAG.match(f) for f in st.flags):
-            return st.model, tuple(sorted(st.flags))
-    return (states[0].model, ()) if states else (None, ())
+    """[(the model a Draw module shows when healthy, the upgrade flags that switch it on, the build
+    variation or None)]: one per build variation (GBFDOTOWA under BUILD_VARIATION_ONE and the
+    default, GBFDOTOWB under _TWO; sagekit/formats/ini.py variation_states), else one."""
+    from .formats.ini import VARIATION, variation_states
+    every = [st for st in draw.states if st.kind == "model" and st.model and st.model.lower() != "none"]
+    out = []
+    for v in sorted({f for st in every for f in st.flags if f.startswith(VARIATION)}) or [None]:
+        states = [st for st in variation_states(draw, "", v) if st in every] if v else every
+        pick = next((st for st in states if all(UPGRADE_FLAG.match(f) for f in st.flags if f != v)), None)
+        if pick:
+            out.append((pick.model, tuple(sorted(f for f in pick.flags if f != v)), v))
+        elif states and not v:
+            out.append((states[0].model, (), None))
+    return out or [(None, (), None)]
 
 
 def is_building_sheet(t):
     return not FX_SHEET.search(t) and "_nrm" not in t.lower() and "house_color" not in t.lower()
 
 
-def bodies(install, model):
+def switched(install, pairs):
+    """(mesh names the objects' SubObjectsUpgrade modules both show and hide - level-up pieces and
+    their stand-ins -, whether an object is a STRUCTURE): pairs [(ini, object)] - each object's
+    block in its file, parents included."""
+    from .formats.ini import OBJECT_RE, strip
+    shown, hidden, structure = set(), set(), False
+    for ini, obj in pairs:
+        cur = None
+        for raw in install.read(ini).decode("latin-1").splitlines():
+            m = OBJECT_RE.match(strip(raw))
+            if m and not raw[:1].isspace():
+                cur = m.group(2)
+                continue
+            m = SUBOBJECTS.match(raw)
+            if m and cur == obj:
+                names = {n.upper() for n in m.group(2).split() if "*" not in n}
+                (shown if m.group(1).lower() == "show" else hidden).update(names)
+            m = KINDOF.match(raw)
+            if m and cur == obj:
+                structure |= "STRUCTURE" in m.group(1).upper().split()
+    return shown & hidden, structure
+
+
+def bodies(install, model, units=False, tallest=False):
     """[(mesh name, mesh, diffuse sheet, normal map or None, grounded)] of the model's static meshes
     painted from a building sheet, the unit's body first: a normal-mapped mesh before a plain one,
     a grounded one (standing on the model's ground, not raised on another mesh) before a raised one,
     then by size. The largest mesh is not always the building: EBStatue's figure (9,828 triangles)
-    stands on its holder, the mirror's roots grip the dais round the stair."""
+    stands on its holder, the mirror's roots grip the dais round the stair. units: unit sheets count
+    (a statue); tallest: height before size (a wall tower or hub stands above the wall stubs its
+    model carries)."""
     data = install.read(install.model_path(model))
     f, fr = W3DFile(data), frames(install, model)
     zs = {n: [apply(fr.get(n, IDENTITY), v)[2] for v in m.verts] for n, m in f.meshes.items() if m.verts}
@@ -147,11 +190,12 @@ def bodies(install, model):
     for n, m in f.meshes.items():
         if m.skinned or n.startswith(("HC_", "N_")) or n not in zs:
             continue
-        dif = [t for t in m.textures if is_building_sheet(t)]
+        dif = [t for t in m.textures if is_building_sheet(t) or units and UNIT_SHEET.match(t) and "_nrm" not in t.lower()]
         nrm = next((t for t in m.textures if "_nrm" in t.lower() or "normal" in t.lower()), None)
         if dif:
             out.append((n, m, dif[0], nrm, min(zs[n]) - ground <= GROUNDED * (top - ground)))
-    return sorted(out, key=lambda x: (x[3] is None, not x[4], -len(x[1].tris)))
+    height = (lambda x: -round(max(zs[x[0]]))) if tallest else (lambda x: 0)
+    return sorted(out, key=lambda x: (x[3] is None, not x[4], height(x), -len(x[1].tris)))
 
 
 def rivals(bs):
@@ -178,31 +222,36 @@ def tilt(frame):
 def plan(faction, install, own):
     """[unit dict] for the faction's design units, and [(model, why)] for what was left out."""
     from .building import same_body
+    from .formats.ini import variation_states
+    from .ownership import empty_model
     root = "data\\ini\\object\\" + STRUCTURES[faction]
-    draws = install.draws(root)
-    by_obj = {}
-    for d in draws:
-        by_obj.setdefault(d.object, []).append(d)
+    by_obj = install.object_draws(root)             # a ChildObject with the Draw modules it inherits
     units, skipped, seen = [], [], {}
     for obj, ds in by_obj.items():
-        fams = [(d,) + healthy(d) for d in ds if d.type.lower() != "w3dfloordraw"]
-        fams = [(d, m, up) for d, m, up in fams if m and not HC_MODEL.match(m)]
-        cat = category(obj, ds[0].file, [m for _, m, _ in fams])
+        fams = [(d,) + h for d in ds if d.type.lower() != "w3dfloordraw" for h in healthy(d)]
+        fams = [(d, m, up, v) for d, m, up, v in fams if m and not HC_MODEL.match(m)]
+        cat = category(obj, ds[0].file, [m for _, m, _, _ in fams])
         if cat not in ("player", "wall"):
             continue
-        main = next((m for d, m, up in fams if not up and install.has_model(m)), None)
-        for d, m, up in fams:
+        main = next((m for d, m, up, v in fams if not up and install.has_model(m)), None)
+        skip, structure = switched(install, {(d.file, d.object) for d in ds} | {(install.object_index().get(obj), obj)} - {(None, obj)})
+        hc = {m for d in ds for m in d.models() if HC_MODEL.match(m)}      # (a ChildObject's own house draw)
+        for d, m, up, v in fams:
             key = m.lower()
             if key in seen:
                 seen[key]["objects"].append(obj)
+                seen[key]["hc"] |= hc
                 continue
             if not install.has_model(m):
                 skipped.append((m, "%s: not in any archive" % obj))
                 continue
-            bs = bodies(install, m)
-            if not bs or len(bs[0][1].tris) < MIN_TRIS:
+            wallish = cat == "wall" or role_of(obj, m)[0] == "fortress_wall_hub"
+            least = MIN_WALL_TRIS if wallish else MIN_TRIS
+            bs = bodies(install, m, tallest=wallish) or structure and bodies(install, m, units=True) or []
+            bs = [x for x in bs if x[0].upper() not in skip] + [x for x in bs if x[0].upper() in skip]
+            if not bs or len(bs[0][1].tris) < least:
                 skipped.append((m, "%s %s: no static body of %d+ triangles on a building sheet (%s)" % (
-                    obj, d.tag, MIN_TRIS, ", ".join("%s %d" % (n, len(x.tris)) for n, x, _, _, _ in bs[:3]) or "none")))
+                    obj, d.tag, least, ", ".join("%s %d" % (n, len(x.tris)) for n, x, _, _, _ in bs[:3]) or "none")))
                 continue
             twin = next((u for u in units if len(u["mesh"].tris) == len(bs[0][1].tris)
                          and same_body(u["mesh"], bs[0][1], 0.05)), None)
@@ -213,14 +262,18 @@ def plan(faction, install, own):
             if up:
                 role = "fortress_upgrade"
                 near = next((n for rx, n in UPGRADE_NEAREST if re.search(rx, d.tag + " " + m, re.I)), "fortress_statues")
+            theirs = {x.lower() for x in d.models()} - {s.model.lower() for s in variation_states(d, m, v) if s.model}
             u = {"objects": [obj], "source": m, "tag": d.tag, "upgrade": up, "role": role, "nearest": near,
-                 "main": m == main, "draw": d, "twin": twin and twin["source"], "rivals": rivals(bs)}
+                 "main": m == main, "draw": d, "twin": twin and twin["source"], "rivals": rivals(bs),
+                 "variation": v, "suffix": VARIATION_SUFFIX.get(v, "_" + (v or "").rsplit("_", 1)[-1].lower()) if v else "",
+                 "theirs": theirs, "hc": set(hc)}
             for i, (n, mesh, sheet, nrm, grounded) in enumerate(bs):
                 if i and (len(mesh.tris) < SECOND_TRIS or not grounded):     # a raised figure is not a building
                     continue
                 unit = dict(u, target=n, mesh=mesh, sheet=sheet, normal=nrm, second=i > 0)
                 units.append(unit)
                 seen.setdefault(key, unit)
+    drawn = {m.lower() for ds in by_obj.values() for d in ds for m in d.models()}
     by_src = {}
     for u in units:
         by_src.setdefault(u["source"].lower(), []).append(u)
@@ -229,17 +282,43 @@ def plan(faction, install, own):
         u["frames"] = frames(install, u["source"])
         u["frame"] = u["frames"].get(u["target"], IDENTITY)
         u["tilt"] = tilt(u["frame"])
-        u["others"] = {m: own.other_model(m, faction) for m in own.body_draw_models(u["source"])}
+        # the unit's own family: not another build variation's models, nor an empty stand-in model
+        # (OBBFoundationX, drawn by five factions' foundations) that no redesign touches
+        # (and only models the faction's own Draw modules show: not Blue Mountains' bb_tower03 beside GBFARTOWA)
+        family = [m for m in own.body_draw_models(u["source"]) if m not in u["theirs"] and m in drawn
+                  and not empty_model(own, m, install)]
+        u["others"] = {m: own.other_model(m, faction) for m in family}
         u["others"] = {m: o for m, o in u["others"].items() if o}
         u["sheet_others"] = own.other_sheet(u["sheet"], faction)
-        u["houses"] = own.house_models(u["source"])
-        u["lifecycle"] = [m for m in own.body_draw_models(u["source"]) if m != u["source"].lower()]
+        u["houses"] = sorted(set(own.house_models(u["source"])) | u["hc"], key=str.lower)
+        u["lifecycle"] = [m for m in family if m != u["source"].lower()]
         u["exists"] = bool(install.owner(compiled_path(u["sheet"], ".dds")))
+    names = [u["name"] for u in units]
+    for u in units:                             # two objects of one role (MenWallHubSmall and
+        stem = object_stem(sorted(u["objects"], key=len)[0])        # ...Upgradeable): the object's name
+        if names.count(u["name"]) > 1 and u["main"] and not u["second"] and stem != u["name"] and stem not in names:
+            u["name"] = stem
     names = [u["name"] for u in units]
     for u in units:                             # two families of one object named alike: add the tag
         if names.count(u["name"]) > 1 and not u["main"]:
             u["name"] += "_" + tag_stem(u["tag"])
+    canonical(units)
     return units, skipped
+
+
+def canonical(units):
+    """One spelling per sheet: EA's meshes name GBFortress1.tga in either case (GBFBOil_SKN's pot:
+    gbfortress1.tga); a recipe's `sheet` and its own_textures key take the spelling most units use."""
+    spell = {}
+    for u in units:
+        for k in ("sheet", "normal"):
+            if u.get(k):
+                spell.setdefault(u[k].lower(), []).append(u[k])
+    best = {low: max(set(v), key=lambda x: (v.count(x), x != x.lower())) for low, v in spell.items()}
+    for u in units:
+        for k in ("sheet", "normal"):
+            if u.get(k):
+                u[k] = best[u[k].lower()]
 
 
 def _name(u, by_src):
@@ -249,6 +328,8 @@ def _name(u, by_src):
         return _name(base, by_src) + "_" + snake(u["target"].lower()).replace(" ", "_")
     if u["upgrade"]:
         return "fortress_" + tag_stem(u["tag"])
+    if u.get("suffix"):                         # the second build variation: arrow_tower_b
+        return _name(dict(u, suffix="", main=True), by_src) + u["suffix"]
     if u["role"] in ("fortress", "wall_end", "wall_segment", "wall_hub", "wall_gate", "wall_tower", "wall_postern",
                      "wall_trebuchet", "fortress_wall_hub"):
         return u["role"]

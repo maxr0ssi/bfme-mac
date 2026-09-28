@@ -1,50 +1,34 @@
-# Elven floodgate (`ElvenFloodgateExpansion`)
+# Elven floodgate
 
-Model `EBFFGate`, redesigned mesh `EBFFGATE1`, `Tier.STANDARD`, painted from the faction sheet
-`EBFortress.tga` onto its own textures `EBFortresF.tga` / `EBFortresF_NRM.tga` (DXT5: EA's cut-out
-alpha kept; + `_D`, `_snow`, `_U` variants). The flood doors are the Draw module
-`ModuleTag_DrawDoors`, a model of their own: [`floodgate_doors`](../floodgate_doors/README.md).
+Model `EBFFGate`, redesigned mesh `EBFFGATE1`, `Tier.STANDARD`. Its own textures are
+`EBFortresF.tga` / `EBFortresF_NRM.tga` and state variants, painted from `EBFortress.tga`
+with EA's cut-out alpha retained.
 
-The Bruinen's flood-tower on the fortress's pad: three rearing stone horses on a basin, pouring the
-flood from their mouths, over a drum of pointed bays between buttress piers; the arm back to the
-fortress is an aqueduct over the expansions' arch. The horses, the water (`EBFFGATE3/5/6`: the
-streams, the basin, the splash; `GBWell_waterB`, `RBWell_waterB` are not ours to recolour), the
-ground ring (`EBFFGATE4`) and the niches the doors close stay EA's. The streams fall within 17.6
-of the drum's axis, inside the rim: nothing new is in their way.
+## Current design
 
-## What changed (body, healthy)
+EA's horses, gold swirls, pointed bays, water and ground ring stay whole. A mithril coping
+and silver-railed ivory balustrade ring the basin; crystal lanterns stand on newels over the
+buttress piers. The aqueduct receives matching coping and pointed silver arch frames.
+Only two banners remain, on the front piers beside the flood. Moving leaves belong to
+[`floodgate_doors`](../floodgate_doors/README.md).
 
-- **Crown:** a moulded silver coping round the basin's rim (0.4 over it, its nose over EA's
-  crown) carrying a ring of lancet merlons (1.8 wide, 4.0 high): the horses now rise from an Elven
-  crown. It runs from the aqueduct's one wall round the front to the other.
-- **Banners:** a leaf banner in the player's colour down each of the six buttress piers (2.6 x
-  17.5, hung just under the crown, lying on the pier's front), so the drum carries the house's
-  colours all round. The cloth goes to our house-colour model `EBHCFFGate` (Draw tag
-  `ModuleTag_Draw_HCFloodgate`, from the style's `house_template`). The kit's leaf-bud rod ends
-  are left off here: on the piers they would reach 1.3 past the footprint.
-- **Aqueduct:** the same coping along both walls' tops, and the expansions' pointed silver frame
-  round the arch on both faces (sea-green enamel reveals, a gilt leaf over the point;
-  [`pad.py`](pad.py), shared with the watchtower and the vigilant ent).
-- **Paint:** the faction style (moonstone, silver mouldings, gilt leaf, sea-green enamel).
+`pad.py` supplies the expansions' shared arch and coping helpers. The facet-island unwrap
+preserves the horse surfaces; the footprint margin accommodates the existing banner rods.
 
-`footprint_margin = 0.9`: the piers' fronts are EA's bounding box (y +-21.37, and x 21.55 at the
-crown); the banners' gilt rods, 38.4-39 up, stand up to 0.85 past it. Nothing new passes it at
-the ground. `facet_islands = True`: Blender's angle-based unwrap folded the horses' UVs onto themselves
-(0.7 % overlap on EA's own faces, with or without EA's seams); every EA face is its own island.
+The shared palette is the approved citadel's soft ivory, strong mithril and mallorn gold, slate
+roofs and EA's teal glass. No face of EA's healthy body is removed.
 
-Night lights: EA's model has no night meshes and the INI names none (`NightWindowName`); nothing
-to light.
+## Lifecycle and review
 
-## Shared: `pad.py`
+Damaged, snow and stonework variants carry our body. Really damaged and rubble models rebuild
+along EA's pieces. Construction matches only EA’s exact healthy surface (`surface = 0.05`), preserving the nearby
+paired internal caps as break faces. This fixes the former open-back fallback while keeping the
+original gates and animation. No failing model is forced into the output.
 
-The expansions' connecting arm and its arch (EA drew the same arch into the floodgate, the
-watchtower and the vigilant ent, shifted along x): `arch()` frames it, `coping()` runs the
-moulding along an arm's top. `coping_profile()` is the kit's `coping_run` moulding without the
-point in the middle of its bottom edge, which left a loose vertex in every capped run.
+Build outputs and before/after images are in `build/assets/elves/floodgate/`. The current
+`work/lifecycle.json` identifies each rebuilt or derived model; `work/logs/checks.log` records
+the checks. Review images are `renders/compare_*.png` and `renders/lifecycle/*.png`.
+Healthy and lifecycle comparisons were rebuilt and visually checked in this finishing pass.
+Nothing is installed; the player’s review remains the next step.
 
-## Status (`python3 -m sagekit inventory elves/floodgate`)
-
-| Part | Healthy | Damaged / snow / stonework | Construction (`_A`), really damaged (`_D2`), rubble (`_D3`) |
-|---|---|---|---|
-| body (`EBFFGate`) | done, rendered, not installed | our body on the variant sheets | `_D2`, `_D3` ours (lifecycle); `_A` left to EA by the lifecycle checks (18.5 % of our area shows its back at frame 350) |
-| doors (`EBFFGate_DRCA`) | [`floodgate_doors`](../floodgate_doors/README.md) | | |
+EA supplies no night meshes or `NightWindowName` here; the new crystals are day-lit.

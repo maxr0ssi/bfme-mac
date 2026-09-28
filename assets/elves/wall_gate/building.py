@@ -1,11 +1,12 @@
 """Elven wall gate (ElvenCastleWallGate, model EBWallGateN_SKN): EA's two square gate towers with
-their warrior statues and the four lattice door leaves between them, joined by a slender bridge in
-the walls' crown. The bridge carries the segments' filigree band, silver coping and lancet merlons
-over the doors, at the walls' heights, so the parapet line runs from the segments round the towers
-and across the gate; over its middle stands a free pointed arch (sea-green reveals, gilt leaf
-finial) with a crystal lantern hung in it. Each tower head gets the crown too, round its flared
-cap under the statue, with a crystal lantern on each corner; each tower face that looks out of the
-wall carries a long leaf banner in the player's colour.
+their warrior statues and the four lattice door leaves between them, kept whole, joined by a
+slender bridge in the walls' crown. The bridge carries the segments' filigree band, mithril coping
+and leaf-cresting over the doors, at the walls' heights, so the line runs from the segments round
+the towers and across the gate; over its middle stands a free pointed arch (gilt leaf finial) with
+a crystal lantern hung in it. Each tower head gets the band and the silver coping round its flared
+cap under the statue (no merlons: EA's knotwork pyramid and the statue are the head), a crystal
+lantern on a silver post on each corner. Two banners in the player's colour, one down the outer
+face of each tower on the same side: the wall run's only cloth.
 
 Skinned model: the leaves (EBGATEDOOR00..03 on their own bones, x +-0.5, |y| <= 40.07, z <= 48.5)
 fold open to the -x side, ending along x -20..0 at |y| 39.5..40.5 against the towers' inner faces
@@ -32,8 +33,8 @@ BRIDGE_Y = TOWER_Y - HEAD + 0.5   # the bridge's crown runs 0.5 into the towers'
 ARCH = (6.0, 60.0, 67.0)
 LAMP = (59.8, 5.0)                # the lantern hung in it: foot z, height
 TOWER_BANNER = (45.6, 7.5, 28.0)  # z_top (under the flare), width, length
-CORNER_LAMP = (8.9, 6.2)          # lanterns on the tower heads' corners: offset, height
-HEAD_TRIM = 2.0                   # the heads' merlons keep this clear of the corners (the lanterns)
+BANNER_SIDE = 1                   # the banners hang on the towers' +x faces (the camera's side)
+CORNER_LAMP = (8.9, 5.6, 3.4)     # lanterns on the tower heads' corners: offset, crystal, post
 
 
 class WallGate(Building):
@@ -84,7 +85,7 @@ class WallGate(Building):
 
     @staticmethod
     def _heads(kit):
-        """The crown round each tower head, a lantern on each corner."""
+        """The band and silver coping round each tower head, a lantern on each corner."""
         from ..wall_segment.wall import COPING, crown, lantern_post
         out = []
         for sy in (1, -1):
@@ -92,24 +93,24 @@ class WallGate(Building):
             sq = [(HEAD, cy - HEAD), (HEAD, cy + HEAD), (-HEAD, cy + HEAD), (-HEAD, cy - HEAD), (HEAD, cy - HEAD)]
             # closed on the inside too: EA's pyramid has no top under the statue, so a face left
             # open inside it would show its back to the sky through the tower
-            out += crown(kit, sq, (0, cy), HEAD_IN, inner="stoneB", trim=HEAD_TRIM,
+            out += crown(kit, sq, (0, cy), HEAD_IN, inner="stoneB", parapet=False,
                          core_tags=[None, "stoneB", None, "stoneB"])
-            o, h = CORNER_LAMP
+            o, h, post = CORNER_LAMP
             for px in (1, -1):
                 for py in (1, -1):
-                    out += lantern_post(kit, px * o, cy + py * o, COPING[1], h=h, r=0.7)
+                    out += lantern_post(kit, px * o, cy + py * o, COPING[1], h=h, r=0.75, post=post)
         return out
 
     @staticmethod
     def _banners(kit):
-        """A long leaf banner down each tower face that looks out of the wall."""
+        """A long leaf banner down each tower's face on one side of the wall (two in all)."""
         from mathutils import Vector as V
         z_top, width, length = TOWER_BANNER
+        sx = BANNER_SIDE
+        a, t, n = V((sx * SHAFT_X, 0, 0)), V((0, sx, 0)), V((sx, 0, 0))
         out = []
-        for sx in (1, -1):
-            a, t, n = V((sx * SHAFT_X, 0, 0)), V((0, sx, 0)), V((sx, 0, 0))
-            for sy in (1, -1):
-                out += kit.leaf_banner(a, t, n, sx * sy * TOWER_Y, z_top, width, length, d=0.05)
+        for sy in (1, -1):
+            out += kit.leaf_banner(a, t, n, sx * sy * TOWER_Y, z_top, width, length, d=0.05)
         return out
 
     def emphasis(self, c, n):

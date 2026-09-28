@@ -11,12 +11,12 @@ The map of the engine is [ART.md](ART.md); the numbers come from a read-only sur
 
 | Faction | Buildings in scope | Design units | Lifecycle models | Map castle pieces | Notes |
 |---|---|---|---|---|---|
-| Men of the West (Gondor) | 28 | 26 | 109 | 38 | Arnor reuses these models 1:1, so it comes free |
+| Men of the West (Gondor; installed 2026-09-27, 44 recipes) | 28 | 26 | 109 | 38 | Arnor reuses these models 1:1 and gets the redesign |
 | Isengard | 19 | 26 | 90 | 22 | borrows Mordor's lumber mill and furnace |
 | Mordor | 14 | 19 | 65 | 29 | no player walls; Barad-dur pieces up to 14k triangles |
 | Goblins | 14 | 14 | 51 | 18 | rock and caves; smallest set |
 | Angmar | 20 | 21 | 87 | 0 | ice effect meshes; three master sheets |
-| Elves (done, not installed) | 22 | 23 | 90 | 3 | review the poster, then install |
+| Elves (installed, runtime review pending) | 22 | 23 | 90 | 3 | see `assets/elves/ROLLOUT.md`; selectable builder installed too |
 
 Rohan is not a faction in RotWK; its art is map-placed civilian buildings only.
 
@@ -82,22 +82,52 @@ Rohan is not a faction in RotWK; its art is map-placed civilian buildings only.
 ## Builders, per faction
 
 Max's call (2026-09-26): each faction gets its own builder, the unit players see most. The first
-one exists as a review-only recipe, `assets/dwarves/porter/` (HD Edition's `DUPorter_SKN` as an
+one is installed after review, from `assets/dwarves/porter/` (HD Edition's `DUPorter_SKN` as an
 Erebor master builder: gold-trimmed timber cart, spoked wheels, stone and plans, the original
 helmet kept). It runs as standalone scripts (`unit.py`, `preview.py`) outside the building
-pipeline, with no installer yet.
+pipeline. Its scoped installer (`install.py`, with `--revert`) preserves the building archive and
+unrelated asset-cache records.
 
 Units differ from buildings: skinned bodies whose animations (idle, run, hammer, death) must keep
 working, and player colour on the unit itself. The plan:
 
-1. **Finish and install the Dwarven builder** from the porter recipe: asset-cache records and a
-   reviewed, reversible install, like `sagekit install`. Max checks it in game.
+1. **Check the installed Dwarven builder in game.** The reviewed, reversible porter install is
+   complete; Max supplies the play-session results.
 2. **A unit track in sagekit**: a `Unit` recipe next to `Building`, reusing what the porter proved
    (source hashes, bone bindings, animation-pose previews) plus the building pipeline's paint,
    house colour, own names and install. Construction workers (`DUWorker_SKN` and each faction's
    equivalent) come with it.
 3. **One builder per faction**, in the faction's palette and kit, designed with its citadel pilot
    so they share a look (the Elven builder in soft white, silver and gold).
+
+The selectable Elven builder now has a separate review recipe and scoped installer in
+`assets/elves/porter/`; preview gallery: `build/assets/elves/porter/review.html`. It was installed
+with the reviewed building rollout on 2026-09-26. The Dwarven builder's private player-colour
+mapping was repaired in the same pass, preserving the approved model and diffuse textures.
+Both factions now await the player's runtime review. Max subsequently requested the complete
+Dwarven troop set and its equipment upgrades, with heroes deferred. That redesign is staged in
+`build/assets/dwarves/troops/redesign/`, including private palette sheets, fitted details, banners,
+wagon crews, siege states and decoded-motion comparisons. The local `review.html` gallery is
+the review gate; no troop art is installed. See `assets/dwarves/troops/README.md` for commands,
+scope and inherited animation/preview limits.
+
+The Dwarven troop palette now uses warm neutral cloth and gold/bronze, following Max's rejection
+of fixed blue. Elven troops/upgrades are also staged in `build/assets/elves/troops/redesign/`,
+with neutral cloth, restrained leafwork and preserved natural creature skins. Heroes remain
+deferred. Both troop sets preserve original secondary skin channels and use a shared troop-only
+weighted poser for review; neither troop package is installed.
+
+Men of the West troop art is staged in `build/assets/men/troops/redesign/`, covering Gondor,
+Rangers, Rohan troops, cavalry, siege, banners and equipment alternatives. It uses steel and
+charcoal with preserved faction motifs, original bodies and source animation routes. Campaign,
+enemy and structure children retain their original visual modules. Heroes remain deferred;
+Men buildings and the builder have not been redesigned in this troop pass. Review commands
+and limits are in `assets/men/troops/README.md`; no Men troop pack is installed.
+
+The Men player citadel is now a separate staged pilot: original masonry retained, neutral limestone,
+charcoal slate, paired buttresses, corbels, White Tree reliefs and a deep stone entrance. Existing
+fortress upgrades remain original. Review `build/assets/men/fortress/review.html` before deciding
+on the rest of the buildings; the pilot is not installed. See `assets/men/fortress/README.md`.
 
 ## Per faction, the loop
 

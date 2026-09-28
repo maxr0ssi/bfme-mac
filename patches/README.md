@@ -59,5 +59,5 @@ upstream.
 - `ini.big` → `data\ini\gamedata.ini`: camera `DefaultCameraMinHeight 120→150`,
   `DefaultCameraMaxHeight 300→400`, `DefaultCameraPitchAngle 37.5→35` (widescreen zoom).
   Backup: `ini.big.preCameraFix.bak`. Multiplayer peers need identical INIs.
-- `game.dat` LARGEADDRESSAWARE must stay **off** under Wine (crashes otherwise; backup
-  `game.dat.preLAA.bak`).
+- `game.dat` LARGEADDRESSAWARE: the crash once blamed on it was Wine 11's. RotWK has it on again
+  since 2026-09-27, pending an in-game test (`docs/MEMORY-4GB.md`); BFME2 off (backup `game.dat.preLAA.bak`).

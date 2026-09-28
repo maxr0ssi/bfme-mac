@@ -17,9 +17,12 @@ The map of the engine (steps, modules, standards, where each faction stands) is
    built, add-ons and upgrades included.
 4. **Strict taxonomy.** Fixed folder layout, fixed state names, automatic texture names;
    `python3 -m sagekit validate` fails anything else.
-5. **Memory budget.** The game is a 32-bit program. `Tier.HERO` (4096 texture) only for the
-   building a faction is recognised by; everything else `Tier.STANDARD` (2048). `validate` refuses
-   a faction over its `Style.budget_mb`.
+5. **Memory budget.** The game is a 32-bit program with 4 GB of address space (RotWK's 4 GB flag,
+   [docs/MEMORY-4GB.md](../docs/MEMORY-4GB.md)); every texture byte takes 1.03 bytes of it while
+   loaded, and a TGA normal map takes 5.33 bytes a pixel (32-bit with mips,
+   [docs/MEMORY-2GB.md](../docs/MEMORY-2GB.md)). `Tier.HERO` (4096 texture) only for the building a
+   faction is recognised by; everything else `Tier.STANDARD` (2048). `validate` refuses a faction
+   over its `Style.budget_mb` (512 MB, to be checked against `scripts/memwatch.sh` in a big match).
 6. **Nothing installs without review.** A build ends in renders; installing is a separate command.
 
 ## Layout
@@ -57,6 +60,13 @@ shared → ini → cache → checks → render`;
 `--from STEP --to STEP` runs a slice (iterating on a design: `--from geometry --to render`). The
 result is in `build/assets/<faction>/<building>/`: `out/` holds exactly what ships (archive paths),
 `renders/compare_*.png` the before/after, `work/logs/` every step's log.
+
+After visual review, `python3 -m sagekit install <faction> --check` stages a pack and verifies
+cache changes without installing. Omit `--check` to install; `--revert` restores the last
+installation's scoped backups. Installation preserves other factions and units in the current
+cache. Revert refuses if later work changed a touched file, rather than resetting the shared
+cache to its original state. Existing installations made before scoped receipts need separate
+recovery; their old `.orig` files are never restored blindly.
 
 ## Adding a building
 
@@ -97,6 +107,13 @@ one below the checks' standard stays EA's and `work/lifecycle.json` says why (as
 model is derived instead). A recipe tunes it per model with `lifecycle = {"DBTower_D3":
 {"tolerance": 3.0}}` (settings in `sagekit/lifecycle.py`); `renders/lifecycle/<model>.png` shows
 EA's model against ours at the frames the player sees, derived models included.
+
+An add-on's banners (cloth on a recipe whose `parts` show only under an upgrade flag: the Elven
+anvil, the Dwarven monument) never go into the object's house model, which the game draws before
+the upgrade is bought: they get a model of their own from the style's `house_template`
+(`EBHCFAnvil`), whose Draw repeats the add-on Draw's condition states in order, so it shows exactly
+when the add-on does and draws nothing where the add-on's model is being built or broken
+(`Building.addon_conditions`). Nothing to declare in the recipe.
 
 ## Models other factions share
 
@@ -143,6 +160,14 @@ glow mesh), held to our surface by its centre. A `base` recipe declares no light
 mesh is shown per upgrade level, the night and house models at every level) unless it sets
 `always_shown = True` (a chained mesh drawn at every level: the Elven pasture's fence).
 `sagekit/nightlights.py`.
+
+## Troop review
+
+The [Dwarven](dwarves/troops/README.md), [Elven](elves/troops/README.md) and
+[Men of the West](men/troops/README.md) troop recipes share isolated staging, weighted skin
+validation and paired equipment/motion previews. Their galleries live under
+`build/assets/<faction>/troops/redesign/review.html`. These troop packs are staged only;
+heroes remain deferred. Buildings and selectable builders use their separate install paths.
 
 ## Tools the pipeline needs
 

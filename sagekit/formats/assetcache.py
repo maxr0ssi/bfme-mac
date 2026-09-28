@@ -125,14 +125,24 @@ class AssetCache:
         """[(record entry, file entry)] whose offset/size differ. Raises if the entry names differ
         (the record cannot be patched in place then)."""
         model = model or os.path.basename(w3d_path).lower()
-        rec = self.model_record(model)
+        records = []
+        for n,s,e in self.sections()[0]:
+            if n.lower() == model.lower().encode("latin-1"):
+                rec = self._entries_at(self.data,s+1+len(n)+8)
+                if rec:
+                    records.append(rec)
+        if not records:
+            raise CacheError("no W3D record for %s in %s" % (model,self.path))
         have = W3DFile(w3d_path).cache_entries()
-        if [(n.upper(), t) for n, t, _, _, _ in rec] != [(n.upper(), t) for n, t, _, _ in have]:
-            raise CacheError("entry names/order differ - cannot patch in place (rebuild the cache)\n"
-                             "record entries: %s\nfile entries:   %s" % (
-                                 [(n, t[::-1].decode()) for n, t, _, _, _ in rec],
-                                 [(n, t[::-1].decode()) for n, t, _, _ in have]))
-        return [(r, h) for r, h in zip(rec, have) if (r[2], r[3]) != (h[2], h[3])]
+        stale = []
+        for rec in records:
+            if [(n.upper(), t) for n, t, _, _, _ in rec] != [(n.upper(), t) for n, t, _, _ in have]:
+                raise CacheError("entry names/order differ - cannot patch in place (rebuild the cache)\n"
+                                 "record entries: %s\nfile entries:   %s" % (
+                                     [(n, t[::-1].decode()) for n, t, _, _, _ in rec],
+                                     [(n, t[::-1].decode()) for n, t, _, _ in have]))
+            stale += [(r, h) for r, h in zip(rec, have) if (r[2], r[3]) != (h[2], h[3])]
+        return stale
 
     def patch_model(self, w3d_path, model=None):
         """Point the model's record at this file's layout. Returns report lines."""
@@ -152,8 +162,12 @@ class AssetCache:
         data = self.data
         newb, likeb = new.lower().encode("latin-1"), like.lower().encode("latin-1")
         if model:
-            for f, o, s, e in self.sections(data)[2]:
+            found = False
+            # The HD caches contain duplicate objects. Reverse order keeps offsets valid
+            # when replacement names differ in length; update every copy consistently.
+            for f, o, s, e in reversed(self.sections(data)[2]):
                 if f.lower() == model.lower().encode("latin-1") and o.upper() == obj.upper().encode("latin-1"):
+                    found = True
                     rec = bytearray(data[s:e])
                     head_len = 2 + rec[0] + rec[1 + rec[0]] + 2
                     p, deps = head_len, []
@@ -165,8 +179,7 @@ class AssetCache:
                         body = b"".join(bytes([len(d)]) + d for d in swap)
                         data = data[:s] + bytes(rec[:head_len]) + body + data[e:]
                         done.append("%s %s now depends on %s instead of %s" % (model, obj, new, like))
-                    break
-            else:
+            if not found:
                 raise CacheError("no object %s in %s" % (obj, model))
         assets = self.sections(data)[0]
         if any(a[0].lower() == newb for a in assets):

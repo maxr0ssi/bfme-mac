@@ -25,15 +25,17 @@ faction, map or civilian object draws it (`sagekit owners elves`). It gets its o
 - **Lower die:** a knotwork band (silver knots on sea-green enamel) between gilt beads, under the
   step, and a gilt bead on the step itself.
 - **Upper die:**
-  - four faces hold tall lancet niches: gold leaf tracery on slate (the atlas's lancet panel) in a
+  - six faces hold tall lancet niches: gold leaf tracery on slate (the atlas's lancet panel) in a
     silver pointed frame (leaf-tip ogee 0.2) with a sea-green reveal, a gilt leaf at the tip and a
     sill;
-  - the other four faces carry leaf banners, which go to `EBHCStatue` (house colour).
+  - the other two faces carry leaf banners, which go to `EBHCStatue` (house colour).
 - **Cornice:** under the feet, a corbel, a sea-green frieze and a silver coping. Its top is 26.05,
   under the feet.
 - **Lantern columns:** in the footprint's four corner squares, outside the octagon. Each has a
   moulded pedestal as high as EA's base slab, a slender fluted column with a gilt leaf capital,
   and a crystal lantern (gilt cup, cap and leaf finial).
+
+Earlier pass measurements (retained for history; current build evidence is in `work/logs/checks.log`):
 
 Footprint unchanged. Holder height 27.03 -> 31.39 (+16.1 %, limit 20 %; the figure stands to
 90.4). Triangles 112 -> 4,492 (`tri_budget` 6,000). Texel density median 24.4 px/unit.
@@ -41,17 +43,22 @@ Footprint unchanged. Holder height 27.03 -> 31.39 (+16.1 %, limit 20 %; the figu
 
 ## Status
 
+The latest ivory, mithril and mallorn-gold pass is built and passes the offline checks;
+review is still required before installation. Lifecycle fallbacks below remain intentional.
+
 | Part | Healthy | Construction | Damaged / really damaged | Rubble | Snow | LOD M/L |
 |---|---|---|---|---|---|---|
 | body (`EBStatue`) | built, checks pass, **awaiting review** | EA's (`EBStatue_A`: the lifecycle gate left it to EA, see below) | derived (`EBStatue_D1`, `_D2`, on `ebstatueholdeH_d1` / `_d2`) | derived (`EBStatue_D3`) | EA swaps only the figure's sheet | old |
-| banner (`EBHCStatue`) | our four banners' cloth added (shown after `sagekit house elves`) | | | | | |
+| banner (`EBHCStatue`) | our two banners' cloth added (shown after `sagekit house elves`) | | | | | |
 
 ## Notes
 
 - **32-bit normal map.** EA's `ebstatueholder_nrm.tga` is a 32-bit TGA; sagekit keeps its depth
   (sagekit/paint/imageio.py).
-- **Construction.** `EBStatue_A` stays EA's. The lifecycle step's gate found our faces' backs open
-  to the sky at the construction frames: 11 % of our area at frame 35, EA's 0 %. See
-  `work/lifecycle.json`.
+- **Construction.** `EBStatue_A` stays EA's. Rest-pose matching is already selected; a bounded
+  probe with tighter surface classification still failed the unchanged open-back gate, so no
+  geometry is forced through. The current failure details are in `work/lifecycle.json`.
+  Earlier-pass evidence, retained for history: the gate found 11 % of our area open to the sky
+  at frame 35, EA's 0 %.
 - **Night.** The model has no night meshes (`N_*`), so no lights are declared. The crystal
   lanterns glow only if a night mesh is added (a framework question).

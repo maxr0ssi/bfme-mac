@@ -1,43 +1,28 @@
 # Elves fortress crystal moat (`ElvenFortressCrystalMoat`)
 
-EA's ring of water round the fortress (its own object, drawn at the fortress's origin), dressed as a
-Lórien water-garden. Own texture `EBFortresM.tga` (DXT5). EA's water (`EBFCMOAT2`) is untouched.
+EA's water ring remains whole around the fortress, dressed as the citadel's outer garden.
+Own texture `EBFortresM` paints the body; EA's water mesh `EBFCMOAT2` is unchanged.
 
-## What changed (body `EBFCMOAT1`, healthy)
+## Current design
 
-- **Coping.** A moulded moonstone cap over the parapet (z 4.7..5.6), its nose over the outer face.
-- **Knotwork band.** Silver knots on sea-green enamel between gilt beads along the outer face
-  (z 0.7..1.7), round all fifteen faces.
-- **Leaf drapes.** A leaf drape (7.6 x 3.05, house colour) over the middle of every face, its gilt
-  rod tucked under the coping's nose.
-- **Crystals.** Two clusters of four leaning hexagonal starlight crystals per face, rising from the
-  water (the tallest to z 5.9).
+- A silver coping follows the parapet round the ring, leaving the gate gap open.
+- Silver knotwork on sea-green enamel sits between gilt beads on the outer face.
+- Small crystal lanterns on silver feet mark the parapet corners, including the gate gap's ends.
+- A cluster of starlight crystal shards rises from the water at the middle of each ring face.
+- No cloth: the first pass's leaf drapes were removed.
 
-The object had no house-colour model: `HOUSE_DRAW` gives it one of our own, `EBHCFCMoat`, copied
-from the style's `house_template` (`sagekit house`).
+The lanterns and tallest crystals now rise above the first pass's low glints. The recipe's
+explicit height allowance is 50%; the outer coping and band use a 0.5 footprint margin.
 
-## Numbers
+## Lifecycle and night
 
-- Height 5.0 -> 5.8 (+16 %, limit 20 %). The drapes' rods stand 0.78 and the band 0.45 proud of the
-  outer face: `footprint_margin = 0.8` (the moat's collision comes from the INI).
-- Triangles 158 -> 5,354 (budget 6,000; the crystals are 2,160 of them). Texel density median 13.4.
-- Checks: 43/43. House colour: 180 cloth faces -> `EBHCFCMoat`.
-- Lifecycle: `EBFCMoat_D1`, `_D2`, `_D3` stay EA's ("no body pieces of ours"); their faces are
-  recoloured by the faction sheets.
+`EBFCMoat_D1`, `_D2` and `_D3` have no matching body pieces and remain EA's recoloured models.
+This is a reported fallback, not custom rubble geometry. EA's model has no night meshes or
+night Draw names, so the crystals are day-lit only. No house-colour model is needed.
 
-## For review
+## Verification (2026-09-26)
 
-Under the 20 % limit the moat can rise only 1 unit, so from the RTS camera the crystals read as
-glints and the drapes as small patches of colour. Taller crystal spires (to z ~12) would show from
-the camera: a height decision for Max.
-
-## Night lights
-
-No night meshes in EA's model; none declared.
-
-## Status
-
-| Part | Healthy | Damaged / really damaged / rubble |
-|---|---|---|
-| moat (`EBFCMoat`) | built, checks pass, **awaiting review** | EA's (recoloured) |
-| banner (`EBHCFCMoat`, ours) | our drapes | |
+Current body: 158 → 5,528 triangles; height 5.00 → 7.43. Checks: 43/43.
+Day comparisons are in `build/assets/elves/fortress_crystal_moat/renders/`. The pipeline does not
+render unchanged EA fallback states; there are no added night lights.
+Awaiting player review; nothing installed.

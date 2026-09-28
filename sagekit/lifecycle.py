@@ -39,6 +39,7 @@ models whose body is the healthy one (same triangles) our body; this step does t
 Recipe settings, Building.lifecycle = {model name or "*": {setting: value}}:
     skip        the reason to leave this model to EA (recoloured); reported in lifecycle.json
     match       "auto", "rest", "first", "last" or a frame: the pose EA's body is whole in
+    match_offset translation of the healthy reference into this state's model space (x, y, z)
     tolerance   units our faces may reach past EA's break before they are cut
     surface     units an EA face may lie from EA's healthy body and still be its surface
     body        EA's meshes that are the body (default: those painted from the building's sheet)
@@ -58,10 +59,11 @@ import os
 import re
 
 from . import paths
+from .formats.ini import VARIATION
 from .formats.w3d import W3DFile
 from .taxonomy import FLAG_STATES, State, states_of, upgrades_of
 
-DEFAULTS = {"skip": False, "match": "auto", "tolerance": 2.0, "surface": 1.5, "body": None, "keep": (),
+DEFAULTS = {"skip": False, "match": "auto", "match_offset": (0, 0, 0), "tolerance": 2.0, "surface": 1.5, "body": None, "keep": (),
             "solid": (15.0, None), "bend": None, "seams": True, "cut": 0.5, "views": None, "force": False}
 LIFECYCLE_FLAGS = {f for f, s in FLAG_STATES.items() if s in (State.CONSTRUCTION, State.REALLY_DAMAGED, State.RUBBLE)} \
     | {"JUST_BUILT"}
@@ -81,18 +83,25 @@ def settings(b, model):
 def plan(b, install, derived=()):
     """[entry] for every model of the body family the covered Draw modules show besides the healthy
     one: {model, kind, states [[ini, object, flags]], skeleton, animation {file, name, mode},
-    derived (True: the derive step built it; only its banner is judged here), settings}."""
-    out = {}                                        # (a chained recipe's models carry the whole chain)
+    derived (True: the derive step built it; only its banner is judged here), settings}. Only the
+    recipe's own build variation's states (Building.own_states: B's models are B's recipe's), and
+    no model without meshes (OBBFoundationX, a foundation's empty stand-in: nothing to rebuild).
+    The object is the one the building's INI defines (a ChildObject for the modules it inherits)."""
+    out, empty = {}, set()                          # (a chained recipe's models carry the whole chain)
     for obj, draws in b.objects(install).items():
         for d in draws:
             if not b.covers(d):
                 continue
-            anims = [s for s in d.states if s.kind == "animation" and s.animations]
-            for st in d.states:
+            own = b.own_states(d)
+            anims = [s for s in own if s.kind == "animation" and s.animations]
+            for st in own:
                 m = st.model
-                if st.kind != "model" or not m or m.lower() in ("none", b.source.lower()):
+                if st.kind != "model" or not m or m.lower() in ("none", b.source.lower()) or m.lower() in empty:
                     continue
                 if not install.has_model(m):
+                    continue
+                if m.lower() not in out and not W3DFile(install.read(install.model_path(m))).meshes:
+                    empty.add(m.lower())
                     continue
                 e = out.setdefault(m.lower(), {"model": m, "states": [], "animations": []})
                 e["states"].append([d.file, obj, sorted(st.flags)])
@@ -197,16 +206,27 @@ def hidden_states(ws):
     where the house-colour model must not be drawn. Only the flags that make the state count: the
     engine picks the state sharing most flags with the object's, so a hiding state that also named
     SNOW would win over the default in plain snow. Upgrades' states are left out (the house model
-    is shared by the building and its add-ons)."""
+    is shared by the building and its add-ons), but for an add-on's own house model: its Draw
+    mirrors the add-on's states (Building.addon_conditions), so these are the add-on's states as
+    they stand ([FORTRESS_IMPROVEMENT_3 USER_1]: the anvil under construction), the mirrored state
+    then drawing nothing (sagekit/house.py)."""
     p = ws.path("work", "lifecycle.json")
     if not os.path.exists(p):
         return []
+    addon = bool((ws.house or {}).get("conditions"))
     out = []
     for m in json.load(open(p))["models"]:
         if m.get("banner", {}).get("supported", True):
             continue
         for ini, obj, flags in m["states"]:
+            if addon:
+                if (ini, obj, sorted(flags)) not in out:
+                    out.append((ini, obj, sorted(flags)))
+                continue
             own = sorted(f for f in flags if f in LIFECYCLE_FLAGS)
+            # a build variation's state keeps its flag: [BUILD_VARIATION_TWO REALLYDAMAGED] must outscore
+            # the house draw's [BUILD_VARIATION_TWO] (Building.house_conditions) in a really damaged B
+            own = sorted(own + [f for f in flags if f.startswith(VARIATION)]) if own else own
             if own and not upgrades_of(flags) and (ini, obj, own) not in out:
                 out.append((ini, obj, own))
     return out
@@ -214,12 +234,14 @@ def hidden_states(ws):
 
 def house_ops(ws, draws):
     """INI ops for the house-colour Draw modules [[ini, object, tag]] of one building: its model
-    hidden in hidden_states(ws) - for sagekit/house.py's record."""
+    hidden in hidden_states(ws) - for sagekit/house.py's record. Matched by object (object names are
+    unique): a ChildObject's lifecycle states live in its parent's file (GondorFarm's in
+    farminterface.ini), its house draw in its own; the state goes where the house draw is."""
     out = {}
     for ini, obj, flags in hidden_states(ws):
         for dini, dobj, tag in draws:
-            if (dini, dobj) == (ini, obj):
-                out.setdefault(ini, []).append(("state", obj, tag, list(flags), "None"))
+            if dobj == obj:
+                out.setdefault(dini, []).append(("state", obj, tag, list(flags), "None"))
     return out
 
 

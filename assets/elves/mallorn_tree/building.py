@@ -33,6 +33,13 @@ LAMPS = (-25, 45, 160)       # lantern columns among the roots: angles round the
 # EA's night-only lamps in the tree (N_WINDOW, with a glow card each in N_GLOW): our crystal lanterns
 # hang there by day and night, and carry the night light
 HUNG = [(24.2, -26.4, 74.8), (0.1, 8.8, 40.2), (-25.9, -15.4, 73.5)]
+# the talan's railing (EA's V2A, a wall z 36.6..40.7 under a handrail): its outer line, counter-
+# clockwise from the trunk side (-25.5, 6.8) round the -x end to (-16.8, 2.4); open towards the trunk
+TALAN = [(-25.5, 6.8), (-28.2, 5.5), (-31.2, 4.1), (-34.3, 2.4), (-34.3, -0.9), (-34.3, -4.1), (-34.3, -8.1),
+         (-34.3, -12.1), (-32.0, -14.7), (-28.8, -16.5), (-25.5, -17.4), (-22.1, -16.5), (-18.7, -14.8),
+         (-16.8, -12.3), (-16.8, -7.7), (-16.8, -3.8), (-16.8, -0.4), (-16.8, 2.4)]
+TALAN_C = (-25.5, -5.3)
+TALAN_Z = 36.6               # the talan's floor, the railing's foot
 
 
 def stair_point(ang, r, z, inset=0.0):
@@ -54,6 +61,17 @@ def rail(points, r, tag, k=6):
     return loft(rings, [tag] * (len(rings) - 1), cap0=(tag, True), cap1=(tag, True))
 
 
+def newel_post(kit, x, y, z):
+    """A silver post on the boards at z, standing through the stair's rail, a gilt cap and a gilt
+    leaf finial over it."""
+    from ..shapes import turned
+    out = [turned(x, y, [(0.34, z - 0.3), (0.34, z + 0.5), (0.26, z + 0.8), (0.26, z + 3.1)], ["trim"] * 3, k=6,
+                  cap0=("top", False), cap1=("top", False)),
+           turned(x, y, [(0.3, z + 3.05), (0.42, z + 3.25), (0.22, z + 3.5)], ["gilt", "gilt"], k=6,
+                  cap0=("gilt", False), cap1=("gilt", True))]
+    return out + kit.leaf_finial(x, y, z + 3.4, 1.8, 0.7)
+
+
 class MallornTree(Building):
     style = ElvenStyle()
     source = "EBMalTree"
@@ -70,6 +88,15 @@ class MallornTree(Building):
         "ingame": ((-8.7, 4.9, 55.5), 826, 53, -62, 50),
     }
 
+    @property
+    def sheet_atlas(self):
+        """EA's sheet with its bark strip (the right third) hinted as rock: the trunk, roots and
+        branches take the palette's silver-grey bark (the "rock" ramp, as the faction atlas's own
+        bark) - the mallorn's silver bark - where the colour rules made ivory masonry of them."""
+        a = super().sheet_atlas
+        a.mask_hints = {"rock": [(1312, 0, 2048, 2048)]}
+        return a
+
     def design(self, kit):
         s = []
         s += self._stair_rail(kit)          # 1. balustrade up EA's spiral stair, newel lanterns
@@ -77,6 +104,7 @@ class MallornTree(Building):
             a = math.radians(ang)
             s += self._lamp(kit, TRUNK[0] + 30.0 * math.cos(a), TRUNK[1] + 30.0 * math.sin(a))
         s += self._banners(kit)             # 3. leaf banners on the talan's rail
+        s += self._talan_edge(kit)          # 3b. the talan's edge in gold leaf
         for x, y, z in HUNG:                # 4. crystal lanterns hanging in the tree where EA's lamps were
             s += self._hung(kit, x, y, z)
         return s
@@ -84,9 +112,10 @@ class MallornTree(Building):
     # ------------------------------------------------------------------ 1. stair
     @staticmethod
     def _stair_rail(kit):
-        """Turned balusters every ~1.5 along the stair's outer edge (0.7 in), standing on the boards,
-        and a rounded silver rail 2.7 over them; at the foot, a newel column with a crystal lantern
-        either side of the first board."""
+        """Silver turned balusters every ~1.5 along the stair's outer edge (0.7 in), standing on the
+        boards, and a rounded silver rail 2.55 over them; at each of the edge's measured points a
+        silver newel post through the rail with a gilt cap and leaf; at the foot, a newel column with
+        a crystal lantern either side of the first board."""
         from ..shapes import turned
         out, tops = [], []
         prof = [(0.2, 0.0), (0.3, 0.7), (0.15, 1.8), (0.22, 2.55), (0.18, 2.95)]     # the top inside the rail
@@ -98,8 +127,11 @@ class MallornTree(Building):
                 f = i / m
                 ang, r, z = a0 + (a1 - a0) * f, r0 + (r1 - r0) * f, z0 + (z1 - z0) * f
                 x, y, _ = stair_point(ang, r, z, 0.7)
-                out.append(turned(x, y, [(w, z - 0.3 + dz) for w, dz in prof], ["trim", "stoneB", "trim", "trim"], k=6,
-                                  cap0=("top", False), cap1=("top", False)))
+                if i == 0 and a0 != STAIR[0][0]:
+                    out += newel_post(kit, x, y, z)             # a silver post with a gilt leaf at each turn
+                else:
+                    out.append(turned(x, y, [(w, z - 0.3 + dz) for w, dz in prof], ["trim"] * 4, k=6,
+                                      cap0=("top", False), cap1=("top", False)))
                 tops.append((x, y, z + 2.55))
         x, y, _ = stair_point(*STAIR[-1], 0.7)
         tops.append((x, y, STAIR[-1][2] + 2.55))
@@ -133,6 +165,25 @@ class MallornTree(Building):
         out = []
         for u in (-29.5, -21.5):
             out += kit.leaf_banner(a, t, n, u, 40.2, 3.0, 9.0, d=0.2, free=True)
+        return out
+
+    @staticmethod
+    def _talan_edge(kit):
+        """A gilt fascia round the talan's floor edge, under EA's railing, and a fringe of gilt leaves
+        hanging from it, one every ~1.7 (the Lórien flet's leaf edge)."""
+        from mathutils import Vector as V
+        from sagekit.blender.geometry import sweep
+        z = TALAN_Z
+        prof = [(-0.5, z - 1.0), (0.3, z - 1.0), (0.55, z - 0.7), (0.55, z - 0.05), (0.35, z + 0.2), (-0.5, z + 0.2)]
+        out = sweep(TALAN, prof, ["gilt"] * 6, center=TALAN_C)[0]
+        for (x0, y0), (x1, y1) in zip(TALAN, TALAN[1:]):
+            L = math.hypot(x1 - x0, y1 - y0)
+            t = V(((x1 - x0) / L, (y1 - y0) / L, 0))
+            n = V((t.y, -t.x, 0))               # outward: the path runs counter-clockwise
+            m = max(1, round(L / 1.7))
+            for i in range(m):
+                u = (i + 0.5) * L / m
+                out.append(kit.leaf_blade(V((x0, y0, 0)), t, n, u, z - 0.9, 2.4, 1.0, lean=math.pi, thick=0.14, d=0.3))
         return out
 
     # ------------------------------------------------------------------ 4. lanterns in the tree

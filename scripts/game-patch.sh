@@ -56,6 +56,8 @@ case "${1:-}" in
   done
   WINEDLLOVERRIDES="mscoree,mshtml=;dinput8=n,b" runt t_attach "$OUT/t_attach.exe" \
       "$(winpath "$OUT/proxytest/dinput8.dll")" "$(winpath "$L/t_attach-gamepatch.log")" || st=1
+  WINEDLLOVERRIDES="mscoree,mshtml=;dinput8=n,b" runt t_highmem "$OUT/t_highmem.exe" \
+      "$(winpath "$OUT/proxytest/dinput8.dll")" "$(winpath "$L/t_highmem-gamepatch.log")" || st=1
   ( cd "$OUT/proxytest" && GAMEPATCH_LOG="$(winpath "$L/t_proxy-gamepatch.log")" \
       WINEDLLOVERRIDES="mscoree,mshtml=;dinput8=n,b" runt t_proxy ./t_proxy.exe ) || st=1
   wineserver -k 2>/dev/null || true   # harness-allow: the throwaway test prefix's server, no game there

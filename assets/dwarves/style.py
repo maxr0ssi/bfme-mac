@@ -42,7 +42,6 @@ class DwarvenStyle(Style):
     # the siege works' anvil (DBForge.ANVIL and its state models) is painted from the Elven forge's sheet
     shared_sheets = {"EBForge.tga": "DBAnvil.tga"}
     master_variants = {"damaged": "DBFortress1_D.tga", "snow": "DBFortress1_Snow.tga", "stonework": "DBFortress_U.tga"}
-    budget_mb = 256
     house_template = "DBHCArchRnge"         # copied for buildings EA gave no house-colour model
     # night lights: forge fire seen through the stone - deep ember at the edges, orange, a hot
     # straw-yellow core low in each opening (the Dwarves' own sheet: never Gondor's gbnightwindows)

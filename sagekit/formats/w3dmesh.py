@@ -2,7 +2,7 @@
 
 The lifecycle step (sagekit/lifecycle.py) splits our body into EA's pieces and moves EA's own break
 faces between meshes. Every new mesh is a template mesh chunk (its materials, shader and texture
-names, pass structure) filled with vertices taken from source meshes of the same layout:
+names, pass structure) filled with vertices taken from source meshes with compatible layouts:
 
     vertex = (source key, [(source vertex, weight)], 3x4 matrix, bone, {chunk id: value})
 
@@ -11,6 +11,7 @@ the texture mapping exact), then the matrix takes its position, normal and tange
 new mesh's space (its bone's rest space). Overrides replace a blended value before the matrix.
 Rigid meshes get a collision tree (BFME2 does not draw a mesh without one); skins get one bone per
 vertex (VERTEX_INFLUENCES, weight 100) and the header's skin flag and bone channel, like EA's.
+Source colour chunks absent from the template are unused; every required template slot must exist.
 """
 import math
 import struct
@@ -68,7 +69,7 @@ class Source:
 def build_mesh(template, sources, name, container, verts, tris, skinned, rest=None):
     """A MESH chunk: `template`'s materials with the given vertices and triangles.
 
-    sources: {key: Source}, all with the template's per-vertex layout.
+    sources: {key: Source}, carrying every template slot; unused extra colour chunks are allowed.
     verts: [(key, [(vertex, weight)], matrix, bone, {chunk id: value})]
     tris: [((i, j, k), surface type)]
     rest: a skin's bones' rest matrices: its header box and sphere are measured in the model's
@@ -80,14 +81,18 @@ def build_mesh(template, sources, name, container, verts, tris, skinned, rest=No
         tris = [([remap[i] for i in ids], surface) for ids, surface in tris]
     tpl = Source(template)
     sig = tpl.signature()
+    slots = {}
     for key, src in sources.items():
-        if src.signature() != sig:
-            raise ValueError("%s: per-vertex layout %s differs from the template's %s" % (key, src.signature(), sig))
+        source_sig = src.signature()
+        kept = [i for i, t in enumerate(source_sig) if t in sig or t not in (DCG, DIG, SCG)]
+        if [source_sig[i] for i in kept] != sig:
+            raise ValueError("%s: per-vertex layout %s differs from the template's %s" % (key, source_sig, sig))
+        slots[key] = kept
     values = []                                         # per new vertex: [value per layout slot]
     for key, combo, m, _, over in verts:
         row = []
         for k, (t, _) in enumerate(tpl.layout):
-            v = over.get(t) if t in over else sources[key].value(k, combo)
+            v = over.get(t) if t in over else sources[key].value(slots[key][k], combo)
             if t == VERTICES:
                 v = point(m, v)
             elif t in FRAME:
@@ -195,3 +200,46 @@ def replace_meshes(model, new):
         name = mesh_name(model[o:o + 8 + s]) if t == MESH else None
         out += new[name] if name in new else model[o:o + 8 + s]
     return bytes(out)
+
+
+def check_layouts():
+    """Standalone regression: optional colour slots cannot shift UVs or hide required data."""
+    from .w3dpose import IDENTITY
+
+    def mesh(colour=False, normal=True, second_uv=True):
+        body = chunk_bytes(MESH_HEADER3, bytes(116), False)
+        body += chunk_bytes(VERTICES, struct.pack("<9f", 0, 0, 0, 1, 0, 0, 0, 1, 0), False)
+        if normal:
+            body += chunk_bytes(NORMALS, struct.pack("<9f", *(0, 0, 1) * 3), False)
+        body += chunk_bytes(TRIANGLES, _triangle([(0, 0, 0), (1, 0, 0), (0, 1, 0)], (0, 1, 2), 0), False)
+        material = chunk_bytes(STAGE_TEXCOORDS, struct.pack("<6f", 0, 0, 1, 0, 0, 1), False)
+        if colour:
+            material += chunk_bytes(DCG, bytes((20, 40, 60, 255)) * 3, False)
+        if second_uv:
+            material += chunk_bytes(STAGE_TEXCOORDS, struct.pack("<6f", 2, 2, 3, 2, 2, 3), False)
+        return chunk_bytes(MESH, body + chunk_bytes(MATERIAL_PASS, material, True), True)
+
+    template = mesh()
+    verts = [("source", [(i, 1.0)], IDENTITY, 0, {}) for i in range(3)]
+
+    def build(tpl, source):
+        return build_mesh(tpl, {"source": Source(source)}, "TEST", "TEST", verts, [((0, 1, 2), 0)], True)
+
+    baseline = build(template, template)
+    assert Source(baseline).layout == Source(template).layout
+    assert build(template, mesh(colour=True)) == baseline
+    coloured = mesh(colour=True)
+    assert Source(build(coloured, coloured)).layout == Source(coloured).layout
+    for tpl, source in ((coloured, template), (template, mesh(normal=False)),
+                        (template, mesh(second_uv=False))):
+        try:
+            build(tpl, source)
+        except ValueError as error:
+            assert "per-vertex layout" in str(error)
+        else:
+            raise AssertionError("missing required vertex data was accepted")
+    print("W3D layouts: matching output unchanged; extra colour skipped; required colour, normals and UVs guarded")
+
+
+if __name__ == "__main__":
+    check_layouts()

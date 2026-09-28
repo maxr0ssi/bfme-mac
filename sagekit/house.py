@@ -3,11 +3,18 @@
 BFME2 tints meshes named HC_* in a model drawn with OkToChangeModelColor (EA's small house-colour
 banners: DBHCFortress, DBHCMine...). A building's geometry step takes its cloth faces (the
 Building.house_tags regions) out of the body into work/house_cloth.json; this step adds every
-building's cloth to the house-colour model it is shown with (several buildings may share one: the
-fortress and its upgrades all feed DBHCFortress), splices the result into EA's file and records
+building's cloth to the house-colour model it is shown with (several buildings may share one; an
+add-on has its own, below), splices the result into EA's file and records
 what install must do: the model's cache record, and MultiPlayerOnly = No on its Draw modules (EA
 shows house banners in multiplayer only; ours are part of the building), and no model in the states
-whose lifecycle model cuts or moves the faces the banners hang on (sagekit/lifecycle.py).
+whose lifecycle model cuts or moves the faces the banners hang on (sagekit/lifecycle.py). A house
+model of our own on a Draw showing two build variations (the fortress expansions) is shown in its
+recipe's variation only (Building.house_conditions): the default state and one state per
+BUILD_VARIATION_* flag say where. An add-on (the Elven citadel's enchanted anvil, drawn under
+FORTRESS_IMPROVEMENT_3) never feeds the object's house model, which is drawn before the upgrade too:
+its cloth goes to a model of its own whose Draw repeats the add-on Draw's condition states in order
+(Building.addon_conditions, "conditions"), so the engine picks the banner's state whenever it picks
+the add-on's; the states whose model moves or cuts the banner (the anvil's build-up) draw nothing.
 
 A house model another faction draws too (Arnor draws NBHCElvnBarx and EBHCMalTree beside the Elven
 barracks and mallorn) is never changed: Building.own_house_copy names an own copy ("copy_of"), which
@@ -32,6 +39,9 @@ from .workspace import Workspace
 # EA's Dwarven_House_Color_Banner.tga (and its kind): the folded cloth inside the frame, in Blender
 # UV space (u0, v0, u1, v1)
 CLOTH_RECT = (0.48, 0.38, 0.90, 0.86)
+# ... per house texture where the Dwarven rect misses the plain cloth: the Men's GU_Banr_house is a
+# pennant (a White Tree on a narrowing triangle): the plain cloth under the tree's roots
+CLOTH_RECTS = {"gu_banr_house.tga": (0.43, 0.28, 0.63, 0.41)}
 # EA's own little house flag in each model: dropped, so only our banners carry the player's colour
 # (the user's choice: the flag stood in front of our banners, e.g. in the barracks' yard)
 KEEP_EA_FLAG = False
@@ -82,7 +92,7 @@ def build(faction, force=False, log=print):
             time.sleep(10)
         with blender_slot():
             p = subprocess.run([paths.BLENDER, "-b", "--python", RUN_PY, "--", src, export, g["mesh"],
-                                ",".join(map(str, CLOTH_RECT)),
+                                ",".join(map(str, cloth_rect(W3DFile(orig).meshes[g["mesh"]]))),
                                 "keep" if KEEP_EA_FLAG and not g.get("template") else "fresh"] + g["cloth"],
                                capture_output=True, text=True)
         with open(os.path.join(r, "work", key + ".log"), "w") as fh:
@@ -99,22 +109,43 @@ def build(faction, force=False, log=print):
         with open(dest, "wb") as fh:
             fh.write(out)
         record["models"].append(member)
-        for ini, obj, tag in g["draws"]:
-            if g.get("template"):
-                ops = [("draw", obj, tag, g["model"])]
-            else:                   # an own copy: shown in place of EA's by this faction's modules only
-                ops = [("model", obj, tag, g["copy_of"], g["model"])] if g.get("copy_of") else []
-                ops.append(("field", obj, tag, "MultiPlayerOnly", "No"))
+        show, hidden = draw_ops(g)
+        for ini, ops in show.items():
             record["ini"].setdefault(ini, []).extend(ops)
-        for bid in g["buildings"]:          # not over rubble or a building site (sagekit/lifecycle.py)
-            for ini, ops in house_ops(Workspace(load(bid)), g["draws"]).items():
-                record["ini"].setdefault(ini, []).extend(op for op in ops if op not in record["ini"][ini])
+        for ini, ops in hidden.items():
+            record["ini"].setdefault(ini, []).extend(op for op in ops if op not in record["ini"][ini])
         log("  %-16s %4d -> %4d triangles (cloth from %d building%s)" % (
             g["model"], len(W3DFile(orig).meshes[g["mesh"]].tris), len(mesh.tris), len(g["cloth"]),
             "" if len(g["cloth"]) == 1 else "s"))
     with open(os.path.join(r, "house.json"), "w") as fh:
         json.dump(record, fh, indent=1)
     return record
+
+
+def cloth_rect(mesh):
+    """The rect of the house mesh's banner texture our cloth is mapped onto (Blender UV)."""
+    return next((CLOTH_RECTS[t.lower()] for t in mesh.textures if t.lower() in CLOTH_RECTS), CLOTH_RECT)
+
+
+def draw_ops(g):
+    """({ini: [op]} showing group g's model, {ini: [op]} hiding it) for sagekit/formats/ini.py."""
+    hidden = {}
+    for bid in g["buildings"]:          # not over rubble or a building site (sagekit/lifecycle.py)
+        for ini, ops in house_ops(Workspace(load(bid)), g["draws"]).items():
+            hidden.setdefault(ini, []).extend(op for op in ops if op not in hidden[ini])
+    show = {}
+    for ini, obj, tag in g["draws"]:
+        # two build variations in one Draw: ours only in this one's states; an add-on: its Draw's states
+        v = (g.get("conditions") or {}).get(obj) or g.get("variation")
+        if g.get("template"):
+            ops = [("draw", obj, tag, g["model"] if not v or v["default"] else "None")]
+            ops += [("state", obj, tag, flags, g["model"] if shown and ("state", obj, tag, flags, "None")
+                     not in hidden.get(ini, []) else "None") for flags, shown in (v or {}).get("states", [])]
+        else:                   # an own copy: shown in place of EA's by this faction's modules only
+            ops = [("model", obj, tag, g["copy_of"], g["model"])] if g.get("copy_of") else []
+            ops.append(("field", obj, tag, "MultiPlayerOnly", "No"))
+        show.setdefault(ini, []).extend(ops)
+    return show, hidden
 
 
 def shipped(faction):

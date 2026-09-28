@@ -1,34 +1,37 @@
-# Elven floodgate doors (`ElvenFloodgateExpansion`, `ModuleTag_DrawDoors`)
+# Elven floodgate doors
 
-Model `EBFFGate_DRCA` (the doors closed; `EBFFGate_DROA` opens them and carries the same leaves,
-derived), redesigned mesh `EBFFGATE2`, `Tier.STANDARD`, painted from the faction sheet
-`EBFortress.tga` onto its own textures `EBFortresG.tga` / `EBFortresG_NRM.tga` (DXT5: EA's cut-out
-alpha kept; + `_D`, `_U` variants). The floodgate itself: [`floodgate`](../floodgate/README.md).
+Model `EBFFGate_DRCA`, redesigned mesh `EBFFGATE2`, `Tier.STANDARD`. Its own textures are
+`EBFortresG.tga` / `EBFortresG_NRM.tga` and state variants, painted from `EBFortress.tga`
+with EA's cut-out alpha retained.
 
-Five stone leaves round the floodgate's drum that close its niches and drop to let the flood out.
-Each is a thin pointed slab carrying a raised lancet boss up its middle (a shallow V, its ridge
-0.34 proud of its shoulders). The mesh hangs on a bone turned a quarter about z and 21.24 up, so
-the recipe's numbers are in the mesh's own coordinates and the views in the model's.
+## Current design
 
-## What changed (body, healthy)
+EA's five pointed door leaves and their raised bosses stay whole. Each receives a mithril
+ridge bead, one gilt clasp with silver edges, and a gilt leaf on its pointed top. The earlier
+three teal knotwork clasps were removed to keep EA's detail readable. No cloth is attached to
+moving leaves. Additions remain behind the floodgate's pier fronts when the doors close.
 
-Every boss is dressed as a jewelled door-post in the floodgate's vocabulary:
+The shared palette is the approved citadel's soft ivory, strong mithril and mallorn gold, slate
+roofs and EA's teal glass. No face of EA's healthy body is removed.
 
-- **Gilt bead** up the ridge (0.6 to 23.4).
-- **Three clasps** across the boss (at 3.4, 10.9 and 18.4, 2.2 high): knotwork (silver knots on
-  sea-green enamel) between gilt edges, one prism on each facet of the V.
-- **Gilt leaf** (6.3 x 2.8) on the boss's pointed top.
+## Lifecycle and review
 
-Nothing stands above EA's tip or more than 0.6 proud of EA's surface, so the leaves still close
-into the niches and drop as EA's do (closed, they stay behind the drum's pier fronts).
-`footprint_margin = 0.65`: the bosses' ridges are EA's bounding box, and the bead, clasps and
-leaf stand up to 0.6 past it. No cloth (`house_tags = ()`): the leaves move, a house-colour model
-would not; the floodgate's piers carry its banners.
+Opening derives the same leaves with EA's motion; rubble rebuilds along EA's pieces.
+Construction `_DRA` places the finished leaves lower than the closed healthy model. Its explicit
+`match_offset` aligns the healthy reference before cutting; live healthy geometry and EA's
+animation are untouched. The construction now matches exactly and passes the unchanged gates.
+
+Build outputs and before/after images are in `build/assets/elves/floodgate_doors/`. The current
+`work/lifecycle.json` identifies each rebuilt or derived model; `work/logs/checks.log` records
+the checks. Review images are `renders/compare_*.png` and `renders/lifecycle/*.png`.
+Healthy and lifecycle comparisons were rebuilt and visually checked in this finishing pass.
+Nothing is installed; the player’s review remains the next step.
+
+EA supplies no night meshes or `NightWindowName` here; the new crystals are day-lit.
+
+## Superseded first-pass measurements
+
+These figures describe the previous design, not the current output. Current reports live in
+`build/assets/elves/floodgate_doors/work/` and are verified again for this finishing pass.
 
 Footprint as above, height 36.62 -> 36.62 (+0 %), 280 -> 1,400 triangles. `checks`: 58/58.
-
-## Status (`python3 -m sagekit inventory elves/floodgate`, Draw module `ModuleTag_DrawDoors`)
-
-| Part | Closed (`_DRCA`) | Opening (`_DROA`) / damaged / stonework | Construction (`_DRA`), rubble (`_DRD3`) |
-|---|---|---|---|
-| doors (`EBFFGate_DRCA`) | done, rendered, not installed | derived: our leaves, EA's animation | `_DRD3` ours (lifecycle); `_DRA` left to EA by the lifecycle checks (our faces' backs open to the sky as it rises) |

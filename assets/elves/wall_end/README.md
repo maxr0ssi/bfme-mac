@@ -1,38 +1,37 @@
-# Elven wall end (`ElvenWallCliffCap`)
+# Elven wall end
 
-Model `EBWallNE`, redesigned mesh `EBWALLN`, `Tier.STANDARD`, painted from `EBFortress.tga` onto its
-own textures `EBFortresE.tga` / `EBFortresE_NRM.tga` (+ `_D`, `_snow`, `_U` variants), DXT5 (EA's
-cut-out alpha kept).
+Model `EBWallNE`, redesigned mesh `EBWALLN`, `Tier.STANDARD`. Its own textures are
+`EBFortresE.tga` / `EBFortresE_NRM.tga` and state variants, painted from `EBFortress.tga`
+with EA's cut-out alpha retained.
 
-EA's cliff cap is two wall segments end to end (four lancet bays per face) with the faces carried
-on below the ground to z -51.2 for the falling ground at a cliff's foot; the far end is cut plain.
-`EBWALLN` hangs under a bone turned 180 degrees about z, so the design works in mesh coordinates
-(z is still up; `world_space` is not needed): y -19..57, the joint with a segment at y = -19, the
-cut end at y = 57 (model space: the joint at +19, the cut at -57).
+## Current design
 
-## What changed (body, healthy)
+EA's cliff cap and all its window detail stay whole, including the below-ground faces.
+The segments' filigree band, mithril coping and leaf crest continue to the cut end. A small
+ivory lantern-house crowns the end pier, with lattice lancets, silver frames and a swept slate
+roof with a gilt finial. No banners or extra frames on EA's wall windows. The next segment
+still meets the same section.
 
-- **Crown:** the segments' crown the whole length (the shared profile,
-  [wall_segment/README.md](../wall_segment/README.md)); at the joint it ends exactly as a segment's
-  does, so the parapet line runs straight on; the merlons run from the joint into the turret.
-- **Windows and banners:** the segments' arch frames and a leaf banner in each of the eight windows
-  (cloth to our house-colour model `EBHCWallNE`, Draw tag `ModuleTag_Draw_HCWallEnd`).
-- **Turret at the cut end:** a pale stone lantern-house on the crown over the end pier (x +-4.2,
-  y 48.4..56.7, z 52.9..58.6) with a silver string course, a lancet window of EA's lattice glass in
-  a silver arch frame on each open face, and a square swept slate roof with upturned eaves and a
-  gilt leaf finial (eaves corners at x +-4.45, y 57.0: inside the footprint).
-- Nothing below the ground changes.
+The shared palette is the approved citadel's soft ivory, strong mithril and mallorn gold, slate
+roofs and EA's teal glass. No face of EA's healthy body is removed.
+
+## Lifecycle and review
+
+Construction and damaged states derive the body; really damaged and collapsing states rebuild
+it along EA's pieces and animations.
+
+Build outputs and before/after images are in `build/assets/elves/wall_end/`. The current
+`work/lifecycle.json` identifies each rebuilt or derived model; `work/logs/checks.log` records
+the checks. Review images are `renders/compare_*.png` and `renders/lifecycle/*.png`.
+Healthy and lifecycle comparisons were rebuilt and visually checked in this finishing pass.
+Nothing is installed; the player’s review remains the next step.
+
+EA supplies no night meshes or `NightWindowName` here; the new crystals are day-lit.
+
+## Superseded first-pass measurements
+
+These figures describe the previous design, not the current output. Current reports live in
+`build/assets/elves/wall_end/work/` and are verified again for this finishing pass.
 
 Footprint unchanged, height 102.4 -> 120.35 (+17.5 %, limit 20 %), 1,227 -> 7,178 triangles (96
 cloth faces moved to `EBHCWallNE`). `checks`: 79/79 pass.
-
-## Status (`python3 -m sagekit inventory elves/wall_end`)
-
-| Part | Healthy | Construction (`_A`) / damaged (`_D1`) / snow / stonework | Really damaged, collapsing (`_D2`, `_D3`) |
-|---|---|---|---|
-| body (`EBWallNE`) | done, rendered, not installed | derived: our body | rebuilt by the lifecycle step around our body |
-
-## Night lights
-
-TODO, as the segment: no night meshes or `NightWindowName` in EA's cliff cap; the turret's
-windows are the place for starlight once it has one.

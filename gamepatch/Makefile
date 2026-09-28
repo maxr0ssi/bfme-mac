@@ -29,6 +29,9 @@ TESTS   += $(OUT)/t_shadow.exe
 # game-logic x87 replacements: mat2quat, distcalc, bsphere, worldcell, ftol2 (declarations gp_logic.h)
 PATCHES += src/p_logic.c src/p_logic.S src/p_ftol2.S
 TESTS   += $(OUT)/t_logic.exe $(OUT)/t_ftol2.exe
+# highmem diagnostic: the low 2 GB reserved at start-up (t_highmem: a large-address-aware stand-in)
+PATCHES += src/p_highmem.c
+TESTS   += $(OUT)/t_highmem.exe
 
 all: $(DLL) $(TESTS)
 $(DLL) $(TESTS): src/gp_render.h src/gp_logic.h
@@ -49,6 +52,9 @@ $(OUT)/t_%.exe: tests/t_%.c tests/orig.c tests/orig.h $(PATCHES) src/gp.h src/is
 
 $(OUT)/t_attach.exe: tests/t_attach.c | $(OUT)
 	$(CC) -O2 -Wall -o $@ $< -Wl,--image-base,0x400000
+
+$(OUT)/t_highmem.exe: tests/t_highmem.c | $(OUT)
+	$(CC) -O2 -Wall -o $@ $< -Wl,--large-address-aware -ld3d9
 
 $(OUT)/proxytest/t_proxy.exe: tests/t_proxy.c $(DLL) gamepatch.ini | $(OUT)
 	mkdir -p $(OUT)/proxytest

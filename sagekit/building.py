@@ -87,7 +87,8 @@ class Building:
     def texture_names(self):
         """{original texture: own texture} for the target mesh's diffuse (and normal map, if any)."""
         a = self.sheet_atlas
-        diffuse = self.own_textures.get(a.texture) or own_texture_name(a.texture) + ".tga"
+        own = next((v for k, v in self.own_textures.items() if k.lower() == a.texture.lower()), None)
+        diffuse = own or own_texture_name(a.texture) + ".tga"          # (a key in any case: gbfortress1.tga)
         out = {a.texture: diffuse}
         if a.normal:
             out[a.normal] = diffuse[:-4] + "_NRM.tga"
@@ -169,9 +170,40 @@ class Building:
         for draws in self.objects(install).values():
             for d in draws:
                 if self.covers(d):
-                    out += [m for m in d.models() if m.lower() != self.source.lower()
+                    out += [m for m in self.own_models(d) if m.lower() != self.source.lower()
                             and m.lower() not in map(str.lower, out) and install.has_model(m)]
         return out
+
+    variation = None                # the BUILD_VARIATION_* flag this recipe's body is drawn under (the
+                                    # fortress expansions draw two bodies in one Draw module: GBFDOTOWA
+                                    # under _ONE, GBFDOTOWB under _TWO, one recipe each); None: the flags
+                                    # of the states showing `source` (sagekit/formats/ini.py variation_states)
+
+    def own_states(self, draw):
+        """The states of a Draw module that are this recipe's: all of them, but in a Draw showing two
+        build variations only its own variation's (so B's models never get A's design)."""
+        from .formats.ini import variation_states
+        return variation_states(draw, self.source, self.variation)
+
+    def own_models(self, draw):
+        """draw.models() in this recipe's own states."""
+        return sorted({s.model for s in self.own_states(draw) if s.model and s.model.lower() != "none"}, key=str.lower)
+
+    def house_conditions(self, install):
+        """For a Draw showing two build variations: when a house-colour model of our own shows,
+        {"default": shown in the default state, "states": [[[flag], shown]] per variation flag}
+        (only in this recipe's variation); None for a building without variations."""
+        from .formats.ini import VARIATION
+        for draws in self.objects(install).values():
+            for d in draws:
+                flags = sorted({f for s in d.states for f in s.flags if f.startswith(VARIATION)})
+                if not flags or not self.covers(d) or not self.is_body(d):
+                    continue
+                own = self.own_states(d)
+                mine = {f for s in own for f in s.flags if f.startswith(VARIATION)}
+                default = any(s.kind == "model" and not s.flags for s in own)
+                return {"default": default, "states": [[[f], f in mine] for f in flags]}
+        return None
 
     def base_building(self):
         from .registry import load
@@ -187,7 +219,7 @@ class Building:
             for d in draws:
                 if not self.covers(d):
                     continue
-                for st in d.states:
+                for st in self.own_states(d):
                     for old, new in st.textures:
                         if old.lower() != atlas.texture.lower() or new.lower() in {k.lower() for k in out}:
                             continue                        # one variant per sheet, whatever EA's case
@@ -253,7 +285,7 @@ class Building:
             for d in draws:
                 ops = out.setdefault(d.file, [("swaps", atlas.texture, swaps)])
                 if self.covers(d) and d.fields.get("StaticModelLODMode", "").lower() == "yes":
-                    ops.append(("lod_off", obj, d.tag))
+                    ops.append(("lod_off", d.object, d.tag))     # (an inherited module: its parent's)
         if self.own_model:                                  # an own copy: our model in place of EA's
             from .owncopy import ini_ops
             from .workspace import Workspace                 # and the lifecycle step's models
@@ -270,12 +302,13 @@ class Building:
 
     def objects(self, install):
         """{object name: [Draw]} for every object that draws this building's model family (the
-        source model and its <source>_* variants) - the building and its construction site."""
+        source model and its <source>_* variants) - the building and its construction site - in the
+        style's INI folders (Style.ini_dirs: Arnor's too for the Men). A ChildObject's list holds the
+        Draw modules it inherits (GondorFarm: FarmInterface's), whose d.object is the parent's."""
         fam = self.source.lower()
-        draws = install.draws(self.style.ini_dir)
-        names = {d.object for d in draws
-                 if any(m.lower() == fam or m.lower().startswith(fam + "_") for m in d.models())}
-        return {n: [d for d in draws if d.object == n] for n in sorted(names)}
+        by = install.object_draws(self.style.ini_dirs())
+        return {n: by[n] for n in sorted(by)
+                if any(m.lower() == fam or m.lower().startswith(fam + "_") for d in by[n] for m in d.models())}
 
     footprint_margin = 0.0          # how far new geometry may pass the original's footprint (units): for
                                     # pieces whose faces lie on its edge (collision comes from the INI)
@@ -291,8 +324,13 @@ class Building:
     def house_model(self, install):
         """The house-colour model drawn with this building's object(s) - a model with an `HC_` mesh
         in a Draw module that allows model colour: {"model", "mesh", "draws": [[ini file, object,
-        draw tag]]}, or None (the cloth then stays in the body, in the palette's colour)."""
+        draw tag]]}, or None (the cloth then stays in the body, in the palette's colour). An add-on
+        gets a model of its own, shown under its upgrade flags only (addon_conditions): the object's
+        model is drawn before the upgrade is bought, and the add-on's banners would hang in the air."""
         from .formats.w3d import W3DFile
+        addon = self.addon_conditions(install)
+        if addon:
+            return self.new_house_model(install, addon)
         found = None
         for obj, draws in self.objects(install).items():
             for d in draws:
@@ -307,7 +345,7 @@ class Building:
                         if not hc:
                             continue
                         found = {"model": m, "mesh": hc[0], "draws": []}
-                    found["draws"].append([d.file, obj, d.tag])
+                    found["draws"].append([d.file, d.object, d.tag])
         if found and self.house_shared(install, found["model"]):
             return self.own_house_copy(install, found)
         return found or self.new_house_model(install)
@@ -339,10 +377,35 @@ class Building:
     HOUSE_DRAW = None               # the Draw tag of a house-colour model of our own (None: one per
                                     # model, so an object showing two of them keeps both)
 
-    def new_house_model(self, install):
+    def addon_conditions(self, install):
+        """For an add-on - `parts` shown only once an upgrade is bought (the Elven citadel's
+        ModuleTag_DrawEnchantedAnvil: nothing by default, EBFAnvil under FORTRESS_IMPROVEMENT_3) -
+        where its house-colour model shows: {object: {"default": False, "states": [[flags, shown]]}},
+        house_conditions' form: the add-on Draw's condition states in its order, shown where they draw
+        a model, so the engine picks the banner's state whenever it picks the add-on's. None when a
+        Draw it covers shows a model without an upgrade flag (a body, a part always shown)."""
+        if not self.parts:
+            return None
+        from .taxonomy import upgrades_of
+        out = {}
+        for draws in self.objects(install).values():
+            for d in draws:
+                for s in self.own_states(d) if self.covers(d) else ():
+                    if s.kind != "model":
+                        continue
+                    shown = bool(s.model) and s.model.lower() != "none"
+                    if shown and not upgrades_of(s.flags):
+                        return None
+                    states = out.setdefault(d.object, {"default": False, "states": []})["states"]
+                    if s.flags and [sorted(s.flags), shown] not in states:
+                        states.append([sorted(s.flags), shown])
+        return out if any(shown for c in out.values() for _, shown in c["states"]) else None
+
+    def new_house_model(self, install, conditions=None):
         """For an object without a house-colour model: one of our own, copied from the style's
         `house_template` (EA's model's names changed; its flag replaced by our cloth) and shown by a
-        Draw module added to every object drawing the body. None if the style has no template."""
+        Draw module added to every object drawing the body. None if the style has no template.
+        conditions: an add-on's (addon_conditions), recorded as "conditions" for sagekit/house.py."""
         template = getattr(self.style, "house_template", None)
         if not template:
             return None
@@ -350,9 +413,20 @@ class Building:
         name = (template[:2].upper() + "HC" + self.shipped_name(self.source)[2:])[:15]
         if install.has_model(name) or any(c.has_model(name.lower() + ".w3d") for c in install.asset_caches().values()):
             raise ValueError("%s: own house-colour model %s is a name EA's files use" % (self.id, name))
-        draws = sorted({(d.file, obj) for obj, ds in self.objects(install).items() for d in ds if self.is_body(d)})
+        draws = sorted({(d.file, d.object) for ds in self.objects(install).values() for d in ds if self.is_body(d)})
         tag = self.HOUSE_DRAW or "ModuleTag_Draw_" + name
-        return {"model": name, "mesh": "HC_BANNER", "template": template, "draws": [[f, obj, tag] for f, obj in draws]}
+        from .formats.w3d import W3DFile
+        from .housemesh import house_meshes         # the template's own cloth mesh (GBHCBtlTwrM: HC_BANNER01)
+        hc = house_meshes(W3DFile(install.read(install.model_path(template))))
+        out = {"model": name, "mesh": hc[0] if hc else "HC_BANNER", "template": template,
+               "draws": [[f, obj, tag] for f, obj in draws]}
+        if conditions:                              # an add-on: shown with it only
+            out["conditions"] = conditions
+            return out
+        cond = self.house_conditions(install)       # two build variations: shown in this one's states only
+        if cond:
+            out["variation"] = cond
+        return out
 
     def is_body(self, draw):
         fam = self.source.lower()

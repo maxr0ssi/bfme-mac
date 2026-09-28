@@ -45,6 +45,7 @@ int gp_patch_shutdown(void);
 int gp_patch_limiter(void);
 int gp_patch_floor(void);
 int gp_patch_quatmat(void);
+int gp_highmem(unsigned slack_mb);                 /* diagnostic: fills the low 2 GB (p_highmem.c) */
 
 /* replacement code, exported for the standalone tests (gamepatch/tests) */
 DWORD WINAPI gp_dx_wait(HANDLE h, DWORD ms);

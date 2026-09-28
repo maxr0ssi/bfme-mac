@@ -1,0 +1,462 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: max rossi <113717219+maxr0ssi@users.noreply.github.com>
+Date: Sun, 27 Sep 2026 13:00:00 -0400
+Subject: [PATCH 22/22] wined3d: Keep managed textures' system memory in host
+ memory under WoW64.
+
+d3d8/9 build a managed texture from two wined3d textures: a CPU-only one the application maps and
+a GPU-only one draws use. The CPU-only one never gives its system memory up, so in a 32-bit
+process every byte of managed texture costs a byte of the 2 GiB address space for as long as the
+texture lives (measured: 1.03 bytes per byte for 1024x1024 DXT5; a process runs out after ~1.85 GiB
+of such textures), while the GPU copy costs nothing there: the host driver keeps it above 4 GiB.
+
+When the application has filled a managed texture (the unmap of its last sub-resource) and after
+every upload, copy its system memory into a host allocation through wined3d.so, free the 32-bit
+copy and mark the sub-resources discarded. Loading or preparing a system memory location copies
+it back first: the upload at the first draw and after EvictManagedResources() (the texture is
+stashed again right after), an application map, GetDC(). A texture mapped again after a stash
+stays in system memory from then on. The bytes an application reads back are the ones it wrote;
+nothing is read back from GL. Measured: 3 GiB of 1024x1024 DXT5 managed textures in 14 MiB of
+address space. WINED3D_STASH_MANAGED=0 disables it; so does a missing wined3d.so.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ dlls/wined3d/cs.c              |   5 ++
+ dlls/wined3d/device.c          |  20 +++++-
+ dlls/wined3d/surface.c         |   6 +-
+ dlls/wined3d/texture.c         | 144 +++++++++++++++++++++++++++++++++++++++++
+ dlls/wined3d/unix_gl.c         |  43 ++++++++++++
+ dlls/wined3d/unixlib.h         |  11 ++++
+ dlls/wined3d/wined3d_private.h |   7 ++
+ 7 files changed, 234 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
+index 6babce6e395..a20d9b0c393 100644
+--- a/dlls/wined3d/cs.c
++++ b/dlls/wined3d/cs.c
+@@ -2917,6 +2917,11 @@ static void wined3d_cs_exec_add_dirty_texture_region(struct wined3d_cs *cs, cons
+     unsigned int sub_resource_idx, i;
+     struct wined3d_context *context;
+ 
++    /* A stashed managed texture has no location but its host copy; the next upload restores it.
++     * Restoring it here would bring every texture back at once on EvictManagedResources(). */
++    if (texture->sysmem_stash)
++        return;
++
+     context = context_acquire(cs->c.device, NULL, 0);
+     sub_resource_idx = op->layer * texture->level_count;
+     for (i = 0; i < texture->level_count; ++i, ++sub_resource_idx)
+diff --git a/dlls/wined3d/device.c b/dlls/wined3d/device.c
+index df851347626..5a870c4b604 100644
+--- a/dlls/wined3d/device.c
++++ b/dlls/wined3d/device.c
+@@ -3883,7 +3883,7 @@ HRESULT CDECL wined3d_device_update_texture(struct wined3d_device *device,
+     const struct wined3d_dirty_regions *regions;
+     unsigned int layer_count, level_count, i, j;
+     enum wined3d_resource_type type;
+-    BOOL entire_texture = TRUE;
++    BOOL entire_texture = TRUE, uploaded = FALSE;
+     struct wined3d_box box;
+ 
+     TRACE("device %p, src_texture %p, dst_texture %p.\n", device, src_texture, dst_texture);
+@@ -3970,6 +3970,7 @@ HRESULT CDECL wined3d_device_update_texture(struct wined3d_device *device,
+             wined3d_texture_get_level_box(dst_texture, i, &box);
+             for (j = 0; j < layer_count; ++j)
+             {
++                uploaded = TRUE;
+                 wined3d_device_context_update_texture_region(&device->cs->c,
+                         dst_texture, j * dst_level_count + i, &box,
+                         src_texture, j * src_level_count + i + src_skip_levels, &box);
+@@ -4015,6 +4016,7 @@ HRESULT CDECL wined3d_device_update_texture(struct wined3d_device *device,
+                                 wined3d_texture_get_level_depth(src_texture, src_level));
+                     }
+ 
++                    uploaded = TRUE;
+                     wined3d_device_context_update_texture_region(&device->cs->c,
+                             dst_texture, i * dst_level_count + j, &box,
+                             src_texture, i * src_level_count + src_level, &box);
+@@ -4025,6 +4027,10 @@ HRESULT CDECL wined3d_device_update_texture(struct wined3d_device *device,
+ 
+     wined3d_texture_clear_dirty_regions(src_texture);
+ 
++    /* The CPU-only half of a d3d8/9 managed texture; see wined3d_texture_stash_enabled(). */
++    if (uploaded && (src_texture->resource.usage & WINED3DUSAGE_MANAGED) && wined3d_texture_stash_enabled())
++        wined3d_texture_stash_sysmem_async(src_texture);
++
+     return WINED3D_OK;
+ }
+ 
+@@ -4703,6 +4709,18 @@ HRESULT CDECL wined3d_device_context_unmap(struct wined3d_device_context *contex
+ 
+     wined3d_device_context_lock(context);
+     hr = wined3d_device_context_emit_unmap(context, resource, sub_resource_idx);
++    /* A managed texture is filled level by level, the smallest last: stash it right away, so a
++     * level's worth of textures loaded before their first draw does not hold the address space
++     * either (see wined3d_texture_stash_enabled()). */
++    if (SUCCEEDED(hr) && resource->type != WINED3D_RTYPE_BUFFER && context == &context->device->cs->c
++            && (resource->usage & WINED3DUSAGE_MANAGED) && !(resource->access & WINED3D_RESOURCE_ACCESS_GPU)
++            && !resource->map_count && wined3d_texture_stash_enabled())
++    {
++        struct wined3d_texture *texture = texture_from_resource(resource);
++
++        if (sub_resource_idx == texture->level_count * texture->layer_count - 1)
++            wined3d_texture_stash_sysmem_async(texture);
++    }
+     wined3d_device_context_unlock(context);
+     return hr;
+ }
+diff --git a/dlls/wined3d/surface.c b/dlls/wined3d/surface.c
+index 4ad1e65fafb..2df0e50e290 100644
+--- a/dlls/wined3d/surface.c
++++ b/dlls/wined3d/surface.c
+@@ -1336,6 +1336,10 @@ static bool sub_resource_is_on_cpu(const struct wined3d_texture *texture, unsign
+     if (!(texture->resource.access & WINED3D_RESOURCE_ACCESS_GPU) && (locations & WINED3D_LOCATION_CLEARED))
+         return true;
+ 
++    /* Stashed in host memory, loading WINED3D_LOCATION_SYSMEM brings it back. */
++    if (texture->sysmem_stash)
++        return true;
++
+     return false;
+ }
+ 
+@@ -1385,7 +1389,7 @@ HRESULT texture2d_blt(struct wined3d_texture *dst_texture, unsigned int dst_sub_
+     dst_sub_resource = &dst_texture->sub_resources[dst_sub_resource_idx];
+     src_sub_resource = &src_texture->sub_resources[src_sub_resource_idx];
+ 
+-    if (src_sub_resource->locations & WINED3D_LOCATION_DISCARDED)
++    if ((src_sub_resource->locations & WINED3D_LOCATION_DISCARDED) && !src_texture->sysmem_stash)
+     {
+         WARN("Source sub-resource is discarded, nothing to do.\n");
+         return WINED3D_OK;
+diff --git a/dlls/wined3d/texture.c b/dlls/wined3d/texture.c
+index f74384012f6..1d91412ba40 100644
+--- a/dlls/wined3d/texture.c
++++ b/dlls/wined3d/texture.c
+@@ -23,6 +23,7 @@
+ #include "wined3d_private.h"
+ #include "wined3d_gl.h"
+ #include "wined3d_vk.h"
++#include "unixlib.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(d3d);
+ WINE_DECLARE_DEBUG_CHANNEL(d3d_perf);
+@@ -31,6 +32,8 @@ WINE_DECLARE_DEBUG_CHANNEL(winediag);
+ #define WINED3D_TEXTURE_DYNAMIC_MAP_THRESHOLD 50
+ 
+ static const uint32_t wined3d_texture_sysmem_locations = WINED3D_LOCATION_SYSMEM | WINED3D_LOCATION_BUFFER;
++
++static BOOL wined3d_texture_unstash_sysmem(struct wined3d_texture *texture);
+ static const struct wined3d_texture_ops texture_gl_ops;
+ 
+ struct wined3d_texture_idx
+@@ -784,6 +787,15 @@ BOOL wined3d_texture_load_location(struct wined3d_texture *texture,
+         return TRUE;
+     }
+ 
++    /* A stashed managed texture: bring the system memory back, then load from it as usual. */
++    if (texture->sysmem_stash)
++    {
++        if (!wined3d_texture_unstash_sysmem(texture))
++            return FALSE;
++        if ((current = texture->sub_resources[sub_resource_idx].locations) & location)
++            return TRUE;
++    }
++
+     if (WARN_ON(d3d))
+     {
+         uint32_t required_access = wined3d_resource_access_from_location(location);
+@@ -1525,6 +1537,20 @@ ULONG CDECL wined3d_texture_incref(struct wined3d_texture *texture)
+     return refcount;
+ }
+ 
++/* The host copy of a stashed managed texture (see wined3d_texture_stash_enabled()). */
++static void wined3d_texture_free_stash(struct wined3d_texture *texture)
++{
++    struct wined3d_unix_stash_params params;
++
++    if (!texture->sysmem_stash)
++        return;
++    params.data = 0;
++    params.stash = texture->sysmem_stash;
++    params.size = texture->resource.size;
++    WINE_UNIX_CALL(unix_stash_free, &params);
++    texture->sysmem_stash = 0;
++}
++
+ static void wined3d_texture_destroy_object(void *object)
+ {
+     struct wined3d_texture *texture = object;
+@@ -1538,6 +1564,8 @@ static void wined3d_texture_destroy_object(void *object)
+     resource = &texture->resource;
+     sub_count = texture->level_count * texture->layer_count;
+ 
++    wined3d_texture_free_stash(texture);
++
+     if ((dc_info = texture->dc_info))
+     {
+         for (i = 0; i < sub_count; ++i)
+@@ -2113,9 +2141,119 @@ static void wined3d_texture_gl_prepare_rb(struct wined3d_texture_gl *texture_gl,
+     }
+ }
+ 
++/* A d3d8/9 managed texture is a pair: a CPU-only texture that the application maps, and a GPU-only
++ * copy that draws use (d3d9_texture_init()). The CPU-only texture keeps its system memory for the
++ * texture's whole life, so under WoW64 every byte of managed texture costs a byte of the process's
++ * 2 GiB (3 GiB large-address-aware) address space, while the GPU copy lives in the host driver.
++ * Once the application has filled the texture (the unmap of its last sub-resource), and again
++ * after each upload, move the system memory to the host address space through wined3d.so and mark
++ * the sub-resources discarded; whatever needs WINED3D_LOCATION_SYSMEM again (the upload at the
++ * first draw, an upload after EvictManagedResources(), an application map, GetDC()) goes through
++ * wined3d_texture_prepare_location(), which copies it back first. A texture that the application
++ * maps again after a stash stays in system memory from then on. WINED3D_STASH_MANAGED=0 disables. */
++BOOL wined3d_texture_stash_enabled(void)
++{
++    static int enabled = -1;
++    char value[8];
++    BOOL wow64;
++
++    if (enabled < 0)
++    {
++        enabled = sizeof(void *) == 4 && wined3d_unixlib_loaded
++                && IsWow64Process(GetCurrentProcess(), &wow64) && wow64;
++        if (GetEnvironmentVariableA("WINED3D_STASH_MANAGED", value, sizeof(value)) && value[0] == '0')
++            enabled = 0;
++        TRACE("Stashing uploaded managed textures in host memory: %s.\n", enabled ? "yes" : "no");
++    }
++    return enabled;
++}
++
++/* Called on the CS thread, after the uploads queued before it. */
++static void wined3d_texture_stash_sysmem(void *object)
++{
++    struct wined3d_texture *texture = object;
++    unsigned int i, sub_count = texture->level_count * texture->layer_count;
++    struct wined3d_unix_stash_params params;
++
++    if (texture->sysmem_stash || texture->stash_pinned || !texture->resource.heap_memory
++            || texture->resource.map_count || texture->resource.pin_sysmem || texture->dc_info
++            || (texture->resource.access & WINED3D_RESOURCE_ACCESS_GPU))
++        return;
++    for (i = 0; i < sub_count; ++i)
++    {
++        const struct wined3d_texture_sub_resource *sub_resource = &texture->sub_resources[i];
++
++        /* Only a clean texture whose every sub-resource lives in our heap memory alone. */
++        if (sub_resource->locations != WINED3D_LOCATION_SYSMEM || sub_resource->user_memory
++                || sub_resource->map_count)
++            return;
++    }
++
++    params.data = (ULONG_PTR)texture->resource.heap_memory;
++    params.size = texture->resource.size;
++    params.stash = 0;
++    if (WINE_UNIX_CALL(unix_stash_put, &params))
++    {
++        WARN("Failed to stash %u bytes of texture %p.\n", texture->resource.size, texture);
++        return;
++    }
++
++    TRACE("Stashed %u bytes of texture %p.\n", texture->resource.size, texture);
++    texture->sysmem_stash = params.stash;
++    ++texture->stash_count;
++    for (i = 0; i < sub_count; ++i)
++    {
++        texture->sub_resources[i].locations = WINED3D_LOCATION_DISCARDED;
++        if (texture->sysmem_count)
++            --texture->sysmem_count;
++    }
++    wined3d_resource_free_sysmem(&texture->resource);
++}
++
++void wined3d_texture_stash_sysmem_async(struct wined3d_texture *texture)
++{
++    /* sysmem_stash belongs to the CS thread; after an eviction the upload queued just before this
++     * restores it, and the stash below runs after that upload. */
++    if (texture->stash_pinned)
++        return;
++    /* The stash frees the memory: application-thread maps (wined3d_texture_map_client()) and
++     * uploads (wined3d_device_context_upload_sysmem_region()) must wait for it. */
++    wined3d_resource_reference(&texture->resource);
++    wined3d_cs_init_object(texture->resource.device->cs, wined3d_texture_stash_sysmem, texture);
++}
++
++static BOOL wined3d_texture_unstash_sysmem(struct wined3d_texture *texture)
++{
++    unsigned int i, sub_count = texture->level_count * texture->layer_count;
++    struct wined3d_unix_stash_params params;
++
++    if (!wined3d_resource_prepare_sysmem(&texture->resource))
++        return FALSE;
++    params.data = (ULONG_PTR)texture->resource.heap_memory;
++    params.stash = texture->sysmem_stash;
++    params.size = texture->resource.size;
++    WINE_UNIX_CALL(unix_stash_get, &params);
++    WINE_UNIX_CALL(unix_stash_free, &params);
++    texture->sysmem_stash = 0;
++
++    TRACE("Restored %u bytes of texture %p.\n", texture->resource.size, texture);
++    for (i = 0; i < sub_count; ++i)
++    {
++        if (texture->sub_resources[i].locations == WINED3D_LOCATION_DISCARDED)
++        {
++            texture->sub_resources[i].locations = WINED3D_LOCATION_SYSMEM;
++            ++texture->sysmem_count;
++        }
++    }
++    return TRUE;
++}
++
+ BOOL wined3d_texture_prepare_location(struct wined3d_texture *texture,
+         unsigned int sub_resource_idx, struct wined3d_context *context, unsigned int location)
+ {
++    if ((location & wined3d_texture_sysmem_locations) && texture->sysmem_stash
++            && !wined3d_texture_unstash_sysmem(texture))
++        return FALSE;
+     return texture->texture_ops->texture_prepare_location(texture, sub_resource_idx, context, location);
+ }
+ 
+@@ -3467,6 +3605,10 @@ static HRESULT texture_resource_sub_resource_map(struct wined3d_resource *resour
+ 
+     texture_level = sub_resource_idx % texture->level_count;
+ 
++    /* Mapped again after its upload: this texture changes, keep it in system memory. */
++    if (texture->stash_count)
++        texture->stash_pinned = TRUE;
++
+     if (texture->flags & WINED3D_TEXTURE_DC_IN_USE)
+     {
+         WARN("DC is in use.\n");
+@@ -3632,6 +3774,8 @@ bool wined3d_texture_map_client(struct wined3d_texture *texture, unsigned int su
+         return false;
+     if (!(sub_resource = wined3d_texture_get_sub_resource(texture, sub_resource_idx)) || sub_resource->map_count)
+         return false;
++    if (texture->stash_count)
++        texture->stash_pinned = TRUE;
+     if (wined3d_resource_is_busy(resource))
+         return false;
+ 
+diff --git a/dlls/wined3d/unix_gl.c b/dlls/wined3d/unix_gl.c
+index 3312cecccc8..0b70681157f 100644
+--- a/dlls/wined3d/unix_gl.c
++++ b/dlls/wined3d/unix_gl.c
+@@ -23,6 +23,7 @@
+ #include "config.h"
+ 
+ #include <dlfcn.h>
++#include <stdlib.h>
+ #include <string.h>
+ 
+ #include "ntstatus.h"
+@@ -78,9 +79,48 @@ static NTSTATUS buffer_write(void *args)
+     return STATUS_SUCCESS;
+ }
+ 
++/* Managed textures (texture.c, wined3d_texture_stash_sysmem()): the system memory copy of an
++ * uploaded texture moves out of the process's 2 GiB into host memory, and back when it is needed. */
++static NTSTATUS stash_put(void *args)
++{
++    struct wined3d_unix_stash_params *params = args;
++    void *stash;
++
++    if (!(stash = malloc(params->size)))
++        return STATUS_NO_MEMORY;
++    /* The point is to free the 32-bit address space; a host allocation inside it gains nothing. */
++    if ((ULONG_PTR)stash >> 32 == 0)
++    {
++        free(stash);
++        return STATUS_CONFLICTING_ADDRESSES;
++    }
++    memcpy(stash, (const void *)(ULONG_PTR)params->data, params->size);
++    params->stash = (ULONG_PTR)stash;
++    return STATUS_SUCCESS;
++}
++
++static NTSTATUS stash_get(void *args)
++{
++    const struct wined3d_unix_stash_params *params = args;
++
++    memcpy((void *)(ULONG_PTR)params->data, (const void *)(ULONG_PTR)params->stash, params->size);
++    return STATUS_SUCCESS;
++}
++
++static NTSTATUS stash_free(void *args)
++{
++    const struct wined3d_unix_stash_params *params = args;
++
++    free((void *)(ULONG_PTR)params->stash);
++    return STATUS_SUCCESS;
++}
++
+ const unixlib_entry_t __wine_unix_call_funcs[] =
+ {
+     buffer_write,
++    stash_put,
++    stash_get,
++    stash_free,
+ };
+ 
+ C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == unix_funcs_count);
+@@ -91,6 +131,9 @@ C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == unix_funcs_count);
+ const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
+ {
+     buffer_write,
++    stash_put,
++    stash_get,
++    stash_free,
+ };
+ 
+ C_ASSERT(ARRAYSIZE(__wine_unix_call_wow64_funcs) == unix_funcs_count);
+diff --git a/dlls/wined3d/unixlib.h b/dlls/wined3d/unixlib.h
+index 93b1b376e8b..50a88b5a4bb 100644
+--- a/dlls/wined3d/unixlib.h
++++ b/dlls/wined3d/unixlib.h
+@@ -33,9 +33,20 @@ struct wined3d_unix_buffer_write_params
+     UINT32 pad;
+ };
+ 
++/* A copy of a texture's system memory kept in the host (64-bit) address space. */
++struct wined3d_unix_stash_params
++{
++    UINT64 data;        /* the texture's system memory in the caller's address space */
++    UINT64 stash;       /* the host copy: returned by unix_stash_put, read by get and free */
++    UINT64 size;
++};
++
+ enum wined3d_unix_funcs
+ {
+     unix_buffer_write,
++    unix_stash_put,
++    unix_stash_get,
++    unix_stash_free,
+     unix_funcs_count,
+ };
+ 
+diff --git a/dlls/wined3d/wined3d_private.h b/dlls/wined3d/wined3d_private.h
+index 5b72690df5c..16a4f8bf3c7 100644
+--- a/dlls/wined3d/wined3d_private.h
++++ b/dlls/wined3d/wined3d_private.h
+@@ -3358,6 +3358,11 @@ struct wined3d_texture
+     uint32_t flags;
+     DWORD update_map_binding;
+ 
++    /* WoW64: host copy of the system memory of an uploaded managed texture (texture.c). */
++    UINT64 sysmem_stash;
++    unsigned int stash_count;
++    BOOL stash_pinned;
++
+     unsigned int row_pitch;
+     unsigned int slice_pitch;
+ 
+@@ -3502,6 +3507,8 @@ void wined3d_texture_load(struct wined3d_texture *texture,
+         struct wined3d_context *context, BOOL srgb);
+ BOOL wined3d_texture_load_location(struct wined3d_texture *texture,
+         unsigned int sub_resource_idx, struct wined3d_context *context, uint32_t location);
++void wined3d_texture_stash_sysmem_async(struct wined3d_texture *texture);
++BOOL wined3d_texture_stash_enabled(void);
+ BOOL wined3d_texture_prepare_location(struct wined3d_texture *texture, unsigned int sub_resource_idx,
+         struct wined3d_context *context, uint32_t location);
+ void wined3d_texture_set_swapchain(struct wined3d_texture *texture,
+-- 
+2.39.5 (Apple Git-154)
+

@@ -62,6 +62,34 @@ class Draw:
         return sorted({s.model for s in self.states if s.model and s.model.lower() != "none"}, key=str.lower)
 
 
+PARENT_RE = re.compile(r"^(Object|ChildObject|ObjectReskin)[ \t]+(\S+)(?:[ \t]+([^\s;/]+))?", re.I | re.M)
+VARIATION = "BUILD_VARIATION_"      # BUILD_VARIATION_ONE / _TWO: the body a fortress pad gives an expansion
+
+
+def parse_objects(text):
+    """{object: parent or None} for the objects a file defines (a ChildObject or ObjectReskin
+    inherits its parent's modules, Draw modules included)."""
+    return {m.group(2): (m.group(3) if m.group(1).lower() != "object" else None) for m in PARENT_RE.finditer(text)}
+
+
+def variation_states(draw, source, flag=None):
+    """The states of a Draw module that belong to the build variation showing `source`. A Draw that
+    shows two bodies under BUILD_VARIATION_ONE / _TWO (EA's GBFDOTOWA / GBFDOTOWB) is two families:
+    a state naming another variation's flag is theirs, and so is a state without one (the default)
+    showing a model their states show. flag: the variation (default: the flags of the states
+    showing `source`). A Draw without variations, or one not showing `source`: every state."""
+    flags = {f for s in draw.states for f in s.flags if f.startswith(VARIATION)}
+    if not flags:
+        return list(draw.states)
+    mine = {flag} if flag else {f for s in draw.states if s.model and s.model.lower() == source.lower()
+                                for f in s.flags if f.startswith(VARIATION)}
+    others = flags - mine
+    if not mine or not others:
+        return list(draw.states)
+    theirs = {s.model.lower() for s in draw.states if s.model and s.flags & others}
+    return [s for s in draw.states if not s.flags & others and not (s.model and s.model.lower() in theirs)]
+
+
 def parse_draws(text, defines=None):
     """[Draw] in file order, with their states."""
     defines = dict(defines or {})

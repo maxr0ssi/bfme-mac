@@ -33,7 +33,7 @@ A staged or pushed blob is rejected when any of these holds:
 - **Size**: no code file over **600 lines** (`allow-large-file` escape in a comment).
 - **Wine hygiene**: a script that runs `wine` must source `env.sh` (or export `WINEPREFIX`);
   never `~/.wine`; `winecfg -v` only `win10`; launch lines carry `-win`; no `winedbg` attach;
-  `wineserver -k` only right after killing the game; no LARGEADDRESSAWARE.
+  `wineserver -k` only right after killing the game.
 - **Safety**: no `sudo` in scripts; no `rm -r` of a prefix/engine; a script that overwrites a
   `.dll/.big/.dat/.exe` must keep a `.orig`/`.bak`.
 - **Python**: stdlib only (`sys.stdlib_module_names`), no bare `except:`, no `shell=True`.

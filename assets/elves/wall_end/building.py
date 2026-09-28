@@ -2,12 +2,12 @@
 cliff. EA's model is two wall segments end to end (four lancet bays), its faces carried on below
 the ground to z -51.2 for the falling ground at the cliff's foot, the far end cut plain.
 
-The walls' crown runs its whole length (filigree band, silver coping, lancet merlons: the shared
-profile, wall_segment/wall.py), so the joint with the next segment is exact; the four windows per
-face take the segments' silver arch frames and leaf banners in the player's colour; the cut end
-gets a slender Elven turret on the crown: a pale stone lantern-house with a lancet window on each
-open face, under a swept slate roof with upturned eaves and a gilt leaf finial - the end of the
-wall seen from the field.
+EA's body is kept whole. The walls' crown runs its whole length (filigree band, mithril coping,
+leaf-cresting: the shared profile, wall_segment/wall.py), so the joint with the next segment is
+exact; the four lancet windows a face stay EA's; the cut end gets a slender Elven turret on the
+crown: a pale stone lantern-house with a lancet window on each open face, under a swept slate roof
+with upturned eaves and a gilt leaf finial - the end of the wall seen from the field. No banners (the wall run's two hang on the
+gate).
 
 EBWALLN hangs under a bone turned 180 degrees about z (model = (-x, -y, z) of the mesh): the design
 is in mesh coordinates, where z is still up (world_space is not needed). In them: y -19..57, the
@@ -20,7 +20,6 @@ from sagekit.building import Building
 from ..style import ElvenStyle
 
 JOINT_Y, END_Y = -19.0, 57.0
-WINDOWS = (-9.73, 9.73, 28.27, 47.73)
 # the turret at the cut end: body (half x, y0, y1 (0.3 short of the cut), z0, eaves), roof
 TURRET = (4.2, 48.4, 56.7, 52.9, 58.6)
 ROOF = (4.45, 8.2, 1.1)            # half size at the eaves (corners <= the footprint), rise, upturn
@@ -35,6 +34,7 @@ class WallEnd(Building):
     sheet_normal = "EBFortress_NRM.tga"
     own_textures = {"EBFortress.tga": "EBFortresE.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCWallEnd"
+    house_tags = ()                 # no banners on the wall pieces but the gate
     views = {                                                # model space: the cut end at y = -57
         "rts": ((0, -19, 30), 230, 48, -24, 50),
         "close": ((0, -19, 34), 150, 20, -18, 45),
@@ -43,8 +43,7 @@ class WallEnd(Building):
     }
 
     def design(self, kit):
-        from ..wall_segment.wall import segment_windows
-        return self._crown(kit) + segment_windows(kit, WINDOWS) + self._turret(kit)
+        return self._crown(kit) + self._turret(kit)
 
     @staticmethod
     def _crown(kit):

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""pe_laa.py - show or clear the LARGEADDRESSAWARE flag of a 32-bit Windows executable.  (harness-allow: clears it)
+"""pe_laa.py - show, set or clear the LARGEADDRESSAWARE flag of a 32-bit Windows executable.  (harness-allow)
 
-RotWK 2.02 ships lotrbfme2ep1.exe and game.dat with the flag on (the 4 GB patch); under Wine it
-crashes the game, so the installer turns it off. The first change keeps <file>.preLAAoff.bak.
+RotWK 2.02 ships lotrbfme2ep1.exe and game.dat with the flag on (the 4 GB patch). The crash once
+blamed on it was Wine 11's (docs/MEMORY-4GB.md); on w10 it passes tools/laaprobe.c. The first
+change to a file keeps <file>.preLAAoff.bak or <file>.preLAAon.bak.
 
     pe_laa.py <file>...            print on/off for each file
     pe_laa.py --off <file>...      clear the flag (no-op when it is already off)
+    pe_laa.py --on <file>...       set the flag (no-op when it is already on)
 """
 import argparse
 import os
@@ -27,7 +29,9 @@ def characteristics_offset(data):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--off", action="store_true", help="clear the flag")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--off", action="store_true", help="clear the flag")
+    mode.add_argument("--on", action="store_true", help="set the flag")
     ap.add_argument("files", nargs="+")
     a = ap.parse_args()
     for path in a.files:
@@ -35,16 +39,16 @@ def main():
             head = bytearray(f.read(4096))
         off = characteristics_offset(head)
         flags = struct.unpack_from("<H", head, off)[0]
-        if not a.off or not flags & LAA:
+        if not (a.off or a.on) or bool(flags & LAA) == a.on:
             print(f"{path}: LAA {'on' if flags & LAA else 'off'}")
             continue
-        bak = path + ".preLAAoff.bak"
+        bak = path + (".preLAAon.bak" if a.on else ".preLAAoff.bak")
         if not os.path.exists(bak):
             shutil.copy2(path, bak)
         with open(path, "r+b") as f:
             f.seek(off)
-            f.write(struct.pack("<H", flags & ~LAA))
-        print(f"{path}: LAA off (original kept as {os.path.basename(bak)})")
+            f.write(struct.pack("<H", flags | LAA if a.on else flags & ~LAA))
+        print(f"{path}: LAA {'on' if a.on else 'off'} (previous kept as {os.path.basename(bak)})")
     return 0
 
 

@@ -9,8 +9,9 @@
 # SHA-256; install the patched Wine DLLs from the release file (the engine's own kept as
 # <dll>.orig-w10, so scripts/wine-fixes.sh --revert also undoes them); create prefixes/w10; copy your
 # game folders into it (the originals are never touched) and apply the edits the games need under Wine:
-# no LODPreset rows (the pre-menu crash, tools/neuter_gamelod.py) and no LARGEADDRESSAWARE flag  harness-allow: cleared
-# (tools/pe_laa.py), both keeping .bak copies; write the registry, your CD key and an Options.ini at
+# no LODPreset rows (the pre-menu crash, tools/neuter_gamelod.py) and the 4 GB flag as each game ships
+# it (tools/pe_laa.py: on for RotWK 2.02, off for BFME2; docs/MEMORY-4GB.md), both keeping .bak
+# copies; write the registry, your CD key and an Options.ini at
 # this display's resolution; install the game patch for RotWK 2.02 if its exe matches every patch site.
 # RotWK is an expansion and needs BFME2 installed too. Re-running is safe: finished steps are skipped.
 #
@@ -193,8 +194,8 @@ options_ini() {  # options_ini <user data dir> <HeatEffects yes|no>
     "UseEAX3 = no" "VoiceVolume = 70.000000" > "$d/Options.ini"
   echo "Options.ini: UltraHigh, $res"
 }
-install_game() {  # install_game <dir name> <source> <reg file> <registry key name> <exes...>
-  local name=$1 src=$2 reg=$3 key=$4; shift 4
+install_game() {  # install_game <dir name> <source> <reg file> <registry key name> <on|off: 4 GB> <exes...>
+  local name=$1 src=$2 reg=$3 key=$4 laa=$5; shift 5
   local dst="$PFX/$EA/$name"
   step "$name"
   if [[ ! -d "$dst" ]]; then
@@ -205,7 +206,7 @@ install_game() {  # install_game <dir name> <source> <reg file> <registry key na
     mv "$dst.part" "$dst"
   fi
   for b in "$dst"/(ini|INI|__patch202).big(N); do python3 "$BFME_ROOT/tools/neuter_gamelod.py" "$b" | tail -1; done
-  local e; for e in "$@"; do python3 "$BFME_ROOT/tools/pe_laa.py" --off "$dst/$e" | sed "s|$dst/||"; done
+  local e; for e in "$@"; do python3 "$BFME_ROOT/tools/pe_laa.py" --$laa "$dst/$e" | sed "s|$dst/||"; done
   wine regedit /S "$BFME_ROOT/config/$reg"
   local kvar="${name:u}_KEY" k
   k=$(cd_key "$name" "${(P)kvar:-}")
@@ -213,11 +214,11 @@ install_game() {  # install_game <dir name> <source> <reg file> <registry key na
   wineserver -w
 }
 if [[ -n "$SRC_BFME2" ]]; then
-  install_game BFME2 "$SRC_BFME2" bfme2.reg "The Battle for Middle-earth II" lotrbfme2.exe game.dat
+  install_game BFME2 "$SRC_BFME2" bfme2.reg "The Battle for Middle-earth II" off lotrbfme2.exe game.dat
   options_ini "My Battle for Middle-earth II Files" yes
 fi
 if [[ -n "$SRC_ROTWK" ]]; then
-  install_game RotWK "$SRC_ROTWK" rotwk.reg "The Lord of the Rings, The Rise of the Witch-king" lotrbfme2ep1.exe game.dat
+  install_game RotWK "$SRC_ROTWK" rotwk.reg "The Lord of the Rings, The Rise of the Witch-king" on lotrbfme2ep1.exe game.dat
   options_ini "My Rise of the Witch-king Files" no
   [[ -f "$PFX/$EA/RotWK/__patch202.big" ]] || echo "note: no __patch202.big; the game patch and all measurements are for RotWK 2.02"
 fi

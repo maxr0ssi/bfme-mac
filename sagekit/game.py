@@ -3,7 +3,7 @@ import os
 
 from . import paths
 from .formats.big import Archive, norm
-from .formats.ini import parse_draws
+from .formats.ini import parse_draws, parse_objects
 
 
 class Install:
@@ -108,12 +108,61 @@ class Install:
     def has_model(self, model):
         return self.owner(self.model_path(model)) is not None
 
+    @staticmethod
+    def _dirs(ini_dir):
+        return [ini_dir] if isinstance(ini_dir, str) else list(ini_dir)
+
+    def _inis(self, ini_dir):
+        return sorted({m for d in self._dirs(ini_dir) for m in self.members(d) if m.endswith(".ini")})
+
+    def _parsed(self, member):
+        """(draws, {object: parent}) of one INI, parsed once per Install."""
+        cache = self.__dict__.setdefault("_ini_cache", {})
+        if member not in cache:
+            text = self.read(member).decode("latin-1")
+            draws = parse_draws(text)
+            for d in draws:
+                d.file = member
+            cache[member] = (draws, parse_objects(text))
+        return cache[member]
+
     def draws(self, ini_dir):
-        """[Draw] from every INI under ini_dir, each tagged with its file."""
-        out = []
-        for member in self.members(ini_dir):
-            if member.endswith(".ini"):
-                for d in parse_draws(self.read(member).decode("latin-1")):
-                    d.file = member
-                    out.append(d)
+        """[Draw] from every INI under ini_dir (a folder or file, or a list of them), each tagged with
+        its file."""
+        return [d for member in self._inis(ini_dir) for d in self._parsed(member)[0]]
+
+    def object_draws(self, ini_dir):
+        """{object: [Draw]} for the objects the INIs under ini_dir define, with the Draw modules a
+        ChildObject or ObjectReskin inherits from a parent defined elsewhere (GondorFarm, in men\\,
+        draws FarmInterface's from goodfaction\\structures\\farminterface.ini). Inherited modules keep
+        their parent's object and file, where an edit to them must go; a module the child defines
+        under the same tag replaces its parent's."""
+        members = self._inis(ini_dir)
+        out, parents = {}, {}
+        for member in members:
+            draws, objects = self._parsed(member)
+            parents.update(objects)
+            for d in draws:
+                out.setdefault(d.object, []).append(d)
+        for child, parent in sorted(parents.items()):
+            seen = {child}
+            while parent and parent not in parents and parent not in seen:     # defined elsewhere
+                seen.add(parent)
+                member = self.object_index().get(parent)
+                if member is None:
+                    break
+                draws, objects = self._parsed(member)
+                own = {d.tag for d in out.get(child, [])}
+                out[child] = [d for d in draws if d.object == parent and d.tag not in own] + out.get(child, [])
+                parent = objects.get(parent)
         return out
+
+    def object_index(self):
+        """{object: the INI under data\\ini\\object that defines it}."""
+        if "_object_index" not in self.__dict__:
+            idx = {}
+            for member in self._inis("data\\ini\\object"):
+                for name in parse_objects(self.read(member).decode("latin-1")):
+                    idx.setdefault(name, member)
+            self._object_index = idx
+        return self._object_index

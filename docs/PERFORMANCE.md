@@ -687,3 +687,443 @@ runs inside Flush, and renderstats' renderOneObject timers (0x47009f/0x47010c) s
 without drawable flags. At the 6–7 µs per object those timers measure, 5 ms is ~750–850 objects per pass.
 It is game code per object, not per draw; the draws it queues are the FX flush's. To confirm in the game:
 time the call at 0x470f7c and count renderOneObject from its six call sites (renderstats).
+
+
+## Selectable Dwarven builder art prototype — 2026-09-26
+
+Build: `26bf6c1` plus uncommitted `assets/dwarves/porter/` recipe, original helmet retained.
+Scene: static complete `DUPorter_SKN`, all mesh parts counted, HD Edition source versus
+review prototype; no game session, timing or FPS measurement. Source model SHA-256:
+`af7b8eeb0ab43b7447e3238208474fef4bc583aac005bae99b740858e212e62b`.
+
+| Static asset cost | HD source | Review prototype |
+|---|---:|---:|
+| Vertices | 2,496 | 17,939 |
+| Triangles | 2,362 | 8,980 |
+| Model file bytes | 221,497 | 1,079,349 |
+| Three body/cart diffuse DDS files, bytes | 262,608 | 4,194,744 |
+
+The private DDS atlases duplicate material pixels under separate texture names and retain
+original shared sheets for the unchanged helmet and bucket; the texture row excludes those
+retained sheets. This prototype adds geometry and texture cost. Runtime cost is unmeasured
+and must be checked before shipping; these counts are not a performance improvement claim.
+
+
+## Elven citadel-style rollout completion — 2026-09-26
+
+Build: `1385bd4` plus the uncommitted completion pass. Scene: offline EA-versus-redesign
+Blender views, including construction, damage, rubble and available night states. No game run,
+FPS measurement or runtime improvement claim. Older prototype measurements above remain historical.
+
+The final recipes retain EA bodies and add the approved ivory/mithril/mallorn-gold details.
+The palette pass rebuilt 63 ownership-approved shared sheets. The recipe texture-budget
+estimate is 216.7 MB against its 256 MB limit (`sagekit budget elves`); this counts own recipe
+textures and alpha allowances, not total installed textures, geometry or measured GPU memory.
+
+| Group | Final offline checks passed / total |
+|---|---|
+| Approved citadel | Citadel: 114/114 |
+| Citadel additions | Eagle’s Nest: 86/86; Enchanted Anvil: 90/90; Mystic Fountains: 97/97; Crystal Moat: 43/43 |
+| Fortress expansions | Floodgate: 113/113; Floodgate doors: 74/74; Vigilant Ent: 92/92; Watchtower: 92/92 |
+| Walls | Wall segment: 84/84; Wall hub: 86/86; Wall gate: 115/115; Wall end: 79/79; Fortress wall hub: 88/88 |
+| Production | Barracks: 169/169; Forge: 130/130; Green Pasture: 163/163; Green Pasture with fence: 159/159 |
+| Special buildings | Battle tower: 111/111; Mallorn tree: 105/105; Mirror of Galadriel: 63/63; Statue: 60/60; Ent moot: 75/75 |
+
+Total: **2288/2288 passing checks across 23 recipes**, including the approved citadel.
+These gates cover the actual shipped model set, not a claim that every EA state was replaced.
+
+Construction/collapse corrections preserve existing gate thresholds: rest-pose matching for
+the wall hubs, internal-cap classification for the floodgate, the doors’ original model-space
+offset, closed added surfaces for the pasture, fountains and Eagle’s Nest, and optional-source
+colour-channel mapping for forge construction. The door-offset regression and W3D layout
+regression pass. No rejected lifecycle model is forced into the package.
+
+Retained EA bodies: barracks D2/D3; forge D1/D2/D3; crystal moat D1/D2/D3; Mallorn D2;
+mirror D1/D2/D3; statue construction. Mallorn lacks a required non-neutral vertex-colour channel.
+Statue matching probes still failed the unchanged open-back gate, so the previous fallback
+remains. The fortress hub uses the regular wall hub’s completed construction output.
+
+Integration evidence: installer synthetic checks cover duplicate cache records, preservation of
+unrelated art, repeat installation, guarded revert, interrupted-write rollback and stale staging.
+The real Elven archive/cache preparation is staged only; installed Dwarven building/builder
+archives and both live asset caches remain byte-identical to their pre-completion snapshots.
+Current review artifacts: `build/assets/elves/review/`; state details: `assets/elves/ROLLOUT.md`.
+
+
+## Selectable Elven builder review — 2026-09-26
+
+Build: `1385bd4` plus uncommitted `assets/elves/porter/`. Scene: original HD Edition
+`EUPorter_SKN` versus the Elven craftsman, offline paired diffuse-material renders.
+The original face/hair/anatomy, held tools, skeleton and shared animation bytes are retained.
+No game session, timing or FPS measurement. Source model SHA-256:
+`aa03bb943f1c2de458b2adac765b71ef237fc0086bd22bb5cfae24c11fba869b`.
+
+| Static asset cost | Source | Review model |
+|---|---:|---:|
+| Vertices | 1,849 | 16,186 |
+| Triangles | 1,722 | 7,544 |
+| Model bytes | 138,257 | 955,389 |
+
+The private diffuse DDS adds 1,398,248 file bytes; the private RGBA house-mask TGA adds
+8,388,626 file bytes. These are disk sizes, not measured GPU memory. Retained shared
+textures remain unchanged and are excluded from those additional-file counts. Geometry and
+texture cost increase; runtime cost is unmeasured.
+
+The atlas is 2048×1024. Its left half repeats the original 256×256 body/mask four times
+each way, matching the affine UV remap; new material swatches occupy the right half.
+An initial ImageMagick tile composite erased RGB beneath transparent mask pixels. It was
+replaced with raw RGBA row repetition, and the check now verifies exact source-mask bytes
+and transparent-white neutral pixels throughout the added-material region.
+
+Eight paired views cover portrait, RTS, run, walk, water, fidget and both deaths; the seven
+actual INI animation files are decoded with OpenSAGE, with finite transforms checked at every
+frame. A header-only audit wrongly inferred that crushed death hides the cart; the actual
+motion visibility channels override legacy keys and show it. No game-animation data changed.
+
+Structural checks, exact mask mapping, deterministic cache staging, archive read-back, active
+rig-change rejection and per-file harness checks pass. The Elven builder and its new
+house-colour mapping are staged only. Existing Dwarven archives and both live asset caches
+remain byte-identical to the earlier rollout snapshot.
+
+Related existing issue found during this audit: the installed Dwarven builder's private
+`ducrafts*` textures lack house-colour mappings/masks. It was not repaired or reinstalled
+in the Elven builder task; the earlier builder entry's unverified player-colour limitation
+therefore remains open.
+
+
+## Reviewed faction pair installation — 2026-09-26
+
+Build: `1385bd4` plus the uncommitted Elven completion, builder recipes and Dwarven colour
+repair. Scene: installed-file and cache inspection only; the player requested installation
+after reviewing the art. No game session, timings, GPU-memory measurement or FPS claim.
+
+Installed the Elven buildings, then the Elven selectable builder, then repaired the installed
+Dwarven builder's private player-colour mapping. This closes the missing-mapping issue noted
+in the preceding review entry; runtime player-colour appearance is still unverified.
+The Dwarven building archive remains byte-identical to the pre-install snapshot. The repaired
+Dwarven model and all diffuse DDS files also remain byte-identical to their reviewed install.
+
+The new Dwarven mask is a 2048×1024 RGBA TGA, 8,388,626 file bytes. Its character region
+repeats the original mask exactly; the added-prop region stays transparent white. All three
+private diffuse aliases share this mask. The builder archive grows from 5,274,291 to
+13,712,576 bytes (+8,438,285), including the composed house-colour INI. The model remains
+1,079,349 bytes, SHA-256 `243ce51959dbcac531269c65919d26df78ba448b63443f0d4ec0033c54eaa22b`.
+
+Final read-back verified the effective load-order bytes of the Elven building archive
+(274 members, 101 models), Elven builder (4 members, 1 model) and repaired Dwarven builder
+(6 members, 1 model). Every applicable effective cache record matches its model; all four
+private builder colour mappings appear exactly once in the effective INI. An initial audit
+also inspected the lower-priority BFME2 forge record and found its original layout; that is
+not the RotWK-selected record. The final audit follows the same first-provider cache order
+as the installer. No secondary-cache rewrite was needed.
+
+Installer self-checks, exact mask-row checks, unrelated-record preservation, file harness and
+repository invariants pass. A simulated reverse-order restore validates every backup/hash
+without live writes and returns exactly to the pre-install snapshot. Restore order is Dwarven
+colour repair, Elven builder, then Elven buildings; each installer retains `--revert` and refuses
+later conflicting changes. Evidence: `build/assets/install-pair/{before,after,verification}.json`.
+
+
+## Dwarven troop source survey — 2026-09-26
+
+Build: `1385bd4` plus the uncommitted source-review tool. Scene: offline current installed
+HD troop models in decoded idle poses; no game run or performance claim. The active barracks,
+archery range and forge recruitment lists resolve to 8 core troop types. The review sheet has
+9 portraits because the Zealot's 2 complete source models are shown separately; this is not a
+claim about runtime selection of its `ExtraMesh` variation. Upgrade scope includes 4 troop
+banner models and the Battlewagon's 4 role choices, with armour available after role selection.
+
+Every decoded idle frame has finite transforms and a matching skeleton hierarchy. Source
+hashes/providers are recorded in `build/assets/dwarves/troops/sources.json`. Initial Zealot
+previews incorrectly exposed the forged-blade effect cards; active creation scripts hide them,
+so the final source previews apply that hide. These are material/shape review images, not
+simulations of player-colour blending, additive effects or game lighting. No models, textures,
+gameplay data, installed archives or live caches were changed by the survey.
+
+
+## Dwarven troop redesign and animation audit — 2026-09-26
+
+Build: `1385bd4` plus uncommitted `assets/dwarves/troops/`. Scene: offline paired model/texture
+and decoded-animation review. No game session, frame-time, FPS or measured GPU-memory claim.
+The reviewed building palette is reused: Erebor blue, warm bronze/gold, iron and timber.
+
+Scope: 8 core troop types, both Zealot source appearances, 4 banner designs, Battlewagon crews
+and role/armour combinations, and siege construction/destruction/deployment. The staged set
+contains 42 private models: 19 enhanced models and 23 existing lower-detail variants retaining
+their original geometry with the same private palette. All original body positions, triangles,
+UVs and bone assignments are retained; new surface-fitted details use existing bones only.
+
+| Static sum across the staged model set | Source | Redesign before private renaming |
+|---|---:|---:|
+| Vertices | 104,945 | 118,937 |
+| Triangles | 111,032 | 116,816 |
+| W3D file bytes | 10,575,828 | 11,007,300 |
+| Corresponding diffuse file bytes | 8,523,320 | 8,960,336 |
+
+These sums include mutually exclusive LOD/state models; they are not simultaneous scene costs.
+The 24 private diffuse sheets retain source dimensions. Fourteen private house-colour masks
+add 7,334,226 file bytes, copied unchanged. The staged archive has 93 members. Private models
+use the established uncached own-copy path; private textures/masks are registered in staged
+current-cache copies, with unrelated records byte-identical. Original assets are not replaced.
+
+The first DDS export lost the Zealot sheet's mip chain: its 768×384 source has 10 levels but
+ImageMagick emitted 1 for this non-power-of-two size. The final writer compresses each required
+level explicitly and preserves the original count/dimensions. It also copies original DXT3/DXT5
+alpha blocks at every level; the initial banner alpha deviations (up to 19/255 and 9/255) are
+now zero. Protected face/hair pixels and alpha are byte-exact in the lossless painted PNGs;
+RGB DDS compression is still lossy. No resolution reduction was used.
+
+The full motion audit passes for 42 models, 15 rigs and 257 matching source clips: 17,663 decoded
+frames, 814 model/clip pairs, 663,490 finite bone transforms and 20,008,557 finite added vertex
+positions. Exact local geometry/rig preservation proves original motion is unchanged for all
+frames; 126 first/middle/last model-pose comparisons independently check that equality. All
+lower-detail, construction and embedded death rigs are included.
+
+Inherited source exceptions are explicit: 3 absent authored references; 10 clips without a
+staged troop rig (auxiliary fortress/cinematic families); empty `RUGimli_IDLG`; and 2 passenger
+Phalanx death routes pointing at the incompatible ground rig. They remain unchanged. These
+are excluded cases, not silently passing animations. Source provenance covers 376 hashes.
+
+The package audit passes visual-only INI changes, private names, geometry/hierarchy preservation,
+texture size/mips/alpha, unchanged house masks and live installation hashes. No troop archive
+or staged cache was installed. Reports are in `build/assets/dwarves/troops/redesign/`:
+`build.json`, `paint-checks.json`, `audit.json` and `motion-checks.json`.
+
+Review output: 41 paired equipment stills and 143 representative motion GIFs, each sampled
+at 12 poses across its full source clip. Playback delays follow nominal source frame rates;
+game speed modifiers are not simulated. Both sides use identical framing/lighting, with camera
+bounds covering the full clip. The gallery and after-only roster poster are `review.html` and
+`poster.jpg`. The offline previews omit player-colour blending, particle simulation and launched
+projectiles; their absence in the previews does not remove the original game effects.
+
+
+## Dwarven troop warm-palette revision — 2026-09-26
+
+Build: `1385bd4` plus uncommitted troop sources. Scene: offline paired troop renders and
+source/staged-package audit; no game run or runtime performance claim. The earlier fixed-blue
+cloth/enamel direction was rejected by Max. This revision uses warm neutral wool, bronze/gold
+and dark iron; the earlier geometry and animation results above remain valid. Rejected sample
+images/manifests are retained under `build/assets/dwarves/troops/redesign/rejected-blue/`.
+
+The 42 models have identical geometry to the earlier staged redesign. All 24 private diffuse
+sheets were rebuilt with original dimensions/mip counts; the 14 house-colour masks remain
+byte-identical, preserving the player's choice of team colour. Protected skin/hair pixels and
+PNG alpha remain exact; decoded DDS alpha maximum error is 0. Source and live installation
+hashes still match. Full matching-clip motion validation passes again with the same 257 clips
+and 17,663 decoded frames; inherited missing/incompatible references remain documented.
+
+
+## Troop skin preservation and final warm/Elven revisions — 2026-09-26
+
+Build: `1385bd4` plus uncommitted troop recipes, secondary-skin guards and troop-local posing.
+Scene: offline native-model staging, protected-texture checks and decoded source animation.
+Nothing installed; no game session or runtime performance measurement.
+
+Follow-up visual inspection removed a gold tint from the Dwarven mount's foreleg by retaining
+the complete original mount sheet. The Guardian's protected beard rectangle overlapped blue
+shoulder cloth; only the known blue cloth pixels in that island are now repainted. Final
+Dwarven scope is 23 painted sheets, 14 original house-colour masks and 42 private models.
+Corresponding diffuse bytes are 8,435,784 source and 8,872,800 painted; mask bytes remain
+7,334,226. Earlier 24-sheet warm revision above records the intermediate version.
+
+A deeper chunk audit found that the shared mesh writer removed secondary skin positions
+(`0xC00`) and normals (`0xC01`). The earlier primary-bone-only motion audit did not catch this;
+its previous original-motion certification is superseded by the full skin-channel checks here.
+The discarded Elven staging build lost 137,732 bytes from each secondary channel and added
+149,112 ordinary array bytes, explaining its misleading 126,352-byte net size reduction.
+No package from this intermediate revision was installed.
+
+The final recipes leave every mesh carrying secondary channels wholly intact, preserving both
+bone indices, both weights and both coordinate/normal arrays. Only supported meshes receive
+fitted additions. A troop-local posing helper evaluates the weighted sum in the respective
+bone spaces; the shared building lifecycle poser is unchanged. A synthetic rotation/translation
+blend check passes. Both source manifests load successfully: 95 models and 166 blended meshes,
+with valid secondary counts, indices, active weights summing to 100 and finite rest positions.
+
+| Final model-set static sum | Dwarven source | Dwarven staged | Elven source | Elven staged |
+|---|---:|---:|---:|---:|
+| Vertices | 104,945 | 115,905 | 82,960 | 85,360 |
+| Triangles | 111,032 | 115,464 | 95,313 | 96,273 |
+| W3D bytes before private renaming | 10,575,828 | 11,203,412 | 7,870,003 | 8,006,323 |
+
+These sums include mutually exclusive detail/state models, not simultaneous scene costs.
+The final Dwarven set has 14 models with fitted geometry; the final Elven set has 9. All
+remaining models retain their original geometry, with private palette sheets where applicable.
+
+Elven scope: 53 private models, 17 painted sheets and 9 original house-colour masks. The staged
+archive contains 92 members; provenance covers 512 source hashes. Corresponding diffuse bytes
+are 3,792,760 source and 4,349,856 painted; masks add 4,456,844 bytes. Ent/Eagle/horse natural
+sheets retain their original appearance. The source Mirkwood shield's single-level mip chain
+is retained and recorded as an inherited limitation. Original PNG alpha/protected pixels and
+compressed DXT3/DXT5 alpha blocks remain exact; decoded DDS alpha maximum error is 0.
+
+Independent scoped-INI verification allows 15 troop object blocks. Hero parents, the generic
+Ent base and the fortress's Vigilant Ent remain exact. Recruited Fir and Eagle children get
+private copies of their inherited visual draw only; original recruitment, gameplay and
+animation routing are unchanged. Both packages still require review before installation.
+
+Final weighted-motion audit: Dwarves validate 257 matching clips / 17,663 decoded frames across
+15 rigs and 814 model/clip pairs, with 663,490 finite bone transforms, 17,627,920 added vertex
+positions and 126 original/new model-pose comparisons. The 3 missing source references,
+11 skipped available auxiliary/empty clips and 2 incompatible passenger death routes remain
+explicit. The final Dwarven archive contains 92 members.
+
+Elves validate all 381 available clips / 25,590 decoded frames across 11 rigs, with 874,792
+finite bone transforms and 5,655,840 added vertex positions. Seven absent authored references
+remain recorded; no available clip was skipped. Both factions now evaluate original two-bone
+blending in their numerical pose comparisons and rendered previews. The Elf intermediate
+6,202,500 added-position count is superseded after blended-body additions were removed.
+
+Elven weighted-pose numerical confirmation covers 1,861 model/clip pairs and 159
+original/new model-pose comparisons. `cleanup-equivalence.json` records byte-identical Elven
+geometry output after deleting the now-unused body-clasp path; no art rebuild was necessary.
+
+Final regenerated review coverage: Dwarves have 41 paired stills and 143 motion GIFs; Elves
+have 42 paired stills and 159 motion GIFs. Every GIF contains 12 sampled frames with delays
+derived from its original clip's nominal frame rate. Media inventory, decoding, timing and
+freshness checks pass; every current review file is newer than its final model work, painted
+DDS inputs and two-bone poser. Reports: each faction's `redesign/preview-checks.json`.
+No superseded blue-palette or primary-only-pose media remains in the current galleries.
+Package, source/skin preservation, live-file, scope and harness checks pass.
+
+## Men of the West troop staging — 2026-09-27
+
+Build: `1385bd4` plus uncommitted Men troop catalog/art and shared staging/audit reuse.
+Scene: offline source extraction, staged assets, weighted animation decoding and paired Blender
+review renders. Nothing installed; no game session or runtime performance claim.
+
+The source manifest covers 594 hashes. The staged archive has 115 members: 52 private models,
+29 painted sheets, 21 copied original house-colour masks, 12 scoped object INIs and the composed
+house-colour table. Two banner sheets retain their original shared HC_GUBanner mask lookup;
+its existing JPEG/PNG resources are recorded without conversion or new cache registration.
+Corresponding diffuse bytes are 7,371,896 both before and after; copied masks total 13,241,220.
+These include alternative source sheets, not simultaneous runtime residency.
+
+| Whole model-set static sum | Source | Staged before private renaming |
+|---|---:|---:|
+| Vertices | 85,207 | 91,447 |
+| Triangles | 91,167 | 93,663 |
+| W3D bytes | 8,092,644 | 8,449,380 |
+
+Fourteen models have fitted additions, totalling 2,496 added triangles. Detail/state models are
+mutually exclusive; these sums are not a scene cost. Original position/normal/UV/triangle and
+full influence prefixes remain exact. Secondary-skin meshes retain their complete source bytes.
+All source mip counts, PNG alpha/protected regions and DXT3/DXT5 alpha blocks are retained.
+The CE sheet retains DXT1, avoiding a decoded face-color change from BC1 interpolation.
+
+Scope verification covers 15 changed object blocks. Three are visual-isolation copies: campaign
+Royal Guard, Lone Tower archer and enemy Morgul Trebuchet retain original Draw and SubObjectsUpgrade
+modules. Other original non-troop blocks and all gameplay/animation directives remain unchanged.
+An independent synthetic-alias reverse check also covers original RandomTexture/UpgradeTexture
+routes. Existing Dwarf and Elf package audits still pass after the shared-mask staging addition.
+
+Weighted motion audit passes 440 matching clips / 29,422 decoded frames, across 14 rigs and
+1,823 model/clip pairs. It checks 999,770 finite bone transforms, 13,159,440 added vertex positions
+and 156 original/new model-pose comparisons. Five authored references are absent. Nine available
+clips belong to untouched debris, fortress siege or the unrelated Isengard banner hierarchy;
+those lack a staged Men troop rig and are explicitly skipped. All are recorded in
+`build/assets/men/troops/redesign/motion-checks.json`. No animation files or routes are repaired.
+
+Final Men review coverage: 50 paired equipment stills and 132 motion GIFs, each with 12 samples
+and original source nominal clip timing. All 182 gallery records are unique and present; the
+media audit verifies decoding, frame counts, delays and freshness against final model/texture
+inputs and the weighted poser. A final Dol Amroth hood-cloth correction preserves protected
+horse eye/muzzle/mane pixels. Decoded DDS protected regions and alpha pass exact source checks.
+Forged-blade glow has offline speckling in both original and proposed renders; unchanged source
+materials and this preview limitation are documented in the gallery. Package/source/scope,
+weighted-motion, complete-media and harness checks pass. Live installation is unchanged.
+
+
+## Men citadel pilot — 2026-09-27
+
+Build: `1385bd4` plus uncommitted Men citadel recipe and palette. Scene: offline player fortress
+asset build and paired Blender review, with separate source-upgrade fit composite. Staged only;
+no game run, runtime timing or frame-rate claim. No live installation changes.
+
+`GBFORTRESS` retains its original surface and gains 3,544 triangles (1,458 → 5,002), with
+vertices 2,004 → 10,142 after layout. Added triangle tags: trim 1,956, gilt 1,216, top 80,
+stoneB 152, stoneA 64, enamel 76. The XY bounds stay unchanged; height rises from 116.6455 to
+137.2 (+17.6%, below the recipe's 20% ceiling). Texel density median 8.8 px/unit, p10 5.2,
+p90 13.1. Framework texture residency estimate: 22.7 MiB against the Men 256 MiB budget;
+this is an asset estimate, not measured game residency.
+
+Healthy W3D grows from 295,896 to 1,004,880 bytes. Private healthy/construction/D2/D3 files are
+1,004,880 / 1,064,106 / 886,376 / 1,230,181 bytes. The staged output totals 36,401,030 bytes,
+including INI and texture variants. Healthy diffuse is 4096 DXT1, 13 mip levels, 11,184,952
+bytes. Damage, snow and stonework variants are 2048 DXT1, 12 mip levels, 2,796,344 bytes each;
+the 2048 normal TGA is 12,582,956 bytes. Alternatives are not simultaneous scene costs.
+
+Lifecycle models all build without a source-only fallback: construction keeps 6,525/6,525
+candidate faces, D2 6,877/6,877, D3 7,549/8,229 after break clipping. The contact sheets show
+new roof frames appearing before slate infill in construction and exposed metal in damaged
+roofs. Original animation routes and bones remain; these previews are not a live-game test.
+
+Final pipeline checks pass 109/109. Review has 6 paired healthy/composite views and 3 lifecycle
+contact sheets. A reverse-alias audit restores the original Men INI by removing private texture
+routes, reversing the model names and restoring static LOD selection on the 2 main draws.
+Private models leave Arnor and neutral shared-model users on EA assets. Original flag/upgrade
+meshes are retained; live asset/cache/archive hashes match the earlier install snapshot.
+
+Rejected first pass: 1,458 → 4,758 triangles (+3,300), height 124.6, 108/109 checks passed.
+The open-back check found 50/2,272 newly visible faces; closing the arch and cornice backs fixes
+it. Initial gate piers at Y ±21 overlapped the oil outlets and were moved to ±17. Crowns at
+Z 104–117 crossed the original flag planes, so their bodies now start above Z 121, on narrow
+masts. Neither pass was installed. Final upgrade fit preview retains the original central
+Ivory Tower, healing house, oil hardware, closed door and flags; oil crew and particles are not
+simulated. No extra banners or night lights were added.
+
+
+## Men citadel architectural revision — 2026-09-27
+
+Build: `1385bd4` plus uncommitted revised Men citadel recipe/palette. Scene: offline construction,
+paired Blender previews and original door animation posing. The player rejected the preceding
+trim/crown pilot as insufficiently detailed and too Elven in colour; its measurements above
+remain historical, not the current design. The rejected images are preserved under
+`build/assets/men/fortress/rejected-trim-pilot/`. Nothing installed; no game run or runtime claim.
+
+The revised body has 11,606 triangles (EA 1,458; +10,148), within the 15,000 hero-building limit,
+and 22,774 vertices (EA 2,004) after layout. Added tags: stoneB 2,868, course 1,024, top 892,
+stoneA 1,688, trim 1,461, enamel 27, relief 1,404 and gilt 784. There are 16 paired-face
+buttresses, 40 small corbels, 8 tower White Tree shields and the gate shield with 7 stars.
+Original XY and height bounds are unchanged (top 116.6455); the rejected added gold masts are
+removed. Density median 8.5 px/unit, p10 5.1, p90 12.0. Texture dimensions/mips/formats and the
+22.7 MiB framework estimate are unchanged from the prior pilot; no game residency measurement.
+
+Healthy/construction/D2/D3 W3D sizes are 2,139,168 / 2,135,354 / 1,654,168 / 2,267,661 bytes;
+complete staged output is 40,411,838 bytes. Lifecycle retains 13,133/13,133 construction faces,
+13,485/13,485 D2 faces and 13,939/14,837 D3 candidates after clipping. All states built without
+fallback. Pipeline checks pass 109/109; all 6 paired views and 3 state contact sheets decode
+and are newer than final outputs. Original live-install snapshot hashes remain unchanged.
+
+Door clearance correction: the first architectural iteration used a 13.9 half-opening and
+pier belts reaching inward to |Y|14.5, intersecting original outward door motion. Widening the
+jamb alone did not fix the low curved arch. Final half-opening 15.6, spring 40, apex 44 and
+piers centred at ±17.5 (maximum half-width 1.9 below the door top) clear both original door
+animations across 798 quarter-frame poses. Inner curve/jamb minimum clearance is
+0.635122 / 0.383812; outer curve/jamb is 1.843204 / 1.442506. This is sampled triangle-surface
+and conservative pier-volume evidence, not a continuous-time proof. Source hashes, final recipe
+hash and detailed measurements: `work/door-clearance.json` under the build. Earlier static
+asset check passes did not establish animated door clearance.
+
+Door half-envelope at X53.8/54.8/55.8/56.8/57.5 is respectively
+14.722472 / 14.898799 / 15.075127 / 15.251454 / 15.374883 for Z0..43. Pier outer extent19.4
+stays inside oil outlet start19.507; wider capitals begin above42.4, clear of door top40.91
+and oil top38.857. Pier back49.2 clears healing-house front48.75. Tower shields occupy
+Z44.5..55.5 between window tiers ending40.65 and starting60.08; corbels74..76 clear upper
+windows73.44 and flame hardware73.47. Gate shield origin55.6 embeds its rear55.48 in the
+original arch front55.638, and its tree/stars embed in their field. An intermediate missing
+foliage ramp stopped painting and was corrected before final output; no fallback was used.
+
+The intermediate architectural meshes had 11,582 triangles; the widened shallow arch produces
+the final 11,606. Private model/texture scope and original upgrade routes remain unchanged.
+The upgrade composite keeps original flag colours; palette changes apply to this citadel body.
+
+## 32-bit address space per texture byte — 2026-09-27
+
+Build: installed `engines/w10` wined3d (0001–0021) vs the same + unbuilt
+`patches/wined3d-wow64-buffers/0022` in a scratch engine copy. Scene: `tools/texmem32.c` in a
+throwaway prefix, no game. A managed texture costs 1.031 bytes of the 2 GB per byte, kept until
+release (1024² DXT5 and 512² A8R8G8B8); an empty process fails CreateTexture after 1.87 GB of
+them. With 0022: 0.000 after the fill/draw; 3 GB loaded in 14 MB; +0.25 ms per MB at the first
+draw. Fix 0014 adds up to 0.6× transiently for bursts of small first draws. Details, method and
+risks: `docs/MEMORY-2GB.md`.

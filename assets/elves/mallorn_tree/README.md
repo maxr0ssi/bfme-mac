@@ -23,6 +23,7 @@ carried over.
 - **Stair balustrade:** a silver balustrade follows EA's spiral stair up to the talan, measured
   from the stair's outer edge (`STAIR`: angle round (-7.5, -4.5), radius, board height). Turned
   balusters stand on the boards every ~1.5, under a rounded rail 2.55 over the boards.
+- **Talan edge:** a narrow gold fascia and hanging leaf fringe follow the existing platform edge.
 - **Newels:** a newel column with a crystal lantern stands either side of the stair's foot.
 - **Lantern columns:** three slender lantern columns stand among the roots, 30 from the trunk, clear
   of the stair and the maiden.
@@ -32,6 +33,8 @@ carried over.
 - **Banners:** two leaf banners hang from the talan's rail on the camera's side, in the player's
   colour. `EBHCMalTree` is Arnor's too, so the house step ships an own copy, `EBHCMalTree2`, shown by
   the Elven mallorn only.
+
+Earlier pass measurements (retained for history; current build evidence is in `work/logs/checks.log`):
 
 Footprint and height unchanged (x -59.2..41.8, y -30.0..39.7, z 0.2..110.9). Triangles 1,014 ->
 8,472 (the balusters are most of it). Texel density median 13.5 px/unit. `checks`: 105/105.
@@ -48,6 +51,9 @@ two newels and the three lantern columns. EA's three canopy glow cards (`N_GLOW`
 planes) stay round the three hanging lanterns as free-hanging glows (`Light.glow`).
 
 ## Status
+
+The latest ivory, mithril and mallorn-gold pass is built and passes the offline checks;
+review is still required before installation. Lifecycle fallbacks below remain intentional.
 
 | Part | Healthy | Construction | Damaged | Really damaged | Rubble | Snow | LOD M/L |
 |---|---|---|---|---|---|---|---|

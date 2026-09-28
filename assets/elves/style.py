@@ -267,7 +267,6 @@ class ElvenStyle(Style):
     sheet_dir = "art\\compiledtextures\\eb"
     not_elven = ("eb_", "ebbarracks", "ebbridge", "ebeam", "ebshipwreck", "ebsiege")
     master_variants = {"damaged": "EBFortress_D.tga", "snow": "EBFortress_Snow.tga", "stonework": "EBFortress_U.tga"}
-    budget_mb = 256
     # cloth faces (Building.house_tags, "cloth" by default) leave the body for the house-colour model;
     # walls and expansions, which EA gave none, get a copy of EA's Elven house flag (HC_BANNER)
     house_template = "EBHCBbattleTwr"

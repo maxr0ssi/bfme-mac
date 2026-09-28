@@ -10,9 +10,11 @@ What comes next: [FACTIONS-PLAN.md](FACTIONS-PLAN.md).
 
 | Faction | Recipes | State |
 |---|---|---|
-| Dwarves | 35 | Installed; every model the game draws carries the redesign: healthy, construction, damaged, really damaged, rubble, placement cursor, night. Max's in-game check pending for the last round. |
-| Elves | 23 | Designed, built and rendered (`build/assets/elves/_elves_poster*.jpg`); not installed. |
-| Men, Isengard, Mordor, Goblins, Angmar | 0 | Surveyed; plan in FACTIONS-PLAN.md. |
+| Dwarves | 35 | Installed; every model the game draws carries the redesign: healthy, construction, damaged, really damaged, rubble, placement cursor, night. Reinstalled 2026-09-27 with the monument's banners shown only with its upgrade. Max's in-game check pending. |
+| Elves | 23 | Installed (2026-09-26; reinstalled 2026-09-27 with the anvil banner shown only with its upgrade). [`assets/elves/ROLLOUT.md`](../assets/elves/ROLLOUT.md). |
+| Men of the West (and Arnor) | 44 | Installed 2026-09-27: citadel, upgrades, expansions, walls, production with level-ups, towers and specials; every build ALL PASS. Poster `build/assets/men/men_poster.jpg`; [`assets/men/ROLLOUT.md`](../assets/men/ROLLOUT.md). Max's in-game check pending. |
+| Men | 31 stubs | Measured stubs, citadel pilot in progress; framework pass done 2026-09-27. Plan: [`assets/men/ROLLOUT.md`](../assets/men/ROLLOUT.md). |
+| Isengard, Mordor, Goblins, Angmar | 0 | Surveyed; plan in FACTIONS-PLAN.md. |
 
 ## One building, step by step
 
@@ -99,8 +101,23 @@ build/assets/<faction>/<building>/
 - EA's folders mix factions (`art\compiledtextures\eb` holds Elven and Erebor sheets); the
   ownership map decides, not the folder.
 - House-colour meshes are found by their texture, not only an `HC_` name.
+- An add-on's cloth (`parts` shown under an upgrade flag) goes to a house model of its own whose
+  Draw mirrors the add-on's states (`Building.addon_conditions`), never to the object's house
+  model, which is drawn before the upgrade too (the anvil's banner hung in the air).
 - A derived body keeps no EA sheet: a state drawn with a normal map of its own (the Elven
   barracks' `NBElvnBarx_D_NRM`) gets a copy of ours under a name of the same length.
+- A faction's objects are those of `Style.ini_dirs()`: `ini_dir` (a folder, a file or a list)
+  plus the structure folder of each group that reuses its models one for one (`ownership.FOLLOWS`:
+  Arnor for the Men), so swaps, own-model repoints, house draws and hidden banners reach Arnor too.
+- A ChildObject draws the Draw modules it inherits from a parent defined elsewhere
+  (`Install.object_draws`: GondorFarm draws FarmInterface's, in `farminterface.ini`); edits to
+  them go to the parent's file.
+- One Draw module may show two bodies under `BUILD_VARIATION_ONE` / `_TWO` (the Men's fortress
+  expansions). Each is a recipe of its own that owns only its variation's states
+  (`Building.own_states`): derived and lifecycle models, variants, repoints and ownership follow
+  it, and a house model of our own is drawn in its variation only.
+- A model without meshes (`OBBFoundationX`, the foundations' stand-in) is nobody's art: it never
+  needs an own copy and is never rebuilt.
 
 ## Known limits
 

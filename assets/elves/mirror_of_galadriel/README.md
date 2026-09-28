@@ -29,9 +29,13 @@ kept.
   lantern) stands at both corners of each flight's foot. A taller one stands on the landing where
   the flights part.
 - **Banner poles:** two gilt banner poles on the landing's back corners, in front of the dais. Their
-  leaf banners face the approach and their pennants fly along +y. The cloth goes to `EBHCGalMirr`
+  leaf banners face the approach, without extra pennants. The cloth goes to `EBHCGalMirr`
   (house colour).
-- **Paint:** the slabs are repainted in the Elven moonstone.
+- **Paint:** the slabs are repainted in the Elven ivory stone. The shared faction sheet also
+  gives the retained basin and roots an ivory/gold tint, including modest gold flecks on the roots;
+  their geometry and texture detail remain intact.
+
+Earlier pass measurements (retained for history; current build evidence is in `work/logs/checks.log`):
 
 Footprint unchanged. Stair height 4.92 -> 20.64. `max_z_growth` is 3.4 because the stair is only
 4.9 high while the model is the basin's 28.0; the model's height is unchanged. Triangles 236 ->
@@ -39,6 +43,9 @@ Footprint unchanged. Stair height 4.92 -> 20.64. `max_z_growth` is 3.4 because t
 `checks`: 63/63.
 
 ## Status
+
+The latest ivory, mithril and mallorn-gold pass is built and passes the offline checks;
+review is still required before installation. Lifecycle fallbacks below remain intentional.
 
 | Part | Healthy | Construction | Damaged / really damaged / rubble | Snow | LOD M/L |
 |---|---|---|---|---|---|

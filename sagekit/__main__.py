@@ -62,7 +62,7 @@ def _game_checks():
 
     def check(b):
         names.check_free(b, stems)
-        probs = ownership.recipe_problems(b, own)
+        probs = ownership.recipe_problems(b, own, g)
         if probs:
             raise ValueError("; ".join(probs))
     return (check,)
@@ -85,10 +85,11 @@ def cmd_budget(a):
 
 def cmd_inventory(a):
     """Every part of the building (each Draw module of its objects) with every condition the game
-    draws it in: [x] this recipe builds it, [ ] still to do, MISSING the model is not in any archive."""
+    draws it in: [x] this recipe builds it, [ ] still to do, MISSING the model is not in any archive.
+    A Draw showing two build variations lists this recipe's variation only."""
     b = registry.load(a.building)
     g = Install()
-    print("%s: model family %s*, INIs under %s" % (b.id, b.source, b.style.ini_dir))
+    print("%s: model family %s*, INIs under %s" % (b.id, b.source, ", ".join(b.style.ini_dirs())))
     for obj, draws in b.objects(g).items():
         print("\n%s" % obj)
         for d in draws:
@@ -96,8 +97,12 @@ def cmd_inventory(a):
             if not models:
                 continue
             role = "body" if b.is_body(d) else "add-on"
-            print("  %s  %-6s %s" % ("[x]" if b.covers(d) else "[ ]", role, d.tag))
+            print("  %s  %-6s %s%s" % ("[x]" if b.covers(d) else "[ ]", role, d.tag,
+                                       "" if d.object == obj else " (inherited from %s)" % d.object))
+            own = b.own_states(d)
             for st in d.states:
+                if st not in own:               # another build variation's (its own recipe's)
+                    continue
                 what = st.model if st.model and st.model.lower() != "none" else ""
                 if st.textures:
                     what += (" " if what else "") + ", ".join("%s->%s" % t for t in st.textures)
@@ -113,7 +118,7 @@ def cmd_inventory(a):
                 print("       %s %-44s %s%s" % ("x" if built else "-", cond, what, "  MISSING" if missing else ""))
             if d.fields.get("StaticModelLODMode", "").lower() == "yes":
                 for suffix, state in (("M", State.LOD_MEDIUM), ("L", State.LOD_LOW)):
-                    for m in models:
+                    for m in b.own_models(d):
                         if g.has_model(m + suffix):
                             print("       %s %-44s %s" % ("x" if state in b.built_states else "-", state.value, m + suffix))
 
@@ -216,7 +221,11 @@ def cmd_install(a):
     if game_running():
         print("the game is running - close it first (it reads its archives at startup)")
         return 1
-    install_faction(a.faction)
+    if a.revert:
+        from .install import revert_faction
+        revert_faction(a.faction)
+    else:
+        install_faction(a.faction, check=a.check)
 
 
 def cmd_revert(a):
@@ -262,7 +271,12 @@ def main(argv=None):
     p.add_argument("--write", action="store_true", help="write the stubs (never over an existing recipe)")
     sub.add_parser("measure").add_argument("building")
     for name in ("install", "revert"):
-        sub.add_parser(name).add_argument("faction")
+        p = sub.add_parser(name)
+        p.add_argument("faction")
+        if name == "install":
+            modes = p.add_mutually_exclusive_group()
+            modes.add_argument("--check",action="store_true",help="stage and verify without installing")
+            modes.add_argument("--revert",action="store_true",help="restore the last scoped installation")
     a = ap.parse_args(argv)
     return globals()["cmd_" + a.cmd](a) or 0
 

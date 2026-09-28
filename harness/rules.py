@@ -124,8 +124,6 @@ LINE_RULES = [
     (SH, LAUNCH_RE + r"(?!.*\s-win\b)",
      "launch with -win: exclusive fullscreen minimizes on focus loss under the Mac driver and comes "
      "back black"),
-    (CODE, r"(?i)large.?address.?aware|IMAGE_FILE_LARGE_ADDRESS_AWARE",
-     "do not set the 4 GB (LARGEADDRESSAWARE) flag on game.dat — it crashes ~60 s in under Wine"),
     (SH, r"\bsudo\b",
      "scripts must not escalate (a hook or harness run would hang on the password prompt) — "
      "print the command for the user instead, as README does for pmset"),

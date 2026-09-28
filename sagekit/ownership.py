@@ -227,13 +227,30 @@ def faction_sheets(style, install, own=None):
     return keep, skipped
 
 
-def recipe_problems(b, own=None):
+def empty_model(own, model, install):
+    """A model without meshes (OBBFoundationX, the foundations' stand-in five factions draw): no art
+    of anyone's to change, so no reason for an own copy."""
+    if own.textures_of(model):
+        return False
+    from .formats.w3d import W3DFile
+    return install.has_model(model) and not W3DFile(install.read(install.model_path(model))).meshes
+
+
+def recipe_problems(b, own=None, install=None):
     """Why a recipe would change another faction's art: its model family (the Draw modules showing
     its source) drawn by another faction without `own_model`, or its sheet drawn by another faction
-    without a pinned `own_textures` name or a `style.shared_sheets` copy. [] when it is safe."""
+    without a pinned `own_textures` name or a `style.shared_sheets` copy. [] when it is safe. Only
+    the models the recipe ships count: those its covered Draw modules show in its own states
+    (not another build variation's, GBFARTOWB beside GBFARTOWA, nor the models another faction's
+    Draw shows beside the source, Blue Mountains' bb_tower03), and none without meshes."""
+    from .game import Install
     own = own or load()
+    install = install or Install()
     out = []
+    ships = {m.lower() for m in [b.source] + b.drawn_models(install)}
     for m in own.body_draw_models(b.source):
+        if m not in ships or empty_model(own, m, install):
+            continue
         others = own.other_model(m, b.faction)
         if others and b.shipped_name(m).lower() == m.lower():
             out.append("%s is drawn by %s too: ship an own copy (own_model)" % (
@@ -284,6 +301,6 @@ def report(faction, install=None):
                                          " (the style's copy: %s)" % c if c else "") for m, o, c in skipped]
     lines += ["", "## Recipes (%d)" % len(ids), ""]
     for bid in ids:
-        probs = recipe_problems(load_building(bid), own)
+        probs = recipe_problems(load_building(bid), own, install)
         lines.append("- %s: %s" % (bid, "; ".join(probs) if probs else "ok"))
     return lines

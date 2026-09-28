@@ -24,7 +24,7 @@ def run(b, ws, r):
     others = [n for n in meshes if n != target]
 
     r.section("structure")
-    r.check("one armature", N["n_arm"] == 1, "%d" % N["n_arm"])
+    r.check("one armature (none if EA's has none)", N["n_arm"] == min(1, O["n_arm"]), "%d" % N["n_arm"])
     r.check("same %d bone names" % len(O["bones"]), sorted(N["bones"]) == sorted(O["bones"]), "%d bones" % len(N["bones"]))
     moved = [k for k in O["bones"] if k in N["bones"] and any(
         abs(a - c) > 1e-3 for x, y in zip(O["bones"][k][:2], N["bones"][k][:2]) for a, c in zip(x, y))]

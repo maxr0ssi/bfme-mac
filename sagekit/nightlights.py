@@ -126,8 +126,9 @@ class Light:
 def ini_names(b, install):
     """{MESH NAME: role} for the sub-objects the building's objects show at night ('pane', or
     'halo' for a glow mesh) - from the uncommented Night/Fire/GlowWindowName fields."""
-    want = {o.lower() for o in b.objects(install)}
-    files = sorted({d.file for ds in b.objects(install).values() for d in ds})
+    objs = b.objects(install)                   # (and the parents whose Draw modules a ChildObject inherits)
+    want = {o.lower() for o in objs} | {d.object.lower() for ds in objs.values() for d in ds}
+    files = sorted({d.file for ds in objs.values() for d in ds})
     from .formats.ini import strip
     out = {}
     for f in files:

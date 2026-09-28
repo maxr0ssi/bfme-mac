@@ -1,36 +1,30 @@
 # Elves fortress mystic fountains (`ElvenCitadel`, `ModuleTag_DrawMysticFountains`)
 
-Eight half-round basins hung on the ring's faces (toward +-45, +-67.5, +-112.5, +-157.5 degrees), a
-swan in each pouring water. Own texture `EBFortresK.tga` (DXT5). EA's water meshes (`EBFMFOUNT2`,
-`EBFMFOUNT3`) are untouched.
+EA's eight half-round basins and swans remain whole, hung in the citadel ring's window recesses.
+Own texture `EBFortresK` dresses the original body in ivory, mithril and mallorn gold.
+EA's water meshes `EBFMFOUNT2` and `EBFMFOUNT3` are unchanged.
 
-## What changed (body `EBFMFOUNT1`, healthy)
+## Current design
 
-- **Gilt lips.** A gilt bead sweeping round each basin's lip from wall to wall (radius 6.4, inside
-  the rim: the +-45 basins set the footprint's x 42.2).
-- **Starlight lanterns.** A small crystal lantern standing on each end of every lip, by the wall.
-- **Banners.** A leaf banner (5.8 x 6.4, house colour) over the swan on the six gable faces, between
-  the swan's head (z 31.5) and EA's frieze; the faces toward +-45 already carry the fortress's ring
-  banners, which end over their swans.
+- A rounded silver coping follows each basin's lip from wall to wall.
+- Small starlight crystals in gilt cups stand at the coping's ends, below the swans' heads.
+- A closed crystal-glass sheet sits over each basin floor, keeping the pool readable as water.
+- No banners: the first pass's swan-covering cloth was removed.
 
-## Numbers
+The first pass's gilt bead was replaced by the citadel's silver coping. Height and footprint
+remain unchanged; the earlier extra height allowance for banners is no longer needed.
 
-- Footprint unchanged. Height (from the model's foot, z 10.57): 20.93 -> 28.81 (+37.6 %),
-  `max_z_growth = 0.40` as the Dwarven old castle hub: under the 20 % default the top would be z 35.7,
-  with no room for cloth between the swans' heads and the top.
-- Triangles 1,520 -> 4,136 (budget 5,000). Texel density median 23.8 px/unit.
-- Checks: 97/97. House colour: 72 cloth faces -> `EBHCFortress`.
-- Lifecycle: `EBFMFount_A`, `_D2` and `_D3` carry the redesign.
+## Lifecycle and night
 
-## Night lights
+Construction, really damaged and rubble states carry the redesign. The rubble recipe splits
+solids over 5 units along EA's pieces: the coping and pool slabs follow the basin fragments.
+The previous open pool sheets and whole slabs failed exposed-backface validation; closing the
+slabs and fitting their splits fixed the geometry. Validation limits remain unchanged.
 
-No night meshes in EA's model; none declared.
+EA's model has no night meshes or night Draw names. The crystals are day-lit only.
 
-## Status
+## Verification (2026-09-26)
 
-| Part | Healthy | Construction | Damaged | Really damaged / rubble |
-|---|---|---|---|---|
-| basins (`EBFMFount`) | built, checks pass, **awaiting review** | ours (`_A`) | texture swap | ours (`_D2`, `_D3`) |
-
-The renders draw only the basins' own cloth from the shared `EBHCFortress` (the fortress's banners
-no longer float round them).
+The pool sheets are closed on all sides. Current body: 1,520 → 4,304 triangles; height and
+footprint unchanged. Checks: 97/97, including custom rubble. Day and lifecycle comparisons are in
+`build/assets/elves/fortress_mystic_fountains/renders/`. Nothing installed; awaiting review.

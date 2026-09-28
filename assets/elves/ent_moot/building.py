@@ -9,9 +9,13 @@ no lanterns, no cloth. (The moot's house-colour model RBHCEntMoot is flowers; th
 EA's FENTMOOT (mesh = model coordinates, one bone) is the floor, an octagon of radius ~90 at z 0.6
 (x -91.3..89.3, y -96.3..97.8: the footprint), its boulders (tops 15-20 at (-56.8, 42.5),
 (53.7, 38.2), (73.4, -58.5), (-37.6, -83.3), (-75.8, -38.0), (2.2, -81.0)) and the horn, which
-rises from the rim at +y and leans in over the floor to its tip at (0.9, 28.7, 52.4). The new stones
-are painted from the atlas's bark (rough and never masonry: no ashlar joints) lifted to the pale grey
-of EA's recoloured boulders (decals()), with moss on their tops from the style's layers. Height unchanged (the horn stays the highest point).
+rises from the rim at +y and leans in over the floor to its tip at (0.9, 28.7, 52.4).
+
+The rock stays natural: EA's sheet has its rock half hinted as rock (sheet_atlas), so the boulders
+and the horn take the palette's natural stone ramp and not the ivory masonry the colour rules made of
+them; decals() darkens it a little and warms it with the palette's earth accent. The new stones are
+cut from the atlas's bark (rough, never masonry: no ashlar joints) and painted the same way, with
+moss from the style's layers. Height unchanged (the horn stays the highest point).
 """
 import math
 
@@ -24,6 +28,10 @@ GROUND = 0.6
 # round the floor's centre; the last two flank the horn's root
 STONES = [(-50, 86, 22.0, 8.0, 0.04), (-74, 84, 19.0, 7.2, -0.05), (-101, 84, 24.0, 8.4, 0.05), (-130, 82, 20.0, 7.6, -0.04),
           (160, 74, 21.0, 7.8, 0.05), (17, 70, 23.0, 8.2, -0.05), (75, 85, 28.0, 9.0, -0.03), (105, 85, 29.0, 9.0, 0.03)]
+# FBEntmoot.tga's rock half on its 2048 upscale (x, y down): the grey rock and the rooty earth,
+# the flower card (x 268..330, y 0..60 original) left out
+ROCK_HINTS = [(1320, 0, 2048, 240), (1048, 240, 2048, 2048)]
+EARTH_VALUE = 0.86          # the rock's value against the ramp's (a pale silver-grey on its own)
 TREES = [(-30.0, 65.0), (30.0, 65.0), (-61.16, -17.11), (70.65, -29.12)]
 
 
@@ -48,7 +56,7 @@ def menhir(cx, cy, h, w, lean, facing, seed, k=7):
     jit = [0.8 + 0.35 * hash01(seed, i) for i in range(k)]
     tilt = 0.18 * (hash01(seed, 77) - 0.5) * h / w            # the top's slope across the face
     levels = [(-1.0, 1.0), (GROUND, 1.0), (GROUND + 0.4 * h, 1.04), (GROUND + 0.75 * h, 0.9), (GROUND + 0.9 * h, 0.68),
-              (GROUND + h, 0.36)]
+              (GROUND + h, 0.5)]
     rings = []
     for li, (z, f) in enumerate(levels):
         off = lean * max(0.0, z - GROUND)
@@ -89,11 +97,34 @@ class EntMoot(Building):
         "ingame": ((-1.2, 1.1, 24.8), 1352, 53, -62, 50),
     }
 
+    @property
+    def sheet_atlas(self):
+        """EA's sheet with its rock half hinted as rock: the boulders and the horn (every raised face
+        samples the right half, the grey rock above and the rooty earth below; the flower card at
+        its top left is left out) take the palette's natural stone grey (the "rock" ramp) instead
+        of the ivory masonry the colour rules make of them, and no gold flecks."""
+        a = super().sheet_atlas
+        a.mask_hints = {"rock": ROCK_HINTS}
+        return a
+
     def decals(self):
-        """The new stones' bark grain painted in the stone ramp, lifted to the grey of EA's boulders once
-        recoloured (the atlas's bark is dark mallorn bark; the rock ramp came out tan)."""
-        from sagekit.paint.layers import TagRamp
-        return [TagRamp("bark", "stone", gain=0.8, lift=0.3)]
+        """Every rock texel - EA's boulders and horn (the rock hints) and the new stones (the atlas's
+        bark, hinted rock on the faction sheet) - in the palette's natural stone grey, darkened a
+        little and warmed by the palette's own earth ("dirt" accent): weathered field stone, not
+        the ramp's pale silver-grey. The new stones' dark bark grain is lifted to EA's boulders'."""
+        import numpy as np
+
+        from sagekit.paint.fields import ramp
+        from sagekit.paint.layers import Layer
+
+        class EarthyRock(Layer):
+            def apply(self, col, cv, pal):
+                m = np.clip(np.maximum(cv.rock, cv.tag_is("bark")), 0, 1)[..., None]
+                L = np.clip(cv.lum + 0.15 * cv.tag_is("bark"), 0, 1)
+                dirt = np.array(pal["dirt"], np.float32)
+                tint = EARTH_VALUE * dirt / dirt.mean()
+                return col * (1 - m) + ramp(L, pal["rock"]) * tint * m
+        return [EarthyRock()]
 
     def design(self, kit):
         out = []

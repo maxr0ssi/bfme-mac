@@ -67,8 +67,11 @@ def decide(units, faction, install):
     models = set()
     for u in sorted(units, key=lambda x: x["tier"] != "HERO" if "tier" in x else not (x["role"] == "fortress" and x["main"])):
         u["world_space"] = u["tilt"] > 5.0
-        u["own_textures"] = {u["sheet"]: namelib.free_texture(u["sheet"], taken, "HXBCDEFGJKLMNPQRSTVWYZ23456789")}
-        taken.add(u["own_textures"][u["sheet"]][:-4].lower())
+        if u.get("recipe"):                     # a recipe exists: its name stands (and is taken already)
+            u["own_textures"] = {u["sheet"]: u["recipe"].own_diffuse}
+        else:
+            u["own_textures"] = {u["sheet"]: namelib.free_texture(u["sheet"], taken, "HXBCDEFGJKLMNPQRSTVWYZ23456789")}
+            taken.add(u["own_textures"][u["sheet"]][:-4].lower())
         u["own_model"] = free_model(u, install, faction, models) if u["others"] else None
         u["house_draw"] = None if u["houses"] else "ModuleTag_Draw_HC" + "".join(w.capitalize() for w in u["name"].split("_"))
         u["house_shared"] = [m for m in u["houses"] if u["house_others"].get(m)]
@@ -80,7 +83,8 @@ def decide(units, faction, install):
     for u in units:
         mates = [x for x in by[tuple(u["objects"])] if x["source"] != u["source"]]
         split = any(x["source"].lower().startswith(u["source"].lower().split("_skn")[0] + "_") for x in mates)
-        u["parts"] = (u["tag"],) if u["upgrade"] or (not u["main"] and not u["second"]) or (u["main"] and split) else ()
+        u["parts"] = (u["tag"],) if u["upgrade"] or (not u["main"] and not u["second"] and not u["suffix"]) \
+            or (u["main"] and split) else ()        # (a second build variation: its own states, Building.own_states)
         u["base"] = None
         if u["second"]:
             u["base"] = "%s/%s" % (faction, next(x["name"] for x in units if x["source"] == u["source"] and not x["second"]))
@@ -126,6 +130,10 @@ def facts(u, faction):
             "%s %d%s" % (n, t, " (%s)" % ", ".join(tx) if tx else "") for n, t, tx in sorted(other, key=lambda x: -x[1])[:8]) + ".")
     if u["twin"]:
         lines.append("Its body is %s's body under another model: one design can serve both." % u["twin"])
+    if u["variation"]:
+        lines.append("Build variation %s of %s's %s: the recipe covers that variation's states only (%s is "
+                     "the other's; Building.own_states)." % (u["variation"], ", ".join(u["objects"]), u["tag"],
+                                                             ", ".join(sorted(u["names"].get(m, m) for m in u["theirs"])) or "-"))
     if u["lifecycle"]:
         lines.append("Lifecycle models in its Draw module: %s." % ", ".join(sorted(u["names"].get(m, m) for m in u["lifecycle"])))
     lines.append("House colour: %s." % (", ".join(u["houses"]) if u["houses"] else
@@ -243,14 +251,18 @@ def execute(faction, write):
         from .formats.w3d import W3DFile
         u["model_meshes"] = W3DFile(g.read(g.model_path(u["source"]))).meshes
         u["house_others"] = {m: own.other_model(m, faction) for m in u["houses"]}
-        u["names"] = {m: own.models.get(m, {}).get("name", m) for m in u["lifecycle"] + list(u["others"])}
+        u["names"] = {m: own.models.get(m, {}).get("name", m) for m in u["lifecycle"] + list(u["others"]) + list(u["theirs"])}
         u["sheet_format"], u["sheet_alpha"] = sheet_alpha(g, u["sheet"])
-    decide(units, faction, g)
-    have = {}
+    have, recipes = {}, {}
     for bid in building_ids():
         if bid.startswith(faction + "/"):
             b = load_building(bid)
             have[(b.source.lower(), b.target.upper())] = bid
+            recipes[bid] = b
+    for u in units:                             # an existing recipe keeps its own names
+        bid = have.get((u["source"].lower(), u["target"].upper())) or "%s/%s" % (faction, u["name"])
+        u["recipe"] = recipes.get(bid) if bid in recipes and recipes[bid].source.lower() == u["source"].lower() else None
+    decide(units, faction, g)
     print("%-30s %-16s %-16s %6s  %-18s %s" % ("stub", "source", "target", "tris", "nearest Dwarven", "flags"))
     written = []
     for u in units:

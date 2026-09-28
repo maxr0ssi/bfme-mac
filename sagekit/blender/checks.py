@@ -41,7 +41,7 @@ def snapshot(path, skeletons=None):
     scene.import_w3d(path, skeletons)
     arms = [o for o in bpy.data.objects if o.type == "ARMATURE"]
     s = {"n_arm": len(arms), "bones": {}, "meshes": {}}
-    for b in arms[0].data.bones:
+    for b in arms[0].data.bones if arms else ():        # a lone mesh (the Ivory Tower) has no skeleton
         s["bones"][b.name] = (tuple(b.head_local), tuple(b.tail_local), b.parent.name if b.parent else None)
     for o in bpy.data.objects:
         if o.type != "MESH":

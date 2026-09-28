@@ -11,7 +11,7 @@ the memory budget. A building folder that breaks these rules fails `python3 -m s
 import enum
 import re
 
-from .formats.textures import dxt1_size, full_chain, tga24_size
+from .formats.textures import dxt1_size, full_chain
 
 FACTIONS = ("men", "elves", "dwarves", "isengard", "mordor", "goblins", "angmar")
 ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -73,10 +73,13 @@ class Tier(enum.Enum):
         return self.value[1]
 
     def bytes(self, variants=0):
-        """Memory one building's own textures take: DXT1 diffuse with mips, uncompressed TGA normal,
-        and its state variants (damaged, snow, stonework) at half the diffuse size."""
-        d, v = self.diffuse, self.diffuse // 2
-        return dxt1_size(d, d, full_chain(d)) + tga24_size(self.normal, self.normal) + variants * dxt1_size(v, v, full_chain(v))
+        """Memory one building's own textures take in the game: DXT1 diffuse with mips, the TGA
+        normal as the game holds it (X8R8G8B8 with the full mip chain its loader builds, 5.33 bytes
+        a pixel against the file's 3; docs/MEMORY-2GB.md), and its state variants (damaged, snow,
+        stonework) at half the diffuse size."""
+        d, v, n = self.diffuse, self.diffuse // 2, self.normal
+        normal = sum(4 * max(1, n >> i) ** 2 for i in range(full_chain(n)))
+        return dxt1_size(d, d, full_chain(d)) + normal + variants * dxt1_size(v, v, full_chain(v))
 
 
 def own_texture_name(original, taken=()):

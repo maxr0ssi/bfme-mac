@@ -6,9 +6,10 @@
  *
  * Switches: GAMEPATCH=0 disables every patch; GAMEPATCH_<NAME>=0/1 one patch (NAME = DXLOCK,
  * INVSQRT, NORMTAIL, HITTEST, QUATMAT, SHUTDOWN, LIMITER, FLOOR, PERFMARKER, PASSTIMERS, ANIMDEDUP,
- * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2); otherwise [patches] <name>=0/1 in gamepatch.ini
- * next to the DLL; default on, except limiter, passtimers and shadowpar (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
- * to the DLL. */
+ * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2,
+ * HIGHMEM); otherwise [patches] <name>=0/1 in gamepatch.ini
+ * next to the DLL; default on, except limiter, passtimers, shadowpar and highmem (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
+ * to the DLL. highmem (a diagnostic, not a patch) runs in any large-address-aware exe, before the RotWK check. */
 #include "gp.h"
 #include "gp_render.h"
 #include "par_shadow.h"
@@ -62,6 +63,15 @@ static int enabled_default(const char *name, int def)
 
 int gp_enabled(const char *name) { return enabled_default(name, 1); }
 
+static int setting(const char *name, int def)   /* a number: env GAMEPATCH_<NAME>, then [patches] */
+{
+    char var[64], val[16];
+    snprintf(var, sizeof var, "GAMEPATCH_%s", name);
+    for (char *p = var; *p; p++) if (*p >= 'a' && *p <= 'z') *p -= 32;
+    if (GetEnvironmentVariableA(var, val, sizeof val)) return atoi(val);
+    return GetPrivateProfileIntA("patches", name, def, ini_path);
+}
+
 static void run(const char *name, int (*fn)(void), int *n_ok, int def)
 {
     if (!enabled_default(name, def)) { gp_log("%s: off", name); return; }
@@ -83,6 +93,10 @@ static void attach(HMODULE self)
     GetModuleFileNameA(exe, val, sizeof val);
     gp_log("gamepatch " __DATE__ " loaded in %s (base %p, timestamp %08lx)", val, exe,
            nt->FileHeader.TimeDateStamp);
+    if (enabled_default("highmem", 0)) {   /* diagnostic, off unless asked for: see gamepatch.ini */
+        int slack = setting("highmem_slack", 256);
+        gp_highmem(slack > 0 ? (unsigned)slack : 0);
+    } else gp_log("highmem: off");
     if ((uintptr_t)exe != GP_EXE_BASE || nt->FileHeader.TimeDateStamp != GP_EXE_TIMESTAMP) {
         gp_log("not RotWK 2.02 (lotrbfme2ep1.exe 0x460da09e); no patches, dinput8 proxy only");
         return;

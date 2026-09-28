@@ -30,13 +30,31 @@ class Style:
     name = None
     palette = None                  # Palette
     atlas = None                    # the faction's shared Atlas (instance)
-    ini_dir = None                  # the faction's structure INIs, e.g. data\\ini\\object\\...\\dwarven
-    budget_mb = 256                 # own textures of every building of the faction, in memory
+    ini_dir = None                  # the faction's structure INIs, e.g. data\\ini\\object\\...\\dwarven; or a
+                                    # list of folders and files (every one is the faction's)
+    budget_mb = 512                 # own textures of every building of the faction, in memory: RotWK has 4 GB
+                                    # (docs/MEMORY-4GB.md); 1.03 bytes of it per texture byte (MEMORY-2GB.md)
 
     sheet_dir = None                # the faction's building sheets, e.g. art\\compiledtextures\\db
     sheet_skip = ("_nrm", "_nmr", "_hf")        # normal maps and height fields are not recoloured
     shared_sheets = {}              # {EA sheet other factions draw too: the faction's recoloured copy},
                                     # same length, e.g. {"EBForge.tga": "DBAnvil.tga"} (sagekit/sharedsheets.py)
+
+    def ini_dirs(self):
+        """Every INI folder (or file) whose objects draw the faction's buildings: `ini_dir`, and the
+        structure folder of each group that reuses the faction's models one for one and counts as
+        its own (sagekit/ownership.py FOLLOWS: Arnor's structures\\arnor for the Men), so the
+        redesign's INI work (swaps, own models, house draws, hidden banners) reaches it too."""
+        from .ownership import FOLLOWS
+        dirs = [self.ini_dir] if isinstance(self.ini_dir, str) else list(self.ini_dir or ())
+        for group in sorted(g for g, f in FOLLOWS.items() if f == self.faction):
+            for d in list(dirs):
+                parts = d.rstrip("\\").split("\\")
+                if parts[-2:-1] == ["structures"]:
+                    sib = "\\".join(parts[:-1] + [group]) + "\\"
+                    if sib.lower() not in {x.lower().rstrip("\\") + "\\" for x in dirs}:
+                        dirs.append(sib)
+        return dirs
 
     def sheets(self, install):
         """Archive paths of every sheet of the faction to recolour."""

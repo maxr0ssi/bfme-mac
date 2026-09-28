@@ -55,7 +55,8 @@ Neither string exists anywhere in `engines/w10/wswine.bundle` (nor `engines/cx`)
 `WINE_CPU_TOPOLOGY=1:0` in `scripts/play-rotwk.sh:16` and `scripts/play-bfme2.sh:17` is dead code —
 which confirms the README's "no effect". BFME2's comment credits it with taming the startup CPU
 benchmark; what actually does that is the neutered `gamelodpresets.ini` in `INI.big`, so don't remove
-that on the strength of the env var. `WINE_LARGE_ADDRESS_AWARE` *is* in ntdll, but LAA crashes here.
+that on the strength of the env var. `WINE_LARGE_ADDRESS_AWARE` is not in w10's ntdll (it is in `engines/cx`); the exe's own flag is the switch,
+and RotWK runs with it on since 2026-09-27 (MEMORY-4GB.md; the crash once blamed on it was Wine 11's).
 
 **1.3 Shader compiles are probably not the 3 minutes.** In `logs/rotwk-20260922-204512.log` (warn+d3d,
 the 290 s run) the highest GL shader object is `#250` and only 135 emit an info log; BFME2's 493 s run
@@ -213,7 +214,7 @@ launch, so env-var changes take effect cleanly.
 the last two are Proton/Linux-only anyway); `MaxVersionGL` (at the macOS ceiling already, §1.3);
 `strict_shader_math` (emits an `optionNV` pragma — NVIDIA-only, inert on Apple GL); `UseGLSL` and
 `OffscreenRenderingMode` (deleted from Wine in 6.1 / 9.5); `OpenGLSurfaceMode` and
-`AllowSoftwareRendering` (compositing/fallback, not load-path); LARGEADDRESSAWARE (crashes); 
+`AllowSoftwareRendering` (compositing/fallback, not load-path); 
 `renderer=vulkan` (black, README); Low Power Mode (already off); `ROSETTA_*`
 (undocumented, and the game's PE code is JIT-translated per launch at ~MB/s — seconds, not minutes).
 **Never delete `asset.dat`** as an experiment: it is a prebuilt W3D/texture catalogue the game only

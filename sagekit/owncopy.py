@@ -79,13 +79,15 @@ def ini_ops(b, install, models):
     if not b.own_model:
         return out
     want = {m.lower() for m in models}
-    for obj, draws in b.objects(install).items():
+    for draws in b.objects(install).values():
         for d in draws:
             if not b.covers(d):
                 continue
-            for m in d.models():
+            for m in b.own_models(d):                   # (a build variation's own models only)
                 if m.lower() in want and shipped_name(b, m).lower() != m.lower():
-                    out.setdefault(d.file, []).append(("model", obj, d.tag, m, shipped_name(b, m)))
+                    op = ("model", d.object, d.tag, m, shipped_name(b, m))
+                    if op not in out.get(d.file, []):
+                        out.setdefault(d.file, []).append(op)
     return out
 
 
@@ -117,7 +119,7 @@ def checks(b, ws, r):
     r.section("own copy: %s ships as %s" % (b.source, b.own_model))
     names = mine.object_names()
     r.check("every object name carries %s" % b.own_model.upper(),
-            all(n.split(":")[-1].split(".")[0] == b.own_model.upper() for n in names), str(names))
+            all(n.split(":")[-1].split("*")[-1].split(".")[0] == b.own_model.upper() for n in names), str(names))
     gone = sorted(set(ea.meshes) - set(mine.meshes))
     r.check("meshes dropped: exactly `replaces`", gone == sorted(n.upper() for n in b.replaces), str(gone))
     same = all(mine.meshes[n].verts == ea.meshes[n].verts and mine.meshes[n].textures == ea.meshes[n].textures

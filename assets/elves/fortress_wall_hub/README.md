@@ -1,38 +1,37 @@
-# Elven fortress wall hub (`ElvenCastleWallHubExpansion`)
+# Elven fortress wall hub
 
-Model `EBEFWHub` (the round tower the fortress raises at a corner of its own when the wall-hub
-expansion is bought), redesigned mesh `EBWALLRMPRTN01`, `Tier.STANDARD`, painted from the faction
-sheet `EBFortress.tga` onto its own textures `EBFortresX.tga` / `EBFortresX_NRM.tga` (DXT5: EA's
-cut-out alpha kept; + `_D`, `_snow`, `_U` variants).
+Model `EBEFWHub`, redesigned mesh `EBWALLRMPRTN01`, `Tier.STANDARD`. Its own textures are
+`EBFortresX.tga` / `EBFortresX_NRM.tga` and state variants, painted from `EBFortress.tga`
+with EA's cut-out alpha retained.
 
-EA's `EBEFWHub` draws the castle wall hub's body a second time: `EBWALLRMPRTN01` (374 triangles) is
-the free-standing hub's `EBWALLRMPRTN` ([`wall_hub`](../wall_hub/README.md)) vertex for vertex,
-beside a short wall run of its own out of the west side into the fortress (`EBWALLRMPRTN`, 148
-triangles, EA's and untouched) and EA's dome (`SPHERE01`, on a bone at 47.09), which stays. As the
-Dwarves did with theirs, the recipe subclasses the wall hub and takes its design whole:
+## Current design
 
-- **Crown:** the walls' crown round the rim (filigree band, silver coping, lancet merlons), at the
-  segments' heights, so a fortress corner and the free-standing hubs read as one wall.
-- **Windows:** silver arch frames with sea-green reveals round the six lancet windows, a leaf
-  banner in the player's colour in each. The windows at 144 and 216 degrees flank the wall run
-  (it meets the hub within 14 degrees of the -x axis) and keep theirs.
-- **Lanterns:** crystal lanterns on the rim's corners (none at 180, over the run).
+The fortress corner uses the free-standing hub's design: EA's body and lattice dome kept
+whole, filigree band and mithril coping round the rim, gold ribs and leaf crown on the dome,
+and crystal lanterns. No banners, window frames or rim merlons. EA's short connecting wall
+run remains intact. The recipe inherits the hub's target-versus-separate-dome height bound.
 
-The cloth goes to our house-colour model `EBHCEFWHub` (Draw tag
-`ModuleTag_Draw_HCFortressWallHub`, from the style's `house_template`). `is_body` is the
-building's own again (the wall hub leaves this expansion out of its own Draw modules).
+The shared palette is the approved citadel's soft ivory, strong mithril and mallorn gold, slate
+roofs and EA's teal glass. No face of EA's healthy body is removed.
 
-The construction state draws `EBWallRmprtN_A`, the free-standing hub's own model. The wall hub
-ships it carrying the same design, so this recipe neither derives it (`drawn_models` leaves it
-out) nor rebuilds it (`lifecycle` skip), and no two recipes ship the same file.
+## Lifecycle and review
+
+Damaged states derive or rebuild the body. Collapse `_D3` uses EA's rest pose before its pieces
+move; it now passes the unchanged lifecycle gates. Construction uses `EBWallRmprtN_A`, built
+and shipped by `wall_hub`; this recipe deliberately does not ship that file a second time.
+
+Build outputs and before/after images are in `build/assets/elves/fortress_wall_hub/`. The current
+`work/lifecycle.json` identifies each rebuilt or derived model; `work/logs/checks.log` records
+the checks. Review images are `renders/compare_*.png` and `renders/lifecycle/*.png`.
+Healthy and lifecycle comparisons were rebuilt and visually checked in this finishing pass.
+Nothing is installed; the player’s review remains the next step.
+
+EA supplies no night meshes or `NightWindowName` here; the new crystals are day-lit.
+
+## Superseded first-pass measurements
+
+These figures describe the previous design, not the current output. Current reports live in
+`build/assets/elves/fortress_wall_hub/work/` and are verified again for this finishing pass.
 
 Footprint unchanged (x +-24.09, y +-22.83), height 53.05 -> 60.60 (+14.2 %, limit 20 %),
 374 -> 6,146 triangles. `checks`: 73/73.
-
-Night lights: EA's model has no night meshes and the INI names none (`NightWindowName`).
-
-## Status (`python3 -m sagekit inventory elves/fortress_wall_hub`)
-
-| Part | Healthy | Damaged (`_D1`) / snow / stonework | Really damaged (`_D2`), rubble (`_D3`) | Construction |
-|---|---|---|---|---|
-| body (`EBEFWHub`) | built, rendered, not installed | derived: our body on the variant sheets | lifecycle: `_D2` ours; `_D3` left to EA by the lifecycle checks (`work/lifecycle.json`) | `EBWallRmprtN_A`, the wall hub's |

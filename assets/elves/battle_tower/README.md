@@ -21,9 +21,9 @@ faction atlas. `Tier.STANDARD`.
 
 - **Spire:** the cupola is now the foot of a tall Elven spire. It is a concave octagonal slate
   needle (the style's `Scales` layer: continuous fish-scale slate) with swan-neck eaves and a gilt
-  lip. It rises from inside the ring of gables to z 144, with a sea-green collar between gilt beads
-  a third of the way up. At the top, a gilt collar, a gilt mast and a leaf finial reach z 153.4. The
-  spire contains the old cupola at every height (radius 18.5 at the eaves against the cupola's 15.4).
+  lip. It rises from inside the ring of gables, with a gold collar between gilt beads
+  a third of the way up. A gilt collar, mast and leaf finial finish the tip. The narrower spire
+  encloses the old cupola; silver ribs follow its corners.
   The gables and their horns stay in front of it; nothing is added in the head below z 103.
 - **Pennant:** a long leaf pennant flies from the mast across the RTS camera's view. Its cloth goes
   to `EBHCBbattleTwr` (house colour).
@@ -31,6 +31,8 @@ faction atlas. `Tier.STANDARD`.
   at z 27.4-28.8. Both run round the three plain faces and stop at the porch.
 - **Lanterns:** a crystal lantern on a gilt swan-neck bracket at each end of the -y and -x faces
   of the foot.
+
+Earlier pass measurements (retained for history; current build evidence is in `work/logs/checks.log`):
 
 Footprint unchanged. Height 131.25 -> 153.10 (+16.6 %, limit 20 %). Triangles 2,631 -> 4,487.
 Texel density median 7.3 px/unit. `checks`: 111/111.
@@ -49,6 +51,9 @@ on the snow sheet, with no normal map. It is not in the model family the pipelin
 our `EBBbattleTwH_Snow.tga`. See `renders/compare_ebbbattletwrs_*.png`.
 
 ## Status
+
+The latest ivory, mithril and mallorn-gold pass is built and passes the offline checks;
+review is still required before installation. Lifecycle fallbacks below remain intentional.
 
 | Part | Healthy | Construction | Damaged | Really damaged / rubble | Snow | LOD M/L |
 |---|---|---|---|---|---|---|

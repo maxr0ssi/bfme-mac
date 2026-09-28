@@ -2,7 +2,7 @@
 battered stone foot with the porch and ramp, its shaft of tall lattice windows between white corner
 piers, and its head of four pointed gables with their horns. What made it read squat - the bulging
 fish-scale cupola in the middle of the gables - is now the foot of a tall Elven spire: a concave
-slate needle with swan-neck eaves rising from inside the ring of gables, a sea-green collar
+slate needle with swan-neck eaves rising from inside the ring of gables, a gold collar
 between gilt beads a third of the way up, a gilt leaf finial on a gilt mast flying a long leaf
 pennant in the player's colour. Round the foot, a moulded silver coping on the stone's top edge
 and a knotwork band a little lower (both break for the porch), and a crystal lantern on a
@@ -15,7 +15,7 @@ The tower itself: the foot is an octagon (axis faces battered 0.17, apothem 18.8
 square, faces at 10.8 from S, with corner piers on the diagonals out to 17 from z 32.9 to 78; the
 head (z 80.8..103.3) has its four gables on the axes round H (-0.06, 1.25), feet at radius 21-23,
 horns out to 25.6 at z 109.2. The cupola rises from z 103.3 (radius 15.4 on the diagonals) through
-10.6 at 110 and 1.5 at 120 to its tip at 131.55: the spire (radius 18.5 at its eaves, 17.1 at the
+10.6 at 110 and 1.5 at 120 to its tip at 131.55: the spire (radius 16.4 at its eaves, 15.2 at the
 middle of a side) holds it everywhere. The archer bones (3..14) stand at z 88.5-93.3 in the gables'
 windows: nothing is added below z 103 in the head.
 
@@ -32,8 +32,11 @@ from ..style import ElvenStyle
 S = (-0.645, 1.49)          # foot and shaft centre
 H = (-0.3, 1.4)             # the spire's axis (EA's cupola tip is at (-0.56, 1.56))
 FOOT_Z = 32.9               # the stone foot's top edge
-SPIRE = dict(r=18.5, z=103.3, h=40.0)
+SPIRE = dict(r=16.4, z=103.3, h=42.0, phase=0.0)   # corners on the axes (the gables) and diagonals
 SNOW = "EBBbattleTwrS"
+# the tips of the four gables' horns (EA's vertices: the horn curls up and out to z 109.3)
+HORNS = [(0.15, -25.45), (26.7, 1.4), (0.15, 27.9), (-26.7, 1.4)]
+HORN_Z = 109.3
 
 
 def foot_apothem(z):
@@ -50,6 +53,29 @@ def foot_path(z, chamfer=0.42):
     c = A * chamfer
     pts = [(A, -(A - c)), (A - c, -A), (-(A - c), -A), (-A, -(A - c)), (-A, A - c), (-(A - c), A), (A - c, A), (A, A - c)]
     return [(S[0] + x, S[1] + y) for x, y in pts]
+
+
+def spire_ribs(cx, cy, z, r, h, pw, upturn, phase=0.0, k=8, steps=6, size=0.3):
+    """Silver ribs up a swept_roof needle's k corners (its eave ring at z, radius r, height h, sweep
+    power pw, corners turned up by `upturn` fading over the first third), riding on the faces: a
+    square section lofted from the eave to near the tip (as the citadel's flèche, fortress/spire.py)."""
+    from mathutils import Vector as V
+    from sagekit.blender.geometry import loft
+    out = []
+    for i in range(k):
+        ang = phase + 2 * math.pi * i / k
+        c, s_ = math.cos(ang), math.sin(ang)
+        rings = []
+        for j in range(steps + 1):
+            s = j / steps * 0.94
+            rr = r * (1 - s) ** pw + 0.12
+            zz = z + h * s + upturn * max(0.0, 1 - 3 * s)
+            p = V((cx + rr * c, cy + rr * s_, zz))
+            rad, tan = V((c, s_, 0)), V((-s_, c, 0))
+            rings.append([p - tan * size, p - tan * size + rad * size * 1.4, p + tan * size + rad * size * 1.4,
+                          p + tan * size])
+        out.append(loft(rings, ["trim"] * steps, cap0=("trim", False), cap1=("trim", True)))
+    return out
 
 
 class BattleTower(Building):
@@ -78,6 +104,8 @@ class BattleTower(Building):
         s += self._spire(kit)                   # 1. the spire over EA's cupola, collar, mast, pennant
         s += self._foot(kit)                    # 2. coping and knotwork band round the stone foot
         s += self._lanterns(kit)                # 3. crystal lanterns on the camera-facing faces
+        for x, y in HORNS:                      # 4. gilt leaf finials on the gables' horns
+            s += kit.leaf_finial(x, y, HORN_Z - 0.3, 4.2, 1.3)
         return s
 
     # ------------------------------------------------------------------ 1. spire
@@ -89,22 +117,24 @@ class BattleTower(Building):
         cx, cy = H
         r, z, h = SPIRE["r"], SPIRE["z"], SPIRE["h"]
         out = kit.swept_roof(cx, cy, r, z, h, k=8, per_side=3, upturn=1.3, lip=0.4, sweep_pow=1.7, finial=False,
-                             phase=math.pi / 8)
+                             phase=SPIRE["phase"])
         top = z + 0.4 + h
 
         def spire_r(zz):                        # the needle's corner radius at height zz
             return r * max(0.0, 1 - (zz - z - 0.4) / h) ** 1.7
 
-        # a sea-green collar between gilt beads a third of the way up
+        # a gold collar a third of the way up: a moulded gilt band between beads, over silver ribs
         z0 = z + 0.4 + 0.3 * h
         rr = spire_r(z0)
-        rings = [ring(cx, cy, rr - 0.8, z0 - 0.2, 8, phase=math.pi / 8), ring(cx, cy, rr + 0.35, z0 - 0.2, 8, phase=math.pi / 8),
-                 ring(cx, cy, rr + 0.5, z0 + 0.1, 8, phase=math.pi / 8), ring(cx, cy, rr + 0.3, z0 + 0.35, 8, phase=math.pi / 8),
-                 ring(cx, cy, spire_r(z0 + 2.1) + 0.3, z0 + 2.1, 8, phase=math.pi / 8),
-                 ring(cx, cy, spire_r(z0 + 2.1) + 0.5, z0 + 2.35, 8, phase=math.pi / 8),
-                 ring(cx, cy, spire_r(z0 + 2.6) + 0.35, z0 + 2.6, 8, phase=math.pi / 8),
-                 ring(cx, cy, spire_r(z0 + 2.6) - 0.8, z0 + 2.6, 8, phase=math.pi / 8)]
-        out.append(loft(rings, [None, "gilt", "gilt", "enamel", "gilt", "gilt", "gilt"], cap0=("gilt", False), cap1=("gilt", False)))
+
+        def R(e, zz):
+            return ring(cx, cy, e, zz, 8, phase=SPIRE["phase"])
+        rings = [R(rr - 0.8, z0 - 0.3), R(rr + 0.55, z0 - 0.3), R(rr + 0.75, z0 + 0.05), R(rr + 0.45, z0 + 0.4),
+                 R(spire_r(z0 + 2.0) + 0.45, z0 + 2.0), R(spire_r(z0 + 2.0) + 0.75, z0 + 2.35),
+                 R(spire_r(z0 + 2.7) + 0.5, z0 + 2.7), R(spire_r(z0 + 2.7) - 0.8, z0 + 2.7)]
+        out.append(loft(rings, [None, "gilt", "gilt", "gilt", "gilt", "gilt", "gilt"], cap0=("gilt", False),
+                        cap1=("gilt", False)))
+        out += spire_ribs(cx, cy, z + 0.4, r, h, 1.7, 1.3, phase=SPIRE["phase"])
         # the mast: a gilt collar on the needle's tip, a slender gilt pole, a leaf finial
         mast = top + 6.2
         out.append(turned(cx, cy, [(0.9, top - 2.2), (0.55, top - 0.6), (0.3, top + 0.4)], ["gilt", "gilt"], k=8,
