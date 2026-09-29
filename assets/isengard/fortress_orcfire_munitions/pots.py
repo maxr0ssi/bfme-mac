@@ -36,8 +36,8 @@ def pot(kit, c, r, z0, z1, fins, s):
     for i in range(4):                                  # blades between the fins, jars at the foot
         a = math.radians(fins + 45.0 + 90.0 * i)
         d = V((math.cos(a), math.sin(a), 0))
-        out += kit.blade(V((cx, cy, 0)) + d * (r - 0.4), d, z1 - 5.0 * s, z1 + 1.0 * s, 1.0 * s, 1.8 * s, w=0.45 * s,
-                         tip=2.6 * s, back=0.8)
+        out += kit.blade(V((cx, cy, 0)) + d * (r - 0.4), d, z1 - 8.0 * s, z1 + 1.4 * s, 1.3 * s, 1.9 * s, w=0.6 * s,
+                         tip=3.2 * s, back=0.8)     # a claw of knife blades flaring out round the pot
         j = V((cx, cy, z0)) + d * (r + 0.9 * s)
         out += A.cauldron(kit, j, 0.7 * s, 1.4 * s, k=6, spikes=False, legs=False)
     kit.fire(V((cx, cy, z1 + 0.3)), "brazier")

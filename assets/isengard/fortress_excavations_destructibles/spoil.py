@@ -22,6 +22,7 @@ def chute(kit):
     out.append(box(c.x - 1.6, c.x + 1.6, c.y - 1.6, c.y + 1.6, c.z, c.z + 2.4, "iron", ("iron", True), ("ember", True)))
     out.append(kit.beam(c + V((-1.7, -1.7, 2.5)), c + V((1.7, -1.7, 2.5)), 0.22, "trim"))
     out.append(kit.beam(c + V((-1.7, 1.7, 2.5)), c + V((1.7, 1.7, 2.5)), 0.22, "trim"))
+    kit.fire(c + Z * 2.6, "embers")                   # the skip's glowing ore
     return out
 
 
@@ -29,6 +30,7 @@ def lanterns(kit):
     p = V((-8.3, 28.9, 50.0))                         # an iron arm out of the post, a lantern on it
     out = [kit.beam(p - V((0.6, 0, 0)), p + V((3.0, 0, 0.4)), 0.2, "iron")]
     out += kit.lantern(p + V((3.0, 0, 0.3)), 1.4, chain=1.0)
+    out += kit.brazier(V((-8.1, 28.2, 54.4)), 1.3, 2.4)        # a fire basket on the post's head
     return out
 
 

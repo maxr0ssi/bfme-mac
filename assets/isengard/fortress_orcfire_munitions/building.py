@@ -39,7 +39,7 @@ class FortressOrcfireMunitions(Building):
     parts = ("ModuleTag_DrawOrcfireMunitions",)
     views = {
         "rts": ((13.6, 0.2, 73.2), 326, 50, -38, 50),
-        "close": ((37.5, -37.4, 86.0), 40, 30, -30, 45),
+        "close": ((37.5, -37.4, 86.0), 75, 35, -38, 45),
         "gate": ((61.0, 0.0, 60.0), 45, 30, -30, 45),
         "ingame": ((13.6, 0.2, 73.2), 741, 53, -62, 50),
     }

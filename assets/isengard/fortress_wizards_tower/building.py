@@ -1,6 +1,6 @@
 """Isengard fortress wizards tower (IsengardFortressCitadel): Orthanc. EA's octagonal tower kept whole,
 four many-sided piers on its diagonals opening into horns at the summit, ember windows, a door
-with the White Hand, Saruman's balcony (orthanc.py).
+with the White Hand, Saruman's balcony, the Hand high on three faces, braziers (orthanc.py).
 
 EA's IBFWTower (objects IsengardFortressCitadel; role fortress_upgrade): body IBFWTOWER, 1572
 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our texture is
@@ -18,8 +18,18 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 
+# Real fire (the game's particle systems on bones, docs/ART.md "Fire"): (x, y, z, kind) in the target's
+# coordinates, collected from the design (kit.flames / kit.fire record them when the kit has a
+# `fire_log` list); run again after moving a fire.
+FIRE_POINTS = [
+    (13.8, 13.8, 79.2, 'brazier'), (-13.8, 13.8, 79.2, 'brazier'), (-13.8, -13.8, 79.2, 'brazier'),
+    (13.8, -13.8, 79.2, 'brazier'), (14.0, -3.4, 97.5, 'brazier'), (14.0, 3.4, 97.5, 'brazier')
+]
+
+
 class FortressWizardsTower(Building):
     style = IsengardStyle()
+    fire_points = FIRE_POINTS
     source = "IBFWTower"
     target = "IBFWTOWER"
     sheet = "IBFortress.tga"

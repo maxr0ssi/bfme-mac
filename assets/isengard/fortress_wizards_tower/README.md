@@ -20,7 +20,11 @@ gaping horns":
   White Hand in a pointed arch above it.
 - **Balcony**: Saruman's balcony over the door at z 94, on pointed corbels, a spiked railing, a
   glowing window behind it.
-- No fire: Orthanc is stone, not a forge.
+- **Pass 3 (up to the citadel)**: the White Hand great in a pointed-arch slot high on the three
+  axis faces the balcony leaves free (-Y, +Y, -X, z 101..117), and fire: a brazier on an iron
+  bracket out of every pier's arris at z 78, between the windows and above the walls, and two
+  on the balcony (`fire_points`, 6, brazier). Orthanc's identity (piers, horns, door, balcony) is
+  unchanged.
 
 ## Kept clear
 
@@ -28,16 +32,18 @@ gaping horns":
 - Every other upgrade built at once: the excavations' chute (its rail at r 20.9..21.8, z 29..34)
   and the A-frame's standing timber (r 21.9, z 34..41) - the piers stand 3.2 out there - and the
   bucket and rope that rise out of the north shafts (swept over `IBFExcavAN`, clear).
-- The citadel's new solids: no vertex inside them either way.
+- The citadel's new solids: no vertex inside them either way, none on its fire points.
+- The pier braziers stand at z 78, 13 or more clear of the excavations' A-frame and bucket over
+  `IBFExcavAN` (at z 46, the first try, the A-frame's head passed within 1 of the +X -Y one).
 - As EA's own tower sinks into the excavations' floor, the piers' feet sink into the floor and the
   two north spoil mounds' flanks (z 13..18), and touch the burning forges' foot at z 0..9, where EA's
   tower already overlaps it.
 
 ## Status
 
-Designed, shape preview only (not built, not installed). 1,572 -> 4,631 triangles, height
-175.7 -> 200 (+13.8 %), footprint unchanged (`footprint_margin = 1.0` for the door frame on the
-battered face), 9/9 preview checks. Review sheet: `build/assets/isengard/_review/addons.jpg`.
+Designed, shape preview only (not built, not installed). Pass 3: 1,572 -> 5,486 triangles,
+height 175.7 -> 200 (+13.8 %), footprint unchanged (`footprint_margin = 1.0` for the door frame on
+the battered face), 9/9 preview checks, 6 fire points. Review sheet: `build/assets/isengard/_review/addons_v3.jpg` (pass 3; `addons.jpg` is pass 1).
 
 ## Open
 

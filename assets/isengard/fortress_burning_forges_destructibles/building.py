@@ -1,6 +1,7 @@
 """Isengard fortress burning forges destructibles (IsengardFortressCitadel): the forge tower (folder
-renamed from EA's tag spelling, ModuleTag_DrawBurningForgesDescrutbiles). EA's body kept whole; a
-beacon, the stack's crown, a forge, a molten chute, fins and vents, real fire (forge.py).
+renamed from EA's tag spelling, ModuleTag_DrawBurningForgesDescrutbiles). EA's body kept whole; EA's
+round stack carried on as the citadel's needle chimney to z 138, a beacon, a forge, a molten
+chute, fins and vents, real fire (forge.py).
 
 EA's IBFBForgB (objects IsengardFortressCitadel; role fortress_upgrade): body IBFBFORGES, 971
 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our texture is
@@ -23,8 +24,8 @@ from ..style import IsengardStyle
 # coordinates, collected from the design (kit.flames / kit.fire record them when the kit has a
 # `fire_log` list); run again after moving a fire.
 FIRE_POINTS = [
-    (-37.7, -13.0, 84.5, 'chimney'), (-43.0, 0.0, 115.6, 'brazier'), (-54.0, -12.5, 64.4, 'hearth'),
-    (-28.4, 9.4, 41.8, 'crucible'), (-48.5, -15.5, 65.3, 'embers')
+    (-37.7, -13.0, 133.8, 'chimney'), (-43.0, 0.0, 115.6, 'brazier'), (-54.0, -12.5, 64.4, 'hearth'),
+    (-48.5, -15.5, 65.3, 'embers'), (-28.4, 9.4, 41.8, 'crucible')
 ]
 
 

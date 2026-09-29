@@ -1,5 +1,6 @@
 """Isengard fortress excavations (IsengardFortressCitadel): the pits of Isengard. EA's terraced pit kept
-whole; fire and smoke out of the shafts, a grate and stakes, terrace spikes, an ore cart (pits.py).
+whole; fire and smoke out of the shafts, the south one a needle flue, terrace spikes, an ore cart
+(pits.py).
 
 EA's IBFExcav (objects IsengardFortressCitadel; role fortress_upgrade): body IBFEXCAV, 875
 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our texture is
@@ -24,7 +25,7 @@ from ..style import IsengardStyle
 # coordinates, collected from the design (kit.flames / kit.fire record them when the kit has a
 # `fire_log` list); run again after moving a fire.
 FIRE_POINTS = [
-    (-18.5, 27.5, 21.0, 'chimney'), (16.8, 27.5, 21.0, 'chimney'), (-0.2, -31.8, 21.0, 'chimney')
+    (-18.5, 27.5, 21.0, 'chimney'), (16.8, 27.5, 21.0, 'chimney'), (-0.2, -31.8, 47.8, 'chimney')
 ]
 
 

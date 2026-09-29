@@ -6,18 +6,47 @@ middle (UnitCreatePoint (10, 0), rally (20, -20)): nothing new inside r 38.
 Isengard's kennel, on the rim where EA's collision boxes stand ((-40, 25), (0, 45), (-15, -45),
 (35, -45)): an iron-banded palisade of sharpened stakes along the back rim, iron-capped warg posts
 with a collar ring and a chain trailing in, sharpened stakes with iron tips in three clusters, the White Hand on an Uruk shield raised on a post, a fire pit
-under an iron grate and two tall braziers by the way out to the rally point (real fire)."""
+under an iron grate and two tall braziers by the way out to the rally point (real fire). Pass 3: the
+citadel's pair, two blade pylons on the back rim mirrored about the back axis (141 degrees) to
+needles at z 44 (max_z_growth 0.35, Max's OK pending), chains to the standard between them."""
 import math
 
 from mathutils import Vector as V
 
 from sagekit.blender.geometry import Z
 
+from .. import shapes_addons as A
+
 POSTS = [(0.0, 45.5), (-15.0, -45.5), (35.0, -44.0), (-47.0, -8.0)]
 STAKES = [(-48.0, 4.0), (-43.0, -24.0), (18.0, -47.0)]
 BRAZIERS = [(40.0, -30.0), (46.0, -14.0)]
 PIT = (-30.0, -34.0)
-STANDARD = (-21.0, 44.0)
+STANDARD = (-35.0, 28.3)               # on the den's back axis (141 degrees), between the blades
+AXIS = 141.0                           # the back axis, away from the way out to the rally point (-45)
+
+
+def _blade(deg, r=49.0):
+    a = math.radians(deg)
+    # axis along the rim's tangent (51 degrees: broad faces to the RTS camera), leaning in a little
+    return ((r * math.cos(a), r * math.sin(a)), AXIS - 90.0, 5.4, 3.3, 0.0, 44.0,
+            (-math.cos(a) * 1.4, -math.sin(a) * 1.4), 1.2)
+
+
+BR, BL = _blade(AXIS - 29.0), _blade(AXIS + 29.0)     # at the palisade's ends, mirrored about the axis
+
+
+def blades(kit):
+    out = A.blade_pair(kit, (BR, BL), fins=3, fin_reach=1.2, spurs=True, slits=(0.36, 0.54), slit_w=1.0)
+    out += A.blade_hand(kit, BR, 3, 13.0, 11.0, 4.0)
+    out += A.blade_hand(kit, BL, 3, 13.0, 11.0, 4.0)
+    top = V((STANDARD[0], STANDARD[1], 18.5))
+    for deg, b in ((AXIS - 29.0, BR), (AXIS + 29.0, BL)):
+        a = math.radians(deg)
+        d = V((math.cos(a), math.sin(a), 0))
+        ring = A.blade_ring(b, 30.0)
+        out += kit.chain(sum(ring, V((0, 0, 0))) / 4 - d * 1.6, top, link=1.8)      # chains to the standard's head
+        out += kit.brazier(d * 42.5 + Z * 0.3, 1.6, 6.5)                            # a tall brazier at its foot
+    return out
 
 
 def post(kit, x, y):
@@ -59,7 +88,7 @@ def standard(kit, x, y):
     return out
 
 
-def palisade(kit, deg0=118.0, deg1=164.0, r=47.5, n=17):
+def palisade(kit, deg0=120.0, deg1=162.0, r=47.5, n=15):
     """A palisade arc on the back rim (EA's collision box at (-40, 25)): sharpened timber stakes
     8..11 tall with iron tips, leaning out, two riveted iron bands along them, a pointed iron cap
     on every fourth."""
@@ -91,4 +120,4 @@ def build(kit):
     out += kit.floor_grate(V((PIT[0], PIT[1], 0.7)), V((0.7, -0.7, 0)), 4.0, 4.0)
     kit.fire(V((PIT[0], PIT[1], 1.2)), "grate")
     out += standard(kit, *STANDARD)
-    return out + palisade(kit)
+    return out + palisade(kit) + blades(kit)

@@ -24,25 +24,17 @@ OPEN = 2                                # the two north shafts stay open: EA's b
 
 
 def shaft(kit, c):
-    """A grate over the shaft's mouth, glowing coals under it, iron stakes round the rim, the fire."""
+    """The south shaft made the pit's furnace flue: the citadel's needle chimney out of its mound
+    (flange on the rim at z 21, a glowing throat at z 50, its crown under the A-frame's pulley, whose swing
+    comes no lower than z 58.8 over it), iron stakes round the rim."""
     cx, cy = c
-    out = []
-    k = 8
-    ring = lambda r, z: [V((cx + r * math.cos(2 * math.pi * i / k), cy + r * math.sin(2 * math.pi * i / k), z))  # noqa: E731
-                         for i in range(k)]
-    from sagekit.blender.geometry import loft
-    out.append(loft([ring(4.6, 19.8), ring(4.6, 20.6)], ["ember"], cap0=("ember", False), cap1=("ember", True)))
-    for i in range(4):                                  # the grate: bars across the mouth
-        off = -3.0 + 2.0 * i
-        out.append(kit.beam(V((cx - 4.8, cy + off, 22.3)), V((cx + 4.8, cy + off, 22.3)), 0.28, "iron"))
-    out.append(kit.beam(V((cx, cy - 4.8, 22.6)), V((cx, cy + 4.8, 22.6)), 0.34, "iron"))
+    out = kit.needle_stack((cx, cy), 45.0, 5.0, 3.6, 21.0, 50.0, collar=0.45)     # corners clear of the skip
     for i in range(6):                                  # stakes round the rim, leaning out
         a = 2 * math.pi * (i + 0.5) / 6
         d = V((math.cos(a), math.sin(a), 0))
-        p = V((cx, cy, 22.4)) + d * 6.3
+        p = V((cx, cy, 22.4)) + d * 7.4
         out.append(kit.beam(p - Z * 1.2, p + (d * 0.35 + Z).normalized() * 5.5, 0.34, "iron", 0.0))
         out.append(kit.beam(p + Z * 1.5, p + Z * 1.5 + d * 0.6, 0.22, "trim"))
-    kit.fire(V((cx, cy, 21.0)), "chimney")
     return out
 
 

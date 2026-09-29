@@ -21,7 +21,9 @@ EA's wheel is kept whole: the twelve-sided disc, its ribs, rods and hooked lobes
 ## Status
 
 Designed, shape preview only (not built, not installed). 957 -> 1,513 triangles, height and
-footprint unchanged, 9/9 preview checks. No fire: a fire rig would stand still while the wheel
+footprint unchanged, 9/9 preview checks. Pass 3 leaves it as it is: it turns inside the forge's
+slot, so nothing may stand off its faces, and the forge carries the citadel's language and fire.
+Review sheet: `build/assets/isengard/_review/addons_v3.jpg` (pass 3; `addons.jpg` is pass 1). No fire: a fire rig would stand still while the wheel
 turns; the forge carries the fire.
 
 ## Open

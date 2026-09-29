@@ -1,5 +1,6 @@
-"""Isengard battle tower (IsengardBattleTower): EA's tower kept whole; corner fins, iron bands, the
-White Hand, arrow slits, eaves spikes, braziers on the archers' deck (tower.py).
+"""Isengard battle tower (IsengardBattleTower): EA's tower kept whole; the citadel's pair of blades
+through its roof to z 150, iron bands, the White Hand, arrow slits, eaves spikes, braziers
+(tower.py).
 
 EA's IBBtlTwr (objects IsengardBattleTower; role tower): body TOWER, 541 triangles, painted from
 IBBtlTwr.tga + IBBtlTwr_NRM.tga (DXT1).
@@ -21,7 +22,8 @@ from ..style import IsengardStyle
 # coordinates, collected from the design (kit.flames / kit.fire record them when the kit has a
 # `fire_log` list); run again after moving a fire.
 FIRE_POINTS = [
-    (16.0, -6.6, 101.8, 'brazier'), (16.0, 6.6, 101.8, 'brazier')
+    (4.0, -5.6, 101.8, 'brazier'), (4.0, 5.6, 101.8, 'brazier'), (22.2, -6.0, 43.2, 'brazier'),
+    (22.2, 6.0, 43.2, 'brazier')
 ]
 
 
@@ -35,7 +37,7 @@ class BattleTower(Building):
     own_textures = {"IBBtlTwr.tga": "IBBtlTwH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     views = {
         "rts": ((8.1, 0.2, 63.8), 292, 50, -38, 50),
-        "close": ((8.1, 0.2, 85.0), 120, 24, -30, 45),
+        "close": ((10.0, 0.0, 100.0), 175, 24, -30, 45),
         "foot": ((8.1, 0.2, 30.0), 110, 24, -30, 45),
         "ingame": ((8.1, 0.2, 63.8), 664, 53, -62, 50),
     }

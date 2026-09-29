@@ -24,6 +24,7 @@ from mathutils import Vector as V
 from sagekit.blender.geometry import Z, box
 
 from .. import shapes_addons as A
+from ..shapes_walls import bracket_brazier
 
 # (z, diagonal apothem to sink the pier's back into, half-width, projection)
 PIER = [(0.0, 20.8, 7.3, 8.0), (16.0, 19.4, 8.3, 7.6), (20.0, 19.0, 8.2, 3.6), (24.0, 17.6, 7.6, 3.2),
@@ -108,5 +109,29 @@ def balcony(kit):
     return out
 
 
+def hands(kit):
+    """The White Hand great in a pointed arch high on the three axis faces the balcony leaves free
+    (-Y, +Y, -X; EA's faces at apothem 11.0 over z 100..118, 8 wide between the piers)."""
+    out = []
+    for deg in (270.0, 90.0, 180.0):
+        m, n, t = frame(deg, 10.95)
+        out += A.hand_arch(kit, m, t, n, 0.0, 101.0, 5.4, 16.0, -0.6, 1.0)
+    return out
+
+
+def fires(kit):
+    """Braziers on iron brackets out of each pier's arris at z 78, between the windows, above the
+    walls (13 or more clear of the excavations' A-frame and bucket over IBFExcavAN; at z 46 the
+    A-frame's head passed within 1 of the +X -Y one), and two on the balcony."""
+    out = []
+    for deg in DIAGONALS:
+        apo, hw, proj = at(78.0)
+        m, n, t = frame(deg, apo)
+        out += bracket_brazier(kit, m + n * (proj - 0.4) + Z * 78.0, n, reach=3.0, r=2.1)
+    for y in (-3.4, 3.4):
+        out += kit.brazier(V((14.0, y, 94.8)), 1.2, 2.6)
+    return out
+
+
 def build(kit):
-    return piers(kit) + windows(kit) + door(kit) + balcony(kit)
+    return piers(kit) + windows(kit) + door(kit) + balcony(kit) + hands(kit) + fires(kit)

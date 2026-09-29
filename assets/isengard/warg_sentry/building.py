@@ -1,5 +1,6 @@
 """Isengard warg sentry (IsengardWargSentry): EA's den kept whole, its middle clear for the wargs;
-a palisade, warg posts and chains, stakes, a Hand standard, a fire pit and braziers (kennel.py).
+the citadel's pair of blade pylons on its back rim to z 44, chained to a Hand standard between them;
+a palisade, warg posts and chains, stakes, a fire pit and braziers (kennel.py).
 
 EA's IBWargSent (objects IsengardWargSentry; role tower): body IBWARGSENT, 3013 triangles,
 painted from IBWargSent.tga + IBWargSent_NRM.tga (DXT5).
@@ -21,7 +22,8 @@ from ..style import IsengardStyle
 # coordinates, collected from the design (kit.flames / kit.fire record them when the kit has a
 # `fire_log` list); run again after moving a fire.
 FIRE_POINTS = [
-    (40.0, -30.0, 8.5, 'brazier'), (46.0, -14.0, 8.5, 'brazier'), (-30.0, -34.0, 1.2, 'grate')
+    (40.0, -30.0, 8.5, 'brazier'), (46.0, -14.0, 8.5, 'brazier'), (-30.0, -34.0, 1.2, 'grate'),
+    (-15.9, 39.4, 6.9, 'brazier'), (-41.9, 7.4, 6.9, 'brazier')
 ]
 
 
@@ -30,6 +32,7 @@ class WargSentry(Building):
     fire_points = FIRE_POINTS
     source = "IBWargSent"
     target = "IBWARGSENT"
+    max_z_growth = 0.35                 # the blades to z 44 (+34 %; EA's den is flat, its ribs 32.7): Max's OK pending
     sheet = "IBWargSent.tga"
     sheet_normal = "IBWargSent_NRM.tga"
     own_textures = {"IBWargSent.tga": "IBWargSenH.tga"}      # free in EA's files and every recipe (sagekit/names.py)

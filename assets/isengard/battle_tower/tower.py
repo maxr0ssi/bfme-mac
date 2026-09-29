@@ -7,7 +7,9 @@ at z 109..111 (x -7..24, |y| < 14.5) to its spike at z 126.
 Kept clear: the archers (ARROWBONE01..12 inside the shaft at z 84..86 and 103..104), the garrison
 flags (GARRISON01/02 at x 8.5, out to y +-20, z 83..103) and the door (x -28..-8 at the foot).
 
-    fins      knife fins up the shaft's four corners, silver-edged, spurred at the plinth
+    blades    pass 3: the citadel's pair, welded to the shaft's +-Y faces from the plinth's foot
+              through the roof to needles at z 150 either side of EA's spike (replacing pass 1's
+              corner fins)
     bands     riveted iron bands round the shaft over and under the panel
     hands     the White Hand in a pointed arch on the shaft's +X face (the side the camera sees)
     slits     ember arrow slits in the plinth's +X and -Y faces
@@ -16,16 +18,22 @@ flags (GARRISON01/02 at x 8.5, out to y +-20, z 83..103) and the door (x -28..-8
 from mathutils import Vector as V
 
 from .. import shapes_addons as A
+from ..shapes_walls import bracket_brazier
 
 X, Y = V((1, 0, 0)), V((0, 1, 0))
 C = (8.45, 0.0)                           # the shaft's axis
+# the pair: welded to the shaft's +-Y faces from the plinth's foot, through the roof's eaves, to
+# needles at z 150 either side of EA's spike (126); clear of the garrison flags (x 8..9 above z 83)
+BR = ((16.3, -10.6), 0.0, 7.4, 3.4, 1.6, 150.0, (0.0, 1.4), 1.1)
+BL = ((16.3, 10.6), 0.0, 7.4, 3.4, 1.6, 150.0, (0.0, -1.4), 1.1)
 
 
-def fins(kit):
-    out = []
-    for x, y in ((0.0, -8.45), (16.9, -8.45), (16.9, 8.45), (0.0, 8.45)):
-        d = V((x - C[0], y - C[1], 0)).normalized()
-        out += kit.blade(V((x, y, 0)) - d * 0.8, d, 50.5, 95.5, 1.6, 1.2, w=0.8, tip=3.5, back=1.4)
+def blades(kit):
+    out = A.blade_pair(kit, (BR, BL), fins=3, fin_reach=0.8, spurs=False, slits=(0.46, 0.66), slit_w=1.1)
+    for b in (BR, BL):
+        out += A.foot_spurs(kit, b, which=(2,), length=3.0)
+    out += A.blade_hand(kit, BR, 3, 52.0, 14.0, 4.8)
+    out += A.blade_hand(kit, BL, 0, 52.0, 14.0, 4.8)
     return out
 
 
@@ -68,10 +76,12 @@ def eaves(kit):
 
 def braziers(kit):
     out = []
-    for y in (-6.6, 6.6):
-        out += kit.brazier(V((16.0, y, 99.1)), 1.1, 2.6)
+    for y in (-5.6, 5.6):
+        out += kit.brazier(V((4.0, y, 99.1)), 1.1, 2.6)
+    for y in (-6.0, 6.0):                  # on brackets out of the plinth's +X face, over the slits
+        out += bracket_brazier(kit, V((19.6, y, 42.0)), X, reach=2.6, r=1.4)
     return out
 
 
 def build(kit):
-    return fins(kit) + bands(kit) + hands(kit) + slits(kit) + eaves(kit) + braziers(kit)
+    return blades(kit) + bands(kit) + hands(kit) + slits(kit) + eaves(kit) + braziers(kit)

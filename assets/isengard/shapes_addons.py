@@ -18,6 +18,13 @@ kit's own signatures stay untouched.
                                         glowing coals
     spur(kit, a, out, z, length)        a leaning iron spur (EA's wall spikes)
 
+Pass 3, the citadel's blades (a blade is foundry.py's tuple: centre, axis, L, W, z0, z1, lean, flare):
+    blade_ring(blade, z)                its lozenge ring at z (BROAD profile unless given)
+    blade_face(blade, z, i)             (midpoint, along, out) of its face i at z
+    blade_pair(kit, blades, ...)        kit.blade_tower for each blade (the citadel's settings)
+    blade_hand(kit, blade, i, z0, h, w) the White Hand in a pointed-arch slot on face i
+    foot_spurs(kit, blade, which)       the flared foot's spurs on chosen vertices only (footprints)
+
 Placement as in the kit: a, t, n a face (anchor, along, out), u along it, z up, d out.
 """
 import math
@@ -207,3 +214,65 @@ def spur(kit, a, out, z, length, r=0.45, lean=0.5, tag="iron"):
     o = _h(out).normalized()
     p = _h(a) + Z * z
     return [kit.beam(p - o * 0.6, p + (o + Z * lean).normalized() * length, r, tag, 0.0)]
+
+
+# ---------------------------------------------------------------------- pass 3: the citadel's blades
+# A blade is the citadel's tuple (foundry.py): (centre, axis degrees, half-length, half-width, z0, z1,
+# lean at the top, flare). The expansions and the forge get pairs of them, mirrored about the
+# building's own axis, so each reads as the citadel's family at the RTS view.
+
+def blade_ring(blade, z, profile=None):
+    """The lozenge ring (4 points, kit.lozenge order: +axis, +side, -axis, -side) of a blade at z."""
+    from .shapes_spire import BROAD, scale
+    c, axis, L, W, z0, z1, lean, flare = blade
+    f = (z - z0) / (z1 - z0)
+    s = scale(f, profile or BROAD)
+    a = math.radians(axis)
+    d, p = V((math.cos(a), math.sin(a), 0)), V((-math.sin(a), math.cos(a), 0))
+    ctr = V((c[0] + lean[0] * f, c[1] + lean[1] * f, z))
+    return [ctr + d * L * s, ctr + p * W * s, ctr - d * L * s, ctr - p * W * s]
+
+
+def blade_face(blade, z, i, profile=None):
+    """(midpoint at z, t along, n out) of face i (ring vertex i to i+1) of a blade: a frame for
+    kit pieces on it (the face leans in as the blade tapers: stand pieces well proud)."""
+    ring = blade_ring(blade, z, profile)
+    a, b = ring[i], ring[(i + 1) % 4]
+    ctr = sum(ring, V((0, 0, 0))) / 4
+    m = (a + b) / 2
+    t = (b - a).normalized()
+    n = V((t.y, -t.x, 0))
+    if n.dot(m - ctr) < 0:
+        n = -n
+    return V((m.x, m.y, 0)), t, n
+
+
+def blade_pair(kit, blades, fins=3, slits=(0.42, 0.56, 0.7), spurs=True, fin_reach=1.3, slit_w=1.0, profile=None):
+    """The citadel's blade towers (kit.blade_tower in the BROAD profile) for each blade tuple."""
+    from .shapes_spire import BROAD
+    out = []
+    for c, axis, L, W, z0, z1, lean, flare in blades:
+        out += kit.blade_tower(c, axis, L, W, z0, z1, lean=lean, flare=flare, fins=fins, slits=slits, spurs=spurs,
+                               profile=profile or BROAD, fin_reach=fin_reach, slit_w=slit_w)
+    return out
+
+
+def blade_hand(kit, blade, i, z0, h, w, d0=-0.9, d1=1.4, profile=None):
+    """The White Hand in a pointed-arch slot on face i of a blade (the citadel's big_hands): a
+    black panel standing d1 proud at its middle height, a silver frame, the Hand on it."""
+    m, t, n = blade_face(blade, z0 + h * 0.5, i, profile)
+    return hand_arch(kit, m, t, n, 0.0, z0, w, h, d0, d1)
+
+
+def foot_spurs(kit, blade, which=(0, 2), length=3.2, h=None):
+    """The flared foot's spurs (EA's wall spikes) on chosen lozenge vertices only (0 +axis, 1 +side,
+    2 -axis, 3 -side), where the footprint leaves room for them."""
+    c, axis, L, W, z0, z1, lean, flare = blade
+    ring = kit.lozenge(c, axis, L * flare, W * flare, z0)
+    h = h if h is not None else (z1 - z0) * 0.08
+    out = []
+    for k in which:
+        v = ring[k]
+        dd = V((v.x - c[0], v.y - c[1], 0)).normalized()
+        out += kit.blade(v - dd * 0.8, dd, z0 - 0.05, z0 + h, length, 1.0, w=0.7, tip=2.5, back=1.5)
+    return out

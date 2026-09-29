@@ -9,8 +9,9 @@ eight-sided drums and their curved fins); its fire cards `MBFDPF`, `MBFDPFG` and
 ## What changed (`pots.py`)
 
 - Each pot: a riveted iron rim with a silver lip and eight iron spikes round its mouth, an ember
-  band round the drum, four knife blades between EA's fins, and orcfire jars (small iron-bound
-  pots) at its foot.
+  band round the drum, a claw of four knife blades between EA's fins (pass 3: taller and flaring
+  further, from 8 under the mouth to 1.4 over it, as far as the footprint allows), and orcfire
+  jars (small iron-bound pots) at its foot.
 - **Fire** (`fire_points`, 5, brazier): one at every mouth, under EA's fire cards.
 
 ## Kept clear
@@ -20,8 +21,8 @@ eight-sided drums and their curved fins); its fire cards `MBFDPF`, `MBFDPFG` and
 
 ## Status
 
-Designed, shape preview only (not built, not installed). 920 -> 4,200 triangles, height and
-footprint unchanged, 9/9 preview checks.
+Designed, shape preview only (not built, not installed). Pass 3: 920 -> 4,200 triangles, height
++1.9 %, footprint unchanged, 9/9 preview checks. Review sheet: `build/assets/isengard/_review/addons_v3.jpg` (pass 3; `addons.jpg` is pass 1).
 
 ## Open
 

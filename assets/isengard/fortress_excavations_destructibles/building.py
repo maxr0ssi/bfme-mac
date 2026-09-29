@@ -1,5 +1,5 @@
 """Isengard fortress excavations destructibles (IsengardFortressCitadel): EA's chute and ladders kept
-whole; glowing ore down the chute out of an iron skip, a lantern (spoil.py).
+whole; glowing ore down the chute out of an iron skip, a lantern, a fire basket (spoil.py).
 
 EA's IBFExcavB (objects IsengardFortressCitadel; role fortress_upgrade): body IBFEXCAVB, 374
 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our texture is
@@ -17,8 +17,17 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 
+# Real fire (the game's particle systems on bones, docs/ART.md "Fire"): (x, y, z, kind) in the target's
+# coordinates, collected from the design (kit.flames / kit.fire record them when the kit has a
+# `fire_log` list); run again after moving a fire.
+FIRE_POINTS = [
+    (-7.2, -30.8, 36.0, 'embers'), (-8.1, 28.2, 56.9, 'brazier')
+]
+
+
 class FortressExcavationsDestructibles(Building):
     style = IsengardStyle()
+    fire_points = FIRE_POINTS
     source = "IBFExcavB"
     target = "IBFEXCAVB"
     sheet = "IBFortress.tga"
