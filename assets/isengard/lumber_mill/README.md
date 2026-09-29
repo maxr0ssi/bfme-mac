@@ -6,6 +6,21 @@ draw EA's; the Goblins' copy is `WBLumMill_SKN` on `MBLumberMilH.tga`). Palette 
 kept whole: the lean-to shed and its log stacks, the stumps, the great log on its sawhorses,
 the fire pit (`FIRE01` stays EA's).
 
+## Pass 3: up to the citadel
+
+Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
+the Hand in pointed-arch slots, fire. Sheet: `_review/production_v3.jpg`.
+
+- **The pair** (the citadel's): the two square kilns are lowered to feet (17 high, a corner to
+  the camera, iron bands, corner blades, ember vents) and a great spire stack rises out of each
+  (`spire_stack`, z 2 to 47.5, a crown of blades round a glowing mouth, two rows of ember
+  slits), mirrored either side of the banner at the yard's front. Pass 2's kilns read as black
+  boxes at the RTS view. The fire moved from the kilns' throats to the stacks' mouths.
+- Slits only below the taper: higher ones stood out of the shaft and showed their open backs.
+- **Fire** (5: 2 chimney, hearth (EA's fire pit), 2 brazier).
+
+1,204 -> 4,784 triangles, height 50.0 -> 59.4 (+18.8 %), footprint unchanged, 9/9 preview checks.
+
 ## Pass 2: Fangorn's end
 
 Pass 1's charcoal kilns were round; its log pile and gantry vanished at the RTS view.
@@ -32,5 +47,5 @@ checks. Pass 1 is `_review/production_v1.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 2, shape preview)
+- [x] healthy body designed (pass 3, shape preview)
 - [ ] reviewed by Max, built in colour, installed

@@ -7,6 +7,11 @@ White Hand on a shield hangs in the +X gable over the door. Real fire in the sta
 chimney smoke has no bone in the model, so it rises from the object's origin; its torches FX01,
 FX02 at (42, +-26, 32) stay).
 
+Pass 3 (the citadel's recipe, 2026-09-29): the hall of the White Hand flanked: two matching blades out of the roof slopes
+either side of the dorsal crest in the RTS view (z 28 to 77.5, the White Hand in pointed-arch
+slots, chains to the crest's tall fin); the two stacks became one great chimney behind the crest
+on the view's axis.
+
 Player-built: slot 6 of IsengardPorterCommandSet builds it (Command_ConstructIsengardTavern), so
 it is a building like the others, not a captured map building.
 
@@ -25,13 +30,17 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 FIRE_POINTS = [
-    (-15.0, -14.5, 66.5, 'chimney'), (9.0, -14.5, 66.5, 'chimney')
+    (-12.5, 5.4, 65.9, 'chimney')
 ]
 
 RIDGE = ((-28.0, -2.0, 58.5), (22.0, -2.0, 58.0))
 FINS = [6.0, 9.5, 13.0, 17.5, 13.0, 9.5, 6.0]         # the dorsal crest's fins, tops above the ridge
 APEXES = [(25.0, -2.0, 56.0), (-30.5, -2.0, 57.0)]
-STACKS = [((-15.0, -14.5), 0.0, 4.2, 3.0, 36.0, 69.0), ((9.0, -14.5), 0.0, 4.2, 3.0, 36.0, 69.0)]
+STACKS = [((-12.5, 5.4), 52.0, 4.2, 3.0, 40.0, 68.0)]          # the great chimney behind the crest, on the view's axis
+# two blades out of the roof slopes either side of the ridge's middle (-3, -2) in the RTS view, -+ 22 along it
+PAIR = [(-16.6, -19.3), (10.6, 15.3)]
+PAIR_SIZE = (5.2, 3.2, 28.0, 77.5)
+PAIR_HAND = (52.0, 3.2, 12.0)
 HAND = (27.5, -2.0, 34.0)                         # the shield's foot on the +X gable
 
 
@@ -68,6 +77,10 @@ class Tavern(Building):
                 out.append(kit.beam(a + V((0.6, 0, 0)), b + V((0.6, 0, 0)) - (b - a) * 0.3, 0.35, "trim", 0.0))
         for c, axis, L, W, z0, z1 in STACKS:
             out += B.spire_stack(kit, c, axis, L, W, z0, z1, collar=0.55, slits=(0.55,))
+        L, W, z0, z1 = PAIR_SIZE                      # the pair (the citadel's) out of the roof either side of the crest
+        out += B.blades_at(kit, PAIR, L, W, z0, z1, lean=1.4, hand=PAIR_HAND, fins=2, slits=(0.35, 0.5, 0.65))
+        for x, y in PAIR:                             # chains from each blade to the crest's tall middle fin
+            out += kit.chain(V((x * 0.85 - 0.45, y * 0.85 - 0.3, 66.0)), V((-3.0, -2.0, 69.0)), link=1.8, w=0.5)
         x, y, z = HAND
         out += kit.shield(V((x, y, 0)), V((0, 1, 0)), V((1, 0, 0)), 0.0, z, 15.0, d=0.0)
         for s in (-1, 1):                             # hung on chains from the apex

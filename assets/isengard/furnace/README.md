@@ -5,6 +5,25 @@ Model `MBFurnace_SKN` (Mordor's name, drawn by Isengard only), mesh `FURNACE`, o
 [`shapes_industry.py`](../shapes_industry.py) and [`shapes_industry_big.py`](../shapes_industry_big.py). `world_space`: the mesh hangs on a bone moved
 (3.5, -0.2, 0.3), so design and fire points share world axes. EA's body is kept whole.
 
+## Pass 3: up to the citadel
+
+Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
+the Hand in pointed-arch slots, fire. Sheet: `_review/production_v3.jpg`.
+
+- **The pair** (the citadel's): two matching lozenge blades out of the mound's top either
+  side of the crater in the RTS view, mirrored about it (`shapes_industry_big.blade_pair`), to
+  z 128.5: flared, spurred feet, one fin a face (three read as a cage at this size), silver
+  edges, ember slits, needle tips, the White Hand in a pointed-arch slot on each one's outer
+  face. The left one's foot is at z 86, above the level-up hut (`V2`, to z 84.6), which hugs the
+  mound's -Y shoulder; nothing new stands on that side below it.
+- **Great chimney**: pass 2's wide spire out of the crater (a box at the RTS view) is a needle
+  stack now, between the blades like the citadel's great chimney (z 44 to 116, crown to 125).
+- **Chains** from each blade to the chimney's throat.
+- The crater's crown keeps three blades (the pair stands where the others were).
+- **Fire** (9: chimney, furnace, hearth, 3 crucible, 3 brazier).
+
+1,141 -> 6,073 triangles, height 113.2 -> 134.9 (+19.2 %), footprint unchanged, 9/9 preview checks.
+
 ## Pass 2: the smelter
 
 Pass 1 (buttresses, crown, a stack behind the horns) read almost as EA's at the RTS view. Pass 2
@@ -37,5 +56,5 @@ checks. Pass 1 is `_review/production_v1.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 2, shape preview)
+- [x] healthy body designed (pass 3, shape preview)
 - [ ] reviewed by Max, built in colour, installed

@@ -8,6 +8,11 @@ bellows, square crucible, quench trough, tools) in the open yard; three Uruk har
 racks of shields, pikes and cleavers on the deck; a banner on an iron frame; braziers. Real fire
 in the forge, the stack and the braziers (EA's sparks at the grindstone stay).
 
+Pass 3 (the citadel's recipe, 2026-09-29): the Uruk armoury flanked: two matching blades either side of the iron hall's +X
+gable in the RTS view (the citadel's pair, to the height limit z 54.4), the White Hand in a
+pointed-arch slot on each one's outer face; the hall's ridge lowered to z 44 so they stand over
+it.
+
 EA's facts (IBARMORY on an identity bone; work/measure.json is the treadwheel's, stale):
 x -27.5..40.0, y -39.1..50.1, z -1.6..45.3 (468 triangles). The deck x -25..0, y -20..40 at
 z 25, its fence along x -25 to z 45, a cluster of spikes at (-3, 20..40) to z 44; the shed
@@ -25,13 +30,18 @@ FIRE_POINTS = [
     (37.5, 45.0, 4.7, 'brazier'), (37.5, 26.0, 4.7, 'brazier'), (-8.0, -6.0, 29.7, 'brazier')
 ]
 
-HALL = (-2.0, 23.5, 21.5, 48.5, 17.0, 45.5)      # x0, x1, y0, y1, eaves z, ridge z: the iron hall over the shed
+HALL = (-2.0, 23.5, 21.5, 48.5, 17.0, 44.0)      # x0, x1, y0, y1, eaves z, ridge z: the iron hall over the shed
 SHED_TOP = 25.0
 FORGE = ((25.5, 15.0, 0.0), (0.0, -1.0))         # hearth foot, t: the forge faces +X
 STACK = ((6.0, 29.0), 0.0, 3.6, 2.4, 24.0, 47.5)         # up through the hall's -Y slope
 STANDS = [((35.5, -12.0, 0.0), (-0.62, -0.79)), ((35.5, -2.0, 0.0), (-0.62, -0.79)), ((35.5, 8.0, 0.0), (-0.62, -0.79))]
-BANNER = ((31.0, 37.0, 0.0), (-0.62, -0.79))
+BANNER = ((34.3, 32.5, 0.0), (-0.62, -0.79))
 BRAZIERS = [(37.5, 45.0), (37.5, 26.0), (-8.0, -6.0, 25.0)]
+# the pair (the citadel's): two blade towers either side of the hall's +X gable in the RTS view,
+# to the height limit (z 54.7), the Hand in a slot on each one's outer face
+PAIR = [(17.5, 27.9), (28.5, 42.1)]           # the gable's middle (23, 35) -+ 9 along the view
+PAIR_SIZE = (4.4, 2.7, 0.0, 54.4)
+PAIR_HAND = (30.0, 3.2, 13.0)
 
 
 class Armory(Building):
@@ -56,7 +66,10 @@ class Armory(Building):
         from mathutils import Vector as V
 
         from .. import shapes_industry as I
+        from .. import shapes_industry_big as B
         out = self._roof(kit, V, I)
+        L, W, z0, z1 = PAIR_SIZE
+        out += B.blades_at(kit, PAIR, L, W, z0, z1, lean=1.0, hand=PAIR_HAND, slits=(0.3, 0.45, 0.6, 0.75))
         c, axis, L, W, z0, z1 = STACK
         out += kit.needle_stack(c, axis, L, W, z0, z1, collar=0.45)
         (fx, fy, fz), t = FORGE
@@ -65,7 +78,7 @@ class Armory(Building):
             out += I.armour_stand(kit, V(c), t, 2.0)
         out += self._deck(kit, V, I)
         c, t = BANNER
-        out += I.banner_frame(kit, V(c), t, 8.0, 17.0)
+        out += I.banner_frame(kit, V(c), t, 7.0, 16.0)
         for b in BRAZIERS:
             out += kit.brazier(V((b[0], b[1], b[2] if len(b) > 2 else 0.0)), 1.6, 4.6)
         return out
@@ -102,10 +115,7 @@ class Armory(Building):
                 m = V((x, ym, 0))
                 out.append(prism_uz(m, t, n, [(u + 0.0, z) for u, z in poly], -0.5, 0.35, ["trim"] * 5, "stoneB", None))
                 out += kit.hand(m, t, n, 0.0, zb + 1.4, 5.8, 0.35, th=0.4)
-        out += I.roof_crest(kit, V((x0, ym, rz)), V((x1, ym, rz)), 5, 7.0, w=0.5, d=2.0)
-        for y, e in ((y0, -1), (y1, 1)):                # layered fins at the +X corners
-            out += I.fin(kit, V((x1 - 1.0, y - e * 1.0, 0)), (1.0, 0.0), 0.8,
-                         [(-1.0, -0.4), (5.5, -0.4), (1.5, ez + 4.0), (-1.0, ez + 1.0)], 1.4, slits=((2.4, 6.0, 12.0),))
+        out += I.roof_crest(kit, V((x0, ym, rz)), V((x1 - 4.0, ym, rz)), 4, 6.0, w=0.5, d=2.0)
         return out
 
     @staticmethod

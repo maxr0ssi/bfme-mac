@@ -8,6 +8,11 @@ face; a fan of layered stone fins clasps the +X lobe over the cave mouth; a birt
 harness on stands and a blade rack on the +Y yard; braziers and a banner on an iron frame at the
 -X foot. Real fire in the pit, the stacks, the furnace mouths, the birthing pit and the braziers.
 
+Pass 3 (the citadel's recipe, 2026-09-29): the breeding pits flanked: two matching blades either side of the pit in the
+RTS view (to z 77.5, the White Hand in pointed-arch slots), and the birthing-frame made pointed:
+four knife ribs on a square turned to the view, bound by four iron bars (pass 2's six ribs and
+ring read round); the chimneys behind.
+
 EA's facts (IBURUKPIT_NEW on an identity bone): x -48.9..72.8, y -41.5..53.1, z -0.5..64.9 (1087
 triangles). The pit's mouth at (-2, 3), r ~10, its rim at z 42..46 (the Uruk-hai and the hook
 HOOK animate in it, z 0..17); the ramp from (-5, 30) to (35, 0) at z 40..54; the cave mouth in
@@ -21,13 +26,17 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 FIRE_POINTS = [
-    (-2.0, 3.0, 40.0, 'grate'), (8.0, 15.0, 62.6, 'chimney'), (-12.5, -9.0, 61.7, 'chimney'),
+    (-2.0, 3.0, 40.0, 'grate'), (-24.0, 4.0, 60.6, 'chimney'), (-4.0, 26.0, 61.0, 'chimney'),
     (-18.9, -10.8, 1.5, 'furnace'), (-4.0, -22.3, 1.5, 'furnace'), (28.0, 27.0, 1.0, 'embers'),
     (-30.0, -24.0, 5.1, 'brazier'), (17.0, -38.0, 5.1, 'brazier')
 ]
 
 PIT = (-2.0, 3.0, 44.0)                          # the mouth's centre and rim height
-STACKS = [((8.0, 15.0), 38.0, 4.6, 3.4, 22.0, 66.0), ((-12.5, -9.0), 38.0, 4.6, 3.4, 10.0, 66.0)]
+# two blades either side of the pit along the view, mirrored about it; the chimneys behind them
+PAIR = [(-13.6, -11.0), (9.6, 17.0)]
+PAIR_SIZE = (6.0, 3.6, (12.0, 24.0), 77.5)
+PAIR_HAND = (52.0, 3.4, 14.0)
+STACKS = [((-24.0, 4.0), 38.0, 3.6, 2.6, 20.0, 64.0), ((-4.0, 26.0), 38.0, 3.6, 2.6, 24.0, 64.0)]
 MOUTHS = [((-19.0, -10.5, 0.0), (1.0, 0.25)), ((-4.0, -22.0, 0.0), (1.0, -0.1))]   # furnace mouths: foot, t
 BIRTH = ((28.0, 27.0, 0.0), 5.0)
 LOBE = (48.0, -15.0)                             # the +X lobe's centre: a fan of fins on its +X flank
@@ -61,8 +70,10 @@ class UrukPit(Building):
         from .. import shapes_industry_big as B
         px, py, pz = PIT
         out = kit.hoop((px, py), pz - 0.6, 10.5, h=1.8, th=0.7, inner=1.4, k=12, rivets=3, tag="iron", closed=True)
-        out += B.birth_crown(kit, V((px, py, 0)), 10.5, pz, 70.0, ribs=6, r_knee=12.5, z_knee=56.0, w=2.0)
+        out += B.birth_spire(kit, V((px, py, 0)), 10.5, pz, 70.0, 12.5, 56.0, w=2.0)
         kit.fire(V((px, py, pz - 4.0)), "grate")
+        L, W, z0, z1 = PAIR_SIZE                       # the pair (the citadel's) either side of the pit in the view
+        out += B.blades_at(kit, PAIR, L, W, z0, z1, lean=1.2, hand=PAIR_HAND, fins=2, slits=(0.4, 0.55, 0.7))
         for c, axis, L, W, z0, z1 in STACKS:
             out += kit.needle_stack(c, axis, L, W, z0, z1, collar=0.6)
         for c, t in MOUTHS:

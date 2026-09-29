@@ -2,6 +2,11 @@
 the six timber posts and their capped heads, the braced sides, the great awning with the White
 Hand painted on it, the crates along the sides - and made Saruman's siege yard:
 
+Pass 3 (the citadel's recipe, 2026-09-29): the war-yard's gate made the citadel's: each trident's middle is the
+citadel's broad blade now (6.2 x 4.2, two fins a face, the White Hand in a pointed-arch slot on
+its outer face) with fire grates in its saddle; a greater Hand shield on the chain; the half-built
+siege tower stands outside the -Y edge, over the awning.
+
     tridents   a blade tower between two leaning horns on a stone saddle, either side of the
                yard's mouth (+X, where the engines roll out), ember slits, a chain slung between
                them with the Hand on a shield, a brazier at each one's inner foot
@@ -24,18 +29,19 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 FIRE_POINTS = [
-    (40.0, -28.0, 5.6, 'brazier'), (40.0, 28.0, 5.6, 'brazier'), (14.0, 33.0, 3.9, 'hearth'),
-    (20.6, 29.7, 3.3, 'crucible')
+    (49.4, -40.1, 1.2, 'furnace'), (49.4, -23.9, 1.2, 'furnace'), (40.0, -28.0, 5.6, 'brazier'),
+    (49.4, 23.9, 1.2, 'furnace'), (49.4, 40.1, 1.2, 'furnace'), (40.0, 28.0, 5.6, 'brazier'),
+    (14.0, 33.0, 3.9, 'hearth'), (20.6, 29.7, 3.3, 'crucible')
 ]
 
 PYLONS = [(47.0, -32.0), (47.0, 32.0)]          # the tridents' centres; their horns along y
-SIEGE_TOWER = ((-20.0, 6.0), (1.0, 0.0), 13.0, 28.0)   # under the awning: foot centre, t, width, height
+SIEGE_TOWER = ((-14.0, -46.4), (1.0, 0.0), 7.0, 54.0)  # outside the awning's -Y edge, over it: foot, t, width, height
 RAM = ((12.0, -20.0), (1.0, 0.0), 24.0, 9.0)
 # iron needles out of the middle and +X posts' heads (the -X heads carry EA's fire): centre, foot z
 NEEDLES = [((0.6, -41.5), 46.0), ((0.7, 39.6), 44.0), ((43.9, -40.4), 52.0), ((44.4, 37.9), 50.0)]
 POSTS = [(-45.0, -42.5), (-45.0, 40.5), (0.0, -42.0), (0.0, 40.5), (42.0, -42.0), (42.0, 40.5)]
 LADDER = ((-18.0, 48.5), 40.0)
-LOGS = ((-20.0, -46.3), 22.0, 1.3)
+LOGS = ((-34.0, -46.3), 13.0, 1.3)
 FORGE = ((14.0, 33.0, 0.0), (-1.0, 0.0))        # under the awning's +Y side, facing in
 
 
@@ -71,7 +77,7 @@ class SiegeWorks(Building):
         c, t = FORGE
         out += I.forge_bay(kit, V(c), t, 1.5)
         (sx, sy), t, w, h = SIEGE_TOWER
-        out += B.siege_tower(kit, V((sx, sy, 0.0)), t, w, h, built=0.72)
+        out += B.siege_tower(kit, V((sx, sy, 0.0)), t, w, h, built=0.78)
         (rx, ry), t, length, h = RAM
         out += B.ram(kit, V((rx, ry, 0.0)), t, length, h)
         for (nx, ny), z0 in NEEDLES:
@@ -91,13 +97,38 @@ class SiegeWorks(Building):
         out = []
         collars = []
         for x, y in PYLONS:
-            out += B.trident(kit, (x, y), 90.0, 5.6, 4.0, 72.5, horn=0.7, spread=1.9)
+            out += SiegeWorks._trident(kit, V, B, x, y)
             collars.append(V((x - 0.75, y - (2.2 if y > 0 else -2.2), 52.0)))          # the inner edge at z 52
             out += kit.brazier(V((x - 7.0, y - (4.0 if y > 0 else -4.0), 0.0)), 1.9, 5.5)
         low = V((48.0, 0.0, 46.0))                   # high over the mouth: the engines roll out under it
         out += kit.chain(collars[0], low, link=2.2, w=0.6, th=0.25)
         out += kit.chain(low, collars[1], link=2.2, w=0.6, th=0.25)
-        out += kit.shield(V((48.0, 0.0, 0.0)), V((0, 1, 0)), V((1, 0, 0)), 0.0, 38.0, 7.5, d=0.2)
+        out += kit.shield(V((48.0, 0.0, 0.0)), V((0, 1, 0)), V((1, 0, 0)), 0.0, 33.0, 11.0, d=0.2)
+        return out
+
+    @staticmethod
+    def _trident(kit, V, B, x, y):
+        """A trident at the mouth, the citadel's blade in the middle: a broad lozenge blade tower
+        (two fins a face, the Hand between them, silver edges, ember slits, a needle) to z 72.5 between two
+        leaning horn blades on a stone saddle; the White Hand in a pointed-arch slot on its outer
+        face (mirrored about the mouth's axis)."""
+        from ..shapes_spire import BROAD
+        L, W, h = 6.2, 4.2, 72.5
+        out = kit.blade_tower((x, y), 90.0, L, W, 0.0, h, flare=1.2, fins=2, slits=(0.42, 0.54, 0.66), profile=BROAD,
+                              fin_reach=1.3, slit_w=1.1)
+        side = 1 if y > 0 else -1
+        p, t, n = B.blade_face((x, y), 90.0, L, W, 0.0, h, (0.0, 0.0), 35.0, side)
+        out += B.hand_slot(kit, p, t, n, 26.0, 3.8, 17.0)
+        for e in (-1, 1):                                   # the horns, leaning out along the axis
+            c = V((x, y + e * L * 1.9, 0))
+            out += kit.blade_tower((c.x, c.y), 90.0, L * 0.55, W * 0.62, 0.0, h * 0.68, lean=(0.0, e * 2.4), flare=1.3,
+                                   fins=1, spurs=False, slits=(0.5,), profile=BROAD, slit_w=0.8)
+        from sagekit.blender.geometry import loft
+        ring = lambda z: [V((x - W * 0.5, y - L * 1.9, z)), V((x + W * 0.5, y - L * 1.9, z)),    # noqa: E731
+                          V((x + W * 0.5, y + L * 1.9, z)), V((x - W * 0.5, y + L * 1.9, z))]
+        out.append(loft([ring(-0.3), ring(h * 0.16)], ["stoneA"], cap0=("stoneA", False), cap1=("trim", True)))
+        for e in (-1, 1):                                   # fire grates in the saddle's front, either side of the blade
+            out += kit.fire_grate(V((x + W * 0.5, y + e * L * 1.3, 0.0)), V((0, 1, 0)), V((1, 0, 0)), w=3.2, h=3.4, d=2.4)
         return out
 
     @staticmethod

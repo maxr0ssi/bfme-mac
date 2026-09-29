@@ -4,6 +4,23 @@ Model `IBUrukPit_SKN`, mesh `IBURUKPIT_NEW`, own texture `iburukpiH.tga`. Palett
 from the Isengard kit and [`shapes_industry.py`](../shapes_industry.py) and [`shapes_industry_big.py`](../shapes_industry_big.py). EA's mound is kept whole:
 both lobes, the pit's octagonal mouth, the ramp, ladders and decks, the cave mouth.
 
+## Pass 3: up to the citadel
+
+Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
+the Hand in pointed-arch slots, fire. Sheet: `_review/production_v3.jpg`.
+
+- **The pair** (the citadel's): two matching blades either side of the pit in the RTS view,
+  (-13.6, -11) and (9.6, 17), feet in the lobe at z 12 and 24, to z 77.5, two fins a face, the
+  White Hand in a pointed-arch slot on each one's outer face.
+- **Birthing-frame** (`shapes_industry_big.birth_spire`): four knife ribs on the diagonals of a
+  square turned to the view, from the pit's rim to a knee at z 56 bound by four iron bars with
+  silver lips, then in to a needle at z 70; meat hooks at the corners, the great hook down into
+  the pit. Pass 2's six ribs and ring read as a round cage ("Isengard is pointy").
+- The two needle stacks moved behind the pair, (-24, 4) and (-4, 26).
+- **Fire** (8: grate, 2 chimney, 2 furnace, embers, 2 brazier).
+
+1,087 -> 6,099 triangles, height 65.4 -> 78.0 (+19.2 %), footprint unchanged, 9/9 preview checks.
+
 ## Pass 2: the breeding pits
 
 - **Birthing-frame** (the new silhouette): six knife ribs of iron rise from a riveted band on the
@@ -29,5 +46,5 @@ checks. Pass 1 is `_review/production_v1.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 2, shape preview)
+- [x] healthy body designed (pass 3, shape preview)
 - [ ] reviewed by Max, built in colour, installed

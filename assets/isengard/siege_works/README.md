@@ -6,6 +6,23 @@ from the Isengard kit and [`shapes_industry.py`](../shapes_industry.py) and [`sh
 frame hangs on a bone moved (20.3, -0.3, 0.7). EA's body is kept whole, the awning with the
 painted Hand included.
 
+## Pass 3: up to the citadel
+
+Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
+the Hand in pointed-arch slots, fire. Sheet: `_review/production_v3.jpg`.
+
+- **The pair** (the citadel's): the two tridents at the mouth keep their horns and saddle; the
+  middle of each is the citadel's broad lozenge blade (6.2 x 4.2, to z 72.5, two fins a face,
+  silver edges, ember slits), the White Hand in a pointed-arch slot on its outer face between
+  the fins, mirrored about the mouth's axis; two fire grates glow in each saddle's front.
+- The Hand shield on the chain between them is greater (11 tall, its foot at z 33).
+- **Siege tower** moved out from under the awning, where the RTS camera never saw it, to the
+  -Y edge at (-14, -46.4): 7 wide, 54 tall, 78 % built, its pointed roof frame over the awning.
+  The log stack shortened to (-34, -46.3).
+- **Fire** (8: 4 furnace (the saddles' grates), 2 brazier, hearth, crucible).
+
+932 -> 7,602 triangles, height 63.2 -> 74.7 (+18.3 %), footprint unchanged, 9/9 preview checks.
+
 ## Pass 2: the war-yard
 
 - **Tridents** (the new silhouette): either side of the mouth on +X, a lozenge blade tower to
@@ -34,5 +51,5 @@ checks. Pass 1 is `_review/production_v1.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 2, shape preview)
+- [x] healthy body designed (pass 3, shape preview)
 - [ ] reviewed by Max, built in colour, installed

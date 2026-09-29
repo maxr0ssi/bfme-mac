@@ -4,6 +4,22 @@ Model `IBArmory_SKN`, mesh `IBARMORY`, own texture `IBArmorH.tga` (DXT5, EA's cu
 kept). Palette A; new pieces from the Isengard kit and [`shapes_industry.py`](../shapes_industry.py) and [`shapes_industry_big.py`](../shapes_industry_big.py).
 EA's body is kept whole; the treadwheel and grindstone meshes stay EA's.
 
+## Pass 3: up to the citadel
+
+Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
+the Hand in pointed-arch slots, fire. Sheet: `_review/production_v3.jpg`.
+
+- **The pair** (the citadel's): two matching blades either side of the hall's +X gable in the
+  RTS view, (17.5, 27.9) and (28.5, 42.1), the gable's middle -+ 9 along the view, to z 54.4 (the
+  +20 % limit: EA's armory is low), two fins a face, ember slits, the White Hand in a
+  pointed-arch slot on each one's outer face; the gable's own great Hand between them.
+- The hall's ridge lowered to z 44 and its crest shortened so the pair reads over it; its corner
+  fins went (the blades clasp that corner).
+- The banner moved to (34.3, 32.5), 7 wide, clear of the right blade and inside the footprint.
+- **Fire** (6: chimney, hearth, crucible, 3 brazier).
+
+468 -> 5,183 triangles, height 46.9 -> 56.0 (+19.4 %), footprint unchanged, 9/9 preview checks.
+
 ## Pass 2: the Uruk armoury
 
 - **Hall** (the new silhouette): the shed becomes an iron hall, a steep pointed roof (42 degrees
@@ -33,5 +49,5 @@ docstring has IBARMORY's facts.
 
 ## Status
 
-- [x] healthy body designed (pass 2, shape preview)
+- [x] healthy body designed (pass 3, shape preview)
 - [ ] reviewed by Max, built in colour, installed

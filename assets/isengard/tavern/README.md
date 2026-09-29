@@ -8,6 +8,22 @@ kept whole: the long steep roof, the crossed logs at the gables, the log buttres
 Player-built: slot 6 of `IsengardPorterCommandSet` (`Command_ConstructIsengardTavern`), so a
 building like the others, not a captured map building.
 
+## Pass 3: up to the citadel
+
+Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
+the Hand in pointed-arch slots, fire. Sheet: `_review/production_v3.jpg`.
+
+- **The pair** (the citadel's): two matching blades out of the roof slopes either side of the
+  ridge's middle in the RTS view, (-16.6, -19.3) and (10.6, 15.3), from z 28 (in the roof) to
+  77.5, two fins a face, the White Hand in a pointed-arch slot on each one's outer face, chains
+  from each to the crest's tall middle fin. Nothing new stands on the ground (the level-ups
+  take the hall's sides and door).
+- **Great chimney**: pass 2's two stacks on the -Y slope stood where the left blade stands; one
+  great spire stack behind the crest on the view's axis, (-12.5, 5.4), to z 68 plus its crown.
+- **Fire** (1: chimney (EA's torches FX01, FX02 stay)).
+
+1,848 -> 4,656 triangles, height 72.0 -> 86.0 (+19.4 %), footprint unchanged, 9/9 preview checks.
+
 ## Pass 2: the hall of the White Hand
 
 - **Crest** (the new silhouette): a dorsal crest of seven layered knife fins along the ridge,
@@ -38,6 +54,6 @@ building site) keep EA's colours for now.
 
 ## Status
 
-- [x] healthy body designed (pass 2, shape preview)
+- [x] healthy body designed (pass 3, shape preview)
 - [x] pipeline reads its TGA sheets
 - [ ] reviewed by Max, built in colour, installed

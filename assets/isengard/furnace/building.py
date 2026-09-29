@@ -9,6 +9,12 @@ square crucible over the mould; a forge on the +Y yard, a rack of tongs and blad
 heap and cart, braziers, a banner on an iron frame. Real fire in the spire, the tap, the mould,
 the crucibles, the forge and the braziers (EA's furnace has none).
 
+Pass 3 (the citadel's recipe, 2026-09-29): the smelter crowned: two matching blades out of the mound's top either side of the
+crater in the RTS view (the citadel's pair; the left one's foot at z 86, above the level-up hut),
+to z 128.5, the White Hand in a pointed-arch slot on each one's outer face, chains from them to
+the great chimney, now a slimmer needle stack out of the crater (z 44 to 116, its crown of
+blades); the crater's crown down to three blades.
+
 EA's facts (world axes, `world_space`: FURNACE hangs on a bone moved (3.5, -0.2, 0.3)):
 x -31.9..68.1, y -46.7..29.8, z -6.4..106.8 (1141 triangles). The mound centred about (2, -2),
 its crater at (2.5, -4) sunk to z 46 between the horns (z 90..107); the chute on legs from the
@@ -23,19 +29,22 @@ from ..style import IsengardStyle
 
 # the fire the design lights (x, y, z, kind), world axes; from the geometry log's FIRE_POINTS
 FIRE_POINTS = [
-    (2.5, -4.0, 108.1, 'chimney'), (15.0, 8.0, 42.0, 'furnace'), (50.0, 24.0, 7.2, 'hearth'),
+    (2.5, -4.0, 110.4, 'chimney'), (15.0, 8.0, 42.0, 'furnace'), (50.0, 24.0, 7.2, 'hearth'),
     (57.0, 20.5, 6.5, 'crucible'), (64.0, 24.0, 8.6, 'brazier'), (64.0, -43.0, 8.6, 'brazier'),
     (20.0, -42.0, 8.6, 'brazier'), (57.0, 5.0, 15.0, 'crucible'), (52.0, 7.4, 22.3, 'crucible')
 ]
 
 CRATER = (2.5, -4.0)
-SPIRE = ((2.5, -4.0), 52.0, 10.0, 6.5, 38.0, 114.0)          # the blade-spire stack out of the crater
+SPIRE = ((2.5, -4.0), 52.0, 5.0, 3.4, 44.0, 116.0)           # the great chimney out of the crater
+# the pair (the citadel's): two blades out of the mound's top either side of the crater along the
+# view, mirrored about it, the left one's foot above the level-up hut (V2, to z 84.6)
+PAIR = ((-2.2, -0.3), 10.5, 6.4, 3.6, (86.0, 76.0), 128.5)
+HAND = (95.0, 3.8, 14.0)
 # buttresses on the mound's +Y flank (the right-hand silhouette in the RTS view): angle about the
 # crater, back (in the rock), foot and point radii, the point's height
 BUTTRESSES = [(45.0, 13.0, 33.0, 20.0, 74.0), (75.0, 13.0, 29.5, 20.0, 80.0), (105.0, 12.0, 28.5, 18.0, 74.0),
               (135.0, 11.0, 30.0, 16.0, 66.0), (-15.0, 19.0, 36.0, 26.0, 32.0)]   # the last under V2's deck (z 34)
-CROWN = [(330.0, 11.0, 80.0), (0.0, 12.4, 80.0), (30.0, 14.5, 84.0), (60.0, 16.0, 84.0), (90.0, 15.5, 84.0),
-         (120.0, 13.0, 86.0), (150.0, 11.5, 88.0)]                  # the crater's rim: angle, radius, z
+CROWN = [(330.0, 11.0, 80.0), (0.0, 12.4, 80.0), (150.0, 11.5, 88.0)]      # the crater's rim: angle, radius, z
 FORGE = ((50.0, 24.0, 3.0), (-1.0, 0.0))                     # hearth foot, t (the forge faces -Y)
 BANNER = ((30.0, -40.0, 3.0), (-0.62, -0.79))                 # the cloth faces the RTS camera
 BRAZIERS = [(64.0, 24.0), (64.0, -43.0), (20.0, -42.0)]
@@ -67,7 +76,14 @@ class Furnace(Building):
         from .. import shapes_industry_big as B
         out = []
         c, axis, L, W, z0, z1 = SPIRE
-        out += B.spire_stack(kit, c, axis, L, W, z0, z1, collar=0.62)
+        out += B.spire_stack(kit, c, axis, L, W, z0, z1, collar=0.62, crown=9.0)
+        m, half, L, W, z0, z1 = PAIR
+        solids, tops = B.blade_pair(kit, m, half, L, W, z0, z1, lean=1.2, hand=HAND, fins=1, fin_reach=1.1,
+                                     slits=(0.3, 0.45, 0.6))
+        out += solids
+        for x, y in tops:                                    # chains from each blade to the great chimney's throat
+            out += kit.chain(V((x + (m[0] - x) * 0.25, y + (m[1] - y) * 0.25, 112.0)), V((2.5, -4.0, 106.0)), link=1.8,
+                             w=0.5)
         out += self._buttresses(kit, V, I)
         out += self._crown(kit, V)
         out += self._tap(kit, V)

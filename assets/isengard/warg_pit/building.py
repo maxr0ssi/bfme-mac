@@ -6,6 +6,11 @@ run's walls, a pointed lintel between them with the White Hand on a shield); iro
 the palisade; a rail of meat hooks at the back of the yard; braziers in the yard's corners. EA's house-colour
 banner stays the pit's only one. Real fire in the braziers.
 
+Pass 3 (the citadel's recipe, 2026-09-29): the kennels flanked: the three thin corner pylons became the citadel's pair,
+two matching blades either side of the pit in the RTS view (one on the palisade's front, one
+outside its back, to z 55.5, the White Hand in pointed-arch slots), and a needle chimney behind
+the pit on the view's axis.
+
 EA's facts (IPWARGPIT on an identity bone): x -46.8..39.6, y -50.3..49.4, z -2.0..46.5 (3224
 triangles). The palisade ring (stakes to z 20..29) round the yard (x -45..37, y -8..48), its
 corners at (0, 48), (37, 21), (-46, 21); the kennel hut (x -20..2, y -50..-28, roof z 36..46)
@@ -20,11 +25,15 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 FIRE_POINTS = [
-    (-36.0, 17.0, 4.7, 'brazier'), (27.0, 17.0, 4.7, 'brazier')
+    (-23.7, 35.4, 46.2, 'chimney'), (-36.0, 17.0, 4.7, 'brazier'), (27.0, 17.0, 4.7, 'brazier')
 ]
 
 RING = [(-41.0, -5.0), (-46.0, 21.5), (0.0, 47.5), (37.0, 21.5), (33.5, -5.0)]    # the palisade's corners
-PYLONS = [((-41.5, 21.5), 48.0, 4.8, 1.6), ((0.0, 43.5), 52.0, 4.8, 1.6), ((32.5, 21.5), 48.0, 4.8, 1.6)]   # corners
+PAIR = [(-19.8, -5.8), (17.2, 41.5)]           # blades either side of the pit in the RTS view (its centre -+ 30 along it):
+                                               # one on the palisade's front, one outside its back
+PAIR_SIZE = (4.6, 2.9, 0.0, 55.5)
+PAIR_HAND = (30.0, 2.8, 12.0)
+STACK = ((-23.7, 35.4), 52.0, 3.6, 2.9, 0.0, 50.0)  # a needle chimney on the palisade behind the pit, on the view's axis
 # the gatehouse over the run, inside the door (the leaf shut: x 31..36, y -46..-28; swung open:
 # x 33..37, y -30..-13): two blade towers on the run's walls and a pointed lintel between them
 GATE_X = 21.0
@@ -58,9 +67,11 @@ class WargPit(Building):
         from mathutils import Vector as V
 
         from .. import shapes_industry as I
-        out = []
-        for (x, y), h, reach, sc in PYLONS:
-            out += self._pylon(kit, V, x, y, h, reach, sc)
+        from .. import shapes_industry_big as B
+        L, W, z0, z1 = PAIR_SIZE                     # the pair (the citadel's) either side of the pit
+        out = B.blades_at(kit, PAIR, L, W, z0, z1, lean=1.4, hand=PAIR_HAND, fins=2, slits=(0.35, 0.5, 0.65))
+        c, axis, L, W, z0, z1 = STACK                # the kennels' chimney on the axis, behind the pit
+        out += kit.needle_stack(c, axis, L, W, z0, z1, collar=0.55)
         out += self._gatehouse(kit, V, I)
         out += self._bands(kit, V)
         p, q = HOOKS

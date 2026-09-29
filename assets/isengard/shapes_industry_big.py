@@ -15,6 +15,16 @@ two). Functions of the kit like assets/isengard/shapes_industry.py, whose small 
     ridge_fins(kit, p, q, heights)           a dorsal crest of layered knife fins along a ridge
     spire_stack(kit, c, axis, L, W, z0, z1)  a great blade-spire chimney, a crown of convex blades
     log_crib(kit, c, t, length, r, layers)   felled Fangorn in crossed courses, iron stakes
+
+Pass 3, the citadel's recipe (assets/isengard/fortress/foundry.py):
+
+    blade_pair(kit, m, half, L, W, z0, z1)   two matching blade towers either side of m along the
+                                             RTS view's horizontal, mirrored, Hands on their outer faces
+    blades_at(kit, cs, L, W, z0, z1)         the same pair at two given centres (a gable, a pit)
+    blade_face(c, axis, L, W, z0, z1, ...)   a blade tower's face toward the camera at a height
+    hand_slot(kit, m, t, n, z0, w, h)        the White Hand in a pointed-arch slot on a face
+    birth_spire(kit, c, r0, z0, apex, rk, zk) the birthing-frame made pointed: four knife ribs on a
+                                             square, four iron bars at the knee, a needle
 """
 import math
 
@@ -39,7 +49,7 @@ def square_crucible(kit, c, r, h):
     kit.fire(c + Z * h, "crucible")
     return out
 
-def pyramid_kiln(kit, c, r, h, rot=0.0, vents=True):
+def pyramid_kiln(kit, c, r, h, rot=0.0, vents=True, throat_fire=True):
     """A charcoal kiln r across at c, h high, square in plan and turned `rot` (a corner toward the
     camera): a battered stone plinth, a steep four-faced iron-banded pyramid, a glowing throat in
     its truncated top, a blade out of each corner past the throat, pointed ember vents on its
@@ -68,7 +78,8 @@ def pyramid_kiln(kit, c, r, h, rot=0.0, vents=True):
                                 -1.2, 0.3, ["ember"] * 5, "ember", None))
             out.append(prism_uz(a, s, dm, [(-1.6, z0 - 0.4), (1.6, z0 - 0.4), (1.6, z0 + 2.9), (0, z0 + 5.2),
                                            (-1.6, z0 + 2.9)], 0.0, 0.45, ["trim"] * 5, "iron", "iron"))
-    kit.fire(c + Z * (top + 1.0), "chimney")
+    if throat_fire:
+        kit.fire(c + Z * (top + 1.0), "chimney")
     return out
 
 
@@ -321,4 +332,127 @@ def log_crib(kit, c, t, length, r, layers=5, per=3):
         for e in (-1, 1):
             p = c + t * (s * (length / 2 + 0.8)) + n * (e * (length / 2 + 0.8))
             out += blade_post(kit, p, top - c.z, w=0.45)
+    return out
+
+
+# ------------------------------------------------------------------ pass 3: the citadel's pair
+VIEW = 52.0                                     # the RTS view's horizontal (camera azimuth -38), as the citadel's
+
+
+def _view_axes(view=VIEW):
+    a = math.radians(view)
+    d = V((math.cos(a), math.sin(a), 0))
+    return d, V((d.y, -d.x, 0))                 # along the view, and toward the camera
+
+
+def blade_face(c, axis, L, W, z0, z1, lean, z, side, profile=None):
+    """(point on a blade tower's face at height z, t along it, n out): the face from its front
+    vertex (toward the camera) to its +axis end (side 1) or -axis end (side -1)."""
+    from .shapes_spire import BROAD, scale
+    f = (z - z0) / (z1 - z0)
+    s = scale(f, profile or BROAD)
+    a = math.radians(axis)
+    d, p = V((math.cos(a), math.sin(a), 0)), V((-math.sin(a), math.cos(a), 0))
+    ctr = V((c[0] + lean[0] * f, c[1] + lean[1] * f, 0))
+    front = ctr - p * W * s
+    end = ctr + d * (side * L * s)
+    t = (end - front).normalized()
+    n = V((t.y, -t.x, 0))
+    if n.dot((front + end) / 2 - ctr) < 0:
+        n = -n
+    return (front + end) / 2, t, n
+
+
+def hand_slot(kit, m, t, n, z0, w, h, d0=-0.9, d1=1.2):
+    """The White Hand in a pointed-arch slot (EA's 35-degree head) on a face at m: a sunk black
+    field, a silver frame, the Hand raised in it."""
+    head = (w / 2) / math.tan(math.radians(35.0) / 2) * 0.5
+    poly = [(-w / 2, z0), (w / 2, z0), (w / 2, z0 + h - head), (0, z0 + h), (-w / 2, z0 + h - head)]
+    out = [prism_uz(m, t, n, poly, d0, d1, ["trim"] * 5, "stoneB", None)]
+    for (u0, za), (u1, zb) in zip(poly, poly[1:] + poly[:1]):
+        out.append(kit.beam(m + t * u0 + Z * za + n * (d1 + 0.1), m + t * u1 + Z * zb + n * (d1 + 0.1), 0.3, "trim"))
+    out += kit.hand(m, t, n, 0.0, z0 + h * 0.12, min(w * 0.95, h * 0.62), d1, th=0.35, back="mark")
+    return out
+
+
+def blade_pair(kit, m, half, L, W, z0, z1, lean=1.6, flare=1.15, slits=(0.42, 0.54, 0.66), hand=None, view=VIEW,
+               fins=3, fin_reach=1.3, slit_w=1.0):
+    """The citadel's pair: two matching blade towers either side of m (x, y) `half` out along the
+    view's horizontal, mirrored about m: lozenges along the view (broad faces to the camera), a
+    flared spurred foot, set-back steps, three layered fins a face, silver edges, ember slits, a
+    needle; each leaning in toward m by `lean` at its tip. z0: one foot height or (left, right).
+    hand (z, w, h): the White Hand in a pointed-arch slot on each one's outer face. Returns
+    (solids, [(x, y) centres])."""
+    from .shapes_spire import BROAD
+    d, _ = _view_axes(view)
+    zs = z0 if isinstance(z0, (tuple, list)) else (z0, z0)
+    out, cs = [], []
+    for e, zb in zip((-1, 1), zs):
+        c = V((m[0], m[1], 0)) + d * (e * half)
+        ln = (-d.x * e * lean, -d.y * e * lean)
+        out += kit.blade_tower((c.x, c.y), view, L, W, zb, z1, lean=ln, flare=flare, fins=fins, slits=slits, profile=BROAD,
+                               fin_reach=fin_reach, slit_w=slit_w)
+        if hand:
+            zh, w, h = hand
+            p, t, n = blade_face((c.x, c.y), view, L, W, zb, z1, ln, zh + h / 2, e)
+            out += hand_slot(kit, p, t, n, zh, w, h)
+        cs.append((c.x, c.y))
+    return out, cs
+
+
+def blades_at(kit, cs, L, W, z0, z1, lean=1.2, hand=None, axis=VIEW, flare=1.15, fins=1, slits=(0.35, 0.5, 0.65),
+              fin_reach=1.1, slit_w=0.9):
+    """A matching pair of blade towers at the two centres `cs`, mirrored about their midpoint
+    (a gable, a gate, a pit between them): lozenges along `axis` (the view's horizontal: broad
+    faces to the camera), each leaning toward the midpoint by `lean` at its tip; hand (z, w, h)
+    on each one's outer face (the face toward its own side along the axis)."""
+    a = math.radians(axis)
+    d = V((math.cos(a), math.sin(a), 0))
+    mid = (V((cs[0][0], cs[0][1], 0)) + V((cs[1][0], cs[1][1], 0))) / 2
+    zs = z0 if isinstance(z0, (tuple, list)) else (z0, z0)
+    out = []
+    for (x, y), zb in zip(cs, zs):
+        c = V((x, y, 0))
+        k = (mid - c)
+        ln = tuple(k.normalized() * lean)[:2] if k.length > 1e-6 else (0.0, 0.0)
+        out += kit.blade_tower((x, y), axis, L, W, zb, z1, lean=ln, flare=flare, fins=fins, slits=slits,
+                               profile=_broad(), fin_reach=fin_reach, slit_w=slit_w)
+        if hand:
+            zh, w, h = hand
+            side = 1 if (c - mid).dot(d) >= 0 else -1
+            p, t, n = blade_face((x, y), axis, L, W, zb, z1, ln, zh + h / 2, side)
+            out += hand_slot(kit, p, t, n, zh, w, h)
+    return out
+
+
+def _broad():
+    from .shapes_spire import BROAD
+    return BROAD
+
+
+def birth_spire(kit, c, r0, z0, apex, rk, zk, rot=VIEW, w=1.8):
+    """The birthing-frame made pointed (pass 3: pass 2's six ribs and ring read round): four knife
+    ribs on the diagonals of a square turned to `rot`, rising from the pit's rim (r0, z0) to a knee
+    (rk, zk), bound there by four iron bars with silver lips, then bending in to a needle at
+    apex; a great hook on its chain down into the pit, meat hooks at the band's corners."""
+    c = _v(c)
+    out = []
+    corners = []
+    for i in range(4):
+        ang = math.radians(rot + 45.0 + 90.0 * i)
+        d = (math.cos(ang), math.sin(ang))
+        out += fin(kit, c, d, r0 + 99.0, [(r0 - 1.6, z0 - 1.0), (r0 + 3.2, z0 - 1.0), (rk + 2.6, zk), (rk - 1.4, zk - 2.6)],
+                   w, tag="iron")
+        out += fin(kit, c, d, 0.5, [(rk - 1.4, zk - 2.6), (rk + 2.6, zk), (0.8, apex - 0.5), (0.2, apex - 4.0)], w * 0.85,
+                   tag="iron")
+        corners.append(V((c.x + d[0] * (rk + 0.4), c.y + d[1] * (rk + 0.4), 0)))
+    for a, b in zip(corners, corners[1:] + corners[:1]):          # the band: four riveted iron bars, silver lips
+        out.append(kit.beam(a + Z * (zk - 1.2), b + Z * (zk - 1.2), 0.75, "iron"))
+        out.append(kit.beam(a + Z * (zk - 0.2), b + Z * (zk - 0.2), 0.3, "trim"))
+    out.append(kit.beam(V((c.x, c.y, apex - 2.0)), V((c.x, c.y, apex + 7.0)), 0.9, "iron", 0.0))
+    out.append(kit.beam(V((c.x, c.y, apex - 1.5)), V((c.x, c.y, apex + 0.5)), 1.3, "trim"))
+    for p in corners:
+        out += kit.hook(p + Z * (zk - 2.4), 1.5, chain=3.5)
+    out += kit.chain(V((c.x, c.y, apex - 3.0)), V((c.x, c.y, z0 + 5.0)), link=1.8, w=0.6, th=0.25)
+    out += kit.hook(V((c.x, c.y, z0 + 5.0)), 2.6, chain=0.0)
     return out

@@ -3,6 +3,10 @@ IBLumMill_SKN), pass 2 "Fangorn's end": EA's yard kept whole - the lean-to shed 
 stacks, the chopping stumps, the great log on its sawhorses, the fire pit, the slab floor - and
 made the place where Saruman's orcs fell and burn the forest for the furnaces:
 
+Pass 3 (the citadel's recipe, 2026-09-29): Fangorn's end, stacked: the pair of charcoal kilns lowered to feet (z 14) with a
+great blade-spire stack out of each (to z 47.5, crowns of blades, ember slits, glowing mouths),
+mirrored either side of the banner: the citadel's pair.
+
     kilns      a pair of steep square charcoal kilns on the +X-Y front, a corner to the camera,
                iron bands, a blade out of each corner, pointed ember vents, glowing throats
     crane      a lozenge iron mast to z 55 on the +X side, a laced jib over the logs, a trunk
@@ -38,13 +42,13 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 FIRE_POINTS = [
-    (27.0, -43.0, 22.6, 'chimney'), (41.0, -21.0, 21.0, 'chimney'), (49.0, -36.0, 1.7, 'brazier'),
+    (27.0, -43.0, 44.0, 'chimney'), (41.0, -21.0, 44.0, 'chimney'), (49.0, -36.0, 1.7, 'brazier'),
     (-2.0, -40.0, 1.7, 'brazier'), (20.0, 33.0, 2.0, 'hearth')
 ]
 
 FLOOR = -3.0
 BEAM = ((-24.0, -29.0, 40.0), (-22.0, 53.0, 40.0))      # the shed's front beam, its ends at the top
-KILNS = [((27.0, -43.0), 10.0, 30.0), ((41.0, -21.0), 9.5, 28.0)]    # a pair on the +X-Y front, the banner between
+KILNS = [((27.0, -43.0), 10.0, 17.0), ((41.0, -21.0), 10.0, 17.0)]    # a pair on the +X-Y front, the banner between
 SAW = ((14.0, -43.0), (1.0, 0.0), 20.0, 19.0)
 CRANE = ((45.5, 0.0, FLOOR), (41.0, 33.0, 45.0), 58.0, 10.0)   # mast foot, jib head, mast height, drop
 LOGS = ((42.5, 34.0), (1.0, 0.0), 16.0, 2.2, 5)               # a crib of felled Fangorn under the crane's jib
@@ -78,8 +82,10 @@ class LumberMill(Building):
         from .. import shapes_industry_big as B
         (p, q) = BEAM
         out = I.roof_crest(kit, V(p), V(q), 11, 11.0, w=0.45, d=2.2)
-        for (kx, ky), r, h in KILNS:
-            out += B.pyramid_kiln(kit, V((kx, ky, FLOOR)), r, h, rot=-83.0)
+        for (kx, ky), r, h in KILNS:                    # the pair: a kiln at the foot, a great stack out of it
+            out += B.pyramid_kiln(kit, V((kx, ky, FLOOR)), r, h, rot=-83.0, throat_fire=False)
+            out += B.spire_stack(kit, (kx, ky), B.VIEW, 4.4, 3.1, FLOOR + h * 0.3, 47.5, collar=0.62, crown=7.5,
+                                 slits=(0.32, 0.56))
         (sx, sy), t, length, h = SAW
         out += kit.saw_frame(V((sx, sy, FLOOR)), V(t), length, h)
         foot, head, h, drop = CRANE

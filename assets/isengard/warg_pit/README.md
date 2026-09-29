@@ -6,6 +6,22 @@ and model (`IBWARGPIT_DRC`, [warg_pit_02](../warg_pit_02/README.md)) and stays E
 new pieces from the Isengard kit and [`shapes_industry.py`](../shapes_industry.py) and [`shapes_industry_big.py`](../shapes_industry_big.py). EA's pit is
 kept whole: the palisade ring, the bones, the kennel hut and its walled run.
 
+## Pass 3: up to the citadel
+
+Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
+the Hand in pointed-arch slots, fire. Sheet: `_review/production_v3.jpg`.
+
+- **The pair** (the citadel's): pass 2's three thin pylons (sticks) are gone; two matching
+  blades stand either side of the pit in the RTS view, its centre -+ 30 along the view:
+  (-19.8, -5.8) on the palisade's front and (17.2, 41.5) outside its back, to z 55.5, two fins a
+  face, the White Hand in a pointed-arch slot on each one's outer face.
+- **Chimney**: a needle stack on the palisade behind the pit, on the view's axis (-23.7, 35.4),
+  to z 50 with its crown and glowing throat (fire).
+- The gatehouse over the run stays (its own blade pair either side of the run).
+- **Fire** (3: chimney, 2 brazier).
+
+3,224 -> 7,114 triangles, height 48.5 -> 58.0 (+19.7 %), footprint unchanged, 9/9 preview checks.
+
 ## Pass 2: the kennels
 
 - **Gatehouse** (the new silhouette): two blade gate towers to z 56 on the run's walls, 9 inside
@@ -30,5 +46,5 @@ checks. Pass 1 is `_review/production_v1.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 2, shape preview)
+- [x] healthy body designed (pass 3, shape preview)
 - [ ] reviewed by Max, built in colour, installed

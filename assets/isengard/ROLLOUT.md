@@ -34,7 +34,18 @@ Build output is under `build/assets/isengard/` (not in git; each player builds t
    racks, pipework, fire grates).
 3. **Paint**: [`paint.py`](paint.py) `IsengardRecolour` splits EA's sheet into stone (the smooth
    panels), rock, wood, the Hand's white, embers (by colour) and iron (the rest), rects in
-   [`atlas.py`](atlas.py), read by eye; confirm on the citadel's first bake.
+   [`atlas.py`](atlas.py), read by eye; confirm on the citadel's first bake. Nine buildings paint
+   EA's faces from sheets of their own (armory, battle tower, furnace, lumber mill, siege works,
+   tavern, uruk pit, warg pit and its door, warg sentry): `atlas.py` `SHEETS` gives each its own
+   rects (iron, mark for the Hand banners and bone, stone, rock, wood for timber, hide and fur;
+   the first rect a texel falls in wins; the damaged and snow states share the layout), and
+   `IsengardSheetRecolour` reads them on EA's faces, IBFortress's on new faces, and on the flat
+   sheets `sagekit sheets` recolours (`IsengardStyle.sheet_atlas`). Fire is found by colour only
+   outside every rect, so the lumber mill's rust no longer glows; the furnace's melt still does.
+   Checked 2026-09-29: the flat IBFortress recolour and the citadel's recolour on its bake are
+   bit-identical to before; new faces on a table's building are unchanged. Before this, those
+   nine sheets' wood, hide, bone and banners came out iron or silver (IBFortress's rects read
+   through the wrong layout). The rects were read by eye: confirm on each first bake.
 
 ## Units
 
@@ -67,62 +78,74 @@ Build output is under `build/assets/isengard/` (not in git; each player builds t
 Not units: the crebain (`Crebain_SKN`), the forge worker (`IBFBForgesU_SKN`), the launcher's
 crew, the siege works' wheels (`IBSeigeW_DRC`) and `IBWARGPIT_WLB` (no static body).
 
-### Walls (shape previews, 2026-09-29)
+### Walls (shape previews, pass 3, 2026-09-29)
 
 One wall profile in [`shapes_walls.py`](shapes_walls.py) on every wall piece, so segments, hubs,
-the gate and the ends join without a seam. Fire only on the gate and the tower. Sheet:
-`_review/walls.jpg`.
+the gate and the ends join without a seam. Fire only on the gate and the tower. Pass 3 brings the
+hubs and the tower up to the citadel: pass 1's hubs were still EA's drums with a small crown of
+horns and the tower barely changed. The hubs get the citadel's cluster (a needle stack between
+two lozenge blades) on the roof, the tower four corner blades and a needle stack out of its
+crown; both may grow 35 %, as the citadel. Sheet: `_review/walls_v3.jpg` (pass 1: `walls.jpg`).
 
 | Building | Idea | Tris EA -> ours | Height | Fire |
 |---|---|---|---|---|
-| wall_segment | knife fins, buttress blades, ember slits, silver lip and ridge, lip spikes, needles out of EA's pyramids (fork, needle, NEEDLE, needle, fork) | 376 -> 1,218 | +11.4 % | none |
-| wall_hub | Orthanc crown: six horns, stepped plinth and needle, radial ribs, spikes, silver arrises, slits | 258 -> 1,390 | +19.9 % | none |
-| fortress_wall_hub | the hub's crown; the walls' profile on the stub | 476 -> 2,314 | +19.9 % | none |
-| wall_gate | two tridents (a blade tower between each pylon's horns), bracket braziers, slits, spikes, one banner a face | 200 -> 2,492 | +17.1 % | 4 brazier |
+| wall_segment | knife fins, buttress blades, ember slits, silver lip and ridge, lip spikes, needles out of EA's pyramids (fork, needle, NEEDLE, needle, fork); unchanged in pass 3 (it repeats) | 376 -> 1,218 | +11.4 % | none |
+| wall_hub | the citadel's cluster on the roof: a needle stack (ember collar and throat) between two lozenge blades to model 84, the walls' needles on the six corners, spikes, silver arrises, slits | 258 -> 3,052 | +34.6 % | none |
+| fortress_wall_hub | the hub's blade cluster; the walls' profile on the stub | 476 -> 3,976 | +34.6 % | none |
+| wall_gate | two tridents (a blade tower between each pylon's horns), bracket braziers, slits, spikes, one banner and one Hand in an arch slot a face | 200 -> 2,814 | +17.1 % | 4 brazier |
 | wall_end | two segments' profile, a blade tower at the cut end | 822 -> 3,296 | +19.7 % | none |
-| tower | bracket braziers under the crown, glowing windows, a banner, the profile on its stub | 848 -> 2,108 | 0 % | 4 brazier |
+| tower | four lozenge blades on the shaft's corners to z 121 (the Hand on the field pair), a needle stack out of the crown to z 166, braziers in the crown, glowing windows, a banner, the profile on its stub | 848 -> 4,752 | +27.4 % | chimney, 4 brazier |
 
-### Production (shape previews, pass 2, 2026-09-29)
+### Production (shape previews, pass 3, 2026-09-29)
 
 The forge-and-industry heart: fire belongs here most. Pass 1 (`_review/production_v1.jpg`) was
-too modest: at the RTS view most buildings read as EA's. Pass 2 gives each one or two big pointed
-masses. The group's small pieces (fins, forges, birthing pits, banner frames, armour stands,
-racks) are in [`shapes_industry.py`](shapes_industry.py), the big masses (spire stacks, tridents,
-pyramid kilns, a birthing-frame, a crane, a siege tower, a ram, a dorsal crest, a log crib) in
+too modest; pass 2 (`_review/production.jpg`) gave each one or two big pointed masses but still
+read modest beside the citadel. Pass 3 applies the citadel's recipe to each: its pair (two
+matching lozenge blades, the White Hand in a pointed-arch slot on each one's outer face) either
+side of the building's central element in the RTS view, needle stacks, ember slits, fire. The
+group's small pieces (fins, forges, birthing pits, banner frames, armour stands, racks) are in
+[`shapes_industry.py`](shapes_industry.py), the big masses (spire stacks, tridents, pyramid kilns,
+the pair, the birthing spire, a crane, a siege tower, a ram, a dorsal crest, a log crib) in
 [`shapes_industry_big.py`](shapes_industry_big.py). No round drums: kilns and crucibles are
-square and turned to a corner. Sheet: `_review/production.jpg` (EA's against ours, rts and close).
+square and turned to a corner. Every building stays inside +20 % height, so the pairs on the low
+ones (armory, lumber mill, warg pit, at z 48-56) are shorter than the citadel's. Sheet:
+`_review/production_v3.jpg` (the citadel's rts on top, then EA's against ours, rts and close).
 
 | Building | Idea | Tris EA -> ours | Height | Fire |
 |---|---|---|---|---|
-| furnace | the smelter: a blade-spire stack out of the crater between the horns to z 128, layered stone buttresses on the mound, an iron crown round the crater, a hooded tap, a crucible gantry over the mould, a forge, racks | 1,141 -> 4,431 | +15.8 % | 9: chimney, furnace, 3 crucible, hearth, 3 brazier |
-| armory | the Uruk armoury: the shed an iron hall (a steep pointed roof, stone gables, the Hand great in the +X gable, corner fins), a stack through its roof, a forge, three Uruk harnesses, racks | 468 -> 3,481 | +17.0 % | 6: chimney, hearth, crucible, 3 brazier |
-| lumber_mill | Fangorn's end: a pair of steep square kilns with the banner between, a lozenge crane over a crib of felled Fangorn, a blade crest on the shed, a frame saw | 1,204 -> 3,836 | +18.8 % | 5: 2 chimney, hearth (EA's fire pit), 2 brazier |
-| siege_works | the war-yard: trident towers flanking the mouth with a chain and the Hand between, needles out of the post heads, a half-built siege tower and a ram under the awning, a forge | 932 -> 6,692 | +18.3 % | 4: 2 brazier, hearth, crucible |
-| uruk_pit | the breeding pits: an iron birthing-frame over the pit (six knife ribs to a needle, hooks), a needle stack either side, fins on the +X lobe, furnace mouths, a birthing pit, harness | 1,087 -> 4,561 | +18.5 % | 8: grate, 2 chimney, 2 furnace, embers, 2 brazier |
-| warg_pit | the kennels: a gatehouse over the run (two blade gate towers, a pointed lintel with the Hand), blade pylons in the ring's corners, iron bands, hooks | 3,224 -> 5,586 | +19.7 % | 2 brazier |
-| tavern | the hall of the White Hand: a dorsal crest of seven knife fins along the ridge, crossed blades over the gables, two spire stacks through the roof, the Hand over the door | 1,848 -> 3,020 | +17.0 % | 2 chimney |
+| furnace | the smelter crowned: the pair out of the mound's top either side of the crater (to z 128.5, the left foot above the level-up hut), Hands, chains to the great chimney (a needle stack out of the crater); buttresses, a hooded tap, a crucible gantry over the mould, a forge, racks | 1,141 -> 6,073 | +19.2 % | 9: chimney, furnace, 3 crucible, hearth, 3 brazier |
+| armory | the Uruk armoury: the pair either side of the iron hall's +X gable (to z 54.4, the limit), Hands, the gable's great Hand between; the hall (ridge z 44, a crest), a stack through its roof, a forge, three Uruk harnesses, racks | 468 -> 5,183 | +19.4 % | 6: chimney, hearth, crucible, 3 brazier |
+| lumber_mill | Fangorn's end: the pair, two great spire stacks out of low square kilns either side of the banner; a lozenge crane over a crib of felled Fangorn, a blade crest on the shed, a frame saw | 1,204 -> 4,784 | +18.8 % | 5: 2 chimney, hearth (EA's fire pit), 2 brazier |
+| siege_works | the war-yard: the pair, two tridents flanking the mouth, each's middle the citadel's broad blade with a Hand slot, fire grates in their saddles, a chain and a great Hand shield between; the half-built siege tower outside the -Y edge over the awning, needles out of the post heads, a ram, a forge | 932 -> 7,602 | +18.3 % | 8: 4 furnace, 2 brazier, hearth, crucible |
+| uruk_pit | the breeding pits: the pair either side of the pit (to z 77.5), Hands; a pointed birthing spire over the pit (four knife ribs on a square, four iron bars, hooks), chimneys behind, fins on the +X lobe, furnace mouths, a birthing pit, harness | 1,087 -> 6,099 | +19.2 % | 8: grate, 2 chimney, 2 furnace, embers, 2 brazier |
+| warg_pit | the kennels: the pair either side of the pit (one on the palisade's front, one outside its back, to z 55.5), Hands, a needle chimney behind the pit on the axis; the gatehouse over the run (two blade gate towers, a pointed lintel with the Hand), iron bands, hooks | 3,224 -> 7,114 | +19.7 % | 3: chimney, 2 brazier |
+| tavern | the hall of the White Hand: the pair out of the roof slopes either side of the dorsal crest (z 28 to 77.5), Hands, chains to the crest's tall fin; one great chimney behind the crest, crossed blades over the gables, the Hand over the door | 1,848 -> 4,656 | +19.4 % | 1: chimney (EA's torches stay) |
 | warg_pit_02 | the door: stays EA's; the stub stays as the record of that | - | - | - |
 
-### Add-ons and expansions (shape previews, 2026-09-29)
+### Add-ons and expansions (shape previews, pass 3, 2026-09-29)
 
 The citadel's upgrades, checked on our citadel with every upgrade built at once (no vertex inside
-the citadel's new solids either way, none on its fire points, the wheel's and the bucket's sweeps
-clear), and the expansions. Shared pieces (Orthanc's piers and horns, pointed merlons, arch slots
-with the Hand, fire-pots) are in [`shapes_addons.py`](shapes_addons.py). Sheet:
-`_review/addons.jpg` (EA's against ours, rts and close views; the add-ons on the citadel).
+the citadel's new solids either way, none on its fire points, the wheel's real sweep and the
+excavations' A-frame and bucket sweep (`IBFExcavAN`) clear), and the expansions. Pass 1
+(`_review/addons.jpg`) kept most expansions at EA's height; pass 3 brings each up to the citadel:
+the expansions get the citadel's pair of lozenge blades, mirrored about their own axis, flanking
+EA's central element. Shared pieces (Orthanc's piers and horns, pointed merlons, arch slots with
+the Hand, fire-pots, the blade helpers `blade_pair`, `blade_hand`, `foot_spurs`) are in
+[`shapes_addons.py`](shapes_addons.py). Sheet: `_review/addons_v3.jpg` (the citadel's approved rts
+render on top, then EA's against ours, rts and close; the add-ons on the citadel).
 
 | Building | Idea | Tris EA -> ours | Height | Fire |
 |---|---|---|---|---|
-| fortress_wizards_tower | Orthanc: four many-sided piers on the diagonals opening into horns, ember windows, a door and the Hand, Saruman's balcony | 1,572 -> 4,631 | +13.8 % | none |
-| fortress_burning_forges | the wheel: ribs, ember vents and a boss, all inside the forge's slot | 957 -> 1,513 | 0 % | none (it turns) |
-| fortress_burning_forges_destructibles | the forge: a beacon on the frame's roof, the stack's blade crown, hearth, anvil and bellows, a molten chute, fins and vents | 969 -> 1,943 | 0 % | 5: chimney, brazier, hearth, embers, crucible |
-| fortress_excavations | the pits of Isengard: fire and smoke out of the shafts, a grate and stakes on the south one, terrace spikes, an ore cart | 875 -> 1,860 | 0 % | 3 chimney |
-| fortress_excavations_destructibles | glowing ore down the chute out of an iron skip, a lantern | 374 -> 500 | 0 % | none |
-| fortress_orcfire_munitions | war-engine fire-pots: iron rims, silver lips, spikes, blades, ember bands, orcfire jars | 920 -> 4,200 | 0 % | 5 brazier |
-| ballista | pointed merlons round the top, the Hand each side, arrow loops, fins, a prow blade | 234 -> 1,206 | +13.9 % | 2 brazier |
-| battle_tower | corner fins, riveted bands, the Hand, arrow slits, eaves spikes | 541 -> 1,382 | 0 % | 2 brazier |
-| warg_sentry | the kennel: a palisade, warg posts and chains, stakes, a Hand standard; the middle clear for the wargs | 3,013 -> 4,819 | 0 % | 3: grate, 2 brazier |
-| mine_launcher | merlons and fins on the front, the Hand and slits on the tower, ramp jaws, orcfire mines | 1,094 -> 2,386 | 0 % | 2: brazier, furnace |
+| fortress_wizards_tower | Orthanc (identity kept): four many-sided piers opening into horns, ember windows, a door and the Hand, Saruman's balcony; the Hand great high on three faces, braziers on the piers | 1,572 -> 5,486 | +13.8 % | 6 brazier |
+| fortress_burning_forges | the wheel: ribs, ember vents and a boss, all inside the forge's slot (unchanged: it turns) | 957 -> 1,513 | 0 % | none (it turns) |
+| fortress_burning_forges_destructibles | the forge: EA's round stack carried on as the citadel's needle chimney to z 138, a beacon on the frame's roof, hearth, anvil and bellows, a molten chute, fins and vents | 969 -> 2,149 | +19.6 % | 5: chimney, brazier, hearth, embers, crucible |
+| fortress_excavations | the pits of Isengard: the south shaft a needle flue (under the A-frame's swing), fire out of the north shafts, terrace spikes, an ore cart | 875 -> 2,012 | 0 % | 3 chimney |
+| fortress_excavations_destructibles | glowing ore down the chute out of an iron skip, a fire basket, a lantern | 374 -> 574 | 0 % | 2: embers, brazier |
+| fortress_orcfire_munitions | war-engine fire-pots: claws of knife blades, iron rims, silver lips, spikes, ember bands, orcfire jars | 920 -> 4,200 | +1.9 % | 5 brazier |
+| ballista | the pair against the long walls behind the ballista to z 68.5, a crown of pointed merlons, Hands, fins, loops, a prow blade | 234 -> 3,188 | +34.3 % (0.35: Max's OK pending) | 2 brazier |
+| battle_tower | the pair welded to the shaft, through the roof to needles either side of EA's spike, Hands, bands, slits, eaves spikes | 541 -> 3,412 | +19.2 % | 4 brazier |
+| warg_sentry | the pair as pylons on the back rim, chained to the Hand standard between them; palisade, warg posts, stakes; the middle clear for the wargs | 3,013 -> 6,841 | +34.1 % (0.35: Max's OK pending) | 5: grate, 4 brazier |
+| mine_launcher | the pair flanking EA's spiked tower to needles over it, Hands on them, merlons and fins on the front, ramp jaws, orcfire mines | 1,094 -> 4,110 | +19.1 % | 2: brazier, furnace |
 
 ## Ownership (`sagekit owners isengard`)
 
