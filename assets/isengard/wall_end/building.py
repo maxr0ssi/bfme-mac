@@ -51,8 +51,8 @@ class WallEnd(Building):
         from ..shapes_walls import run
         out = run(kit, 0.0, foot=cliff_foot) + run(kit, 2 * SEAM, foot=cliff_foot, stop=CREST_STOP)
         c, axis, L, W, z0, z1 = TOWER
-        out += kit.blade_tower(c, axis, L, W, z0, z1, flare=FLARE, fins=3, spurs=False, slits=(0.42, 0.56),
-                               collar=0.5, slit_w=0.9)
+        out += kit.blade_tower(c, axis, L, W, z0, z1, flare=FLARE, fins=3, spurs=False, slits=(0.36, 0.48),
+                               collar=0.62, slit_w=0.9)
         return out
 
     def emphasis(self, c, n):

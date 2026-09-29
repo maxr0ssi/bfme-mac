@@ -11,7 +11,8 @@ pylon becomes a trident:
   (four braziers, the gate's real fire), pointed ember slits low on the face, iron spikes along
   the top edge;
 - one heavy banner a face (the +y pylon's +x end, the -y pylon's -x end), the White Hand on it,
-  the cloth in the player's colour: the wall run's banners hang here.
+  the cloth in the player's colour: the wall run's banners hang here;
+- the White Hand in a pointed-arch slot on each pylon end without a banner (z 22..42).
 
 EA's facts (IBGATE mesh coordinates, identity bone; x +-25.09, y +-59.19, z 0..76.85; mirror
 symmetric in x and y): the pylons span |y| 48.26..59.19, their cores |y| 50.48..57.03 with ends
@@ -32,6 +33,7 @@ TOWER = (9.0, 3.0, 55.0, 90.0, 1.12)                    # half length (x), half 
 HORN = [(19.0, 56.55), (22.87, 59.7), (25.09, 76.85)]   # the fork plate's outer edge, up to the horn's point
 BRAZIER = (50.5, 50.9, 3.4)                             # bracket height, |y|, reach
 BANNER = (46.0, 4.0, 18.0, 2.6, 55.2)                   # z_top, width, length, d out, |y| centre
+HAND = (22.0, 4.6, 20.0)                                # the Hand's arch slot on the other end: z0, width, height
 
 
 def end_x(z):
@@ -79,7 +81,7 @@ class WallGate(Building):
         from ..shapes_walls import bracket_brazier, slit
         L, W, z0, z1, flare = TOWER
         c = (0.0, sy * PYLON_Y)
-        out = kit.blade_tower(c, 0.0, L, W, z0, z1, flare=flare, fins=3, spurs=False, slits=(0.4, 0.52), collar=0.46,
+        out = kit.blade_tower(c, 0.0, L, W, z0, z1, flare=flare, fins=3, spurs=False, slits=(0.36, 0.48), collar=0.62,
                               profile=BROAD, slit_w=0.9)
         for sx in (1, -1):
             pts = [V((sx * (x - 0.3), sy * PYLON_Y, z - 0.2)) for x, z in HORN]
@@ -96,6 +98,11 @@ class WallGate(Building):
         for a, d in _brackets():
             if a[1] * sy > 0:
                 out += bracket_brazier(kit, a, d, BRAZIER[2])
+        from ..shapes_addons import hand_arch
+        z0, w, h = HAND                                        # the White Hand on the end without a banner
+        sx = -sy
+        out += hand_arch(kit, V((sx * end_x(z0), 0, 0)), V((0, sx, 0)), V((sx, 0, 0)), sx * sy * PYLON_Y, z0, w, h,
+                         d0=-2.4, d1=0.7, bat=END_LEAN)
         z_top, w, length, dd, yb = BANNER
         sx = sy                                                # +y pylon: +x end; -y pylon: -x end
         n = V((sx, 0, 0))

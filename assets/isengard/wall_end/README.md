@@ -14,6 +14,8 @@ Palette A.
   back, ember slits, a collar. The crest's spikes and needles stop short of it (EA's third pyramid
   is inside it). The crest steps up to it: needle 57.5, needle 66, tower 80.
 - No fire and no banners.
+- Pass 3: the tower's collar lifted to 0.62 of its height, clear of the fins, the slits under it
+  (the collar crossing the fins read as white crosses).
 
 822 -> 3,296 triangles, height 105.4 -> 126.2 (+19.7 %), footprint unchanged, 9/9 preview checks.
 Pass 0 put the tower on a corbel at z 31; its fins hung in the air over the face, so it moved up.
@@ -24,5 +26,5 @@ Pass 0 put the tower on a corbel at z 31; its fins hung in the air over the face
 
 ## Status
 
-- [x] healthy body designed (pass 1, shape preview)
+- [x] healthy body designed (pass 3, shape preview; sheet `_review/walls_v3.jpg`)
 - [ ] reviewed, built in colour, installed

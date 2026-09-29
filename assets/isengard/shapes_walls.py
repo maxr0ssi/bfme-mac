@@ -22,7 +22,8 @@ run's ends, so neighbours and stretched segments still meet:
 Other pieces:
     needle(kit, c, z0, z1, L, W)       a lozenge needle: flared foot, silver collar, sharp arrises
     slit(kit, a, t, n, u, z, w, h)     a pointed ember slit sunk in a face
-    hex_horns(kit, R, z, h, w)         Orthanc's horns on a hexagon's six corners (the hubs)
+    short_stack(kit, c, axis, L, W, z0, z1)  kit.needle_stack on a short shaft, its collar gap closed
+    hub(kit)                           the hubs' blade cluster: a needle stack between two blades
     brazier_point(c, r, h)             where kit.brazier's fire rises (for fire_points)
 """
 import math
@@ -30,6 +31,7 @@ import math
 from mathutils import Vector as V
 
 from sagekit.blender.geometry import Z, loft, prism_uz
+
 
 # EA's wall profile (above)
 FACE_X = 4.37
@@ -189,17 +191,6 @@ def _moved(solids, dy):
     return solids
 
 
-def hex_horns(kit, R, z, h, w, phase=0.0, lean=0.16, curl=0.08, tag="stoneA"):
-    """Orthanc's horns on the six corners of a hexagon (corner radius R, the first corner at
-    `phase` radians) standing on z, h tall, w at the root."""
-    out = []
-    for i in range(6):
-        a = phase + math.pi / 3 * i
-        d = V((math.cos(a), math.sin(a), 0))
-        out.append(kit.orthanc_horn(V((0, 0, z)) + d * R, d, h, w, lean=lean, curl=curl, tag=tag))
-    return out
-
-
 # EA's wall hub (IBFBALTOW01 mesh coordinates: it hangs on a bone at z 25.47, so model z = mesh z
 # + 25.47): a hexagon, corners on the x axis, faces 19.26 from the axis (corners 22.24), from the
 # ground (-25.47) to 31.04; bands proud to 19.67 at z -0.15..0.93 and 17.85..18.94; a parapet
@@ -207,31 +198,51 @@ def hex_horns(kit, R, z, h, w, phase=0.0, lean=0.16, curl=0.08, tag="stoneA"):
 # its buried foot. Segments run into any face (the middle 16.6 of it, to model z 59.24).
 HUB_FACE, HUB_CORNER, HUB_RIM, HUB_TOP = 19.26, 22.24, 20.21, 37.04
 HUB_BONE_Z = 25.47
+HUB_BLADE = (11.2, 7.4, 5.2, 33.4, 56.5, 1.1, 1.2)      # the pair (at +-x): centre r, half length (radial), half width,
+                                                        # z0, z1, flare, lean out
+HUB_STACK = (5.6, 4.1, 33.4, 47.6)                      # half length, half width, z0, z1 (its crown rises 2.7 W over z1)
+HUB_CORNER_NEEDLE = 47.0                                # the six corner needles' tips (the segments' crest needles)
 
 
-def hub(kit, horn_h=10.5, needle_top=49.5):
-    """The hub's Orthanc crown: six horns on the parapet's corners (straight blades), a stepped
-    hexagonal plinth on the roof and a lozenge needle out of it, three spikes leaning out of each parapet face between the horns; silver on the six
-    corner arrises; a pair of ember slits on every face between EA's bands."""
-    out = hex_horns(kit, 20.8, HUB_TOP - 0.8, horn_h, 2.6, lean=0.07, curl=0.02)
-    out.append(kit.facet(0.0, 0.0, [(12.5, 33.8), (12.5, 35.6), (11.3, 36.3), (9.6, 36.3), (9.6, 37.9), (8.4, 38.6),
-                                     (6.0, 38.6)], ["stoneA", "trim", "stoneA", "stoneA", "trim", "stoneA"], k=6,
-                         phase=0.0))                      # a stepped hexagonal plinth for the needle
-    out += needle(kit, (0.0, 0.0), 38.0, needle_top, 3.2, 3.2, axis=0.0, collar=0.28)
-    for i in range(6):                                 # ribs from the plinth out to the horns' feet
-        d = V((math.cos(math.pi / 3 * i), math.sin(math.pi / 3 * i), 0))
-        out.append(prism_uz(V((0, 0, 0)), d, V((-d.y, d.x, 0)), [(11.8, 33.9), (19.4, 33.9), (19.4, 35.3), (11.8, 37.4)],
-                            -0.65, 0.65, [None, "stoneA", "trim", "stoneA"], "stoneA", "stoneA"))
+def short_stack(kit, c, axis, L, W, z0, z1, collar=0.6):
+    """kit.needle_stack for a short stack (z1 - z0 under ~40): its collar band is placed by the
+    height without the crown's 2 units, so on a short shaft the band stands off it and the sky
+    sees through the gap; a closed iron sleeve under the band fills it."""
+    out = kit.needle_stack(c, axis, L, W, z0, z1, collar=collar)
+    zc = z0 + (z1 - z0) * collar
+    s = 0.76 + (0.5 - 0.76) * (collar - 0.352) / 0.568 if collar > 0.352 else 1.0 + (0.84 - 1.0) * (collar - 0.05) / 0.3
+    ring = kit._grow(kit.lozenge(c, axis, L * s, W * s, 0.0), -0.1)
+    out.append(loft([[p + Z * (zc - 0.75) for p in ring], [p + Z * (zc + 0.75) for p in ring]], ["iron"],
+                    cap0=("iron", True), cap1=("iron", True)))
+    return out
+
+
+def hub(kit):
+    """The hub's blade cluster (mesh coordinates), the citadel's: on the roof a needle stack on the
+    axis (spiked ember collar, a blade crown round an ember throat, no fire: hubs repeat) to mesh
+    58.6 (model 84) between two matching lozenge blades (at +-x, sharp edges to the corners,
+    three layered fins a face, silver edges, ember slits, a collar above the fins, leaning out as
+    Orthanc's horns) to mesh 56.5, the three one mass nearly corner to corner; the walls' lozenge
+    needles on the parapet's six corners to mesh 47; iron spikes leaning out of the parapet faces;
+    silver corner arrises; a pair of ember slits a face."""
+    r, L, W, z0, z1, flare, lean = HUB_BLADE
+    out = []
+    for s in (1, -1):
+        out += kit.blade_tower((s * r, 0.0), 0.0, L, W, z0, z1, lean=(s * lean, 0.0), flare=flare, fins=3,
+                               spurs=False, slits=(0.3, 0.44), collar=0.64, slit_w=1.1)
+    L, W, z0, z1 = HUB_STACK
+    out += short_stack(kit, (0.0, 0.0), 90.0, L, W, z0, z1, collar=0.6)
     for i in range(6):
+        d = V((math.cos(math.pi / 3 * i), math.sin(math.pi / 3 * i), 0))
+        c = d * (HUB_CORNER - 0.05)
+        out.append(kit.beam(c + Z * -25.3, c + Z * 31.0, 0.3, "trim"))
+        out += needle(kit, d * 20.9, 35.2, HUB_CORNER_NEEDLE, 2.3, 1.7, axis=60.0 * i, collar=0.3)
         a = math.radians(30 + 60 * i)                  # face normals between the corners
         n = V((math.cos(a), math.sin(a), 0))
         t = V((-n.y, n.x, 0))
-        out += kit.spike_row(n * (HUB_RIM - 0.4), t, n, -7.0, 7.0, HUB_TOP + 0.3, 3.6, 3, lean=0.45, r=0.42)
-        face = n * HUB_FACE
+        out += kit.spike_row(n * (HUB_RIM - 0.4), t, n, -7.0, 7.0, HUB_TOP + 0.3, 3.8, 3, lean=0.45, r=0.42)
         for u in (-2.6, 2.6):
-            out += slit(kit, face, t, n, u, 3.0, 1.3, 11.0)
-        c = V((math.cos(a - math.radians(30)), math.sin(a - math.radians(30)), 0)) * (HUB_CORNER - 0.05)
-        out.append(kit.beam(c + Z * -25.3, c + Z * 31.0, 0.3, "trim"))
+            out += slit(kit, n * HUB_FACE, t, n, u, 3.0, 1.3, 11.0)
     return out
 
 

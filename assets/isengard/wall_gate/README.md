@@ -13,8 +13,12 @@ Palette A. EA's pylons are kept whole and the door leaves `IBGATEDOOR01`/`02` st
 - Pointed ember slits low on each pylon end, iron spikes along its top edge.
 - **Banners**: one a face, on iron frames with the White Hand, the cloth in the player's colour
   (the +y pylon's +x end, the -y pylon's -x end): the wall run's banners hang here.
+- **Pass 3**: the White Hand in a pointed-arch slot (silver frame, black panel) on each pylon end
+  without a banner (z 22..42, leaning back with the end), so each face shows a banner and a
+  Hand; the blade towers' collars lifted to 0.62 of their height, clear of the fins (they read
+  as white crosses), the slits under them.
 
-200 -> 2,492 triangles (the leaves' 1,424 unchanged), height 76.9 -> 90.0 (+17.1 %), footprint
+200 -> 2,814 triangles (the leaves' 1,424 unchanged), height 76.9 -> 90.0 (+17.1 %), footprint
 unchanged, 9/9 preview checks. Real fire shows only in game (the preview has no particles).
 
 ## Kept clear
@@ -25,5 +29,5 @@ unchanged, 9/9 preview checks. Real fire shows only in game (the preview has no 
 
 ## Status
 
-- [x] healthy body designed (pass 1, shape preview)
+- [x] healthy body designed (pass 3, shape preview; sheet `_review/walls_v3.jpg`)
 - [ ] reviewed, built in colour, installed

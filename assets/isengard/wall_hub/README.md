@@ -2,26 +2,37 @@
 
 Model `IBWallRmprtN`, mesh `IBFBALTOW01` (on a bone at z 25.47: model z = mesh z + 25.47), own
 texture `IBFortresD.tga`. Palette A. EA's hexagonal shaft is kept whole (bands, leaning parapet,
-knife fins round the foot) and crowned as Orthanc is ([`shapes_walls.py`](../shapes_walls.py)
-`hub`, shared with [fortress_wall_hub](../fortress_wall_hub/README.md)).
+knife fins round the foot) and given the citadel's blade cluster on its roof
+([`shapes_walls.py`](../shapes_walls.py) `hub`, shared with
+[fortress_wall_hub](../fortress_wall_hub/README.md)).
 
-## Pass 1 (shape preview)
+## Pass 3 (shape preview): the citadel's cluster
 
-- Six straight horns on the parapet's corners; a stepped hexagonal plinth on the roof with a
-  lozenge needle (silver collar and edges) to model z 75; six radial ribs with silver tops from the
-  plinth to the horns' feet (the roof no longer one flat slab).
-- Three iron spikes leaning out of each parapet face; silver on the six corner arrises; a pair of
-  pointed ember slits on every face between EA's bands.
-- No fire and no banners: hubs repeat along every wall.
+Pass 1 was still EA's drum with a small crown of six horns ("Isengard is pointy").
 
-258 -> 1,390 triangles, height 62.6 -> 75.0 (+19.9 %), footprint unchanged, 9/9 preview checks.
+- **The cluster**: a needle stack on the axis (lozenge section, iron fins up its edges, a spiked
+  ember collar, a blade crown round an ember throat) to model 84, between two matching lozenge
+  blades along x (sharp edges to the x corners, three layered fins a face, silver edges, ember slits, a
+  collar, leaning out a little as Orthanc's horns) to model 82: one pointed mass nearly corner
+  to corner on the roof.
+- **Corners**: the walls' lozenge needles (the segments' crest needles) on the parapet's six
+  corners to model 72.5; silver on the six corner arrises down the shaft.
+- Iron spikes leaning out of each parapet face; a pair of pointed ember slits on every face.
+- No fire and no banners: hubs repeat along every wall (the stack's throat glows, no fire point).
+- Tried and dropped: blades clasping the corners from the upper band (mostly buried in the drum,
+  their fins broke through its corners as loose plates); a ring of pointed merlons (a fence of
+  sticks); six corner blades round a stack (small, busy, the collars read as white crosses).
+
+258 -> 3,052 triangles, height 62.6 -> 84.2 (+34.6 %, `max_z_growth` 0.35 as the citadel's),
+footprint unchanged, 9/9 preview checks. Sheet: `build/assets/isengard/_review/walls_v3.jpg`
+(pass 1: `walls.jpg`).
 
 ## Kept clear
 
 - Segments run into any face (its middle 16.6, to model z 59.2): nothing new stands out of a face
-  there but the slits (0.2 proud); the spikes stand above the parapet (model 62.5).
+  there but the slits (0.2 proud); the cluster stands on the roof, the needles on the corners.
 
 ## Status
 
-- [x] healthy body designed (pass 1, shape preview)
+- [x] healthy body designed (pass 3, shape preview)
 - [ ] reviewed, built in colour, installed

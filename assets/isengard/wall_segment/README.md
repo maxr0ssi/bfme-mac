@@ -27,5 +27,5 @@ Sheet: `build/assets/isengard/_review/walls.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 1, shape preview)
+- [x] healthy body designed (pass 1, shape preview; unchanged in pass 3, sheet `_review/walls_v3.jpg`)
 - [ ] reviewed, built in colour, installed

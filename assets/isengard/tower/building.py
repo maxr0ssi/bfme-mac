@@ -1,10 +1,16 @@
 """Isengard tower (IsengardTowerExpansion; model IBFITower): the citadel's tower expansion, a small
 Orthanc - a square shaft tapering in bands to a flared crown of flanges and horns (z 130.5), its
 faces set with pointed windows, knife fins round its foot, a wall stub toward the citadel (-X).
-EA's body is Isengard already and stays whole; it gets fire, embers and the walls' profile:
+EA's body is Isengard already and stays whole; it takes the citadel's recipe:
 
-- four braziers on iron brackets out of the shaft's corners under the crown (z 88), the crown
-  lit from below: the building's real fire (four 'brazier' points);
+- four lozenge blades on the shaft's diagonals from the plinth (z 0) to needles at z 121, their
+  sharp edges out along EA's chamfered corners, clasping the shaft to z ~60 and standing free
+  above it past the crown's flared corners; a deep fin a face, silver edges, ember slits, a collar;
+  the White Hand in a pointed-arch slot on the field (+X) face of the two field blades;
+- a needle stack out of the crown between EA's four inner horns (from the crown's floor, z 113,
+  to its throat at z 162, its blade crown to z 166): lozenge section, fins, an ember collar, the
+  building's chimney fire; four braziers on the crown's floor between the horns: the crown lit
+  from within (fire_points: a 'chimney' and four 'brazier');
 - EA's pointed windows glow: ember panels in the upper two window rows on every face (the +X
   face's middle one sits behind the banner);
 - a heavy banner on the field face (+X) between the bands, the White Hand on it, the cloth in
@@ -17,7 +23,8 @@ the shaft centred on (0.75, 0), faces square to the axes (7.2 out at z 85, 9.0 a
 chamfered (8.7 out at z 90); the crown flares from z 98 (9.4 at its corners) to 110 (12.8).
 Windows (sill, shoulder, apex; the recess's distance from the axis at the sill; its lean in):
 58.9, 66.5, 68.8, 8.5 (8.35 on the x faces), 0.079 per unit; 82.6, 90.1, 91.8, 6.8 (6.65),
-0.067; each 3.3 wide. The stub is the walls' profile along x from -32.67 into the shaft at -9.4
+0.067; each 3.3 wide. The crown's floor is at z 111.4..112.3 round a low pyramid (114.8) on
+the axis; four inner horns rise from it about 6 out on the diagonals to z 130.5. The stub is the walls' profile along x from -32.67 into the shaft at -9.4
 (EA's fins at -32.67 and -21.15, pyramids at -30.7, -23.0, -15.2).
 """
 from sagekit.building import Building
@@ -26,28 +33,31 @@ from ..style import IsengardStyle
 
 C = (0.75, 0.0)
 WINDOWS = [(58.9, 66.5, 68.8, (8.5, 8.35), 0.079), (82.6, 90.1, 91.8, (6.8, 6.65), 0.067)]
-BRAZIER_Z, BRAZIER_AT, REACH = 87.0, 8.4, 3.8        # height, the corner's distance from the axis, bracket reach
+BLADE = (5.2, 4.0, 0.0, 121.0, 1.06)                # half length (along the diagonal), half width, z0, z1, flare
+BLADE_R = 13.6                                       # the four corner blades' centres from the axis, on the diagonals
+HAND = (67.0, 3.0, 11.0, 0.025)                      # z0, width, height, the face's lean back per unit up
+STACK = (3.4, 2.6, 113.0, 162.0)                     # the needle stack out of the crown: half length, half width, z0, z1
+CROWN_BRAZIERS = [(C[0] + dx, C[1] + dy, 111.4) for dx, dy in ((6.4, 0), (-6.4, 0), (0, 6.4), (0, -6.4))]
 BANNER = (78.0, 5.6, 17.0, 2.0, 7.6)                 # z_top, width, length, d out, the face's distance at z_top
 STUB = dict(x0=-32.67, x1=-9.4, fins=(-27.0, -15.3), butt=-21.15, slit_u=(-29.8, -24.2, -18.0),
-            pyramids=((-30.7, 57.5), (-23.0, 64.0), (-15.2, 57.5)), spikes_to=-12.0)
+            pyramids=((-30.7, 57.5), (-23.0, 64.0), (-15.2, 57.5)), spikes_to=-13.0)
 
 
-def _corners():
-    """[(face point at BRAZIER_Z, outward direction)] on the shaft's four corners."""
+def _blades():
+    """[(centre, axis degrees)] of the four corner blades."""
     import math
     out = []
-    for i in range(4):
-        a = math.pi / 4 + math.pi / 2 * i
-        d = (math.cos(a), math.sin(a))
-        out.append(((C[0] + d[0] * BRAZIER_AT, C[1] + d[1] * BRAZIER_AT, BRAZIER_Z), d))
+    for deg in (45, 135, 225, 315):
+        a = math.radians(deg)
+        out.append(((round(C[0] + BLADE_R * math.cos(a), 3), round(C[1] + BLADE_R * math.sin(a), 3)), deg))
     return out
 
 
 def _fire_points():
-    """Where each bracket brazier's fire rises (shapes_walls.bracket_brazier: the basket's rim
-    centre REACH out, 0.9 up, and 0.35 over it); host side, without mathutils."""
-    return [(round(a[0] + d[0] * REACH, 1), round(a[1] + d[1] * REACH, 1), round(a[2] + 1.25, 1), "brazier")
-            for a, d in _corners()]
+    """The stack's throat (a chimney, kit.needle_stack: its mouth at z1) and the four crown
+    braziers' embers (kit.brazier: h + 0.1 over the foot); host side, without mathutils."""
+    return [(round(C[0], 1), round(C[1], 1), STACK[3], "chimney")] + \
+        [(round(x, 1), round(y, 1), round(z + 2.5, 1), "brazier") for x, y, z in CROWN_BRAZIERS]
 
 
 class Tower(Building):
@@ -59,23 +69,60 @@ class Tower(Building):
     own_textures = {"IBFortress.tga": "IBFortresQ.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCTower"
     fire_points = _fire_points()
+    max_z_growth = 0.35             # the needle stack out of the crown to z 170 (+30 %), as the citadel's
     views = {
-        "rts": ((-8.2, -0.0, 65.2), 314, 50, -38, 50),
-        "close": ((-8.2, -0.0, 65.2), 186, 24, -30, 45),
-        "top": ((0.8, 0.0, 88.0), 85, 25, -38, 45),
+        "rts": ((-8.2, -0.0, 80.0), 350, 50, -38, 50),
+        "close": ((-8.2, -0.0, 85.0), 250, 24, -30, 45),
+        "top": ((0.8, 0.0, 128.0), 110, 25, -38, 45),
+        "field": ((10.0, 0.0, 40.0), 150, 12, 0, 45),
         "ingame": ((-8.2, -0.0, 65.2), 714, 53, -62, 50),
     }
 
     def design(self, kit):
         from mathutils import Vector as V
 
-        from ..shapes_walls import bracket_brazier, stub
+        from ..shapes_walls import short_stack, stub
         out = stub(kit, **STUB)
-        for a, d in _corners():
-            out += bracket_brazier(kit, a, d, REACH)
+        for c, deg in _blades():
+            out += kit.blade_tower(c, deg, BLADE[0], BLADE[1], BLADE[2], BLADE[3], flare=BLADE[4], fins=1, spurs=False,
+                                   slits=(0.36,), collar=0.66, slit_w=1.2)
+        out += self._hands(kit)
+        L, W, z0, z1 = STACK
+        out += short_stack(kit, C, 45.0, L, W, z0, z1, collar=0.4)
+        for p in CROWN_BRAZIERS:
+            out += kit.brazier(p, 1.1, 2.4)
         out += self._windows(kit)
         z_top, w, length, dd, face = BANNER
         out += kit.banner(V((C[0] + face, C[1], 0)), V((0, 1, 0)), V((1, 0, 0)), 0.0, z_top, w, length, d=dd)
+        return out
+
+    @staticmethod
+    def _hands(kit):
+        """The White Hand in a pointed-arch slot on the field face (+X) of each field blade, z 67..78,
+        leaning back with the blade's taper."""
+        import math
+
+        from mathutils import Vector as V
+
+        from ..shapes_addons import hand_arch
+        from ..shapes_spire import PROFILE, scale
+        L, W, z0, z1, flare = BLADE
+        z = HAND[0] + HAND[2] / 2
+        s = scale((z - z0) / (z1 - z0), PROFILE)
+        out = []
+        for c, deg in _blades():
+            if deg not in (45, 315):
+                continue
+            a = math.radians(deg)
+            d, p = V((math.cos(a), math.sin(a), 0)), V((-math.sin(a), math.cos(a), 0))
+            side = -1 if deg == 45 else 1                  # the across vertex on the +X side
+            outer, across = V((c[0], c[1], 0)) + d * L * s, V((c[0], c[1], 0)) + p * (side * W * s)
+            m = (outer + across) / 2
+            t = (across - outer).normalized()
+            n = V((t.y, -t.x, 0))
+            if n.dot(m - V((c[0], c[1], 0))) < 0:
+                n = -n
+            out += hand_arch(kit, m + V((0, 0, 0)), t, n, 0.0, HAND[0], HAND[1], HAND[2], d0=-0.5, d1=0.6, bat=HAND[3])
         return out
 
     @staticmethod
