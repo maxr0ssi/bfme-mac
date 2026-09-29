@@ -55,6 +55,7 @@ class Furnace(Building):
     source = "MBFurnace_SKN"
     target = "FURNACE"
     sheet = "MBFurnace.tga"
+    facet_islands = 8                       # the unwrap overlapped a little: seams at EA's islands and 8-degree turns
     sheet_normal = "MBFurnace_NRM.tga"
     own_textures = {"MBFurnace.tga": "MBFurnacH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     world_space = True                   # FURNACE's bone is moved (3.5, -0.2, 0.3): design and fire share world axes

@@ -62,6 +62,7 @@ class LumberMill(Building):
     target = "LUMBERMILL"
     own_model = "IBLumMill_SKN"            # goblins, mordor draws MBLumMill_SKN too (sagekit/ownership.py)
     sheet = "MBLumberMill.tga"
+    facet_islands = 8                       # the unwrap overlapped a little: seams at EA's islands and 8-degree turns
     sheet_normal = "MBLumberMill_NRM.tga"
     own_textures = {"MBLumberMill.tga": "MBLumberMilX.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     fire_points = FIRE_POINTS

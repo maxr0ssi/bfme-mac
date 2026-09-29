@@ -50,6 +50,7 @@ class UrukPit(Building):
     source = "IBUrukPit_SKN"
     target = "IBURUKPIT_NEW"
     sheet = "iburukpit.tga"
+    facet_islands = 8                       # the unwrap overlapped a little: seams at EA's islands and 8-degree turns
     sheet_normal = "iburukpit_nrm.tga"
     own_textures = {"iburukpit.tga": "iburukpiH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     fire_points = FIRE_POINTS
