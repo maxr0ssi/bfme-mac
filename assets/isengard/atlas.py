@@ -111,10 +111,10 @@ SHEETS = {
         "rock": [(128, 0, 256, 93)],                    # the earth; the carved lattice stays iron
     }),
     "ibwargsent.tga": (256, {                           # warg sentry (the add-ons group's design)
-        "wood": [(0, 0, 256, 52), (0, 52, 90, 185)],    # the pale log, the fur
-        "mark": [(95, 52, 240, 230)],                   # the bones
+        "mark": [(0, 0, 256, 52), (95, 52, 240, 230)],  # the curved tusks round the ring (horn grain), the bones
+        "wood": [(0, 52, 90, 185)],                     # the fur
         "rock": [(0, 0, 256, 256)],
-    }, {"wood": (0.75, 0.08)}),                         # the pale log keeps its grain (the stock tone flattens it)
+    }, {"wood": (0.75, 0.08)}),
 }
 
 
