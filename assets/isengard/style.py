@@ -86,9 +86,23 @@ class IsengardStyle(Style):
         from .shapes import IsengardShapes
         return IsengardShapes()
 
-    def recolour(self):
-        from .paint import isengard_layers
-        return isengard_layers()["IsengardRecolour"]()
+    def sheet_atlas(self, name):
+        """The buildings' own sheets' material rects (atlas.py SHEETS) for `sagekit sheets`; the
+        rest as before (IBFortress: the faction atlas; others: a plain one)."""
+        from .atlas import sheet_atlas
+        return sheet_atlas(name) or super().sheet_atlas(name)
+
+    def recolour(self, building=None):
+        """The first paint layer: IsengardRecolour, or for a building on its own sheet (atlas.py
+        SHEETS) and for flat sheets IsengardSheetRecolour (identical where no table applies)."""
+        from .atlas import sheet_atlas
+        from .paint import isengard_layers, isengard_sheet_layers
+        if building is None:
+            return isengard_sheet_layers()["IsengardSheetRecolour"]()
+        own = sheet_atlas(building.sheet_atlas.texture) if building.two_sheets else None
+        if own is None:
+            return isengard_layers()["IsengardRecolour"]()
+        return isengard_sheet_layers()["IsengardSheetRecolour"](sheet_atlas=own)
 
     def sheet_layers(self):
         return [self.recolour()]
@@ -96,7 +110,7 @@ class IsengardStyle(Style):
     def layers(self, building):
         from sagekit.paint import layers as L
 
-        return [self.recolour(),
+        return [self.recolour(building),
                 *[L.TagRamp(tag, r, gain=g, lift=k) for tag, (r, g, k) in TAGRAMPS.items()],
                 L.BuildingDecals(building),
                 L.WoodGrain(depth=0.22),

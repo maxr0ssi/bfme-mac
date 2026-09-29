@@ -15,6 +15,9 @@ this module must import anywhere).
 
     Rects are read in the sheet's own pixels on a flat sheet and through the baked atlas
     coordinates (auv) on a building, so a new face sampling the panel region is stone too.
+
+    IsengardSheetRecolour  the same for the buildings on sheets of their own (atlas.py SHEETS):
+                      EA's faces read their own sheet's rects, new faces IBFortress's.
 """
 import functools
 
@@ -87,3 +90,92 @@ def isengard_layers():
             return out * (1 - p) + col * p
 
     return dict(IsengardRecolour=IsengardRecolour)
+
+
+@functools.lru_cache(maxsize=None)
+def isengard_sheet_layers():
+    """IsengardSheetRecolour: IsengardRecolour for the buildings whose EA faces paint from a sheet of
+    their own (assets/isengard/atlas.py SHEETS). On a building EA's faces (tag 0) take that sheet's
+    material rects through their own UVs, new faces IBFortress's as before; on a flat sheet with a
+    table (`own_sheet`) its rects. Rects in priority order (iron, mark, stone, rock, wood: the first
+    one a texel falls in wins); fire by colour only outside every rect; the rest iron or silver.
+    With no table it is IsengardRecolour, bit for bit (the citadel's paths never reach it)."""
+    import numpy as np
+
+    from sagekit.paint.fields import hsv, smooth
+    from sagekit.paint.layers import sheet_rgb
+
+    base = isengard_layers()["IsengardRecolour"]
+    ORDER = ("iron", "mark", "stone", "rock", "wood")
+
+    def rects(cv, atlas, rs):
+        """1 inside the rects (atlas's sheet px, y down): by pixel on a flat sheet (rows bottom-up),
+        through the baked atlas coordinates on a building."""
+        size = float(atlas.size)
+        if hasattr(cv, "load"):
+            auv = np.mod(cv.load("auv"), 1.0)
+            x, y = auv[..., 0] * size, (1 - auv[..., 1]) * size
+        else:
+            h, w = cv.lum.shape
+            x = (np.arange(w, dtype=np.float32)[None, :] + 0.5) * size / w * np.ones((h, 1), np.float32)
+            y = size - (np.arange(h, dtype=np.float32)[:, None] + 0.5) * size / h * np.ones((1, w), np.float32)
+        m = np.zeros(x.shape, np.float32)
+        for x0, y0, x1, y1 in rs:
+            m = np.maximum(m, ((x >= x0) & (x < x1) & (y >= y0) & (y < y1)).astype(np.float32))
+        return m
+
+    class IsengardSheetRecolour(base):
+        def __init__(self, sheet_atlas=None, **kw):
+            super().__init__(**kw)
+            self.sheet_atlas = sheet_atlas
+
+        def own(self, cv, atlas):
+            """The weights of texels read on a sheet with a table."""
+            H, S, V = hsv(sheet_rgb(cv))
+            mats = atlas.materials
+            left = np.ones(cv.lum.shape, np.float32)
+            got = {}
+            for k in ORDER:
+                r = rects(cv, atlas, mats.get(k, ()))
+                got[k] = r * left
+                left = left * (1 - r)
+            (h0, h1), (s0, s1), (v0, v1) = self.ember
+            fire = ((H >= h0) & (H <= h1) | (H >= 345)).astype(np.float32) * smooth(S, s0, s1) * smooth(V, v0, v1) * left
+            pale = got["mark"] * smooth(V, 0.45, 0.6) * (1 - smooth(S, 0.25, 0.4))
+            metal = got["iron"] + left - fire
+            bright = smooth(np.clip(cv.lum, 0, 1), *self.silver) if self.silver else 0.0
+            return dict(stone=got["stone"] + got["mark"] - pale, rock=got["rock"], wood=got["wood"], mark=pale, fire=fire,
+                        iron=metal * (1 - bright), silver=metal * bright)
+
+        def weights(self, cv):
+            if hasattr(cv, "load") and self.sheet_atlas is not None:      # a building on its own sheet
+                def compute():
+                    new = base.weights(self, cv)
+                    old = self.own(cv, self.sheet_atlas)
+                    o = (cv.tagi == 0).astype(np.float32)
+                    return {k: old[k] * o + new[k] * (1 - o) for k in new}
+                return cv.memo(("isengard_sheet_weights", id(self)), compute)
+            atlas = getattr(cv, "atlas", None)
+            if not hasattr(cv, "load") and getattr(atlas, "own_sheet", False):   # a flat sheet with a table
+                return self.own(cv, atlas)
+            return base.weights(self, cv)                                   # IBFortress, flat or not: unchanged
+
+        def apply(self, col, cv, pal):
+            """A sheet's own tones (atlas.py SHEETS, a third item): on a building for EA's faces only,
+            on a flat sheet for all of it."""
+            atlas = self.sheet_atlas if hasattr(cv, "load") else getattr(cv, "atlas", None)
+            tones = getattr(atlas, "tones", None)
+            if not tones:
+                return base.apply(self, col, cv, pal)
+            plain = base.apply(self, col, cv, pal) if hasattr(cv, "load") else None
+            keep, self.tones = self.tones, dict(self.tones, **tones)
+            try:
+                toned = base.apply(self, col, cv, pal)
+            finally:
+                self.tones = keep
+            if plain is None:
+                return toned
+            o = (cv.tagi == 0).astype(np.float32)[..., None]
+            return toned * o + plain * (1 - o)
+
+    return dict(IsengardSheetRecolour=IsengardSheetRecolour)

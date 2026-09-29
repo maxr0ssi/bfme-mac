@@ -59,3 +59,77 @@ class IsengardAtlas(Atlas):
     mask_hints = {
         'stone': [(0, 0, 4 * 1024, 4 * 1024)],
     }
+
+
+# ------------------------------------------------------------------ the buildings' own sheets
+# Nine buildings paint EA's faces from sheets of their own, not IBFortress: each gets its material
+# rects here, in that sheet's own pixels (x right, y down; 256 or 512). Read by eye on the flat
+# sheets (build/assets/isengard/<b>/src/*.png); confirm against the first bakes. Materials, in
+# priority order (the first rect a texel falls in wins; IsengardSheetRecolour, paint.py):
+#     iron   plates and bars, whatever their colour (rust never glows)
+#     mark   the White Hand banners and bone: pale texels white, the rest Orthanc stone
+#     stone  smooth dark panels (Orthanc stone)
+#     rock   rough rock, earth, flagstones
+#     wood   planks, posts, bark, cut ends, and hide and fur (the palette's hide is its wood)
+# Fire is found by colour only outside every rect (the furnace's molten metal); the rest is iron,
+# silver-white where it is brightest, as on IBFortress. The damaged and snow states share the layout.
+# An optional third item overrides IsengardRecolour's tones {material: (gain, lift)} for that sheet.
+SHEETS = {
+    "ibarmory.tga": (256, {
+        "wood": [(0, 0, 15, 150), (15, 0, 50, 54), (65, 0, 97, 110), (97, 0, 172, 80), (172, 0, 256, 95),
+                 (216, 95, 256, 125), (36, 120, 66, 256), (70, 236, 122, 256)],
+        "rock": [(140, 125, 256, 256)],                 # the cracked flagstones
+    }),
+    "ibbtltwr.tga": (256, {                             # battle tower (the add-ons group's design)
+        "wood": [(0, 0, 150, 68), (0, 68, 85, 256), (85, 72, 140, 256), (150, 0, 256, 125)],   # fur, planks, lashed poles
+        "rock": [(140, 125, 256, 256)],
+    }),
+    "mbfurnace.tga": (256, {                            # the molten sheet (92..181, 32..128) glows by colour
+        "wood": [(199, 0, 256, 107)],                   # the timber poles
+        "rock": [(0, 0, 92, 128), (92, 0, 155, 32), (0, 128, 181, 256)],
+    }),
+    "mblumbermill.tga": (256, {
+        "iron": [(92, 0, 155, 72), (180, 225, 256, 256)],   # the rusted plate (no glow), the saw blade
+        "wood": [(155, 0, 256, 225), (0, 128, 97, 185), (97, 128, 180, 256)],   # bark, planks, chips, cut ends
+        "rock": [(0, 0, 92, 128), (97, 72, 155, 128), (0, 185, 97, 256)],
+    }),
+    "ibseigework.tga": (256, {
+        "iron": [(36, 55, 58, 76)],                     # the gear on the gable
+        "mark": [(117, 27, 218, 120)],                  # the White Hand banner
+        "wood": [(0, 0, 220, 27), (218, 0, 256, 256), (0, 27, 117, 120)],
+        "rock": [(0, 120, 240, 256)],                   # trodden earth
+    }),
+    "ibwildbuilding.tga": (512, {"wood": [(0, 0, 512, 512)]}),    # tavern: logs, bark, a cut end, a pelt
+    "iburukpit.tga": (512, {
+        "mark": [(384, 112, 456, 242)],                 # the White Hand banner
+        "wood": [(288, 0, 512, 25), (372, 22, 456, 112), (456, 22, 512, 290), (0, 220, 45, 512)],
+        "rock": [(0, 0, 512, 512)],                     # the mound and its pits
+    }),
+    "ibwargpit.tga": (256, {                            # also the warg pit's door (warg_pit_02)
+        "mark": [(90, 72, 147, 138)],                   # the bones and the skull
+        "wood": [(0, 0, 90, 256), (90, 0, 128, 72), (90, 138, 140, 256)],
+        "rock": [(128, 0, 256, 93)],                    # the earth; the carved lattice stays iron
+    }),
+    "ibwargsent.tga": (256, {                           # warg sentry (the add-ons group's design)
+        "wood": [(0, 0, 256, 52), (0, 52, 90, 185)],    # the pale log, the fur
+        "mark": [(95, 52, 240, 230)],                   # the bones
+        "rock": [(0, 0, 256, 256)],
+    }, {"wood": (0.75, 0.08)}),                         # the pale log keeps its grain (the stock tone flattens it)
+}
+
+
+def sheet_atlas(name):
+    """The Atlas of one of the buildings' own sheets (materials in its own pixels, `own_sheet`
+    set), or None for a sheet without a table (IBFortress and the rest keep their own paths)."""
+    key = name.lower().replace(".dds", ".tga")
+    for state in ("_d", "_d1", "_d2", "_snow"):
+        if key not in SHEETS and key.endswith(state + ".tga"):
+            key = key[:-len(state + ".tga")] + ".tga"
+    entry = SHEETS.get(key)
+    if entry is None:
+        return None
+    size, materials, tones = (entry + (None,))[:3]
+    a = Atlas()
+    a.texture, a.size, a.materials, a.tones, a.own_sheet = name, size, materials, tones, True
+    a.ground_sat = IsengardAtlas.ground_sat
+    return a
