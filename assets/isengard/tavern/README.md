@@ -1,12 +1,43 @@
 # Isengard tavern (`IsengardTavern`)
 
-Stub from `python3 -m sagekit new isengard`: nothing redesigned yet (`design()` returns no solids).
+EA's Dunland hall `ibwildbld_skn` ("Clan Steading" on its button), mesh `BUILDING`, own texture
+`ibwildbuildinH.tga`; house-colour model Mordor's `MBHCOrcpit` (own copy, automatic). Palette A;
+new pieces from the Isengard kit and [`shapes_industry.py`](../shapes_industry.py) and [`shapes_industry_big.py`](../shapes_industry_big.py). EA's hall is
+kept whole: the long steep roof, the crossed logs at the gables, the log buttresses, the door.
 
-- Source model `ibwildbld_skn`, target mesh `BUILDING` (1848 triangles), sheet `ibwildbuilding.tga` -> own `ibwildbuildinH.tga`.
-- Role economy; nearest Dwarven recipe `hearth`.
-- EA's body measured: `python3 -m sagekit measure isengard/tavern` -> `work/measure.json`.
+Player-built: slot 6 of `IsengardPorterCommandSet` (`Command_ConstructIsengardTavern`), so a
+building like the others, not a captured map building.
+
+## Pass 2: the hall of the White Hand
+
+- **Crest** (the new silhouette): a dorsal crest of seven layered knife fins along the ridge,
+  rising from 6 to 17.5 above it (to z 76), silver front edges, ember slits in the tall ones.
+- **Horns**: a pair of iron blades crossing over each gable's apex.
+- **Stacks**: two blade-spire stacks through the roof's -Y slope, a crown of blades round each
+  glowing mouth (to z 77).
+- **The Hand**: on a great shield hung on chains in the +X gable, over the door (from z 34).
+- **Fire** (2 points): the stacks. EA's chimney smoke (`FXSmokeBone`: no such bone in the model,
+  so it rises from the object's origin) and its torches (`FX01`, `FX02`) stay.
+
+1,848 -> 3,020 triangles, height 72.0 -> 84.3 (+17.0 %), footprint unchanged, 9/9 preview
+checks. Pass 1 is `_review/production_v1.jpg`.
+
+## Kept clear
+
+- The door and the units' way out: made at (14.9, -0.1), rallying to (100, -0.1).
+- The level-ups: `V1` hide walls along both sides, `V2` banners, `V3` stakes flanking the door;
+  the torch posts (`TORCHES`).
+
+## Sheets
+
+Its sheets (`ibwildbuilding.tga`, `_d`, `_snow`, `_nrm`) are TGA files, not DDS. Since
+2026-09-29 the extract step reads a sheet's DDS, else its TGA, and keeps a DDS copy in `src/`;
+the snow swap (`ibwildbuilding_snow.tga` -> `ibwildbuildinH_snow.tga`) is a variant like any
+other. `sagekit sheets` still lists DDS sheets only, so the states that stay EA's (rubble, the
+building site) keep EA's colours for now.
 
 ## Status
 
-- [ ] healthy body designed
-- [ ] checks pass, renders reviewed
+- [x] healthy body designed (pass 2, shape preview)
+- [x] pipeline reads its TGA sheets
+- [ ] reviewed by Max, built in colour, installed

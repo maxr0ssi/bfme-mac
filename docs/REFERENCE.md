@@ -48,7 +48,8 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `.trash-*` folder. No winetricks: the games import only `d3dx9_27`, which the patched builtin provides.
 - `scripts/make-release.sh [--buildings [list]]` — packages the installed Wine fixes and the game patch as
   `build/release/bfme-mac-fixes-<date>-<commit>.tar.gz` (the `--from` file), with `SOURCES.md`,
-  `COPYING.LIB` and `SHA256SUMS`, and prints the `gh release create` line that publishes it.
+  `LICENSE`, `NOTICE` (LGPL terms for the Wine patches), `COPYING.LIB` and `SHA256SUMS`, and prints
+  the `gh release create` line that publishes it.
   Refuses if the engine's DLLs differ from the build tree. `--buildings` also stages each finished
   faction (dwarves, elves, men, goblins) and packs it as `bfme-mac-buildings-<faction>-<version>.tar.gz`,
   listed in the fixes file's `BUILDINGS` and in `SHA256SUMS-<version>`.
@@ -62,10 +63,14 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   bundles, because macOS denies a Finder-launched process every read under `~/Documents` unless
   the app can ask; the first launch shows a "access files in your Documents folder" prompt — Allow
   it once per app. Output goes to `logs/app-<game>.log`.
+- `scripts/window-watch.sh <pid> [log]` — started by the play scripts: logs the game window's real
+  macOS frame and layer, and the screen's menu-bar and notch heights, as `mac` lines in
+  `ahk/edgescroll.log` beside the Wine rect, at start and on every change. Read-only.
 - `scripts/retina.sh on|off` — toggle Wine's Retina mode and both games' `Resolution` together.
 - `ahk/edgescroll.ahk` — what the play scripts launch: borderless setup (title bar off, window to
   0,0 full size) and then resident, emulating screen-edge camera scrolling and offering the
-  Cmd-Tab mouse rescue ([PLAYING.md](PLAYING.md), "Keys"). One AutoHotkey process does both jobs because
+  Cmd-Tab mouse rescue ([PLAYING.md](PLAYING.md), "Keys"); puts the window back at 0,0 when macOS
+  moves it ("Picture shifted down"). One AutoHotkey process does both jobs because
   a second Wine process in the game's first seconds crashes it.
   `ahk/borderless.ahk` is the same borderless setup as a one-shot, kept for diagnostics;
   `ahk/autoskirmish.ahk` is the menu driver.
@@ -230,7 +235,8 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   your install: `inventory dwarves/fortress` lists every part and lifecycle state the game draws,
   `build dwarves/fortress` runs extract → Blender geometry/bake/paint → export → night lights
   (`sagekit/nightlights.py`) → fix-up → derive → lifecycle (construction, really damaged and rubble models rebuilt around the new body along EA's
-  pieces and animations, `sagekit/lifecycle.py`) → asset cache → checks → before/after renders into
+  pieces and animations, `sagekit/lifecycle.py`) → fire (the recipe's `fire_points` on a bone rig for EA's
+  particle systems, `sagekit/fire.py`) → asset cache → checks → before/after renders into
   `build/assets/` (`renders/lifecycle/<model>.png` for the lifecycle models). Rules and layout:
   `assets/README.md`.
   `names dwarves --write` regenerates `assets/dwarves/NAMES.md`, every model and texture name the

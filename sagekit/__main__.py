@@ -40,6 +40,8 @@ def cmd_validate(a):
             b = registry.load(bid)
             if game:                            # EA's names and other factions' art (ownership.py)
                 game[0](b)
+            from .fire import points as fire_points
+            fire_points(b)                      # (x, y, z, kind) with a kind sagekit/fire.py knows
             for old, new in b.texture_names().items():
                 if len(old) != len(new):
                     raise ValueError("%s -> %s: own texture names must keep the original's length" % (old, new))

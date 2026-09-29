@@ -28,7 +28,7 @@ A small cousin of the citadel's spires.
 
 ## Status
 
-Designed, shape preview only (not built, not installed). 1,289 -> 5,019 triangles, height 124.0
+Installed. 1,289 -> 5,019 triangles, height 124.0
 -> 144.8 (+16.7 %), footprint unchanged, 9/9 preview checks.
 
 ## Open

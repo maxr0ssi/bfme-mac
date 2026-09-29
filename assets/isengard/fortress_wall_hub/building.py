@@ -1,14 +1,14 @@
-"""Isengard fortress wall hub (IsengardCastleWallHubExpansion): stub from `sagekit new isengard`.
+"""Isengard fortress wall hub (IsengardCastleWallHubExpansion; model IBFWHub): the hexagonal wall
+tower the citadel raises where its walls join a wall run. EA's IBFBALTOW01 here is the wall hub's
+mesh with a wall stub toward the citadel (x -42.2..-18.94, the walls' profile 25.47 lower, entering
+the hub's -X corner). The hexagon takes the wall hub's crown whole (shapes_walls.hub: six horns
+on the parapet's corners, a stepped plinth and a lozenge needle on the roof, radial ribs, spikes,
+silver arrises, ember slits), so a citadel corner and the free-standing hubs read as one wall. The
+stub takes the walls' profile (shapes_walls.stub: short fins, a buttress blade, slits, the silver
+lip and ridge, spikes, needles out of its three pyramids), turned onto its run.
 
-EA's IBFWHub (objects IsengardCastleWallHubExpansion; role fortress_wall_hub): body IBFBALTOW01,
-476 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our texture
-is DXT5).
-In IBFBALTOW01 mesh coordinates: x -42.20..24.26, y -22.71..22.71, z -25.53..37.04.
-Lifecycle models in its Draw module: IBFWHub_A, IBFWHub_D1, IBFWHub_D2, IBFWHub_D3.
-House colour: none of EA's (HOUSE_DRAW: a model of our own, from the style's house_template).
-EA's body measured: `python3 -m sagekit measure isengard/fortress_wall_hub` -> work/measure.json.
-
-Nearest Dwarven recipe: assets/dwarves/fortress_wall_hub (the same role; start from its shapes).
+No fire and no banners (the gate and the towers carry them). The mesh hangs on a bone at z 25.47
+(model z = mesh z + 25.47); the design is in mesh coordinates.
 """
 from sagekit.building import Building
 
@@ -23,11 +23,19 @@ class FortressWallHub(Building):
     sheet_normal = "IBFortress_NRM.tga"
     own_textures = {"IBFortress.tga": "IBFortresB.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCFortressWallHub"
+    house_tags = ()                 # no banners: the hub's crown is the free hubs'
     views = {
         "rts": ((-9.0, -0.0, 31.2), 224, 50, -38, 50),
-        "close": ((-9.0, -0.0, 31.2), 133, 24, -30, 45),
+        "close": ((-9.0, -0.0, 40.0), 133, 24, -30, 45),
+        "stub": ((-30.0, 0.0, 45.0), 90, 30, -80, 45),
         "ingame": ((-9.0, -0.0, 31.2), 510, 53, -62, 50),
     }
 
     def design(self, kit):
-        return []
+        from ..shapes_walls import FWHUB_STUB, hub, stub
+        return hub(kit) + stub(kit, **FWHUB_STUB)
+
+    def emphasis(self, c, n):
+        if c.z > 12:
+            return 1.35                       # the crown and the stub's crest
+        return 1.0

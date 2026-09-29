@@ -122,9 +122,9 @@ class YardKit:
                         cap0=("soot", True), cap1=("iron", True)))
         for s in (-1, 1):
             out.append(self.beam(P(s * w * 0.45, -d * 0.45, h), P(s * w * 0.45, -d * 0.45, hz + 0.3), 0.18, "iron"))
-        out.append(self.tube([c + Z * (hz + hood * 0.5), c + Z * (hz + hood * 1.6)], [w * 0.14, w * 0.14], "iron", k=6,
-                             cap0="iron", cap1="soot"))
-        return out
+        out.append(self.tube([c + Z * (hz + hood * 0.5), c + Z * (hz + hood * 1.6)], [w * 0.14, w * 0.14], "iron", k=4,
+                             cap0="iron", cap1="ember", phase=math.pi / 4))
+        return out + self.flames(c + Z * h, min(w, d) * 0.4, hood * 0.6, n=4, seed=c.y * 0.2, kind="hearth")
 
     def anvil(self, c, t, s=1.0):
         """An anvil on a squat stone block, its horn along t."""
@@ -166,7 +166,12 @@ class YardKit:
             for s in (-1, 1):
                 p = c + V((s * r * 1.02, 0, h * 0.75))
                 out.append(self.beam(p, p + V((s * 0.8, 0, 0)), 0.22, "iron"))
-        return out
+        for i in range(4):                               # spikes on the rim
+            a = math.pi / 4 + math.pi / 2 * i
+            d = V((math.cos(a), math.sin(a), 0))
+            p = c + Z * h + d * r * 1.02
+            out.append(self.beam(p, p + (d + Z).normalized() * r * 0.6, 0.18, "iron", 0.0))
+        return out + self.flames(c + Z * h, r * 0.5, r * 1.2, n=2, seed=c.y * 0.5, kind="crucible")
 
     def gantry(self, c, t, span, h, load="crucible", drop=None):
         """A gantry over `span` along t at c: an A-frame of iron-shod timber at each end, a riveted
@@ -180,6 +185,7 @@ class YardKit:
                 out.append(self.beam(c + t * (e * span / 2) + n * (s * h * 0.3) - Z * 0.4, top, 0.4, "timber"))
             out.append(self.beam(c + t * (e * span / 2) - n * h * 0.2 + Z * h * 0.35,
                                  c + t * (e * span / 2) + n * h * 0.2 + Z * h * 0.35, 0.3, "iron"))
+            out.append(self.beam(top + Z * 0.8, top + Z * 3.2, 0.55, "trim", 0.0))            # a pointed cap
         a, b = c - t * (span / 2 + 0.8) + Z * (h + 0.5), c + t * (span / 2 + 0.8) + Z * (h + 0.5)
         out.append(self.beam(a, b, 0.6, "iron"))
         out.append(self.beam(a + Z * 0.6, b + Z * 0.6, 0.25, "trim"))
@@ -198,7 +204,8 @@ class YardKit:
     # ------------------------------------------------------------------ the dammed Isen
     def water_wheel(self, c, t, r, w=2.4, spokes=8, paddles=12):
         """A wheel of radius r turning in the plane of t and z about c (its hub), w wide across n:
-        two rims, spokes, paddles between the rims and an iron axle running back along -n."""
+        two rims, iron blade spokes, paddles between the rims, a spike out of the rim at every
+        paddle, and an iron axle running back along -n."""
         c, t = _v(c), _v(t).normalized()
         n = V((-t.y, t.x, 0))
         out = []
@@ -215,13 +222,18 @@ class YardKit:
                 j = (i + 1) % k
                 out.append(loft([[outer[i], outer[j], inner[j], inner[i]], [outer2[i], outer2[j], inner2[j], inner2[i]]],
                                 ["timber"], cap0=("timber", True), cap1=("timber", True)))
-            for i in range(spokes):
+            for i in range(spokes):                      # blade spokes: flat, edge-on to the turn
                 ang = 2 * math.pi * (i + 0.5) / spokes
-                out.append(self.beam(P(ang, r * 0.18, dd), P(ang, r * 0.86, dd), 0.22, "timber"))
+                a0, a1 = P(ang, r * 0.18, dd), P(ang, r * 0.86, dd)
+                sd = t * (-math.sin(ang)) + Z * math.cos(ang)
+                out.append(loft([[a0 + sd * 0.45 + n * 0.12, a0 - sd * 0.45 + n * 0.12, a0 - sd * 0.45 - n * 0.12,
+                                  a0 + sd * 0.45 - n * 0.12],
+                                 [a1 + sd * 0.12 + n * 0.12, a1 - sd * 0.12 + n * 0.12, a1 - sd * 0.12 - n * 0.12,
+                                  a1 + sd * 0.12 - n * 0.12]], ["iron"], cap0=("iron", True), cap1=("iron", True)))
         for i in range(k):
             ang = 2 * math.pi * i / k
             out.append(self.beam(P(ang, r * 0.9, -w / 2 - 0.3), P(ang, r * 0.9, w / 2 + 0.3), 0.3, "timber"))
-            out.append(self.beam(P(ang, r * 0.9, 0), P(ang, r * 1.12, 0), 0.25, "timber"))
+            out.append(self.beam(P(ang, r * 0.9, 0), P(ang, r * 1.24, 0), 0.34, "iron", 0.0))     # a spike on the rim
         out.append(self.tube([c + n * (w / 2 + 0.8), c - n * (w / 2 + 4.0)], [r * 0.12, r * 0.12], "iron", k=6,
                              cap0="trim", cap1="iron"))
         out.append(self.tube([c - n * 0.9, c + n * 0.9], [r * 0.2, r * 0.2], "iron", k=8, cap0="iron", cap1="iron"))
@@ -302,12 +314,15 @@ class YardKit:
         return out
 
     def shield_rack(self, c, t, n, w, count=4, s=4.2):
-        """A rack w along t at c facing n: two posts and a crossbar, `count` shields hung on it,
-        spears standing behind."""
+        """A rack w along t at c facing n: two posts, a crossbar and a wedge top with a blade on its
+        peak, `count` shields hung on it, spears standing behind."""
         c, t, n = _v(c), _v(t).normalized(), _v(n).normalized()
         out = []
+        peak = c + Z * (s + 1.2 + w * 0.45)
         for e in (-1, 1):
             out.append(self.beam(c + t * (e * w / 2) - Z * 0.4, c + t * (e * w / 2) + Z * (s + 1.2), 0.28, "timber"))
+            out.append(self.beam(c + t * (e * w / 2) + Z * (s + 1.0), peak, 0.24, "iron"))     # the wedge top
+        out.append(self.beam(peak - Z * 0.3, peak + Z * 2.4, 0.4, "trim", 0.0))
         out.append(self.beam(c - t * (w / 2 + 0.3) + Z * (s + 0.9), c + t * (w / 2 + 0.3) + Z * (s + 0.9), 0.24, "iron"))
         for i in range(count):
             u = -w / 2 + w * (i + 0.5) / count
@@ -320,22 +335,23 @@ class YardKit:
 
     # ------------------------------------------------------------------ pipework
     def pipe(self, points, r=0.55, flange=True):
-        """Iron pipework through `points` (3D), a flanged silver joint at the start of every run."""
+        """Square iron pipework through `points` (3D), a silver flange at the start of every run."""
         pts = [_v(p) for p in points]
-        out = [self.tube(pts, [r] * len(pts), "iron", k=6, cap0="iron", cap1="iron")]
+        out = [self.tube(pts, [r] * len(pts), "iron", k=4, cap0="iron", cap1="iron", phase=math.pi / 4)]
         if flange:
             for p, q in zip(pts, pts[1:]):
                 for f in (0.08,):
                     m = p.lerp(q, f)
                     d = (q - p).normalized()
-                    out.append(self.tube([m - d * 0.2, m + d * 0.2], [r * 1.45, r * 1.45], "trim", k=6,
-                                         cap0="trim", cap1="trim"))
+                    out.append(self.tube([m - d * 0.2, m + d * 0.2], [r * 1.6, r * 1.6], "trim", k=4,
+                                         cap0="trim", cap1="trim", phase=math.pi / 4))
         return out
 
     def fire_grate(self, c, t, n, w=3.6, h=2.8, d=2.4):
         """A deep iron firebox w wide, h high, d deep at c (its front foot, facing n): glowing
         inside, four bars across its mouth, a silver rim and a small hood."""
         c, t, n = _v(c), _v(t).normalized(), _v(n).normalized()
+        self.fire(c + n * 0.3 + Z * (h * 0.35), "furnace")
         out = [prism(c, t, n, [(-w / 2, -0.3), (w / 2, -0.3), (w / 2, h), (-w / 2, h)], -d, 0.0,
                         ["iron", "iron", "iron", "iron"], "ember", "iron")]
         out.append(prism(c, t, n, [(-w / 2 - 0.4, h), (w / 2 + 0.4, h), (w / 2 + 0.1, h + 0.9), (-w / 2 - 0.1, h + 0.9)],
@@ -347,16 +363,17 @@ class YardKit:
 
     # ------------------------------------------------------------------ small furniture
     def brazier(self, c, r=1.2, h=3.2):
-        """An iron fire basket r across on three splayed legs, h high, heaped with embers."""
+        """A square iron fire basket r across, pointed below, on three splayed legs, h high, heaped
+        with embers, spikes rising from its rim."""
         c = _v(c)
-        out = [self.tube([c + Z * (h - r * 0.9), c + Z * h, c + Z * (h + 0.25)], [r * 0.45, r, r * 1.05], "iron", k=6,
-                         cap0="iron", cap1="ember")]
+        out = [self.tube([c + Z * (h - r * 1.1), c + Z * h, c + Z * (h + 0.25)], [r * 0.1, r * 1.2, r * 1.25], "iron", k=4,
+                         cap0="iron", cap1="ember", phase=math.pi / 4)]
         for i in range(3):
             a = 2 * math.pi * i / 3 + 0.5
             d = V((math.cos(a), math.sin(a), 0))
             out.append(self.beam(c + Z * (h - r * 0.5) + d * r * 0.5, c + d * r * 1.1 - Z * 0.3, 0.14, "iron"))
             out.append(self.beam(c + Z * (h + 0.1) + d * r, c + Z * (h + r * 0.9) + d * r * 1.25, 0.12, "iron", 0.0))
-        return out
+        return out + self.flames(c + Z * (h + 0.1), r * 0.9, r * 3.0, n=3, seed=c.x * 0.3, kind="brazier")
 
     def lantern(self, p, s=1.0, chain=1.6):
         """A caged lantern s tall hanging from p: a glowing core, four iron bars, cap and finial."""
@@ -368,6 +385,7 @@ class YardKit:
                          [c + V((x, y, 0)) * s * 0.34 + Z * s * 0.35 for x, y in ((-1, -1), (1, -1), (1, 1), (-1, 1))]],
                         ["ember"], cap0=("iron", True), cap1=("iron", True)))
         out.append(self.beam(c + Z * s * 0.35, top, s * 0.3, "iron", s * 0.05))
+        out.append(self.beam(c - Z * s * 0.45, c - Z * s * 1.1, s * 0.25, "iron", 0.0))           # a point below
         return out
 
     def bracket_lantern(self, a, t, n, u, z, reach=2.4, s=1.1):
@@ -418,11 +436,25 @@ class YardKit:
         for i in range(bars):
             u = -w / 2 + w * (i + 1) / (bars + 1)
             out.append(self.beam(P(u, -d * 0.45, 0.62), P(u, d * 0.45, 0.62), 0.12, "iron"))
-        return out
+        return out + self.flames(c + Z * 0.5, min(w, d) * 0.4, min(w, d) * 1.1, n=3, seed=c.x * 0.7, kind="grate")
 
     def cable(self, p, q, sag=4.0, r=0.22, steps=8):
         """A slack iron cable from p to q sagging `sag` at the middle (a k=4 tube)."""
         p, q = _v(p), _v(q)
         pts = [p.lerp(q, i / steps) - Z * (sag * 4 * (i / steps) * (1 - i / steps)) for i in range(steps + 1)]
         return self.tube(pts, [r] * len(pts), "chain", k=4, cap0="chain", cap1="chain")
+
+    def blade_rail(self, a, t, u0, u1, z, count=5, h=2.6):
+        """A rail of iron blades along t from u0 to u1 at z: a bar on two posts, blades rising
+        from it like EA's spike rows."""
+        a, t = _v(a), _v(t).normalized()
+        out = [self.beam(a + t * u0 + Z * (z + 1.0), a + t * u1 + Z * (z + 1.0), 0.2, "iron")]
+        for u in (u0, u1):
+            out.append(self.beam(a + t * u + Z * (z - 0.3), a + t * u + Z * (z + 1.0), 0.2, "iron"))
+        n = V((-t.y, t.x, 0))
+        for i in range(count):
+            u = u0 + (u1 - u0) * (i + 0.5) / count
+            out.append(prism(a + Z * (z + 1.0), t, n, [(u - 0.35, 0.0), (u + 0.35, 0.0), (u, h)], -0.1, 0.1,
+                             ["trim", "trim", "trim"], "iron", "iron"))
+        return out
 

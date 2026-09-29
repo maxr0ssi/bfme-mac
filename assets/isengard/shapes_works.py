@@ -108,7 +108,7 @@ class WorksKit:
     @staticmethod
     def gear(a, t, n, u, z, r, d, teeth=10, th=0.7, tag="iron"):
         """A gear wheel of radius r (teeth included) on a face, its disk th thick standing from d:
-        a 2*teeth-gon disk, trapezoid teeth, a raised hub and an axle bolt."""
+        a 2*teeth-gon disk, pointed teeth, a raised hub and an axle bolt."""
         a, t, n = V(a), V(t), V(n)
         k, root, out = teeth * 2, r * 0.8, []
 
@@ -119,8 +119,8 @@ class WorksKit:
         for i in range(teeth):
             c = 2 * math.pi * i / teeth
             s = math.pi / teeth * 0.55
-            poly = [P(c - s, root * 0.96), P(c + s, root * 0.96), P(c + s * 0.6, r), P(c - s * 0.6, r)]
-            out.append(prism_uz(a, t, n, poly, d + 0.05, d + th - 0.05, [tag] * 4, tag, tag))
+            poly = [P(c - s, root * 0.96), P(c + s, root * 0.96), P(c, r)]            # a pointed tooth
+            out.append(prism_uz(a, t, n, poly, d + 0.05, d + th - 0.05, [tag] * 3, tag, tag))
         hub = [P(2 * math.pi * i / 6 + math.pi / 6, root * 0.36) for i in range(6)]
         out.append(prism_uz(a, t, n, hub, d + th - 0.1, d + th + 0.55, [tag] * 6, tag, tag))
         bolt = [P(2 * math.pi * i / 6, root * 0.14) for i in range(6)]

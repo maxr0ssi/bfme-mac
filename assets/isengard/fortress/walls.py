@@ -32,7 +32,7 @@ def lip_spikes(kit):
     out = []
     for deg in LIP_FACES:
         a, t, n = frame(deg)
-        out += kit.spike_row(a + n * (LIP - APOTHEM), t, n, -10.0, 10.0, LIP_Z - 0.5, 6.5, 5, d=-1.2, lean=0.12, r=0.55)
+        out += kit.spike_row(a + n * (LIP - APOTHEM), t, n, -9.0, 9.0, LIP_Z - 0.5, 6.5, 4, d=-1.2, lean=0.12, r=0.55)
     return out
 
 

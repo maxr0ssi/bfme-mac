@@ -30,6 +30,5 @@ ore cart).
 
 ## Status
 
-Shape preview only (not built, not installed). 505 -> 6,299 triangles, height 59.3 -> 67.3
-(+13.6 %), footprint unchanged, 9/9 preview checks. Night lights, bake, paint and lifecycle wait
-for the full build.
+Installed. 505 -> 6,299 triangles, height 59.3 -> 67.3
+(+13.6 %), footprint unchanged, 9/9 preview checks. No custom night lights yet; EA's stay.

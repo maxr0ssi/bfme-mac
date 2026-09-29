@@ -27,7 +27,7 @@ rim, the brace at the back.
 
 ## Status
 
-Designed, shape preview only (not built, not installed). 368 -> 6,079 triangles, height 53.5 ->
+Installed. 368 -> 6,079 triangles, height 53.5 ->
 61.3 (+14.5 %), footprint unchanged, 9/9 preview checks.
 
 ## Open

@@ -197,6 +197,8 @@ def run(b, ws, r):
         r.check("%s depends on %s" % (target, b.own_diffuse.lower()), b.own_diffuse.lower() in [d.lower() for d in dep], str(dep))
     from .nightlights import checks as night_checks
     night_checks(b, ws, r)              # night lights on our surface, the faction's texture only
+    from ..fire import checks as fire_checks
+    fire_checks(b, ws, r)               # the fire rig, its Draw modules, EA's particle systems
     from .checks_lifecycle import run as lifecycle_checks
     lifecycle_checks(b, ws, r)          # construction / really damaged / rubble models
     return r.summary()

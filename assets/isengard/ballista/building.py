@@ -1,4 +1,5 @@
-"""Isengard ballista (IsengardBallistaExpansion): stub from `sagekit new isengard`.
+"""Isengard ballista (IsengardBallistaExpansion): EA's pad kept whole, its top clear for the ballista;
+pointed merlons, the White Hand, arrow loops, fins, braziers (pad.py).
 
 EA's IBFBalTow (objects IsengardBallistaExpansion; role catapult_tower): body IBFBALTOW, 234
 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our texture is
@@ -16,8 +17,17 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 
+# Real fire (the game's particle systems on bones, docs/ART.md "Fire"): (x, y, z, kind) in the target's
+# coordinates, collected from the design (kit.flames / kit.fire record them when the kit has a
+# `fire_log` list); run again after moving a fire.
+FIRE_POINTS = [
+    (-31.8, -14.8, 53.8, 'brazier'), (-31.8, 14.8, 53.8, 'brazier')
+]
+
+
 class Ballista(Building):
     style = IsengardStyle()
+    fire_points = FIRE_POINTS
     source = "IBFBalTow"
     target = "IBFBALTOW"
     sheet = "IBFortress.tga"
@@ -26,9 +36,10 @@ class Ballista(Building):
     HOUSE_DRAW = "ModuleTag_Draw_HCBallista"
     views = {
         "rts": ((-8.8, -0.0, 25.5), 186, 50, -38, 50),
-        "close": ((-8.8, -0.0, 25.5), 110, 24, -30, 45),
+        "close": ((-8.8, -0.0, 28.0), 140, 24, -30, 45),
         "ingame": ((-8.8, -0.0, 25.5), 423, 53, -62, 50),
     }
 
     def design(self, kit):
-        return []
+        from . import pad
+        return pad.build(kit)

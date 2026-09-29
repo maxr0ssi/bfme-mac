@@ -17,7 +17,8 @@ stone), rock, a plain beaten plate (iron), a ribbed plate (ribs), a timber post,
 materials, each repainted by a TagRamp of the style (style.py): trim (silver-white edges, rims and
 rivet bands), cloth (the player's colour), ember
 (glowing coals and furnace throats), mark (the White Hand's white), chain (dark oiled iron),
-soot and water (the dammed Isen in the sluices). The rects were read by eye on the flat sheet; confirm them on the citadel's first bake."""
+soot, water (the dammed Isen in the sluices) and flame (flame tongues, painted near-white
+orange so they read as fire by day). The rects were read by eye on the flat sheet; confirm them on the citadel's first bake."""
 from sagekit.atlas import Atlas, Region
 
 PANEL = (15, 620, 120, 1000)               # the long smooth panel (left column)
@@ -44,8 +45,9 @@ class IsengardAtlas(Atlas):
         'soot': Region((150, 20, 440, 220)),
         'trim': Region(PLATE),
         'water': Region(PLATE),
+        'flame': Region(PLATE),
     }
-    painted = ('cloth', 'ember', 'mark', 'chain', 'soot', 'trim', 'water')
+    painted = ('cloth', 'ember', 'mark', 'chain', 'soot', 'trim', 'water', 'flame')
     materials = {
         'stone': [PANEL, (935, 520, 1010, 1020)],
         'rock': [(0, 0, 445, 232), (140, 230, 380, 395), (85, 236, 250, 400), (170, 390, 230, 512),

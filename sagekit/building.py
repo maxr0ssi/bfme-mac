@@ -212,7 +212,7 @@ class Building:
     def variants(self, install):
         """{EA variant texture: our variant} for every state that swaps the body's sheet for
         another (damaged, snow, stonework): e.g. {"DBFortress1_D.tga": "DBFortressH_D.tga"}."""
-        from .formats.textures import compiled_path
+        from .formats.textures import sheet_member
         atlas, own = self.sheet_atlas, self.own_diffuse
         out = {}
         for draws in self.objects(install).values():
@@ -223,7 +223,7 @@ class Building:
                     for old, new in st.textures:
                         if old.lower() != atlas.texture.lower() or new.lower() in {k.lower() for k in out}:
                             continue                        # one variant per sheet, whatever EA's case
-                        if not install.owner(compiled_path(new, ".dds")):
+                        if not sheet_member(install, new):
                             continue                        # EA's typos (DBFortress_Snow): the swap shows nothing
                         out[new] = own_variant_name(atlas.texture, own, new)
         from .formats.w3d import W3DFile
@@ -232,7 +232,7 @@ class Building:
                 low = t.lower()
                 if "_nrm" not in low and low != atlas.texture.lower() and low not in {k.lower() for k in out}:
                     out[t] = own_variant_name(atlas.texture, own, t, same_length=True)
-                    if install.owner(compiled_path(out[t], ".dds")):
+                    if sheet_member(install, out[t]):
                         raise ValueError("%s: %s is one of EA's names; pin one in own_textures" % (t, out[t]))
         return out
 
@@ -279,7 +279,8 @@ class Building:
         # first, as copies of EA's records - the engine draws no model the cache does not file
         own = [("model", self.shipped_name(m).lower() + ".w3d", m.lower() + ".w3d") for m in [self.source] + list(derived)
                if self.shipped_name(m).lower() != m.lower()]
-        return own + ops + [("patch", self.model_file)] + [("patch", self.shipped_name(m).lower() + ".w3d") for m in derived]
+        from .fire import cache_ops as fire                      # the fire rig (a model of our own)
+        return own + fire(self) + ops + [("patch", self.model_file)] + [("patch", self.shipped_name(m).lower() + ".w3d") for m in derived]
 
     def ini_ops(self, install, variants):
         """{INI archive path: [op]} (sagekit/formats/ini.py apply_ops): our own texture swaps next to
@@ -301,6 +302,9 @@ class Building:
                 out.setdefault(member, []).extend(ops)
         from .sharedsheets import ini_ops as shared         # state swaps of the shared sheets' copies
         for member, ops in shared(self).items():
+            out.setdefault(member, []).extend(ops)
+        from .fire import ini_ops as fire                   # our fire's Draw modules, EA's untouched
+        for member, ops in fire(self, install).items():
             out.setdefault(member, []).extend(ops)
         return out
 
@@ -461,6 +465,8 @@ class Building:
         return []
 
     night_surfaces = ()             # meshes besides the target the night lights may lie on (EA's rock)
+    fire_points = ()                # [(x, y, z, kind)] in the healthy model's space: the game's own fire,
+                                    # smoke and embers there (sagekit/fire.py; kinds: fire.KINDS)
 
     def night_lights(self, kit):
         """-> [sagekit.nightlights.Light]: the design's real windows and doors, lit at night in

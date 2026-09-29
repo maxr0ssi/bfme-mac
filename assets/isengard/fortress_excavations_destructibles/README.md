@@ -1,13 +1,24 @@
-# Isengard fortress excavations destructibles (`IsengardFortressCitadel`)
+# Isengard excavations: chute and ladders (`IsengardFortressCitadel`)
 
-Stub from `python3 -m sagekit new isengard`: nothing redesigned yet (`design()` returns no solids).
+Model `IBFExcavB`, mesh `IBFEXCAVB`, own texture `IBFortresK.tga` (from `IBFortress.tga`).
+`Tier.STANDARD`. The destructible pieces of the citadel's `FORTRESS_IMPROVEMENT_3` add-on
+(`ModuleTag_DrawExcavationsDestructibles`). EA's pieces are kept whole: the chute on its trestles,
+the two ladders, the leaning post.
 
-- Source model `IBFExcavB`, target mesh `IBFEXCAVB` (374 triangles), sheet `IBFortress.tga` -> own `IBFortresK.tga`, DXT5 (EA's cut-out alpha kept).
-- Role fortress_upgrade; nearest Dwarven recipe `fortress_barrels`.
-- Covers the Draw module `ModuleTag_DrawExcavationsDestructibles`.
-- EA's body measured: `python3 -m sagekit measure isengard/fortress_excavations_destructibles` -> `work/measure.json`.
+## What changed (`spoil.py`)
+
+- Glowing ore tumbling down the chute out of an iron skip at its head.
+- A lantern on an iron arm out of the post.
+
+## Kept clear
+
+- The south shaft's mound and stakes, the A-frame's swing, the burning forges, the wizard's tower.
 
 ## Status
 
-- [ ] healthy body designed
-- [ ] checks pass, renders reviewed
+Designed, shape preview only (not built, not installed). 374 -> 500 triangles, height and
+footprint unchanged, 9/9 preview checks. No fire.
+
+## Open
+
+- Full build: bake, paint, lifecycle (`IBFExcavB_A`, `_D3`).

@@ -1,5 +1,6 @@
-"""Isengard fortress burning forges destructibles (IsengardFortressCitadel): stub from `sagekit new
-isengard` (folder renamed from EA's tag spelling, ModuleTag_DrawBurningForgesDescrutbiles).
+"""Isengard fortress burning forges destructibles (IsengardFortressCitadel): the forge tower (folder
+renamed from EA's tag spelling, ModuleTag_DrawBurningForgesDescrutbiles). EA's body kept whole; a
+beacon, the stack's crown, a forge, a molten chute, fins and vents, real fire (forge.py).
 
 EA's IBFBForgB (objects IsengardFortressCitadel; role fortress_upgrade): body IBFBFORGES, 971
 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our texture is
@@ -18,8 +19,18 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 
+# Real fire (the game's particle systems on bones, docs/ART.md "Fire"): (x, y, z, kind) in the target's
+# coordinates, collected from the design (kit.flames / kit.fire record them when the kit has a
+# `fire_log` list); run again after moving a fire.
+FIRE_POINTS = [
+    (-37.7, -13.0, 84.5, 'chimney'), (-43.0, 0.0, 115.6, 'brazier'), (-54.0, -12.5, 64.4, 'hearth'),
+    (-28.4, 9.4, 41.8, 'crucible'), (-48.5, -15.5, 65.3, 'embers')
+]
+
+
 class FortressBurningForgesDescrutbiles(Building):
     style = IsengardStyle()
+    fire_points = FIRE_POINTS
     source = "IBFBForgB"
     target = "IBFBFORGES"
     sheet = "IBFortress.tga"
@@ -28,9 +39,10 @@ class FortressBurningForgesDescrutbiles(Building):
     parts = ("ModuleTag_DrawBurningForgesDescrutbiles",)
     views = {
         "rts": ((-44.9, -2.0, 62.0), 319, 50, -38, 50),
-        "close": ((-44.9, -2.0, 62.0), 188, 24, -30, 45),
+        "close": ((-42.0, -5.0, 80.0), 150, 30, -30, 45),
         "ingame": ((-44.9, -2.0, 62.0), 725, 53, -62, 50),
     }
 
     def design(self, kit):
-        return []
+        from . import forge
+        return forge.build(kit)

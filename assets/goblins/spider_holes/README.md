@@ -23,7 +23,7 @@ The carapace becomes a great dead spider the Goblins breed their spiders in.
 
 ## Status
 
-Designed, shape preview only (not built, not installed). 348 -> 4,139 triangles, height 46.8 ->
+Installed. 348 -> 4,139 triangles, height 46.8 ->
 49.4 (+5.4 %, the knee spikes), footprint unchanged, 9/9 preview checks.
 
 ## Open

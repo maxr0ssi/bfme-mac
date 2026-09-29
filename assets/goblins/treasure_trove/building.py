@@ -50,6 +50,7 @@ class TreasureTrove(Building):
     world_space = True                      # WBTREATROVT hangs on a bone turned about z
     facet_islands = 8                       # the unwrap overlapped (0.58%): seams at EA's islands and 8-degree turns
     bake_hidden = ("V1", "V1A", "N_WINDOW", "N_FIRE")
+    lifecycle = {"WBTreaTrov_ASKN": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
     views = {
         "rts": ((6.9, -10.5, 21.2), 365, 50, -38, 50),
         "close": ((6.9, -10.5, 21.2), 216, 24, -30, 45),

@@ -1,7 +1,9 @@
 """Checks for the lifecycle models (sagekit/lifecycle.py), against EA's own model of each state and at
 the frames the player sees it: EA's skeleton, animations and HLOD kept (a host piece's bone aside),
 valid one-bone skins, nothing of ours deeper in the ground or wider than EA's pieces go, and no
-more of our faces showing their back to the sky than EA's model does (open holes where we cut)."""
+more of our faces showing their back to the sky than EA's model does (open holes where we cut).
+A construction model built with `fill` (sagekit/lifecycle.py) is our whole healthy body at its
+finished frame: what of ours stands where that body stands is held to it, not to EA's remodel."""
 import json
 import os
 import struct
@@ -17,7 +19,8 @@ from ..game import Install
 from ..owncopy import prepare
 from .checks import sky_dirs
 from ..workspace import Workspace
-from .lifecycle import Model, chain
+from .lifecycle import Link, Model, chain
+from .lifecycle_cut import nearest, tree
 
 DEBUG = None               # a list to collect the back-seen triangles in (diagnostics)
 GROUND_TOL = 0.5            # units our faces may go below EA's deepest vertex on the same bone
@@ -112,8 +115,24 @@ def check_model(b, ws, r, m, e):
         r.check("%s: asset cache record matches the file" % name, not st, "%d stale" % len(st))
 
     ours = [n for n, p in pieces.items() if p["mode"].startswith("ours")]
+    own = None
+    if e["settings"].get("fill") and m["kind"] == "construction":
+        g = Install()
+        data = g.read(g.model_path(b.source))
+        skl = W3DFile(data).skeleton()
+        healthy = Model(data, g.read(g.model_path(skl[:-4])) if skl else None)
+        own = reference([Link(x, healthy, e["settings"]["match_offset"]) for x in chain(b)])
     for f in m["views"]:
-        frame_checks(b, r, name, f, EA, NEW, list(pieces), ours, m["match"], m["kind"])
+        frame_checks(b, r, name, f, EA, NEW, list(pieces), ours, m["match"], m["kind"], own)
+
+
+def reference(links):
+    """Our healthy body (every link's) where the lifecycle step places it: {bvh, lo, hi (x/y)}."""
+    V = [L.ours["V"] for L in links]
+    off = np.cumsum([0] + [len(v) for v in V])[:-1]
+    V = np.concatenate(V)
+    return {"bvh": tree(V, np.concatenate([L.ours["T"] + o for L, o in zip(links, off)])),
+            "lo": V[:, :2].min(0), "hi": V[:, :2].max(0)}
 
 
 class Collect:
@@ -131,13 +150,14 @@ class Collect:
         pass
 
 
-def gate(b, name, kind, match, views, ea_data, new_data, skel, anim, pieces, ours):
+def gate(b, name, kind, match, views, ea_data, new_data, skel, anim, pieces, ours, own=None):
     """The per-frame checks run on a freshly built model: ([failure] (empty: it may ship), the
-    largest share of our area showing its back to the sky past EA's, at any frame)."""
+    largest share of our area showing its back to the sky past EA's, at any frame). own: our
+    healthy body (reference()), for a construction model built with `fill`."""
     EA, NEW = Model(ea_data, skel, anim), Model(new_data, skel, anim)
     r = Collect()
     for f in views:
-        frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind)
+        frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind, own)
     return r.failed, r.worst
 
 
@@ -152,24 +172,27 @@ def _influences(mesh_bytes):
     return []
 
 
-def frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind):
+def frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind, own=None):
     """At one frame the player sees. What stands where it stood (every bone at its match pose) is
     held to the healthy building's limits; pieces in flight or lying about carry our bigger body
     with them, so their depth and spread are reported, and only their open backs are held to a
-    looser limit. Bones EA sinks out of sight are not looked at."""
+    looser limit. Bones EA sinks out of sight are not looked at. With `own` (our healthy body, a
+    `fill` construction) a vertex of ours lying on that body is where it stands finished and is
+    not held to EA's depth, and the footprint may reach as far as that body does."""
     at = "rest" if f is None else "frame %d" % f
     pe, pn, pm = EA.pose(f), NEW.pose(f), EA.pose(match)
     moving = {k for k in range(len(pe[0])) if max(abs(x - y) for x, y in zip(pe[0][k], pm[0][k])) > 0.05}
     standing = not moving & {bn for n in pieces for bn in EA.vertex_bones(n)}
 
-    def by_bone(model, pose, names):
+    def by_bone(model, pose, names, skip=None):
         lo, hi = {}, {}
         for n in names:
             V = model.world(n, pose)
-            for v, bone in zip(V, model.vertex_bones(n)):
+            keep = np.ones(len(V), bool) if skip is None else nearest(skip, V)[2] > GROUND_TOL
+            for v, bone in zip(V[keep], np.asarray(model.vertex_bones(n))[keep]):
                 lo[bone], hi[bone] = min(lo.get(bone, 1e9), v[2]), max(hi.get(bone, -1e9), v[2])
         return lo, hi
-    (low_e, top_e), (low_n, _) = by_bone(EA, pe, pieces), by_bone(NEW, pn, ours)
+    (low_e, top_e), (low_n, _) = by_bone(EA, pe, pieces), by_bone(NEW, pn, ours, own and own["bvh"])
     deep = {EA.skel.names[k]: round(z, 1) for k, z in low_n.items()
             if z < min(0.0, low_e.get(k, 0.0)) - GROUND_TOL and top_e.get(k, 1.0) > 0}
     fixed = {k: v for k, v in deep.items() if EA.skel.index(k) not in moving}
@@ -179,6 +202,8 @@ def frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind):
         r.info("%s @ %s: pieces in flight below EA's" % (name, at), str({k: v for k, v in deep.items() if k not in fixed}))
     box = lambda model, pose, names: np.concatenate([model.world(n, pose)[:, :2] for n in names])   # noqa: E731
     be, bn = box(EA, pe, list(EA.w3d.meshes)), box(NEW, pn, list(NEW.w3d.meshes))
+    if own:
+        be = np.vstack([be, own["lo"], own["hi"]])
     tol = SPREAD_TOL + b.footprint_margin
     over = max(np.maximum(be.min(0) - bn.min(0), 0).max(), np.maximum(bn.max(0) - be.max(0), 0).max())
     text = "x/y [%.1f %.1f]..[%.1f %.1f], EA [%.1f %.1f]..[%.1f %.1f]" % (*bn.min(0), *bn.max(0), *be.min(0), *be.max(0))

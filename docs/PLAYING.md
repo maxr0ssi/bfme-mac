@@ -72,6 +72,13 @@ in a full game.
   `ahk/edgescroll.ahk`. Both are unverified in play. The cause is in Wine 10's Mac driver, which does
   not restore focus and cursor clipping on reactivation. Wine 11 fixes that, but Wine 11 crashes both
   games (a WoW64 bug, `patches/WINE-BUG-REPORT.md`), and there is no registry setting for it.
+- **Picture shifted down, clicks off.** macOS sometimes moves the borderless window below the
+  menu bar a few seconds after launch (seen 2026-09-29: 0,66 3024x1898 instead of 0,0 3024x1964). The
+  game still draws its full resolution, squeezed into the shorter window under a black strip, so
+  clicks miss by up to a menu bar's height. `ahk/edgescroll.ahk` now puts the window back whenever
+  it moves (a `re-pin` line in `ahk/edgescroll.log`); Ctrl+Alt+R does it too. `mac` lines in the same
+  log show where macOS really has the window. Set `keepPinned := false` at the top of the script to
+  turn it off.
 - **No exclusive full-screen.** Under Wine's Mac driver it minimises and turns black on focus loss;
   the borderless window is the replacement.
 - **30 FPS ceiling** (engine design), and big battles still drop below it

@@ -28,7 +28,7 @@ down to the ground at the back.
 
 ## Status
 
-Designed, shape preview only (not built, not installed). 499 -> 4,804 triangles, height 89.3 ->
+Installed. 499 -> 4,804 triangles, height 89.3 ->
 106.0 (+18.7 %), footprint unchanged, 9/9 preview checks.
 
 ## Open

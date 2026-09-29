@@ -17,6 +17,33 @@ def compiled_path(texture_name, ext):
     return "art\\compiledtextures\\%s\\%s%s" % (stem[:2], stem, ext)
 
 
+def sheet_member(install, texture):
+    """The archive member a sheet is read from: EA's compiled DDS, else the TGA EA shipped in its
+    place (RotWK has 434 textures only as TGA, nearly all house colour and effects; among building
+    sheets only the Isengard tavern's ibwildbuilding family); None when neither exists. A sheet
+    with a DDS always reads the DDS, as before."""
+    for ext in (".dds", ".tga"):
+        member = compiled_path(texture, ext)
+        if install.owner(member):
+            return member
+    return None
+
+
+def tga_to_dds(data, dds_path):
+    """EA's TGA sheet (bytes) written as a DDS like its compiled sheets: DXT5 when its alpha holds a
+    texel below opaque (sagekit/alpha.py), else DXT1; a full mip chain. The extract step's copy of
+    a TGA-only sheet, so everything downstream reads one format."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        tga, png = os.path.join(tmp, "s.tga"), os.path.join(tmp, "s.png")
+        with open(tga, "wb") as fh:
+            fh.write(data)
+        alpha = data[16] == 32 and float(subprocess.check_output(
+            [MAGICK, tga, "-alpha", "extract", "-format", "%[fx:minima]", "info:"])) < 254 / 255
+        subprocess.check_call([MAGICK, tga] + ([] if alpha else ["-alpha", "off"]) + [png])
+        return write_dds(png, dds_path, alpha)
+
+
 def dds_info(path):
     with open(path, "rb") as fh:
         d = fh.read(128)

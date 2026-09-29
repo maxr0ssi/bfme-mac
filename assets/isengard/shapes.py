@@ -20,12 +20,22 @@ Core (this module; tube and arc as the Goblin kit's)
                                        at the root, leaning out then up, knife-edged to its point
     orthanc_crown(c, z, half, h)       the four horns on the corners of a square, a faceted
                                        platform between them (the tower's crown)
-    chimney(c, r, z0, z1)              a furnace stack: stepped faceted stone foot, riveted iron
-                                       barrel with hoops (and a spiked collar), a flared lip
-                                       crowned with spikes and a glowing throat
+    chimney(c, r, z0, z1)              a round furnace stack (pass 1-3; the citadel now uses obelisk)
+    obelisk(c, h0, h1, z0, z1)         a square furnace stack turned to show an edge, tapering like
+                                       an obelisk: stepped plinth, iron bands, a spiked collar, a
+                                       crown of four corner blades round a glowing throat
+    blade(a, out, z0, z1, d0, d1, w)   a knife-edge fin: EA's wall buttress (front edge leaning back,
+                                       pointed top) standing out along `out` from a
+    gable(a, t, n, u0, u1, z, h, th)   a steep triangular gable, silver-edged, an ember slit in it
+EA's angles (IBFORTRESS, measured 2026-09-28): the wedge towers' points are 35 degrees in plan;
+the curtain's fins are 2 wide and their front edge leans back 3.2 over 25 (7 degrees).
 Works (shapes_works.py, WorksKit)
     rivets, plate, hoop, chain, gear, pulley, vent, slag_heap, hook, spike_row, pike_rack,
     hand, banner
+Spires (shapes_spire.py, SpireKit)
+    lozenge, blade_tower, needle_stack
+Fire (shapes_fire.py, FireKit)
+    flames, runnel, slag_cart, ingots, post_lantern, glowing_work
 Yard (shapes_yard.py, YardKit)
     stump, log, log_stack, trestle, saw_frame, hearth, anvil, bellows, crucible, gantry,
     water_wheel, sluice, scaffold, siege_ladder, shield, shield_rack, pipe, fire_grate
@@ -38,6 +48,8 @@ from sagekit.blender.geometry import Z, loft
 
 from .shapes_works import WorksKit
 from .shapes_yard import YardKit
+from .shapes_spire import SpireKit
+from .shapes_fire import FireKit
 
 
 def unit(v):
@@ -115,7 +127,11 @@ def beam(p, q, r, tag="iron", r2=None):
     return loft(rings, [tag], cap0=(tag, True), cap1=(tag, r2 > 0.02))
 
 
-class IsengardShapes(WorksKit, YardKit):
+POINT = math.radians(35.0)                  # EA's wedge point: a gable's apex angle
+FIN_LEAN = 3.2 / 25.0                       # EA's fins: how far the front edge leans back per unit up
+
+
+class IsengardShapes(WorksKit, YardKit, SpireKit, FireKit):
     """The Isengard kit. Stable API: add pieces, keep these signatures (every Isengard recipe uses them)."""
 
     Z = Z
@@ -203,3 +219,79 @@ class IsengardShapes(WorksKit, YardKit):
             p = V((cx, cy, z1 - 0.4)) + d * rim * 0.97
             out.append(self.beam(p, p + (d * 0.45 + Z).normalized() * r * 0.75, r * 0.1, "iron", 0.0))
         return out
+
+    # ------------------------------------------------------------------ EA's points
+    @staticmethod
+    def square(c, h, z, rot=math.pi / 4):
+        """A square of half-diagonal h about c in the plane z, a corner at angle rot."""
+        return [V((c[0] + h * math.cos(rot + math.pi / 2 * i), c[1] + h * math.sin(rot + math.pi / 2 * i), z))
+                for i in range(4)]
+
+    def blade(self, a, out, z0, z1, d0, d1, w=1.0, tip=4.0, back=2.0, tag="stoneA", edge="trim"):
+        """A knife-edge fin from a (a corner or a face) along the horizontal `out`: its front edge
+        from d0 out at z0 leaning back to d1 at z1, then up to a point `tip` above z1; `back` of it
+        buried in what it stands on; w thick. The front edge is silver (`edge`)."""
+        from sagekit.blender.geometry import prism_uz
+        a, o = V(a), self.unit(V((out[0], out[1], 0)))
+        s = V((-o.y, o.x, 0))
+        poly = [(-back, z0), (d0, z0), (d1, z1), (d1 * 0.35, z1 + tip), (-back, z1 + tip * 0.3)]
+        return [prism_uz(V((a.x, a.y, 0)), o, s, poly, -w / 2, w / 2, ["stoneA", edge, edge, "stoneA", "stoneA"], tag, tag)]
+
+    def gable(self, a, t, n, u0, u1, z, h, th=1.6, slit=True):
+        """A steep triangular gable standing on a wall top from u0 to u1 at z, its apex h above,
+        th thick (from the face inward), silver on its sloped edges, an ember slit in it and a
+        spike on its apex."""
+        from sagekit.blender.geometry import prism_uz
+        a, t, n = V(a), V(t), V(n)
+        m = (u0 + u1) / 2
+        out = [prism_uz(a, t, n, [(u0, z - 0.3), (u1, z - 0.3), (m, z + h)], -th, 0.0, ["stoneA", "trim", "trim"],
+                        "stoneA", "stoneA")]
+        top = a + t * m + Z * (z + h) - n * th / 2
+        out.append(beam(top - Z * 0.8, top + Z * 4.5, 0.35, "trim", 0.0))
+        if slit:
+            w = (u1 - u0) * 0.09
+            out.append(prism_uz(a, t, n, [(m - w, z + h * 0.18), (m + w, z + h * 0.18), (m, z + h * 0.62)], -0.5, 0.25,
+                                ["ember"] * 3, "ember", None))
+        return out
+
+    def obelisk(self, c, h0, h1, z0, z1, rot=math.pi / 4, foot=None, bands=2, collar=None, glow=True):
+        """A square furnace stack from z0 to z1 at c, a corner at angle rot (toward the camera):
+        a two-step stone plinth to `foot`, an iron shaft tapering from half-diagonal h0 to h1,
+        `bands` silver bands, a spiked collar at `collar`, and a crown: a flared rim, four blades
+        rising from its corners, spikes between them, a glowing throat sunk in its top."""
+        zf = foot if foot is not None else z0 + (z1 - z0) * 0.22
+        sq = lambda h, z: self.square(c, h, z, rot)                    # noqa: E731
+        out = [loft([sq(h0 * 1.6, z0), sq(h0 * 1.55, z0 + (zf - z0) * 0.55), sq(h0 * 1.3, z0 + (zf - z0) * 0.55 + 0.7),
+                     sq(h0 * 1.25, zf)], ["stoneA", "trim", "stoneA"], cap0=("stoneA", False), cap1=("stoneB", True))]
+        rim = z1 - 2.2
+        hr = lambda z: h0 + (h1 - h0) * (z - zf) / max(rim - zf, 1e-3)  # noqa: E731
+        inner = h1 * 0.62
+        out.append(loft([sq(h0, zf - 0.3), sq(h1, rim), sq(h1 * 1.35, rim + 1.0), sq(h1 * 1.35, z1), sq(inner, z1),
+                         sq(inner, z1 - max(1.6, h1))], ["iron", "trim", "iron", "iron", "ember" if glow else "iron"],
+                        cap0=("iron", False), cap1=("ember" if glow else "iron", True)))
+        for i in range(bands):
+            zb = zf + (rim - zf) * (i + 0.6) / (bands + 0.6)
+            out.append(loft([sq(hr(zb) - 0.3, zb - 0.6), sq(hr(zb) + 0.35, zb - 0.45), sq(hr(zb) + 0.35, zb + 0.45),
+                             sq(hr(zb) - 0.3, zb + 0.6)], ["trim"] * 3, cap0=("trim", False), cap1=("trim", False)))
+        if collar is not None:
+            hc = hr(collar)
+            out.append(loft([sq(hc - 0.3, collar - 0.9), sq(hc + 0.5, collar - 0.7), sq(hc + 0.5, collar + 0.7),
+                             sq(hc - 0.3, collar + 0.9)], ["iron"] * 3, cap0=("iron", False), cap1=("iron", False)))
+            for i in range(8):
+                ang = rot + math.pi / 4 * i
+                d = V((math.cos(ang), math.sin(ang), 0))
+                reach = hc + 0.4 if i % 2 == 0 else hc * 0.72
+                p = V((c[0], c[1], collar)) + d * reach
+                out.append(beam(p, p + (d + Z * 0.3).normalized() * (h1 * 1.1 if i % 2 == 0 else h1 * 0.7), h1 * 0.11,
+                                "iron", 0.0))
+        for i in range(4):                               # the crown: a blade out of each corner, spikes between
+            ang = rot + math.pi / 2 * i
+            d = V((math.cos(ang), math.sin(ang), 0))
+            base = V((c[0], c[1], 0)) + d * (h1 * 1.2)
+            out += self.blade(base, d, z1 - 0.4, z1 + h1 * 1.6, 0.6, 0.2, w=h1 * 0.22, tip=h1 * 1.2, back=h1 * 0.5,
+                              tag="iron", edge="trim")
+            dm = V((math.cos(ang + math.pi / 4), math.sin(ang + math.pi / 4), 0))
+            p = V((c[0], c[1], z1 - 0.2)) + dm * (h1 * 0.95)
+            out.append(beam(p, p + (Z + dm * 0.25).normalized() * h1 * 1.1, h1 * 0.1, "iron", 0.0))
+        return out
+

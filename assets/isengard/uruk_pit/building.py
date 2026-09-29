@@ -1,22 +1,39 @@
-"""Isengard uruk pit (IsengardUrukPit): stub from `sagekit new isengard`.
+"""The Isengard uruk pit (IsengardUrukPit), pass 2 "the breeding pits": EA's mound kept whole - the
+two lobes of rock, the pit's octagonal mouth on the main lobe, the timber ramp, the ladders and
+decks, the cave mouth in the +X lobe - and made the place where the Uruk-hai are pulled from the
+mud. An iron birthing-frame crowns the pit: six knife ribs rise from a riveted band on its rim to
+a needle at z 70, bound by a ring hung with meat hooks, a great hook on a chain down into the pit;
+two needle stacks rise from the main lobe either side of it; furnace mouths glow in the lobe's -Y
+face; a fan of layered stone fins clasps the +X lobe over the cave mouth; a birthing pit, Uruk
+harness on stands and a blade rack on the +Y yard; braziers and a banner on an iron frame at the
+-X foot. Real fire in the pit, the stacks, the furnace mouths, the birthing pit and the braziers.
 
-EA's IBUrukPit_SKN (objects IsengardUrukPit; role barracks): body IBURUKPIT_NEW, 1087 triangles,
-painted from iburukpit.tga + iburukpit_nrm.tga (DXT1).
-In IBURUKPIT_NEW mesh coordinates: x -48.86..72.79, y -41.51..53.08, z -0.47..64.92.
-Target ambiguous: V2 (792 triangles) could be the body too (the rule takes a normal-mapped mesh
-standing on the ground, then the largest); set `target` to the mesh the design redesigns.
-Other meshes (EA's, untouched): V2 792 (iburukpit.tga, iburukpit_nrm.tga); UILURTZ02 452
-(uilurtz_a.tga); PM_ORC 384 (MUOrcWarr_c.tga); N_WINDOW 120 (wbcave.tga, wbcave_nrm.tga); HOOK 96
-(MUOrcWarr_c.tga); N_FIRE 24 (exfiretorchseq.tga).
-Lifecycle models in its Draw module: IBUrukPit_A, IBUrukPit_D1, IBUrukPit_D2, IBUrukPit_D3.
-House colour: IBHCUrukPit.
-EA's body measured: `python3 -m sagekit measure isengard/uruk_pit` -> work/measure.json.
-
-Nearest Dwarven recipe: assets/dwarves/barracks (the same role; start from its shapes).
+EA's facts (IBURUKPIT_NEW on an identity bone): x -48.9..72.8, y -41.5..53.1, z -0.5..64.9 (1087
+triangles). The pit's mouth at (-2, 3), r ~10, its rim at z 42..46 (the Uruk-hai and the hook
+HOOK animate in it, z 0..17); the ramp from (-5, 30) to (35, 0) at z 40..54; the cave mouth in
+the +X lobe's -Y side. Kept clear: the units' way out (created at (46, -10), rallying to
+(41, -70)); the level-up (V2: the tower and banner at (-32..13, 27..47) to z 92, and two banner
+poles flanking the cave mouth at (26..44, -37..-29) and (53..70, -43..-35)); EA's night torch
+posts (N_WINDOW) at (-37, -16), (45, 26), (80, -28). Height limit +20 %: z 78.
 """
 from sagekit.building import Building
 
 from ..style import IsengardStyle
+
+FIRE_POINTS = [
+    (-2.0, 3.0, 40.0, 'grate'), (8.0, 15.0, 62.6, 'chimney'), (-12.5, -9.0, 61.7, 'chimney'),
+    (-18.9, -10.8, 1.5, 'furnace'), (-4.0, -22.3, 1.5, 'furnace'), (28.0, 27.0, 1.0, 'embers'),
+    (-30.0, -24.0, 5.1, 'brazier'), (17.0, -38.0, 5.1, 'brazier')
+]
+
+PIT = (-2.0, 3.0, 44.0)                          # the mouth's centre and rim height
+STACKS = [((8.0, 15.0), 38.0, 4.6, 3.4, 22.0, 66.0), ((-12.5, -9.0), 38.0, 4.6, 3.4, 10.0, 66.0)]
+MOUTHS = [((-19.0, -10.5, 0.0), (1.0, 0.25)), ((-4.0, -22.0, 0.0), (1.0, -0.1))]   # furnace mouths: foot, t
+BIRTH = ((28.0, 27.0, 0.0), 5.0)
+LOBE = (48.0, -15.0)                             # the +X lobe's centre: a fan of fins on its +X flank
+FINS = [(330.0, 9.0, 24.0, 12.0, 44.0), (0.0, 10.0, 21.0, 12.0, 50.0), (30.0, 9.0, 24.0, 12.0, 44.0)]
+BANNER = ((-40.0, -6.0, 0.0), (-0.62, -0.79))
+BRAZIERS = [(-30.0, -24.0), (17.0, -38.0)]
 
 
 class UrukPit(Building):
@@ -26,11 +43,42 @@ class UrukPit(Building):
     sheet = "iburukpit.tga"
     sheet_normal = "iburukpit_nrm.tga"
     own_textures = {"iburukpit.tga": "iburukpiH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    fire_points = FIRE_POINTS
     views = {
         "rts": ((12.0, 5.8, 32.2), 368, 50, -38, 50),
-        "close": ((12.0, 5.8, 32.2), 218, 24, -30, 45),
+        "close": ((8.0, 2.0, 34.0), 230, 26, -30, 45),
         "ingame": ((12.0, 5.8, 32.2), 837, 53, -62, 50),
     }
 
     def design(self, kit):
-        return []
+        from ..shapes_industry import logged
+        return logged(kit, self._pieces)
+
+    def _pieces(self, kit):
+        from mathutils import Vector as V
+
+        from .. import shapes_industry as I
+        from .. import shapes_industry_big as B
+        px, py, pz = PIT
+        out = kit.hoop((px, py), pz - 0.6, 10.5, h=1.8, th=0.7, inner=1.4, k=12, rivets=3, tag="iron", closed=True)
+        out += B.birth_crown(kit, V((px, py, 0)), 10.5, pz, 70.0, ribs=6, r_knee=12.5, z_knee=56.0, w=2.0)
+        kit.fire(V((px, py, pz - 4.0)), "grate")
+        for c, axis, L, W, z0, z1 in STACKS:
+            out += kit.needle_stack(c, axis, L, W, z0, z1, collar=0.6)
+        for c, t in MOUTHS:
+            n = V((t[1], -t[0], 0))                   # facing -Y, out of the lobe
+            out += kit.fire_grate(V(c), V((t[0], t[1], 0)), n, w=5.0, h=4.2, d=4.0)
+        import math
+        for ang, rb, rf, rt, zt in FINS:
+            d = (math.cos(math.radians(ang)), math.sin(math.radians(ang)))
+            out += I.layered_fin(kit, V((LOBE[0], LOBE[1], 0)), d, rb, rf, rt, zt, w=2.2)
+        (bx, by, bz), r = BIRTH
+        out += I.birth_pit(kit, V((bx, by, bz)), r)
+        for c in ((36.0, 36.0, 0.0), (40.0, 30.0, 0.0)):              # fresh Uruk harness by the birthing pit
+            out += I.armour_stand(kit, V(c), (-0.62, -0.79), 2.0)
+        out += I.blade_rack(kit, V((20.0, 40.0, 0.0)), (1.0, 0.0), 8.0, 4, 6.0)
+        c, t = BANNER
+        out += I.banner_frame(kit, V(c), t, 8.0, 17.0)
+        for x, y in BRAZIERS:
+            out += kit.brazier(V((x, y, 0.0)), 1.7, 5.0)
+        return out

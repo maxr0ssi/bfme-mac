@@ -36,4 +36,7 @@ echo "log: $LOG"
 # windowed mode); one Wine process for both jobs, because a second one this early crashes the
 # game (see ahk/edgescroll.ahk and the note in scripts/test-skirmish.sh).
 ( cd "$BFME_ROOT/ahk" && sleep 8 && wine AutoHotkeyU32.exe edgescroll.ahk "${EDGESCROLL:-on}" 4 "${EDGESCROLL_SEND:-input}" >/dev/null 2>&1 ) &
+# The game window's real macOS frame, logged beside edgescroll's Wine rect (docs/PLAYING.md,
+# "Picture shifted down"). $$ becomes the game's pid at the exec below.
+"$BFME_ROOT/scripts/window-watch.sh" $$ >/dev/null 2>&1 &
 exec wine lotrbfme2.exe -win "$@" >"$LOG" 2>&1

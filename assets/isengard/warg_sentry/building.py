@@ -1,4 +1,5 @@
-"""Isengard warg sentry (IsengardWargSentry): stub from `sagekit new isengard`.
+"""Isengard warg sentry (IsengardWargSentry): EA's den kept whole, its middle clear for the wargs;
+a palisade, warg posts and chains, stakes, a Hand standard, a fire pit and braziers (kennel.py).
 
 EA's IBWargSent (objects IsengardWargSentry; role tower): body IBWARGSENT, 3013 triangles,
 painted from IBWargSent.tga + IBWargSent_NRM.tga (DXT5).
@@ -16,8 +17,17 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 
+# Real fire (the game's particle systems on bones, docs/ART.md "Fire"): (x, y, z, kind) in the target's
+# coordinates, collected from the design (kit.flames / kit.fire record them when the kit has a
+# `fire_log` list); run again after moving a fire.
+FIRE_POINTS = [
+    (40.0, -30.0, 8.5, 'brazier'), (46.0, -14.0, 8.5, 'brazier'), (-30.0, -34.0, 1.2, 'grate')
+]
+
+
 class WargSentry(Building):
     style = IsengardStyle()
+    fire_points = FIRE_POINTS
     source = "IBWargSent"
     target = "IBWARGSENT"
     sheet = "IBWargSent.tga"
@@ -30,4 +40,5 @@ class WargSentry(Building):
     }
 
     def design(self, kit):
-        return []
+        from . import kennel
+        return kennel.build(kit)

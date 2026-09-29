@@ -312,13 +312,69 @@ def set_model(text, obj, tag, old, new):
     return "".join(lines)
 
 
+def add_draw_after(text, obj, after, tag, block):
+    """Draw module `tag` - block: its lines from `Draw = ...` to its `End`, unindented - inserted
+    after the End of object `obj`'s Draw module `after`, indented like it (sagekit/fire.py).
+    Idempotent: an object that has a module `tag` already is left as it is."""
+    lines = text.splitlines(keepends=True)
+    cur, depth, at = None, 0, None
+    for i, raw in enumerate(lines):
+        line = strip(raw)
+        m = OBJECT_RE.match(line)
+        if m and not raw[:1].isspace():
+            cur, depth = m.group(2), 0
+            continue
+        if cur != obj or not line:
+            continue
+        m = DRAW_RE.match(line)
+        if m and not depth:
+            if m.group(2) == tag:
+                return text
+            if m.group(2) == after:
+                depth, at = 1, i
+            continue
+        if not depth:
+            continue
+        low = line.lower()
+        key = line.partition("=")[0].strip().lower()
+        if low.startswith("beginscript"):
+            depth += 1
+        elif low.startswith("endscript"):
+            depth -= 1
+        elif key in STATE_OPENERS or key == ANIM_OPENER and depth == 2:
+            depth += 1
+        elif low == "end":
+            depth -= 1
+            if depth == 0:
+                pad = lines[at][:len(lines[at]) - len(lines[at].lstrip())]
+                nl = "\r\n" if raw.endswith("\r\n") else "\n"
+                rest = "".join(lines[i + 1:])
+                if any(DRAW_RE.match(strip(x)) and DRAW_RE.match(strip(x)).group(2) == tag
+                       for x in _object_lines(rest)):
+                    return text
+                lines[i + 1:i + 1] = [nl] + [pad + x + nl for x in block]
+                return "".join(lines)
+    raise ValueError("no Draw module %s in object %s" % (after, obj))
+
+
+def _object_lines(text):
+    """The lines up to the next top-level Object / ChildObject / ObjectReskin."""
+    for raw in text.splitlines():
+        if OBJECT_RE.match(strip(raw)) and not raw[:1].isspace():
+            return
+        yield raw
+
+
 def apply_ops(text, ops):
     """Apply [('swaps', base, {ea: (own, own variant)}) | ('lod_off', object, tag) |
     ('field', object, tag, key, value) | ('draw', object, tag, model) |
-    ('state', object, tag, [flags], model) | ('model', object, tag, old, new)] in order."""
+    ('state', object, tag, [flags], model) | ('model', object, tag, old, new) |
+    ('fire_draw', object, after tag, tag, lines)] in order."""
     for op in ops:
         if op[0] == "draw":
             text = add_draw(text, *op[1:])
+        elif op[0] == "fire_draw":
+            text = add_draw_after(text, *op[1:])
         elif op[0] == "model":
             text = set_model(text, *op[1:])
         elif op[0] == "state":

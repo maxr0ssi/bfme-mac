@@ -13,7 +13,8 @@ runs a slice, so iterating on a design is `--from geometry --to render`.
     lifecycle  EA's construction / really damaged / rubble models with our body in EA's pieces (Blender)
     ship       the files that ship, at their archive paths, under out/
     shared     shared EA sheets in those files -> the faction's recoloured copies (sharedsheets.py)
-    ini        the faction INIs with our texture swaps next to EA's, LOD swapping off
+    fire       the recipe's fire_points as bones of a meshless rig for EA's particle systems (fire.py)
+    ini        the faction INIs with our texture swaps next to EA's, LOD swapping off, fire Draws
     cache      a pristine asset.dat copy with the building's cache ops, verified
     checks     the standard check suite                                         (Blender)
     render     original vs new at the building's views, side by side            (Blender)
@@ -30,7 +31,7 @@ import time
 from . import paths
 from .formats.assetcache import AssetCache
 from .formats.ini import apply_ops
-from .formats.textures import compiled_path
+from .formats.textures import compiled_path, sheet_member, tga_to_dds
 from .formats.w3d import W3DFile, fix, splice_mesh
 from .formats.w3dframes import moved
 from .game import Install
@@ -152,7 +153,7 @@ class Extract(Step):
         bodies = b.derived_bodies(g)
         with open(self.ws.path("work", "derived.json"), "w") as fh:
             json.dump({m: bodies.get(m) for m in b.derived_models(g)}, fh, indent=1)
-        members = [(compiled_path(a.texture, ".dds"), self.ws.atlas_dds)]
+        members = [(sheet_member(g, a.texture) or compiled_path(a.texture, ".dds"), self.ws.atlas_dds)]
         skl = W3DFile(model).skeleton()
         if skl:                                 # a skinned model: its skeleton is a file of its own
             members.append((g.model_path(skl[:-4]), os.path.join(self.ws.src, skl)))
@@ -161,14 +162,17 @@ class Extract(Step):
         if b.two_sheets:
             members.append((compiled_path(master.normal, ".tga"), self.ws.master_normal))
         for member, dest in members:
-            with open(dest, "wb") as fh:
-                fh.write(g.read(member))
+            if member.endswith(".tga") and dest.endswith(".dds"):     # a TGA-only sheet: kept as a DDS
+                tga_to_dds(g.read(member), dest)
+            else:
+                with open(dest, "wb") as fh:
+                    fh.write(g.read(member))
             print("  %-48s <- %s" % (os.path.relpath(dest, self.ws.root), os.path.basename(g.owner(member).path)))
         sheets = [a.texture] + list(variants)
         if b.two_sheets:
             sheets += [master.texture] + [b.style.master_variant(v) for v in variants]
         for t in dict.fromkeys(sheets):
-            self.upscale(compiled_path(t, ".dds"), self.ws.upscale_of(t))
+            self.upscale(sheet_member(g, t) or compiled_path(t, ".dds"), self.ws.upscale_of(t))
         print("  sheet %s%s; variants: %s" % (a.texture, " (+ %s for new faces)" % master.texture if b.two_sheets else "",
                                               ", ".join("%s -> %s" % kv for kv in variants.items()) or "none"))
 
@@ -176,12 +180,13 @@ class Extract(Step):
         """The sheet decoded and upscaled 4x (kept: slow-ish and deterministic); its cut-out alpha
         beside it when it has any (sagekit/alpha.py: Real-ESRGAN sees the colour only)."""
         from .alpha import upscale as upscale_alpha
-        upscale_alpha(self.p.install.read(member), out_png, self.b.style.atlas.upscale)
+        ext = os.path.splitext(member)[1].lower()                      # .dds, or a TGA-only sheet's .tga
+        upscale_alpha(self.p.install.read(member), out_png, self.b.style.atlas.upscale, ext)
         if os.path.exists(out_png):
             return
         if not os.path.exists(REALESRGAN):
             raise StepFailed("Real-ESRGAN not found at %s (see assets/README.md)" % REALESRGAN)
-        dds, png = out_png[:-7] + ".dds", out_png[:-7] + ".png"
+        dds, png = out_png[:-7] + ext, out_png[:-7] + ".png"
         with open(dds, "wb") as fh:
             fh.write(self.p.install.read(member))
         self.tool(["magick", dds + "[0]", "-alpha", "off", png])
@@ -262,6 +267,8 @@ class Derive(Step):
         export = open(self.ws.export_model, "rb").read()
         keep = {self.p.install.model_path(self.b.shipped_name(m)).lower()
                 for m in [self.b.source] + list(self.ws.derived) + self.ws.lifecycle}
+        from .fire import members as fire               # the fire rig (the fire step writes it)
+        keep |= fire(self.b)
         models = self.ws.path("out", "art", "w3d")
         for root, _, files in os.walk(models):          # models an earlier run derived and this one does not
             for f in files:
@@ -355,6 +362,16 @@ class Shared(Step):
         sharedsheets.run(self)
 
 
+class Fire(Step):
+    """The recipe's fire_points: a meshless rig model whose bones carry EA's particle systems
+    (sagekit/fire.py); the Draw modules that show them come with the ini step."""
+    name = "fire"
+
+    def run(self):
+        from . import fire
+        fire.run(self)
+
+
 class Ini(Step):
     name = "ini"
 
@@ -440,9 +457,10 @@ class Render(Step):
                 self.blender("render", log_as="render_%s%s" % (tag, who), w3d=model, prefix=os.path.join(r, who + "_" + tag),
                              views=views, res=res, spp=spp, frame=body, **self.references(model, recoloured=who == "new"))
             self.labelled(r, views, res, tag)
-        from . import lifecycle, nightlights
+        from . import fire, lifecycle, nightlights
         lifecycle.render(self)                  # the construction / damaged / rubble models
         nightlights.render(self)                # night views: EA's night meshes against ours
+        fire.render(self)                       # the fire points marked over the render
 
     def references(self, model, recoloured=False):
         """{texture: file} for the textures of the model's other meshes (props, ground patches,
@@ -497,7 +515,7 @@ class Render(Step):
             print("  " + os.path.relpath(out, paths.REPO))
 
 
-STEPS = [Extract, Geometry, Bake, Paint, Export, Night, Fixup, Derive, Lifecycle, Ship, Shared, Ini, Cache, Checks, Render]
+STEPS = [Extract, Geometry, Bake, Paint, Export, Night, Fixup, Derive, Lifecycle, Ship, Shared, Fire, Ini, Cache, Checks, Render]
 
 
 GAME_RE = re.compile(r"lotrbfme2|game\.dat", re.I)

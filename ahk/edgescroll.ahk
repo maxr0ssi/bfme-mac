@@ -33,7 +33,7 @@ SetWinDelay, -1
 
 ; Super-globals [v1.1.05+]: a bare `global` outside any function makes these visible in every
 ; function below. Declared bare and assigned separately, which is valid in every 1.1 build.
-global margin, poll, enabled, held, hwnd, recaptureOnActivate
+global margin, poll, enabled, held, hwnd, recaptureOnActivate, keepPinned, pinLast, pinTimes
 margin  := 4               ; how close to the edge (in window points) counts as "at the edge"
 poll    := 30              ; ms between cursor samples
 enabled := true            ; edge scrolling on/off, flipped by the hotkey
@@ -47,6 +47,16 @@ hwnd    := 0
 ; true to run Recapture() automatically whenever the window regains focus. Off by default: it is
 ; a guess, and Ctrl+Alt+R does the same thing on demand. See docs/PLAYING.md "Mouse after Cmd-Tab".
 recaptureOnActivate := false
+
+; Picture shifted down, clicks off (2026-09-29): macOS can move the pinned window below the menu bar
+; (0,66 3024x1898 instead of 0,0 3024x1964, five seconds after the pin). Wine follows the move, but
+; the game keeps rendering at its Options.ini resolution, so the picture is squeezed into the shorter
+; window under a black strip, and clicks land up to a menu bar's height off. KeepPinned() puts the
+; window back whenever it drifts, and logs it; scripts/window-watch.sh logs the macOS frame as "mac"
+; lines beside the heartbeats. See docs/PLAYING.md "Picture shifted down".
+keepPinned := true
+pinLast := 0
+pinTimes := []
 
 ; Command line: [on|off] [margin] [input|event|play]. "off" starts with edge scrolling disabled (the
 ; skirmish harness passes it, because a parked cursor at a screen edge would hold arrow keys down
@@ -78,7 +88,7 @@ WinGet, hwnd, ID, The Lord of the Rings
 ; strip WS_CAPTION (0xC00000), WS_THICKFRAME (0x40000), WS_SYSMENU (0x80000); drop WS_EX_DLGMODALFRAME etc.
 WinSet, Style, -0xCC0000, ahk_id %hwnd%
 WinSet, ExStyle, -0x201, ahk_id %hwnd%
-WinMove, ahk_id %hwnd%,, 0, 0, %A_ScreenWidth%, %A_ScreenHeight%
+Pin()
 WinActivate, ahk_id %hwnd%
 OnExit("ReleaseAllOnExit")
 WinGetPos, wx0, wy0, ww0, wh0, ahk_id %hwnd%
@@ -106,6 +116,7 @@ Loop
         if (recaptureOnActivate)
             Recapture()
     }
+    KeepPinned()
     ; Never fight the camera: right-drag rotates/pans, left-drag box-selects.
     if (!enabled or GetKeyState("LButton", "P") or GetKeyState("RButton", "P") or GetKeyState("MButton", "P"))
     {
@@ -179,6 +190,7 @@ ReleaseAllOnExit(ExitReason := "", ExitCode := "") {   ; OnExit passes two args;
 ;   3. nudge the cursor through the driver so it re-syncs its warp state and the game gets a move.
 Recapture() {
     global hwnd
+    Pin()
     DllCall("ClipCursor", "Ptr", 0)
     WinActivate, ahk_id %hwnd%
     DllCall("SetForegroundWindow", "Ptr", hwnd)
@@ -186,6 +198,37 @@ Recapture() {
     DllCall("SetCursorPos", "Int", cx + 1, "Int", cy)
     DllCall("SetCursorPos", "Int", cx, "Int", cy)
     Log("re-capture: cleared clip, forced foreground, nudged cursor")
+}
+
+Pin() {
+    global hwnd
+    WinMove, ahk_id %hwnd%,, 0, 0, %A_ScreenWidth%, %A_ScreenHeight%
+}
+
+; Re-pin when the window is not at 0,0 screen size (and not minimised): at most once a second, and
+; off after 10 in a minute so it never fights macOS in a loop (the log then says so).
+KeepPinned() {
+    global hwnd, keepPinned, pinLast, pinTimes
+    if (!keepPinned or A_TickCount - pinLast < 1000)
+        return
+    WinGetPos, x, y, w, h, ahk_id %hwnd%
+    if (w = "" or (x = 0 and y = 0 and w = A_ScreenWidth and h = A_ScreenHeight))
+        return
+    WinGet, mm, MinMax, ahk_id %hwnd%
+    if (mm = -1)
+        return
+    pinLast := A_TickCount
+    while (pinTimes.Length() and A_TickCount - pinTimes[1] > 60000)
+        pinTimes.RemoveAt(1)
+    pinTimes.Push(A_TickCount)
+    Pin()
+    WinGetPos, nx, ny, nw, nh, ahk_id %hwnd%
+    Log("re-pin: window was " . x . "," . y . " " . w . "x" . h . ", now " . nx . "," . ny . " " . nw . "x" . nh)
+    if (pinTimes.Length() >= 10)
+    {
+        keepPinned := false
+        Log("re-pin: 10 in a minute, macOS keeps moving it; stopped (docs/PLAYING.md)")
+    }
 }
 
 Notify(msg) {

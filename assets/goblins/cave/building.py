@@ -47,6 +47,7 @@ class Cave(Building):
     sheet_normal = "wbcave_nrm.tga"
     own_textures = {"wbcave.tga": "wbcavH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     bake_hidden = ("V1", "V1A", "N_WINDOW", "N_FIRE")   # level 1: the level-up meshes are drawn later
+    lifecycle = {"WBCave_ASKN": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
     views = {
         "rts": ((1.8, -2.9, 23.9), 341, 50, -38, 50),
         "close": ((1.8, -2.9, 23.9), 201, 24, -30, 45),

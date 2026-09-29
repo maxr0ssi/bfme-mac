@@ -222,6 +222,7 @@ step "Wine prefix (prefixes/w10)"
 command -v wine >/dev/null || die "no wine in engines/w10"
 mkdir -p "${WINEPREFIX:h}"   # wine creates the prefix, but not its parent
 wine wineboot -u >/dev/null 2>&1 || true
+wineserver -w   # the registry files are written when the wineserver exits
 [[ -f "$WINEPREFIX/system.reg" ]] || die "wineboot did not create $WINEPREFIX (try: WINE_BUILD=w10 . ./env.sh; wine wineboot -u)"
 wine winecfg -v win10 >/dev/null 2>&1 || true
 wreg() { wine reg add "$@" /f >/dev/null 2>&1; }

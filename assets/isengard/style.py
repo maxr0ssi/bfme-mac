@@ -53,8 +53,12 @@ PALETTES = {
 }
 NOTES = {"A": "Near-black faceted stone, dark iron, ember orange; silver-white edges, trims and the Hand"}
 PALETTE = PALETTES["A"]
-# new faces of these atlas regions painted as a material: (ramp, gain, lift)
-TAGRAMPS = {"trim": ("silver", 0.9, 0.25), "cloth": ("cloth", 0.85, 0.2), "ember": ("fire", 0.6, 0.45),
+# new faces of these atlas regions painted as a material: (ramp, gain, lift). "iron" too: its
+# region samples a bright plate, which the recolour turns silver-white (the pass-6 chimneys read
+# as white ladders); new iron is dark, silver only where EdgeWear catches an edge
+TAGRAMPS = {"iron": ("iron", 0.9, 0.0), "trim": ("silver", 0.9, 0.25), "cloth": ("cloth", 0.85, 0.2),
+            "ember": ("fire", 0.6, 0.55),
+            "flame": ("fire", 0.25, 0.74),
             "mark": ("mark", 0.4, 0.6), "chain": ("iron", 0.8, 0.0), "soot": ("rock", 0.5, 0.0),
             "water": ("water", 0.8, 0.1)}
 

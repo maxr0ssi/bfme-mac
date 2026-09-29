@@ -1,0 +1,6 @@
+This repository is MIT (LICENSE), with two exceptions:
+
+- The Wine patches under patches/ (d3dx9-setrawvalue/, lock-whole-buffer/,
+  wined3d-wow64-buffers/) modify Wine and are licensed LGPL-2.1-or-later, like Wine;
+  see patches/COPYING.LIB.
+- Files taken from other projects keep their own licence (tools/ATTRIBUTION.md).

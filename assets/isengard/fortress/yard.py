@@ -1,17 +1,18 @@
 """The Isengard citadel's story pieces (Blender side), pass 3: up where the RTS camera sees them.
 
-    -Y walk      a log stack and a frame saw (felled Fangorn), the side stack with a fire grate at
-                 its foot, a gantry lifting a crucible off a floor grate, a tool rack, an anvil,
-                 braziers
-    +Y walk      a rack of Uruk shields, a forge (hearth, anvil, crucible), the side stack, a
-                 winch, a brazier; pipework from the stack to the forge and the bellows house
-    front walk   a rack of shields, a floor grate, a brazier beside the gatehouse
+    -Y walk      a log stack (felled Fangorn), a slag cart, the side stack with a fire grate at its
+                 foot and a molten runnel from it to a gantry lifting a crucible off a floor grate,
+                 a pike rack, an anvil with glowing work, ingots, braziers, ember lanterns
+    +Y walk      a rack of Uruk shields, a forge (hearth, anvil with glowing work, bellows,
+                 crucible, ingots), a molten runnel from the side stack to it, a pipe to the
+                 bellows house, a brazier, ember lanterns
+    front walk   a fire grate, braziers, ember lanterns; the White Hand on a shield over the gate
     -Y wall face the dammed Isen: a flume out of the wall onto an overshot water wheel (z 19..37)
                  turning two gear wheels
     front tower  scaffolding up the +X -Y tower's outer face (z 0..60), a half-built siege
                  ladder leaning on it
-    everywhere   a cable between the +Y stack and the great stack, silver collars and caps on
-                 EA's pinnacles, lanterns on brackets off the front towers
+    everywhere   silver collars and caps on EA's pinnacles, lanterns on brackets off the front towers;
+                 flames out of every chimney, brazier, hearth, grate and crucible (shapes_fire.py)
 
 Positions are polar (degrees, radius) about the citadel's centre. Kept clear: the gate opening
 (x > 73, |y| < 11), the burning forges over the -X wall (x -70..-19, |y| < 29), the orcfire
@@ -51,47 +52,64 @@ def arc(deg0, deg1, r, z, steps=4):
 
 
 def stacks(kit):
-    """The furnace stacks on the side walks, spiked collars on them; a cable from the +Y one to the
-    great stack on the foundry."""
+    """The chimneys on the side walks: lozenge stacks tapering to blade crowns."""
     out = []
     for sy in (1, -1):
-        out += kit.chimney((0.0, sy * STACK_R), 4.3, 44.0, 102.0, k=8, bands=2, foot=54.0, collar=78.0)
-    out.append(kit.cable(V((-3.6, 60.5, 95.0)), V((-48.6, 55.0, 104.0)), sag=7.0, r=0.28))
+        out += kit.needle_stack((0.0, sy * STACK_R), 90.0 * sy, 4.6, 3.0, 44.0, 102.0, collar=0.6)
     return out
 
 
 def minus_y(kit):
-    out = kit.log_stack(polar(246.5, 62.0, WALK), tangent(246.5), 8.0, 0.9, rows=3)
-    out += kit.saw_frame(polar(257.0, 61.0, WALK), tangent(257.0), 8.5, 8.0)
-    out += kit.fire_grate(polar(270, STACK_R - 7.4, WALK), tangent(270), -radial(270), w=3.6, h=2.8, d=2.0)
+    out = kit.log_stack(polar(246.5, 62.0, WALK), tangent(246.5), 8.0, 1.0, rows=2)
+    out += kit.slag_cart(polar(257.0, 60.0, WALK), tangent(257.0), 1.1)
+    out += kit.fire_grate(polar(270, STACK_R - 7.6, WALK), tangent(270), -radial(270), w=3.6, h=2.8, d=1.2)
     out += kit.floor_grate(polar(283.5, 60.5, WALK), tangent(283.5), 3.4, 3.4)
     out += kit.gantry(polar(283.5, 60.5, WALK), tangent(283.5), 8.5, 10.5, drop=2.0)
-    out += kit.pipe([V((5.5, -64.5, 57.0)), V((8.5, -64.5, 57.0)), V((8.5, -64.5, 51.5))] + arc(277.5, 281.0, 64.5, 51.5, 2),
-                    0.5)
-    out += kit.tool_rack(polar(293.0, 66.2, WALK), -tangent(293.0), -radial(293.0), 4.0, 3.8)
-    out += kit.anvil(polar(292.0, 60.5, WALK), tangent(292.0), 1.1)
-    out += kit.brazier(polar(251.0, 56.5, WALK), 1.1, 3.0)
+    out += kit.runnel([V((1.5, -60.4, WALK + 0.2))] + arc(275.5, 280.5, 60.5, WALK + 0.2, 2), 0.7)
+    out += kit.pike_rack(polar(293.5, 66.4), -tangent(293.5), -radial(293.5), 0.0, WALK, 4.5, 7.5, d=0.6, pikes=4)
+    anvil = polar(291.0, 59.5, WALK)
+    out += kit.anvil(anvil, tangent(291.0), 1.1) + kit.glowing_work(anvil + V((0, 0, 3.1)), tangent(291.0), 1.1)
+    out += kit.ingots(polar(295.5, 58.0, WALK), tangent(295.5), 3, 0.9)
+    for deg in (251.0, 289.0):
+        out += kit.brazier(polar(deg, 56.2, WALK), 1.5, 3.4)
+    out += kit.post_lantern(polar(262.5, 55.2, WALK), 4.5)
     return out
 
 
 def plus_y(kit):
-    out = kit.shield_rack(polar(67.5, 65.8, WALK), -tangent(67.5), -radial(67.5), 7.0, 3, 4.2)
+    out = kit.shield_rack(polar(67.5, 65.8, WALK), -tangent(67.5), -radial(67.5), 5.6, 2, 4.4)
     c = polar(78.0, 61.0, WALK)
     out += kit.hearth(c, tangent(78.0), -radial(78.0), w=5.0, d=3.4, h=2.6, hood=4.2)
-    out += kit.anvil(c - radial(78.0) * 4.6 + tangent(78.0) * 1.5, tangent(78.0), 1.1)
+    anvil = c - radial(78.0) * 4.6 + tangent(78.0) * 1.5
+    out += kit.anvil(anvil, tangent(78.0), 1.1) + kit.glowing_work(anvil + V((0, 0, 3.1)), tangent(78.0), 1.1)
     out += kit.crucible(c - radial(78.0) * 3.6 - tangent(78.0) * 3.2, 1.3, 2.2)
-    out += kit.pipe([V((5.5, 64.5, 57.0)), V((8.5, 64.5, 57.0)), V((8.5, 64.5, 51.5))] + arc(82.5, 80.0, 64.5, 51.5, 1), 0.5)
-    out += kit.pipe([V((-5.5, 64.5, 57.0)), V((-8.5, 64.5, 57.0)), V((-8.5, 64.5, 51.5))] + arc(97.5, 104.5, 64.5, 51.5, 2),
-                    0.5)
-    out += kit.cable_drum(polar(98.0, 58.0, WALK), tangent(98.0), 1.2, 3.0)
-    out += kit.brazier(polar(85.5, 56.5, WALK), 1.1, 3.0)
+    out += kit.bellows(c + tangent(78.0) * 4.2 + radial(78.0) * 0.5, -tangent(78.0), 1.0)
+    out += kit.ingots(c - radial(78.0) * 5.8 - tangent(78.0) * 1.2, tangent(78.0), 3, 0.9)
+    out += kit.runnel([V((1.5, 60.4, WALK + 0.2))] + arc(84.5, 80.0, 60.5, WALK + 0.2, 1), 0.7)
+    out += kit.pipe([V((-0.3, 63.8, 57.0)), V((-8.5, 63.8, 57.0)), V((-8.5, 63.8, 51.5)), V((-9.5, 60.0, 51.5))], 0.5)
+    out += kit.brazier(polar(86.0, 56.2, WALK), 1.5, 3.4)
+    out += kit.post_lantern(polar(95.5, 55.2, WALK), 4.5)
+    return out
+
+
+def rails(kit):
+    """Blade rails along the walks' inner edges by the forges."""
+    out = []
+    for deg in (73.0, 288.0):
+        out += kit.blade_rail(polar(deg, 55.0, 0.0), tangent(deg), -4.0, 4.0, WALK, 5, 2.6)
     return out
 
 
 def front(kit):
-    out = kit.shield_rack(polar(21.5, 65.0, WALK), -tangent(21.5), -radial(21.5), 5.0, 2, 4.0)
-    out += kit.floor_grate(polar(-20.5, 60.0, WALK), tangent(-20.5), 3.0, 3.0)
-    out += kit.brazier(polar(-24.0, 56.5, WALK), 1.1, 3.0)
+    """The front walks: a fire grate, braziers, lanterns; the White Hand on a shield over the gate."""
+    out = kit.floor_grate(polar(-20.5, 60.0, WALK), tangent(-20.5), 3.0, 3.0)
+    for deg in (-24.0, 19.5):
+        out += kit.brazier(polar(deg, 56.2, WALK), 1.5, 3.4)
+    for deg in (-16.5, 24.5):
+        out += kit.post_lantern(polar(deg, 55.2, WALK), 4.5)
+    out += kit.shield(V((77.0, 0.0, 0)), V((0, 1, 0)), V((1, 0, 0)), 0.0, 43.8, 8.5, d=0.2)
+    for sgn in (-1, 1):                     # chains from the shield's rim to the gatehouse
+        out += kit.chain(V((77.4, sgn * 3.2, 51.5)), V((77.4, sgn * 5.8, 55.0)), link=1.2)
     return out
 
 

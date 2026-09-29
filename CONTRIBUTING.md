@@ -30,7 +30,9 @@ must not change what the game computes:
 4. Record the before/after numbers in `docs/PERFORMANCE.md`.
 
 Wine changes go in `patches/` as `git format-patch` files against Wine 10.0, checked with Wine's
-d3d9 tests and the benches in `tools/` (`--crc` for images, `--hash` for device calls).
+d3d9 tests and the benches in `tools/` (`--crc` for images, `--hash` for device calls). Wine
+patches are LGPL-2.1-or-later, like Wine itself; terms in [NOTICE](NOTICE) and
+`patches/COPYING.LIB`.
 
 ## Art
 

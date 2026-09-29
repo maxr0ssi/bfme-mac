@@ -53,6 +53,12 @@ Recipe settings, Building.lifecycle = {model name or "*": {setting: value}}:
     force       ship the model even when the per-frame checks (depth, spread, open backs) fail it;
                 by default such a model is left to EA and the report says why
     views       frames shown by the renders and checks: fractions of the animation, or "rest"
+    fill        construction only: EA's model is a remodel of its healthy body, not a cut of it (the
+                Goblins' _A models: offset faces, trimmed underground, a narrower footprint), so the
+                finished frame must still be our whole body. Nothing of ours is cut: a face of ours
+                no state face covers whole, or a solid anchored where the state has no surface,
+                rides its nearest state piece whole; and the checks hold what stands where our
+                healthy body stands to that body (the healthy checks' standard), not to EA's remodel
 """
 import json
 import os
@@ -64,7 +70,8 @@ from .formats.w3d import W3DFile
 from .taxonomy import FLAG_STATES, State, states_of, upgrades_of
 
 DEFAULTS = {"skip": False, "match": "auto", "match_offset": (0, 0, 0), "tolerance": 2.0, "surface": 1.5, "body": None, "keep": (),
-            "solid": (15.0, None), "bend": None, "seams": True, "cut": 0.5, "views": None, "force": False}
+            "solid": (15.0, None), "bend": None, "seams": True, "cut": 0.5, "views": None, "force": False,
+            "fill": False}
 LIFECYCLE_FLAGS = {f for f, s in FLAG_STATES.items() if s in (State.CONSTRUCTION, State.REALLY_DAMAGED, State.RUBBLE)} \
     | {"JUST_BUILT"}
 BUILD_RE = re.compile(r"_A(SKN)?$", re.I)

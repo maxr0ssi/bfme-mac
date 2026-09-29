@@ -57,6 +57,7 @@ class LumberMill(Building):
     own_textures = {"MBLumberMill.tga": "MBLumberMilH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     facet_islands = 8                       # the unwrap overlapped (0.16%): seams at EA's islands and 8-degree turns
     bake_hidden = ("V2", "N_WINDOW", "N_FIRE", "FIRE01")
+    lifecycle = {"MBLumMill_A": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
     views = {
         "rts": ((-6.9, 0.4, 20.6), 381, 50, -38, 50),
         "close": ((-6.9, 0.4, 20.6), 225, 24, -30, 45),

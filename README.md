@@ -49,7 +49,7 @@ with Windows players. Built with Claude Code.
 
 ---
 
-MIT, with the Wine patches under the LGPL ([LICENSE](LICENSE)). No game files included. Built on
+MIT ([LICENSE](LICENSE)), with the Wine patches under the LGPL ([NOTICE](NOTICE)). No game files included. Built on
 [Wine](https://www.winehq.org/), the Mac Wine builds of Gcenx and
 [Sikarugir](https://github.com/Sikarugir-App),
 [DrewHoo's earlier work](https://github.com/DrewHoo/battle-for-middle-earth-apple-silicon) and the

@@ -74,6 +74,7 @@ class Build(Cutter):
         self.b, self.ws, self.e, self.s = b, ws, entry, dict(entry["settings"])
         if self.s["bend"] is None:
             self.s["bend"] = entry["kind"] != "construction"
+        self.fill = bool(self.s.get("fill")) and entry["kind"] == "construction"     # sagekit/lifecycle.py
         src = ws.path("src")
         a = entry["animation"]
         self.S = Model(os.path.join(src, entry["model"].lower() + ".w3d"),
@@ -191,7 +192,7 @@ class Build(Cutter):
         loc, idx, d = nearest(self.surf_tree, anchors)
         out = []
         for i in range(len(pts)):
-            if idx[i] < 0 or d[i] > self.s["tolerance"]:
+            if idx[i] < 0 or d[i] > self.s["tolerance"] and not self.fill:     # fill: nothing is cut
                 out.append(CUT)
                 continue
             n, f = self.owner[idx[i]]
@@ -275,12 +276,13 @@ class Build(Cutter):
         out = P.set_hlod_bones(out, bones)
         if W3DFile(out).object_names() != self.S.w3d.object_names():
             raise ValueError("%s: object names changed" % e["model"])
-        from .checks_lifecycle import gate              # held to the checks' standard before it ships
+        from .checks_lifecycle import gate, reference   # held to the checks' standard before it ships
         a, src = e["animation"], self.ws.path("src")
         failed, worst = gate(self.b, e["model"], e["kind"], self.frame, view_frames(e, self.S.frames), self.S.data,
                              out, os.path.join(src, e["skeleton"]) if e["skeleton"] else None,
                              os.path.join(src, a["file"]) if a else None, list(plan),
-                             [n for n, p in plan.items() if p["mode"].startswith("ours")])
+                             [n for n, p in plan.items() if p["mode"].startswith("ours")],
+                             own=reference(self.links) if self.fill else None)
         return dict(solid=solid, out=out, bones=bones, plan=plan, failed=failed, worst=worst, faces=faces, kept=kept)
 
     def assemble(self, pieces, own):

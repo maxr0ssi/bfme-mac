@@ -26,7 +26,7 @@ The burrow becomes the carcass of a great beast the Goblins dug into.
 
 ## Status
 
-Designed, shape preview only (not built, not installed). 588 -> 4,543 triangles, height 43.6 ->
+Installed. 588 -> 4,543 triangles, height 43.6 ->
 51.6 (+18.4 %), footprint unchanged, 9/9 preview checks.
 
 ## Open

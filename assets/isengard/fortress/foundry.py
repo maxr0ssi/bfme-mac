@@ -1,21 +1,24 @@
-"""The Isengard citadel's foundry tower (Blender side), pass 3: EA's back wedge tower (-X, +Y) built
-up in EA's own Gothic language, in black stone with silver edges.
+"""The Isengard citadel's foundry (Blender side), pass 7: two matching blades flank EA's back wedge
+tower (-X, +Y) - the triangle in the middle of the RTS view - mirrored about the tower's axis in
+that view (Max: "whatever you put on either side of that triangle, so have 2").
 
-    undercroft  z 0..24: a solid back half, and on the courtyard side four piers, pointed arches
-                at the ends and tier 1 overhanging the middle (the excavations upgrade's posts,
-                rails and derrick, z 0..23, stand under it; furnace mouths glow in the back wall)
-    tier 1      z 24..50: an octagon, lancet slits with ember light, the piers rising as stepped
-                buttresses to spiked pinnacles, merlons with spikes on its ledge
-    tier 2      z 50..80, set back: lancets, the White Hand in a pointed-arch panel on the
-                courtyard face, merlons and spikes and a pinnacle on every corner of its roof
-    the roof    z 80, open: the orcfire upgrade's cauldron (-37.4, 37.7, z 80.2..93.7, fire to
-                110) stands on it and EA's own tower top (the spire, z 80..91.4) rises out of it
-    on it       the great stack on the back corner, a crane boom rising diagonally over the
-                courtyard with a crucible on its chain, a bellows house on the +Y walk
+EA's tower stays whole and in sight: its arcaded faces, its triangular top and the orcfire
+upgrade's cauldron on it ((-37.4, 37.7), z 80.2..93.7, fire cards to z 110 over x -51.4..-23.3,
+y 23.5..51.8). The blades are lozenges in plan (sharp edges front and back, EA's wedge) with a
+flared, spurred foot, two set-back steps, three layered fins on every face, silver edges, ember
+slits and a needle tip (shapes_spire.py):
 
-Measured (EA's IBFORTRESS): the wedge tower needs an apothem of 17-20 about C up to z 80 on the
-courtyard faces; the excavations' posts stand 11-13 from C on the courtyard side, z 0..20.8; the
-burning forges' body reaches 21.5 from C on the 247.5-degree face at z 32.
+    BL, BR  the pair: axis along the view's horizontal (52 degrees), broad faces to the camera,
+            to z 120, the White Hand in a pointed-arch slot on each one's outer face; BL on the
+            -X wall's foot (-62, 39), clear of the burning forges (|y| < 29), BR its mirror
+            (-44.6, 61.3) on the +Y wall's foot. A mirror of pass 6's single blade would have
+            stood inside the burning forges.
+    B3      a lesser blade clasping the tower's courtyard corner from a corbel at z 24 (over the
+            excavations upgrade's rails and derrick, z 13..23), to z 84: a small Hand in a
+            pointed-arch slot, the crane boom off its front edge
+    the great chimney out of EA's tower's own point, on the tower's axis in the view, to z 108
+
+Nothing above z 80 enters the fire cards' box; no upgrade's vertex lies inside the new solids.
 """
 import math
 
@@ -23,230 +26,159 @@ from mathutils import Vector as V
 
 from sagekit.blender.geometry import Z, loft, prism_uz
 
-C = V((-43.0, 43.0, 0.0))
-NORMALS = [22.5 + 45.0 * i for i in range(8)]       # face i's normal (degrees); vertex i between faces i, i+1
-T1 = [22.5, 22.5, 22.5, 22.5, 22.5, 20.5, 22.5, 22.5]   # tier 1 apothems (the 247.5 face held in: the forges)
-T2 = [20.3] * 8                                      # tier 2 (the wedge tower needs 20 at z 72..80)
-Z0, Z1, Z2, TOP = 0.0, 24.0, 50.0, 80.0
-FRONT = (4, 5, 7, 0)                                 # piers on the courtyard side: 225, 270, 0, 45 degrees; none at
-                                                     # 315, where the excavations' derrick (z 20..23) and rails (z 13) stand
-HAND_FACE, BELLOWS_FACE = 7, 0                       # faces 337.5 and 22.5
-STACK = ((-53.5, 53.5), 6.0, TOP, 118.0)
+from ..shapes_spire import BROAD, scale
+
+# (centre, axis degrees, half-length, half-width, z0, z1, lean at the top, flare)
+VIEW = 52.0                                          # the RTS view's horizontal (camera azimuth -38)
+BL = ((-62.0, 39.0), VIEW, 9.0, 4.5, 0.0, 120.0, (2.0, 0.0), 1.2)
+BR = ((-44.6, 61.3), VIEW, 9.0, 4.5, 0.0, 120.0, (0.0, -2.0), 1.2)     # BL mirrored about the tower's axis
+B3 = ((-17.5, 40.5), 0.0, 8.5, 5.0, 24.0, 84.0, (-1.2, 0.8), 1.12)
+CHIMNEY = ((-60.6, 60.6), 135.0, 4.4, 3.0, 0.0, 108.0)
 
 
-def nrm(i):
-    a = math.radians(NORMALS[i % 8])
-    return V((math.cos(a), math.sin(a), 0))
-
-
-def vertex(aps, i, z):
-    """The corner between faces i and i+1 of the octagon with apothems aps, at height z."""
-    n0, n1 = nrm(i), nrm(i + 1)
-    a0, a1 = aps[i % 8], aps[(i + 1) % 8]
-    det = n0.x * n1.y - n0.y * n1.x
-    x = (a0 * n1.y - a1 * n0.y) / det
-    y = (n0.x * a1 - n1.x * a0) / det
-    return C + V((x, y, z))
-
-
-def ring(aps, z, grow=0.0):
-    return [vertex([a + grow for a in aps], i, z) for i in range(8)]
-
-
-def face(aps, i):
-    """(anchor at the ground under face i's middle, t along it, n out)."""
-    n = nrm(i)
-    return C + n * aps[i], V((-n.y, n.x, 0)), n
-
-
-def tiers(kit):
+def blades(kit):
     out = []
-    back = [vertex(T1, i, 0) for i in (0, 1, 2, 3, 4)]           # 45 .. 225 degrees: the undercroft's solid half
-    out.append(loft([[p + Z * 0.0 - Z * 0.05 for p in back], [p + Z * Z1 for p in back]],
-                    [["stoneA", "stoneA", "stoneA", "stoneA", "stoneB"]], cap0=("stoneA", False), cap1=("stoneA", False)))
-    out.append(loft([ring(T1, Z1), ring(T1, Z2)], ["stoneA"], cap0=("stoneB", True), cap1=("stoneA", True)))
-    out.append(loft([ring(T2, Z2 - 0.5), ring(T2, TOP)], ["stoneA"], cap0=("stoneA", False), cap1=("stoneB", True)))
-    for aps, z in ((T1, Z1 + 0.9), (T1, Z2 - 1.6), (T2, TOP - 1.6)):  # silver string courses, open ends buried
-        out.append(loft([ring(aps, z - 0.5, -0.4), ring(aps, z - 0.1, 0.9), ring(aps, z + 0.5, 0.9), ring(aps, z + 0.8, -0.4)],
-                        ["trim", "trim", "trim"], cap0=("trim", False), cap1=("trim", False)))
+    for c, axis, L, W, z0, z1, lean, flare in (BL, BR):
+        out += kit.blade_tower(c, axis, L, W, z0, z1, lean=lean, flare=flare, fins=3, slits=(0.42, 0.52, 0.62, 0.72),
+                               profile=BROAD, fin_reach=1.3, slit_w=1.1)
+    c, axis, L, W, z0, z1, lean, flare = B3
+    out += kit.blade_tower(c, axis, L, W, z0, z1, lean=lean, flare=flare, fins=3, slits=(0.5, 0.62), slit_w=1.0)
+    foot = kit.lozenge(c, axis, L * flare, W * flare, z0)          # the corbel it springs from
+    out.append(loft([[V((c[0] + L * 0.4, c[1], z0 - 3.2))] * 4, foot], ["stoneA"], cap0=("stoneA", False),
+                    cap1=("stoneA", False)))
+    c, axis, L, W, z0, z1 = CHIMNEY
+    out += kit.needle_stack(c, axis, L, W, z0, z1, collar=0.62)
     return out
 
 
-def arcade(kit):
-    """Pointed arches between the courtyard piers, z 0..24, silver-edged."""
-    out = []
-    for i in (4, 7):                                   # between the piers at 225-270 and 0-45 degrees
-        p0, p1 = vertex(T1, i, 0), vertex(T1, i + 1, 0)
-        t = (p1 - p0).normalized()
-        n = nrm(i + 1)
-        a, b = p0 + t * 2.2, p1 - t * 2.2
-        spring, apex = 15.5, Z1 - 0.6
-        m = (a + b) / 2
-        for s, e in ((a, m), (b, m)):
-            pts = [s + Z * spring, s.lerp(e, 0.45) + Z * (spring + (apex - spring) * 0.8), e + Z * apex]
-            out.append(kit.tube(pts, [0.9, 0.85, 0.8], "stoneA", k=4, cap0="stoneA", cap1="stoneA", phase=math.pi / 4))
-            out.append(kit.tube([p + n * 0.9 + Z * 0.5 for p in pts], [0.3, 0.3, 0.3], "trim", k=4, cap0="trim", cap1="trim"))
-    return out
-
-
-CORBELLED = {5: 15.5}                                # pier 5 hangs from z 15.5: the excavations' rails run under it (z 13)
-
-
-def buttress(kit, i):
-    """A stepped buttress on vertex i from the ground (or corbelled out from CORBELLED[i]): three
-    stages set back, a spiked pinnacle."""
-    v = vertex(T1, i, 0)
-    d = (v - C).normalized()
-    s = V((-d.y, d.x, 0))
-    out = []
-    foot = CORBELLED.get(i)
-    if foot is not None:                                # a corbel: tapering down to a point
-        base = [v - d * 3.0 + s * 2.0, v + d * 3.8 + s * 2.0, v + d * 3.8 - s * 2.0, v - d * 3.0 - s * 2.0]
-        out.append(loft([[v - d * 1.5 + Z * (foot - 2.5)] * 4, [p + Z * foot for p in base]], ["stoneA"],
-                        cap0=("stoneA", False), cap1=("stoneA", False)))
-    for z0, z1, depth, w in ((foot if foot is not None else Z0 - 0.05, Z1, 3.8, 2.0), (Z1, 38.0, 3.0, 1.75),
-                             (38.0, Z2 + 3.0, 2.2, 1.5)):
-        ring0 = [v - d * 3.0 + s * w, v + d * depth + s * w, v + d * depth - s * w, v - d * 3.0 - s * w]
-        top = [p + Z * z1 for p in ring0]
-        top[1], top[2] = top[1] - Z * min(1.6, depth * 0.5), top[2] - Z * min(1.6, depth * 0.5)   # a weathered slope
-        out.append(loft([[p + Z * z0 for p in ring0], top], ["stoneA", "trim", "stoneA", "stoneA"],
-                        cap0=("stoneA", False), cap1=("stoneA", True)))
-    c = v + d * 1.2 + Z * (Z2 + 2.4)
-    out.append(kit.beam(c, c + Z * 5.5, 1.0, "stoneA"))
-    out.append(kit.beam(c + Z * 5.5, c + Z * 12.5, 1.05, "stoneA", 0.0))
-    out.append(kit.beam(c + Z * 5.3, c + Z * 6.1, 1.25, "trim"))
-    return out
-
-
-def pinnacles(kit):
-    """A spiked pinnacle on every corner of tier 2's roof, merlons with spikes between them."""
-    out = []
-    for i in range(8):
-        v = vertex(T2, i, TOP)
-        d = (v - C).normalized()
-        c = v - d * 0.6
-        out.append(kit.beam(c - Z * 0.5, c + Z * 5.0, 1.1, "stoneA"))
-        out.append(kit.beam(c + Z * 5.0, c + Z * 12.0, 1.15, "stoneA", 0.0))
-        out.append(kit.beam(c + Z * 4.8, c + Z * 5.6, 1.35, "trim"))
-        out.append(kit.beam(c + Z * 10.5, c + Z * 13.5, 0.35, "trim", 0.0))
-    for aps, z, h in ((T1, Z2, 3.4), (T2, TOP, 4.2)):
-        for i in range(8):
-            a, t, n = face(aps, i)
-            if aps is T1 and i in (1, 2, 3):
-                continue                                # the back: hidden, and the walls run in there
-            half = (vertex(aps, i - 1, 0) - vertex(aps, i, 0)).length / 2
-            for u in (-half * 0.45, half * 0.45):
-                poly = [(u - 1.3, z - 0.3), (u + 1.3, z - 0.3), (u + 1.3, z + h), (u - 1.3, z + h)]
-                inset = 0.0
-                out.append(prism_uz(a + n * (-inset), t, n, poly, -1.2, 0.3, ["stoneA"] * 4, "trim", "stoneA"))
-                if aps is T1:                           # tier 2's merlons have the pinnacles beside them
-                    p = a + t * u + n * (-inset - 0.45) + Z * (z + h - 0.2)
-                    out.append(kit.beam(p, p + (Z + n * 0.25).normalized() * 3.2, 0.4, "iron", 0.0))
-    return out
-
-
-def shafts(kit):
-    """Silver shafts up tier 2's corners that the camera sees (EA's towers are ribbed)."""
-    out = []
-    for i in (4, 5, 6, 7, 0):
-        v = vertex(T2, i, 0)
-        d = (v - C).normalized()
-        out.append(kit.beam(v + d * 0.25 + Z * Z2, v + d * 0.25 + Z * (TOP - 2.2), 0.42, "trim"))
-    return out
-
-
-def lancet(kit, aps, i, u, z, w, h, depth=0.9):
-    """A lancet: a pointed ember slit in a silver frame standing `depth` proud of face i."""
-    a, t, n = face(aps, i)
-    poly = [(u - w / 2, z), (u + w / 2, z), (u + w / 2, z + h - w * 0.9), (u, z + h), (u - w / 2, z + h - w * 0.9)]
-    out = [prism_uz(a, t, n, poly, -0.8, 0.15, ["ember"] * 5, "ember", None)]
-    fw = 0.5
-    edges = list(zip(poly, poly[1:] + poly[:1]))
-    for (u0, z0), (u1, z1) in edges:
-        p, q = a + t * u0 + Z * z0 + n * (depth * 0.5), a + t * u1 + Z * z1 + n * (depth * 0.5)
-        out.append(kit.beam(p, q, fw * 0.6, "trim"))
-    return out
+def b3_face(z):
+    """(point on B3's face toward the camera at height z, t along it, n out): the face from its
+    front vertex (+X) to its -Y vertex."""
+    c, axis, L, W, z0, z1, lean, flare = B3
+    f = (z - z0) / (z1 - z0)
+    s = scale(f)
+    ctr = V((c[0] + lean[0] * f, c[1] + lean[1] * f, 0))
+    a, b = ctr + V((L * s, 0, 0)), ctr + V((0, -W * s, 0))
+    t = (b - a).normalized()
+    n = V((t.y, -t.x, 0))
+    if n.dot((a + b) / 2 - ctr) < 0:
+        n = -n
+    return (a + b) / 2, t, n
 
 
 def hand(kit):
-    """The White Hand in a pointed-arch panel on tier 2's courtyard face, z 56..74."""
-    a, t, n = face(T2, HAND_FACE)
-    w, z0, h = 9.5, 55.5, 18.0
-    poly = [(-w / 2, z0), (w / 2, z0), (w / 2, z0 + h - w * 0.8), (0, z0 + h), (-w / 2, z0 + h - w * 0.8)]
-    out = [prism_uz(a, t, n, poly, -0.6, 1.1, ["trim"] * 5, "stoneB", None)]
-    for (u0, z1), (u1, z2) in zip(poly, poly[1:] + poly[:1]):
-        out.append(kit.beam(a + t * u0 + Z * z1 + n * 1.2, a + t * u1 + Z * z2 + n * 1.2, 0.35, "trim"))
-    out += kit.hand(a, t, n, 0.0, z0 + 2.6, 7.6, 1.1, th=0.35, back="mark")
+    """The White Hand in a pointed-arch slot on B3's face to the camera, z 36..54."""
+    m, t, n = b3_face(45.0)
+    w, z0, h = 5.6, 36.0, 18.0
+    head = (w / 2) / math.tan(math.radians(35.0) / 2) * 0.5
+    poly = [(-w / 2, z0), (w / 2, z0), (w / 2, z0 + h - head), (0, z0 + h), (-w / 2, z0 + h - head)]
+    out = [prism_uz(m, t, n, poly, -1.2, 0.9, ["trim"] * 5, "stoneB", None)]
+    for (u0, za), (u1, zb) in zip(poly, poly[1:] + poly[:1]):
+        out.append(kit.beam(m + t * u0 + Z * za + n * 1.0, m + t * u1 + Z * zb + n * 1.0, 0.3, "trim"))
+    out += kit.hand(m, t, n, 0.0, z0 + 2.4, 5.4, 0.9, th=0.3, back="mark")
     return out
 
 
-def windows(kit):
+def blade_face(blade, z, side):
+    """(point on a blade's face to the camera at height z, t, n): side +1 the face from its front
+    vertex to its +axis end, -1 to its -axis end."""
+    c, axis, L, W, z0, z1, lean, flare = blade
+    f = (z - z0) / (z1 - z0)
+    s = scale(f, BROAD)
+    a = math.radians(axis)
+    d, p = V((math.cos(a), math.sin(a), 0)), V((-math.sin(a), math.cos(a), 0))
+    ctr = V((c[0] + lean[0] * f, c[1] + lean[1] * f, 0))
+    front, end = ctr - p * W * s, ctr + d * (side * L * s)
+    t = (end - front).normalized()
+    n = V((t.y, -t.x, 0))
+    if n.dot((front + end) / 2 - ctr) < 0:
+        n = -n
+    return (front + end) / 2, t, n
+
+
+def big_hands(kit):
+    """The White Hand in a pointed-arch slot on each blade's outer face, z 70..94, above the
+    walls where the RTS camera sees it."""
     out = []
-    for i in (5, 6, 0):                                  # tier 1: the faces the camera sees
-        out += lancet(kit, T1, i, -2.4, 30.0, 1.7, 12.0) + lancet(kit, T1, i, 2.4, 30.0, 1.7, 12.0)
-    for i in (5, 6, 0):                                  # tier 2 (the Hand has face 7)
-        out += lancet(kit, T2, i, 0.0, 58.0, 2.2, 15.0)
+    for blade, side in ((BL, -1), (BR, 1)):
+        m, t, n = blade_face(blade, 82.0, side)
+        w, z0, h = 6.2, 70.0, 24.0
+        head = (w / 2) / math.tan(math.radians(35.0) / 2) * 0.5
+        poly = [(-w / 2, z0), (w / 2, z0), (w / 2, z0 + h - head), (0, z0 + h), (-w / 2, z0 + h - head)]
+        out.append(prism_uz(m, t, n, poly, -0.9, 1.6, ["trim"] * 5, "stoneB", None))   # not through the thin blade
+        for (u0, za), (u1, zb) in zip(poly, poly[1:] + poly[:1]):
+            out.append(kit.beam(m + t * u0 + Z * za + n * 1.7, m + t * u1 + Z * zb + n * 1.7, 0.35, "trim"))
+        out += kit.hand(m, t, n, 0.0, z0 + 3.0, 6.0, 1.6, th=0.4, back="mark")
     return out
 
 
-def undercroft(kit):
-    """Two furnace mouths in the undercroft's back wall, glowing through the arches."""
-    out = []
-    p0, p1 = vertex(T1, 4, 0), vertex(T1, 0, 0)          # the back wall: the chord from 225 to 45 degrees
-    t = (p1 - p0).normalized()
-    n = V((t.y, -t.x, 0))                                # toward the courtyard (315 degrees)
-    for f in (0.3, 0.7):
-        out += kit.fire_grate(p0.lerp(p1, f) + n * 1.2 + Z * 0.3, t, n, w=6.0, h=7.0, d=2.6)
+def molten_fall(kit):
+    """A furnace hearth on the +Y walk, a runnel to the walk's inner edge and molten metal pouring
+    down the wall's inner face into a glowing pool (clear of the excavations)."""
+    hearth = V((-24.5, 57.2, 48.5))
+    out = kit.hearth(hearth, V((1, 0, 0)), V((0.34, -0.94, 0)), w=4.4, d=3.2, h=2.4, hood=3.8)
+    lip = V((-19.0, 53.6, 48.9))
+    out += kit.runnel([hearth + V((1.6, -1.8, 0.4)), lip], 0.7)
+    out.append(kit.tube([lip + Z * 0.3, V((-18.8, 52.6, 30.0)), V((-18.6, 52.0, 1.0))], [0.55, 0.7, 0.9], "ember", k=4,
+                        cap0="ember", cap1="ember"))
+    out += kit.floor_grate(V((-18.4, 51.2, 0.7)), V((1, 0, 0)), 3.2, 2.6)
     return out
 
 
 def crane(kit):
-    """A crane boom from the roof's +X corner rising diagonally over the courtyard (the silhouette
-    against the sky), a backstay to an A-frame on the roof, a crucible on its hoist chain."""
-    root = vertex(T2, 7, TOP + 1.0) - V((1.0, 0, 0))     # the corner at 0 degrees
-    tip = root + V((17.0, 0, 18.0))
+    """A crane boom off B3's front edge at z 68 rising over the courtyard (the diagonal against
+    the sky), a pointed head, a crucible on its chain (clear of the excavations, z 68)."""
+    c, axis, L, W, z0, z1, lean, flare = B3
+    f = (68.0 - z0) / (z1 - z0)
+    s = scale(f)
+    root = V((c[0] + lean[0] * f + L * s - 0.4, c[1] + lean[1] * f, 68.0))
+    tip = root + V((16.0, 0.0, 17.0))
     t = V((0, 1, 0))
     out = []
-    for s in (-1, 1):
-        out.append(kit.beam(root + t * (s * 0.9), tip + t * (s * 0.3), 0.62, "iron"))
-    for f in (0.25, 0.5, 0.75):
-        out.append(kit.beam(root.lerp(tip, f) - t * 0.8, root.lerp(tip, f) + t * 0.8, 0.22, "trim"))
-    mast = root - V((6.0, 0, 0))
-    for s in (-1, 1):
-        out.append(kit.beam(mast + t * (s * 2.2), mast + V((0.8, 0, 9.0)), 0.35, "iron"))
-    out += kit.chain(mast + V((0.8, 0, 9.0)), tip, link=2.2)
-    out.append(kit.tube([tip - t * 0.7, tip + t * 0.7], [1.0, 1.0], "iron", k=8, cap0="trim", cap1="trim"))
-    out += kit.chain(tip - Z * 1.0, tip - Z * 7.0)
-    for s in (-1, 1):
-        out += kit.chain(tip - Z * 7.0, tip - Z * 9.0 + t * (s * 1.9), link=1.2)
-    out += kit.crucible(tip - Z * 12.4, 2.1, 3.2)
+    for sgn in (-1, 1):
+        out.append(kit.beam(root + t * (sgn * 0.8), tip + t * (sgn * 0.3), 0.55, "iron"))
+    for q in (0.3, 0.6, 0.85):
+        out.append(kit.beam(root.lerp(tip, q) - t * 0.7, root.lerp(tip, q) + t * 0.7, 0.2, "trim"))
+    out.append(kit.beam(tip, tip + V((1.6, 0, 2.6)), 0.8, "trim", 0.0))
+    stay = V((c[0] + lean[0] * 0.9, c[1] + lean[1] * 0.9, z1 - 7.0))
+    out += kit.chain(stay, tip, link=2.4)
+    out += kit.chain(tip - Z * 1.0, tip - Z * 6.0)
+    for sgn in (-1, 1):
+        out += kit.chain(tip - Z * 6.0, tip - Z * 8.0 + t * (sgn * 1.8), link=1.2)
+    out += kit.crucible(tip - Z * 11.2, 2.0, 3.0)
+    return out
+
+
+def slots(kit):
+    """Glowing pits in the gaps between the blades' feet."""
+    out = []
+    for x, y, ang in ((-68.5, 46.5, 142.0), (-47.0, 68.0, 128.0)):
+        out += kit.floor_grate(V((x, y, 0.7)), V((math.cos(math.radians(ang + 90)), math.sin(math.radians(ang + 90)), 0)),
+                               3.2, 2.4)
     return out
 
 
 def bellows_house(kit):
-    """A timber-and-iron house on the +Y walk against tier 1, a great bellows on its roof, a fire
-    grate in its end; its pipe runs along the walk to the side stack (yard.py)."""
-    a, t, n = face(T1, BELLOWS_FACE)
-    base = a + Z * 48.5
-    P = lambda u, d, z: base + t * u + n * d + Z * z          # noqa: E731
-    w, dp, h, u0 = 8.0, 8.0, 7.5, 2.5
-    rings = [[P(u0 - w / 2, -1.0, z), P(u0 + w / 2, -1.0, z), P(u0 + w / 2, dp, z), P(u0 - w / 2, dp, z)] for z in (-0.5, h)]
-    out = [loft(rings, ["stoneA"] * 4, cap0=("stoneA", False), cap1=("iron", True))]
-    for u in (u0 - w / 2, u0 + w / 2):
-        for d in (-1.0, dp):
-            out.append(kit.beam(P(u, d, -0.5), P(u, d, h + 0.2), 0.4, "trim"))
-    out += kit.fire_grate(P(u0, dp + 0.2, 0.2), t, n, w=3.2, h=2.6, d=1.4)
-    out += kit.bellows(P(u0, dp * 0.45, h), -n, 2.1)
+    """A house on the +Y walk, a steep gabled roof, a great bellows on its ridge, a fire grate in
+    its end; its pipe runs to the side stack (yard.py)."""
+    base = V((-17.5, 57.5, 48.5))
+    x = V((1, 0, 0))
+    y = V((0, 1, 0))
+    w, dp, h = 6.5, 7.0, 6.0
+    P = lambda u, d, z: base + y * u + x * d + Z * z          # noqa: E731
+    rings = [[P(-w / 2, -1.0, z), P(w / 2, -1.0, z), P(w / 2, dp, z), P(-w / 2, dp, z)] for z in (-0.5, h)]
+    out = [loft(rings, ["stoneA"] * 4, cap0=("stoneA", False), cap1=("stoneA", False))]
+    ridge = h + (w / 2) / math.tan(math.radians(35.0) / 2) * 0.6
+    out.append(loft([[P(-w / 2 - 0.4, -1.4, h), P(w / 2 + 0.4, -1.4, h), P(0, -1.4, ridge)],
+                     [P(-w / 2 - 0.4, dp + 0.4, h), P(w / 2 + 0.4, dp + 0.4, h), P(0, dp + 0.4, ridge)]],
+                    [["iron", "iron", "iron"]], cap0=("stoneA", True), cap1=("stoneA", True)))
+    out.append(kit.beam(P(0, -1.4, ridge + 0.2), P(0, dp + 0.4, ridge + 0.2), 0.3, "trim"))
+    for d in (-1.4, dp + 0.4):
+        out.append(kit.beam(P(0, d, ridge), P(0, d, ridge + 3.0), 0.3, "trim", 0.0))
+    out += kit.fire_grate(P(0, dp + 0.2, 0.2), y, x, w=3.0, h=2.6, d=1.4)
+    out += kit.bellows(P(0, dp * 0.5, ridge - 1.2), -x, 1.5)
     return out
 
 
-def stack(kit):
-    (x, y), r, z0, z1 = STACK
-    return kit.chimney((x, y), r, z0 - 2.0, z1, k=8, bands=3, foot=z0 + 12.0, collar=z0 + 26.0)
-
-
 def build(kit):
-    out = tiers(kit) + arcade(kit) + pinnacles(kit) + shafts(kit) + windows(kit) + hand(kit) + undercroft(kit)
-    for i in FRONT:
-        out += buttress(kit, i)
-    return out + crane(kit) + bellows_house(kit) + stack(kit)
+    return blades(kit) + hand(kit) + big_hands(kit) + molten_fall(kit) + crane(kit) + slots(kit) + bellows_house(kit)

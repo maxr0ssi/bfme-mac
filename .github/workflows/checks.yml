@@ -1,0 +1,32 @@
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install zsh
+        run: sudo apt-get update && sudo apt-get install -y zsh
+
+      - name: Repo-wide invariants
+        run: python3 harness/harness.py tree
+
+      - name: Diff against the previous commit
+        run: |
+          base="${{ github.event.before }}"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$base" 2>/dev/null; then
+            base="HEAD~1"
+          fi
+          if ! git cat-file -e "$base" 2>/dev/null; then
+            echo "no previous commit to diff against; skipping"
+            exit 0
+          fi
+          python3 harness/harness.py diff "$base"

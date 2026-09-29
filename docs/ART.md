@@ -14,7 +14,7 @@ What comes next: [FACTIONS-PLAN.md](FACTIONS-PLAN.md).
 | Elves | 23 | Installed. Not yet checked in game. [`assets/elves/ROLLOUT.md`](../assets/elves/ROLLOUT.md). |
 | Men of the West (and Arnor) | 44 | Installed: citadel, upgrades, expansions, walls, production with level-ups, towers and specials. Not yet checked in game. [`assets/men/ROLLOUT.md`](../assets/men/ROLLOUT.md). |
 | Goblins | 14 | Installed: palette E "Blood, iron and bone", every building. Not yet checked in game. [`assets/goblins/ROLLOUT.md`](../assets/goblins/ROLLOUT.md). |
-| Isengard | 25 | Measured stubs; palette A with silver (Max's pick); the citadel's third shape pass (a Gothic foundry tower, war-works on the walks). [`assets/isengard/ROLLOUT.md`](../assets/isengard/ROLLOUT.md). |
+| Isengard | 25 | Measured stubs; palette A with silver (Max's pick); the citadel built in colour (three lozenge blades round EA's tower, fire and embers, war-works on the walks); nothing installed. [`assets/isengard/ROLLOUT.md`](../assets/isengard/ROLLOUT.md). |
 | Mordor, Angmar | 0 | Surveyed; plan in [FACTIONS-PLAN.md](FACTIONS-PLAN.md). |
 
 Budget: 512 MB of own textures per faction (`budget_mb` in `sagekit/style.py`; `sagekit budget`).
@@ -30,7 +30,7 @@ steps are plain Python; Blender steps run through `sagekit/blender/run.py`, at m
 ```mermaid
 flowchart LR
   extract --> geometry --> bake --> paint --> export --> night --> fixup
-  fixup --> derive --> lifecycle --> ship --> shared --> ini --> cache --> checks --> render
+  fixup --> derive --> lifecycle --> ship --> shared --> fire --> ini --> cache --> checks --> render
 ```
 
 | Step | Where | What it does |
@@ -46,7 +46,8 @@ flowchart LR
 | lifecycle | Blender | the rest (construction, really damaged, rubble) rebuilt along EA's pieces, bones and animations |
 | ship | host | exactly what goes into the game, at archive paths, in `out/` |
 | shared | host | faction copies of other factions' sheets renamed, recoloured and shipped |
-| ini | host | texture swaps, repointed Draws, LOD off, house draws, hidden banners |
+| fire | host | the recipe's `fire_points` as bones of a meshless rig model, `<model>_FX.w3d` |
+| ini | host | texture swaps, repointed Draws, LOD off, house draws, hidden banners, fire Draws |
 | cache | host | asset.dat records for every new or changed model and texture |
 | checks | Blender | the check suite against EA's original: format, bones, footprint, height, UVs, sky-facing backs, alpha, night, lifecycle |
 | render | Blender | `renders/compare_*.png` (EA against ours), `night/`, `lifecycle/` |
@@ -63,10 +64,58 @@ building's cloth; `sagekit install` / `revert` put everything in the game and ta
 | One palette | nothing | ramps, materials, paint stack | `style.py`, `paint/` |
 | Player colour | `house_tags` (which atlas tags are cloth) | `house_template` | `house.py`, `housemesh.py`, `blender/house.py` |
 | Night lights | `night_lights(kit)` | `night = NightLook(...)` | `nightlights.py`, `blender/nightlights.py`, `paint/night.py`, `formats/w3dlight.py` |
+| Fire | `fire_points = [(x, y, z, kind)]` | nothing | `fire.py`, `fire_checks.py` |
 | Lifecycle | `lifecycle = {model: settings}` (rarely) | nothing | `lifecycle.py`, `blender/lifecycle*.py`, `formats/w3dpose.py`, `w3dmesh.py` |
 | Own copies | `own_model`, `own_textures` | `shared_sheets` | `owncopy.py`, `sharedsheets.py`, `ownership.py` |
 | Names | nothing | nothing | `names.py` (`assets/<faction>/NAMES.md`), `validate` |
 | Cut-out alpha | nothing | nothing | `alpha.py`, `blender/alpha.py` |
+
+## Fire: the game's own particles
+
+Painted flames read as plastic; the game's particle systems flicker, glow additively and read at
+night. What EA's files and RotWK's `game.dat` show:
+
+- `ParticleSysBone = <bone> <system> [FollowBone:Yes]` (the `=` is optional) in a
+  ModelConditionState starts `<system>` at `<bone>` of that state's own model. There is no offset:
+  the bone must be a pivot of the Draw's model. A bone the model lacks, `NONE`, or a state whose
+  Model is None puts the system at the object's origin (EA's rubble smoke uses `NONE` on purpose).
+  Pivot names hold 15 characters: EA's hearth names `dwarfHearth_SPARKS`, its model has
+  `DWARFHEARTH_SPA`, so those sparks start at the origin.
+- Every ModelConditionState starts as a copy of the Draw's DefaultModelConditionState, particle
+  lines included (`game.dat` 0x4c8133; EA's comment in `neutralunits.ini`: "Not
+  DefaultConditionState, because that keyword copies anything in here to every other state").
+  EA's working forges put their fire in the default and keep the bones in every state's model
+  (the Men forge's rubble still has `CHIMNEY`, `EMBERBONE`); the Isengard siege works' construction
+  and damaged models carry `BN_FIRE05/06`, its really damaged and rubble ones do not.
+- Damage fire is per state on bones of the state's model (`FIRESMALL01..05` in `_D1`/`_D2`,
+  `SMOKELARGE01` in `_D3`); effects that must not spread use a Draw of their own with no default
+  and `ModelConditionState = NONE` first (the Dwarven hearth's and statue's `TheHealEffect`).
+
+So sagekit's fire never touches EA's Draws, models or animations (their hierarchy stays byte for
+byte, animations keep their pivot indices). A recipe's `fire_points` become one rig per building,
+`<model>_FX.w3d`: a model without meshes in EA's OBBFoundationX form (hierarchy with a root and
+`FIRE01`.., one collision-free box, HLOD), filed in asset.dat as a copy of OBBFoundationX's
+record. Each Draw the recipe covers gets a Draw of ours after it: EA's states mirrored in EA's
+order, NONE first, so the engine picks the matching state in both; the rig and its lines where
+the state shows our intact body (healthy, damaged, snow, stonework), Model None elsewhere (really
+damaged, rubble, building site, placement ghost, where EA's own damage fire takes over). Kinds and
+EA's systems (all in `fxparticlesystem.ini`, each on one of EA's own buildings or props):
+
+| Kind | Systems | EA's use |
+|---|---|---|
+| chimney | SiegeWorkFire, SmokeChimney | Isengard siege works, Isengard tavern |
+| furnace | furnaceFire, furnaceSparks | civilian furnace, Isengard camp |
+| forge | ForgeCoal, ForgeEmbers | Men forge |
+| hearth | furnaceFire, CampfireEmbersSmall | furnace, campfire props |
+| crucible | ForgeCoal, furnaceSparks | forge, furnace |
+| brazier | FireTorch, TorchSmokeBlack | Isengard tavern torches |
+| grate | ForgeCoal, CampfireEmbersSmall | forge, campfire props |
+| embers | CampfireEmbersSmall | campfire props |
+
+The checks hold the rig's bones to the points, its record to the file, each fire Draw to EA's
+states (fire only where our body stands) and the rest of the INI to the other edits, and every
+system to the game's INIs; `renders/fire/compare_<view>.png` marks the points over the render
+(Blender cannot draw the particles). A `base` recipe shown per upgrade level declares none.
 
 ## Where the code is
 
@@ -106,6 +155,11 @@ build/assets/<faction>/<building>/
 - Blender's W3D exporter drops materials, collision trees, versions and pivots; fixup restores them.
 - W3D texture v runs up from the image's bottom row; the game's normal maps have red inverted
   against Blender's; 82 of EA's normal maps are 32-bit.
+- A few of EA's sheets exist only as TGA, not DDS (among building sheets, the Isengard tavern's
+  `ibwildbuilding` family): the extract step reads a sheet's DDS, else its TGA
+  (`formats/textures.py` `sheet_member`), keeps a DDS copy in `src/` (`tga_to_dds`), and a
+  state swap to a TGA-only sheet (the tavern's snow) is a variant like any other. Sheets with a
+  DDS read exactly as before (checked 2026-09-29: every other recipe's members and variants unchanged).
 - EA's folders mix factions (`art\compiledtextures\eb` holds Elven and Erebor sheets); the
   ownership map decides, not the folder.
 - House-colour meshes are found by their texture, not only an `HC_` name.
@@ -126,10 +180,18 @@ build/assets/<faction>/<building>/
   it, and a house model of our own is drawn in its variation only.
 - A model without meshes (`OBBFoundationX`, the foundations' stand-in) is nobody's art: it never
   needs an own copy and is never rebuilt.
+- Some construction models are a remodel of EA's healthy body, not a cut of it (the Goblin cave,
+  trove, lumber mill and giant sentry: faces offset, the underground part trimmed, a narrower
+  footprint). Cut along them, our body lost faces and was judged against EA's remodel, so the step
+  left EA's model in place (the Goblins showed EA's art while building, 2026-09-29). A recipe's
+  `lifecycle = {"<model>": {"fill": True}}` rides every face of ours on its nearest piece and holds
+  what stands where our healthy body stands to that body.
 
 ## Known limits
 
 - Night lights exist only where EA's model has night meshes; lanterns elsewhere stay dark.
+- Fire is checked in files and marker renders only; how it reads (size, smoke, cost of many
+  systems on one building) is checked in game.
 - A few Elven lifecycle states stay EA's where our design fails the sky check (listed in each
   recipe's `work/lifecycle.json` and README).
 - The lifecycle choice uses open backs as its only quality signal; thin shards need a human look.

@@ -53,7 +53,9 @@ on-ramp for people. The rules apply to human contributors as well.
 `harness/` checks every edit (a Claude Code hook) and every commit and push (git hooks): the
 copyright gate, script syntax and Wine hygiene, no touched code file over 600 lines, a commit budget (warn at
 400 changed lines, block at 600), and a one-line entry in `docs/REFERENCE.md` for every script.
-When it blocks, fix the cause; its message says how. Details: `harness/README.md`.
+When it blocks, fix the cause; its message says how. Details: `harness/README.md`. CI
+(`.github/workflows/checks.yml`) runs `harness.py tree` and `diff` against the previous commit on
+every push and pull request, no game or Wine build needed.
 
 ## Checks
 

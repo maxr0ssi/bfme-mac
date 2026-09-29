@@ -5,7 +5,7 @@
 # Contents: the patched Wine DLLs exactly as installed in engines/w10 (scripts/wine-fixes.sh builds and
 # installs them; this script refuses if the build tree and the engine disagree), the game patch
 # (dinput8.dll; gamepatch.ini with the diagnostic counters off; t_misc.exe, which checks a user's
-# exe against every patch site before install), LICENSE, patches/COPYING.LIB, a SOURCES.md naming the Wine source and patch series (LGPL:
+# exe against every patch site before install), LICENSE, NOTICE, patches/COPYING.LIB, a SOURCES.md naming the Wine source and patch series (LGPL:
 # the corresponding source is this repo at the recorded commit), and SHA256SUMS.
 #   scripts/make-release.sh [--buildings [dwarves,elves,men,goblins]]
 # --buildings also packs the finished buildings (every faction above by default, with its builder
@@ -60,7 +60,7 @@ for f in $FILES; do cp "${${f#*|}%%|*}" "$STAGE/${f%%|*}"; done
 cp build/gamepatch/dinput8.dll build/gamepatch/t_misc.exe gamepatch/gamepatch.ini "$STAGE/gamepatch/"
 # diagnostics ship off (scripts/measure-session.sh on turns them on); every patch keeps the repo default
 sed -i '' -E 's/^(passtimers|shadowstats|renderstats|particlestats)=1$/\1=0/' "$STAGE/gamepatch/gamepatch.ini"
-cp LICENSE patches/COPYING.LIB "$STAGE/"
+cp LICENSE NOTICE patches/COPYING.LIB "$STAGE/"
 {
   echo "# bfme-mac-fixes $version"
   echo
@@ -98,5 +98,5 @@ tar -C "$OUT" -czf "$OUT/$name.tar.gz" "$name"
 echo "build/release/$name.tar.gz ($(du -h "$OUT/$name.tar.gz" | cut -f1))"
 echo "sha256 $(shasum -a 256 "$OUT/$name.tar.gz" | cut -d' ' -f1)"
 echo "publish (install.sh downloads the latest release): gh release create v$version \\
-  build/release/$name.tar.gz ${packs[*]/#/build/release/} build/release/SHA256SUMS-$version \\
+  build/release/$name.tar.gz ${packs[@]/#/build/release/} build/release/SHA256SUMS-$version \\
   --title \"Fixes $version\" --notes-file $STAGE/SOURCES.md"

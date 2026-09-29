@@ -1,14 +1,17 @@
-"""Isengard warg pit 02 (IsengardWargPit): stub from `sagekit new isengard`.
+"""The Isengard warg pit's door (IsengardWargPit's ModuleTag_02): not a building but the gate of
+the warg pit's run, a Draw module of its own. It stays EA's on purpose: design() adds nothing and
+this recipe is not to be built.
 
-EA's IBWARGPIT_DRC (objects IsengardWargPit; role stable): body IBWARGPIT_DRC, 158 triangles,
-painted from IBWargPit.tga, no normal map (DXT5, cut-out alpha: our texture is DXT5).
-In IBWARGPIT_DRC mesh coordinates: x 31.26..35.81, y -45.66..-28.37, z -0.42..27.33.
-Lifecycle models in its Draw module: IBWARGPIT_DRCA, IBWARGPIT_DRO, IBWARGPIT_DROA,
-IBWargpit_DRA.
-House colour: IBHCWargPit.
-EA's body measured: `python3 -m sagekit measure isengard/warg_pit_02` -> work/measure.json.
+EA's IBWARGPIT_DRC (158 triangles, painted from IBWargPit.tga, no normal map, cut-out alpha): the
+shut leaf of lashed stakes, x 31.3..35.8, y -45.7..-28.4, z -0.4..27.3. Its Draw swaps it for
+four more models: IBWARGPIT_DROA and IBWARGPIT_DRCA (the swing open and shut, animated),
+IBWARGPIT_DRO (open: swung out to x 32.7..37.2, y -30.4..-13.1) and IBWargpit_DRA (building).
+A redesign would have to ride all five, two of them animated; the leaf is small and palette A
+reaches it anyway through `sagekit sheets` (IBWargPit.tga is Isengard's own sheet). The warg
+pit's recipe frames it instead: a pair of blade pylons past both ends of the leaf, shut and swung
+open, a chain slung between them over it and the White Hand on a shield (warg_pit/building.py).
 
-Nearest Dwarven recipe: assets/dwarves/barracks (the same role; start from its shapes).
+The stub stays as the record of that decision (2026-09-29).
 """
 from sagekit.building import Building
 

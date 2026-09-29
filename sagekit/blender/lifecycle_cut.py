@@ -216,7 +216,9 @@ class Cutter:
         """Our faces on EA's healthy surface, cut to EA's state pieces there: each of EA's state
         surface faces near one of ours, projected into its plane and clipped to it, becomes a part
         of our face on that face's piece and bone (a skin's: its vertex nearest the part). What no
-        state face covers, EA broke away."""
+        state face covers, EA broke away; but with `fill` (EA's construction model a remodel of
+        its healthy body) a face the state leaves partly uncovered goes whole, as it stands, to the
+        piece holding most of it (none: the nearest), so the finished frame is our whole body."""
         Vo, To = self.ours["V"], self.ours["T"]
         tol = self.s["surface"]
         out = []
@@ -233,6 +235,7 @@ class Cutter:
             tri = [flat(A), flat(B), flat(C)]
             cen = (A + B + C) / 3
             reach = max(np.linalg.norm(A - cen), np.linalg.norm(B - cen), np.linalg.norm(C - cen)) + tol
+            mine, share = [], {}
             for _, _, k, _ in self.surf_tree.find_nearest_range(Vector(cen), reach):
                 piece, g = self.owner[k]
                 inf = self.info[piece]
@@ -250,8 +253,14 @@ class Cutter:
                 mid = A + e1 * np.mean([q[0] for q in poly]) + e2 * np.mean([q[1] for q in poly])
                 vb = inf["T"][g][int(np.argmin(np.linalg.norm(G - mid, axis=1)))]
                 cls = (piece, inf["bones"][vb] if inf["skinned"] else inf["bone"])
-                out += [(f, np.array([bc[0], bc[i], bc[i + 1]]), cls, np.array([on_g[0], on_g[i], on_g[i + 1]]))
-                        for i in range(1, len(bc) - 1)]
+                share[cls] = share.get(cls, 0.0) + polygon_area(poly)
+                mine += [(f, np.array([bc[0], bc[i], bc[i + 1]]), cls, np.array([on_g[0], on_g[i], on_g[i + 1]]))
+                         for i in range(1, len(bc) - 1)]
+            if getattr(self, "fill", False) and sum(share.values()) < 0.995 * abs(polygon_area(tri)):
+                cls = max(share, key=share.get) if share else self.classify([cen])[0]
+                mine = [(f, np.eye(3), cls, np.array([A, B, C]))]
+                self.stats["filled"] = self.stats.get("filled", 0) + 1
+            out += mine
         for n, inf in self.info.items():            # EA's faces near its healthy surface that none of
             lone = inf["surf"] & (covered[n] < 0.5 * inf["area"])     # ours covers are break faces
             inf["surf"] &= ~lone                    # after all (a floor, a ledge): they stay EA's

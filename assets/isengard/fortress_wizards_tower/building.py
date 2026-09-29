@@ -1,4 +1,6 @@
-"""Isengard fortress wizards tower (IsengardFortressCitadel): stub from `sagekit new isengard`.
+"""Isengard fortress wizards tower (IsengardFortressCitadel): Orthanc. EA's octagonal tower kept whole,
+four many-sided piers on its diagonals opening into horns at the summit, ember windows, a door
+with the White Hand, Saruman's balcony (orthanc.py).
 
 EA's IBFWTower (objects IsengardFortressCitadel; role fortress_upgrade): body IBFWTOWER, 1572
 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our texture is
@@ -24,11 +26,14 @@ class FortressWizardsTower(Building):
     sheet_normal = "IBFortress_NRM.tga"
     own_textures = {"IBFortress.tga": "IBFortresN.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     parts = ("ModuleTag_DrawWizardsTower",)
+    footprint_margin = 1.0              # the doorway's frame on the battered +X face (collision is the INI's)
     views = {
-        "rts": ((-0.0, 0.0, 87.8), 410, 50, -38, 50),
-        "close": ((-0.0, 0.0, 87.8), 242, 24, -30, 45),
-        "ingame": ((-0.0, 0.0, 87.8), 931, 53, -62, 50),
+        "rts": ((0.0, 0.0, 100.0), 460, 50, -38, 50),
+        "close": ((0.0, 0.0, 150.0), 170, 24, -30, 45),
+        "foot": ((0.0, 0.0, 45.0), 190, 20, -30, 45),
+        "ingame": ((0.0, 0.0, 100.0), 931, 53, -62, 50),
     }
 
     def design(self, kit):
-        return []
+        from . import orthanc
+        return orthanc.build(kit)

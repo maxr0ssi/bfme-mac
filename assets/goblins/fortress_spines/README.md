@@ -24,7 +24,7 @@ flat spikes fanning out on the ground, the 38 leaning uprights.
 
 ## Status
 
-Designed, shape preview only (not built, not installed). 736 -> 4,714 triangles, height 13.8 ->
+Installed. 736 -> 4,714 triangles, height 13.8 ->
 16.2 (+17 %; `max_z_growth = 0.35` for the impaled, far below the citadel's walls at z 42),
 footprint unchanged, 9/9 preview checks.
 

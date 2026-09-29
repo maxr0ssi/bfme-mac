@@ -39,17 +39,19 @@ def fourcc(dds_bytes):
     return dds_bytes[84:88].decode("latin-1")
 
 
-def upscale(dds_bytes, upscale_png, factor):
-    """Write the sheet's alpha at the upscale's size when the sheet has any; remove a stale one."""
+def upscale(dds_bytes, upscale_png, factor, ext=".dds"):
+    """Write the sheet's alpha at the upscale's size when the sheet has any; remove a stale one.
+    ext: the sheet's format, ".dds" or ".tga" (EA's TGA-only sheets: 32 bits carry alpha)."""
     out = path(upscale_png)
-    if fourcc(dds_bytes) not in ("DXT3", "DXT5"):       # DXT1: no building sheet uses punch-through
+    has = dds_bytes[16] == 32 if ext == ".tga" else fourcc(dds_bytes) in ("DXT3", "DXT5")
+    if not has:                                         # DXT1: no building sheet uses punch-through
         if os.path.exists(out):
             os.remove(out)
         return None
     if os.path.exists(out):
         return out
     with tempfile.TemporaryDirectory() as tmp:
-        dds = os.path.join(tmp, "s.dds")
+        dds = os.path.join(tmp, "s" + ext)
         with open(dds, "wb") as fh:
             fh.write(dds_bytes)
         lo = float(subprocess.check_output(["magick", dds + "[0]", "-alpha", "extract", "-format", "%[fx:minima]", "info:"]))

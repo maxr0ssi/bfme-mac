@@ -66,6 +66,7 @@ class GiantSentry(Building):
     own_textures = {"WBFortress.tga": "WBFortresE.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     facet_islands = 8                       # the Goblin kit's unwrap overlaps a little: seams at EA's islands and 8-degree turns
     HOUSE_DRAW = "ModuleTag_Draw_HCGiantSentry"
+    lifecycle = {"WBFGSentry_A": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
     views = {
         "rts": ((-5.9, 1.5, 26.8), 301, 50, -38, 50),
         "close": ((-5.9, 1.5, 26.0), 215, 22, -38, 45),

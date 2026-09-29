@@ -19,8 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-Exception: the Wine patches under patches/ (d3dx9-setrawvalue/, lock-whole-buffer/,
-wined3d-wow64-buffers/) modify Wine and are licensed LGPL-2.1-or-later, like Wine;
-see patches/COPYING.LIB. Files taken from other projects keep their own licence
-(tools/ATTRIBUTION.md).

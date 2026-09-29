@@ -1,5 +1,5 @@
-"""Isengard fortress excavations destructibles (IsengardFortressCitadel): stub from `sagekit new
-isengard`.
+"""Isengard fortress excavations destructibles (IsengardFortressCitadel): EA's chute and ladders kept
+whole; glowing ore down the chute out of an iron skip, a lantern (spoil.py).
 
 EA's IBFExcavB (objects IsengardFortressCitadel; role fortress_upgrade): body IBFEXCAVB, 374
 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our texture is
@@ -27,9 +27,10 @@ class FortressExcavationsDestructibles(Building):
     parts = ("ModuleTag_DrawExcavationsDestructibles",)
     views = {
         "rts": ((-9.9, -13.6, 38.2), 252, 50, -38, 50),
-        "close": ((-9.9, -13.6, 38.2), 149, 24, -30, 45),
+        "close": ((-15.0, -15.0, 32.0), 110, 35, -30, 45),
         "ingame": ((-9.9, -13.6, 38.2), 574, 53, -62, 50),
     }
 
     def design(self, kit):
-        return []
+        from . import spoil
+        return spoil.build(kit)

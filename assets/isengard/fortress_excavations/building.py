@@ -1,4 +1,5 @@
-"""Isengard fortress excavations (IsengardFortressCitadel): stub from `sagekit new isengard`.
+"""Isengard fortress excavations (IsengardFortressCitadel): the pits of Isengard. EA's terraced pit kept
+whole; fire and smoke out of the shafts, a grate and stakes, terrace spikes, an ore cart (pits.py).
 
 EA's IBFExcav (objects IsengardFortressCitadel; role fortress_upgrade): body IBFEXCAV, 875
 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our texture is
@@ -19,8 +20,17 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 
+# Real fire (the game's particle systems on bones, docs/ART.md "Fire"): (x, y, z, kind) in the target's
+# coordinates, collected from the design (kit.flames / kit.fire record them when the kit has a
+# `fire_log` list); run again after moving a fire.
+FIRE_POINTS = [
+    (-18.5, 27.5, 21.0, 'chimney'), (16.8, 27.5, 21.0, 'chimney'), (-0.2, -31.8, 21.0, 'chimney')
+]
+
+
 class FortressExcavations(Building):
     style = IsengardStyle()
+    fire_points = FIRE_POINTS
     source = "IBFExcav"
     target = "IBFEXCAV"
     sheet = "IBFortress.tga"
@@ -29,9 +39,10 @@ class FortressExcavations(Building):
     parts = ("ModuleTag_DrawExcavations",)
     views = {
         "rts": ((0.0, 1.4, 45.9), 397, 50, -38, 50),
-        "close": ((0.0, 1.4, 45.9), 234, 24, -30, 45),
+        "close": ((0.0, 1.4, 25.0), 180, 40, -30, 45),
         "ingame": ((0.0, 1.4, 45.9), 902, 53, -62, 50),
     }
 
     def design(self, kit):
-        return []
+        from . import pits
+        return pits.build(kit)

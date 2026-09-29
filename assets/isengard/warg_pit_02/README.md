@@ -1,13 +1,16 @@
-# Isengard warg pit 02 (`IsengardWargPit`)
+# Isengard warg pit's door (`IsengardWargPit`, `ModuleTag_02`)
 
-Stub from `python3 -m sagekit new isengard`: nothing redesigned yet (`design()` returns no solids).
+Model `IBWARGPIT_DRC`: not a building but the gate of the warg pit's run, a Draw module of its
+own. **Stays EA's on purpose**: `design()` adds nothing and the recipe is not to be built.
 
-- Source model `IBWARGPIT_DRC`, target mesh `IBWARGPIT_DRC` (158 triangles), sheet `IBWargPit.tga` -> own `IBWargPiX.tga`, DXT5 (EA's cut-out alpha kept).
-- Role stable; nearest Dwarven recipe `barracks`.
-- Covers the Draw module `ModuleTag_02`.
-- EA's body measured: `python3 -m sagekit measure isengard/warg_pit_02` -> `work/measure.json`.
+- The Draw swaps the shut leaf for four more models: `IBWARGPIT_DROA` and `IBWARGPIT_DRCA` (the
+  swing open and shut, animated), `IBWARGPIT_DRO` (open) and `IBWargpit_DRA` (building). A
+  redesign would have to ride all five.
+- Palette A reaches it anyway: `IBWargPit.tga` is Isengard's own sheet (`sagekit sheets`).
+- The [warg pit](../warg_pit/README.md) frames it: a pair of blade pylons past both ends of the
+  leaf, a chain slung over it, the White Hand on a shield.
 
 ## Status
 
-- [ ] healthy body designed
-- [ ] checks pass, renders reviewed
+- [x] decided: EA's door stays (2026-09-29)
+- [x] the stub stays as the record of the decision (2026-09-29)
