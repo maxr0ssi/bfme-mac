@@ -1,12 +1,12 @@
 # Modding the art: BFME2 1.06 and RotWK 2.02 under Wine
 
-For a 3D artist who wants to change what the game looks like. Both titles run EA's **SAGE** engine
-with Westwood's **W3D** asset format. Everything here happens on the Mac side except the Windows
-`.exe` tools in §c, which run in the same Wine prefix as the game.
+The manual route and background for one-off mods. Faction redesigns go through sagekit
+([ART.md](ART.md)), which automates §g. Both titles run EA's **SAGE** engine with Westwood's
+**W3D** asset format.
 
 ## a. Where the art lives
 
-Archives sit next to the game in `prefixes/stable/drive_c/Program Files (x86)/Electronic Arts/{BFME2,RotWK}`.
+Archives sit next to the game in `prefixes/w10/drive_c/Program Files (x86)/Electronic Arts/{BFME2,RotWK}`.
 They are uncompressed `BIGF`/`BIG4` containers — `tools/bigtool.py list|extract|replace|pack`
 reads and rewrites them. Counts below are from this install.
 
@@ -41,8 +41,7 @@ and from Blender". This is the only live Blender route.
   <https://raw.githubusercontent.com/OpenSAGE/OpenSAGE.BlenderPlugin/master/README.md>
 - **Both directions**, and it handles "meshes, skeletons and skinned animations (with different
   compression types)" — the importer walks the W3D chunk tree and takes the skeleton from the
-  HLOD and animation headers. So bones and animations round-trip, which is what matters for a
-  hero model. <https://github.com/OpenSAGE/OpenSAGE.BlenderPlugin/wiki/Exporting-files>
+  HLOD and animation headers. Bones and animations round-trip. <https://github.com/OpenSAGE/OpenSAGE.BlenderPlugin/wiki/Exporting-files>
 - **Install**: download `io_mesh_w3d-X.X.zip` from Releases (not the source zip) → Blender
   Preferences → Add-ons → Install from File → enable "Import-Export: Westwood 3d (.w3d)".
   <https://github.com/OpenSAGE/OpenSAGE.BlenderPlugin/wiki/Installing-the-Plugin>
@@ -53,11 +52,6 @@ and from Blender". This is the only live Blender route.
   BFME-era niceties (auto texture lookup from `.big`, armature generation, effect bones, DDS↔TGA
   on export) live in an **open, unmerged** PR:
   <https://github.com/OpenSAGE/OpenSAGE.BlenderPlugin/pull/280>
-- **Maintenance**: last tagged release v0.7.2, 2025-05-01 (marked prerelease); `master` has commits
-  as recent as 2026. <https://github.com/OpenSAGE/OpenSAGE.BlenderPlugin/releases>
-- **Alternative**: the historic pipeline was RenX / the official 3ds Max W3D exporter (Max 7 and 8
-  only), which your friend does not need if Blender works.
-  <https://www.moddb.com/addons/renx-3ds-max-8-edition>
 
 ## c. Registering new assets: `asset.dat`
 
@@ -72,19 +66,12 @@ and is the **single cache shared by 2.02 and the HD Edition** — the HD `.big` 
 1.25 MB copy as a member, but the loose file at the game root is what the engine opens, and the
 HD art mostly reuses existing names, so it needs no new entries.
 
-**Rebuild tools** — all Windows `.exe`, so run them with `WINE_BUILD=w10 . ./env.sh; wine <tool>`
-in the same prefix as the game:
-
-- **EA `AssetCacheBuilder`**, from the official BFME2 mod SDK. Point it at an art folder holding
-  the originals plus your replacements; it emits a merged `asset.dat`.
-  <https://forums.revora.net/topic/72843-eas-assetcachebuilder-from-the-sdk/> ·
-  <https://www.the3rdage.net/item-807?apage=827>
-- **Sy's Asset Builder** (community): <https://forums.revora.net/topic/82657-sys-asset-builder/>.
-  Reported broken on modern Windows (missing `COMDLG32.OCX`); expect the same under Wine.
-- **`bfme2-patcher`** (modern, open source) builds a `mod_asset.dat` and merges it with the
-  original: <https://github.com/DarkAtra/bfme2-patcher>
-- **FinalBIG** edits `.big` archives, not `asset.dat` — `tools/bigtool.py` already does that job
-  natively here. <https://www.the3rdage.net/item-52>
+`tools/asset_dat.py patch|texture` updates records in place (§g); that is the route used here.
+Windows tools that rebuild the whole cache (run under Wine in the game's prefix): EA's
+[AssetCacheBuilder](https://forums.revora.net/topic/72843-eas-assetcachebuilder-from-the-sdk/)
+from the mod SDK, [bfme2-patcher](https://github.com/DarkAtra/bfme2-patcher) (open source), and
+[Sy's Asset Builder](https://forums.revora.net/topic/82657-sys-asset-builder/) (reported broken on
+modern Windows).
 
 ## d. Limits an artist should know
 
@@ -108,34 +95,19 @@ in the same prefix as the game:
 
 ## e. Multiplayer
 
-Peers must run identical *game data*, and a "mismatch" error is data, not network (MULTIPLAYER.md).
+Peers must run identical *game data*; a "mismatch" error means the game data differs
+([MULTIPLAYER.md](../MULTIPLAYER.md)).
 In practice: pure art changes — swapping a `.w3d` mesh or a `.dds` texture for one with the same
 name, same bone names, same asset entry — are cosmetic and desync-safe, which is exactly why the
 HD Edition can differ between players. Anything that touches an `.ini` (`gamedata.ini` camera
 limits, `gamelodpresets.ini`, any object/weapon/armour value) changes the simulation and **must**
 be byte-identical on both machines, as our edited `ini.big` / `__patch202.big` already are. If in
-doubt, send the friend the same files `scripts/install-mod.sh` put in.
+doubt, send the other players the same files `scripts/install-mod.sh` put in.
 
-## f. First milestone: one hero, round-tripped
-
-1. `python3 tools/bigtool.py list W3D.big | grep -i <hero>` to find the mesh, skeleton and anims.
-2. `python3 tools/bigtool.py extract W3D.big "art\w3d\..._skn.w3d" -o ~/w3dwork` — extract the
-   skeleton and the textures it names into the *same* folder (the add-on requires that).
-3. Import in Blender with `io_mesh_w3d`, change nothing, export straight back out. Diff the sizes;
-   confirm the bone names survived. This is the step that proves the pipeline before any art time
-   is spent.
-4. `python3 tools/bigtool.py replace W3D.big "art\w3d\..._skn.w3d" newfile.w3d` (it keeps a `.bak`),
-   or `pack` a small overlay archive named so it sorts last and drop it in with
-   `scripts/install-mod.sh rotwk <dir>` — that backs up as `.premod.bak` and has a `--revert`.
-5. Rebuild `asset.dat` with `AssetCacheBuilder` in the same Wine prefix (§c) — only needed if a
-   *name* is new; a same-name replacement usually does not need it. Keep the old `asset.dat`.
-6. `scripts/play-rotwk.sh`, start a skirmish, buy the hero, look at it. Then change something
-   obvious (a texture tint) and repeat to confirm you are really seeing your file.
-
-## g. The big mods
+## f. The big mods
 
 The large SAGE mods are Windows installers aimed at a retail install. **Edain** (RotWK) needs the
-*official* 2.01 patch and BFME2 1.06 — explicitly **not** the unofficial 2.02/1.09 we run, which
+*official* 2.01 patch and BFME2 1.06 — explicitly **not** the unofficial RotWK 2.02 this repo runs, which
 must be uninstalled first (<https://www.moddb.com/mods/edain-mod>). **Age of the Ring** went
 standalone at 9.0 and ships its own installer plus a launcher
 (<https://www.moddb.com/mods/the-horse-lords-a-total-modification-for-bfme>). Both, and online
@@ -148,7 +120,7 @@ installed and that override removed. Installing a mod's `.big` files directly wi
 mod: it is a fan remake in Unreal Engine 4 (<https://github.com/BFME-Reforged>), so none of this
 pipeline applies to it.
 
-## h. Re-exporting a model from Blender — verified pipeline (2026-09-23, Dwarven fortress)
+## g. Re-exporting a model from Blender — verified pipeline (2026-09-23, Dwarven fortress)
 
 Blender 4.5.9 LTS + OpenSAGE `io_mesh_w3d` 0.7.2 (installs as a legacy add-on; operators
 `import_mesh.westwood_w3d` / `export_mesh.westwood_w3d`). For a model with its own skeleton, export
@@ -163,8 +135,7 @@ the hierarchy and container names from the file name.
    AABTREE collision trees**, which BFME2 needs (the untouched fortress minus only its AABTREEs does
    not render; Generals' loader would rebuild them, BFME2's does not). The fixer regenerates them
    the way WW3D2's `AABTreeBuilderClass` lays them out.
-3. **`tools/asset_dat.py patch <game>/asset.dat file.w3d`**: the step that took an afternoon to
-   find. `asset.dat` caches, per model, the byte offset and size of every top-level chunk
+3. **`tools/asset_dat.py patch <game>/asset.dat file.w3d`**. `asset.dat` caches, per model, the byte offset and size of every top-level chunk
    (`H*<hierarchy>`, each `container.mesh`, the HLOD), and the engine reads those ranges blind. Any
    edited model therefore changes layout and is read at stale offsets: it loads, is selectable by
    its footprint, and draws nothing. Patch the record in the asset.dat of the game that *owns* the

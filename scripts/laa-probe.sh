@@ -9,9 +9,8 @@ set -eu
 BFME_ROOT="${0:A:h:h}"
 export BFME_ROOT WINE_BUILD="${WINE_BUILD:-w10}"
 . "$BFME_ROOT/env.sh"
-if pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null && ps -axo comm | grep -q -E 'lotrbfme2|game\.dat'; then
-  echo "a game is running; close it first"; exit 1
-fi
+[[ "${1:-}" == (-h|--help) ]] && usage
+game_running && { echo "a game is running; close it first"; exit 1; }
 src=$BFME_ROOT/tools/laaprobe.c exe=$BFME_ROOT/build/laaprobe.exe
 if [[ ! -x $exe || $src -nt $exe ]]; then
   i686-w64-mingw32-gcc -O2 -Wall -Wl,--large-address-aware -o "$exe" "$src" -ld3d9 -lgdi32 || { echo "build failed"; exit 1; }

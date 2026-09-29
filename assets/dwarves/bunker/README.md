@@ -1,10 +1,10 @@
 # Dwarven bunker (`DwarvenBunker`, `dwarfbunker.ini`)
 
-Model `DBBunker`, redesigned mesh `DBBBUNKER`, own texture `DBBunkeH.tga` (+ `_NRM`, `_D1`, `_Snow`),
+Model `DBBunker`, mesh `DBBBUNKER`, own texture `DBBunkeH.tga` (from `DBBunker.tga`).
 `Tier.STANDARD`. The far-off ground patch `DBBBUNKERG` (painted from `DBStoneA`, which is not
 extracted) is left out of the bakes and renders (`bake_hidden`); it is untouched.
 
-## What changed (body, healthy)
+## What changed
 
 The squat guard tower keeps its body, its shield-panel head, its corner fins, its stepped door
 frame with the gabled canopy and its entrance steps. Added:
@@ -20,19 +20,19 @@ frame with the gabled canopy and its entrance steps. Added:
 - **Shaft:** a rune belt around the octagonal shaft just under its flared corners.
 - **Plinth:** a battered plinth with a bronze string course along the long -Y side (the RTS
   camera's side), flush with the door wall.
+- **Banners:** two, down the +X and -Y shield panels; cloth in `DBHCBunker`.
 
-Nothing is placed at the (-X, +Y) corner, where the multiplayer banner (`DBHCBunker`) hangs.
+## Kept clear
 
-Footprint unchanged (x -14.37..26.94, y -14.54..16.63), height 65.66 -> 76.26 (+16.1 %, limit
-20 %), 659 -> 1,361 triangles. `checks`: 52/52.
+- The (-X, +Y) corner, where EA's house banner hangs.
 
-## Status (`python3 -m sagekit inventory dwarves/bunker`)
+## Status
 
-| Part | Healthy | Construction | Damaged / really damaged | Rubble | Snow | LOD M/L |
-|---|---|---|---|---|---|---|
-| body (`DBBunker`) | built, reviewed in renders, not installed | `DBBunker_A` carries the new body | `DBBunker_D1` / `_D2` carry the new body (own `_D1` sheet) | old | own `_Snow` sheet | old |
-| banner (`DBHCBunker`) | old | | | | | |
+Installed with the Dwarven pack. 659 -> 1,457 triangles, height 65.66 -> 76.26 (+16.1 %), 85/85
+checks. Construction and damaged derive the new body; really damaged and rubble are rebuilt along
+EA's pieces.
 
-Known: the painter turns the brown shield panels (with their window slits) into flat dark brown
-in this build, with or without the new geometry (seen on an empty design too) - a paint-stack
-matter, not the recipe's.
+## Known limits
+
+- The painter turns the brown shield panels (with their window slits) flat dark brown, with or
+  without the new geometry: a paint-stack matter, not the recipe's.

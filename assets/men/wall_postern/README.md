@@ -1,21 +1,24 @@
 # Men wall postern (`MenWallPosternGateSmall`, `ArnorWallPosternGateSmall`)
 
 Model `GBWallPGN`, mesh `GBFDOTOWA01` (the door arch, `ModuleTag_DoorDraw`, drawn over a wall
-segment: the object's wall is men/wall_segment's `GBWallN`). Own texture `GBFortressD.tga`.
+segment: the object's wall is [`wall_segment`](../wall_segment/README.md)'s `GBWallN`). Own
+texture `GBFortressD.tga` (from `GBFortress1.tga`). EA's two deep portals kept whole.
 
-## Design (2026-09-27)
+## What changed
 
-EA's two deep portals kept whole; each front given the citadel gate's language at the postern's
-size: a nine-stone voussoir archivolt with a raised keystone, pilasters with plinths and moulded
-capitals at the springing, a portcullis's steel teeth under the crown of the arch, a moulded
-coping along the gabled top, pinnacles with steel orbs on the shoulders and the winged-helm crest
-on the apex.
+- **Each front**, in the citadel gate's language at the postern's size: a nine-stone voussoir
+  archivolt with a raised keystone, pilasters with plinths and moulded capitals at the springing,
+  a portcullis's steel teeth under the crown of the arch.
+- **Top**: a moulded coping along the gable, pinnacles with steel orbs on the shoulders, the
+  winged-helm crest on the apex.
+- **Banners**: none.
 
-The portals' fronts are the footprint's edge (x +-14.17): `footprint_margin = 1.0` lets the
-archivolt, pilasters and coping stand up to 0.95 proud (collision is the segment's, from the INI).
-No banners. Height 34.59 -> 39.94 (+15.5 %); 136 -> 1,214 triangles; checks 51/51.
+## Kept clear
+
+- The portals' fronts are the footprint's edge (x +-14.17): `footprint_margin = 1.0` lets the
+  archivolt, pilasters and coping stand up to 0.95 proud (collision is the segment's, from the INI).
 
 ## Status
 
-- [x] healthy body designed; renders in `build/assets/men/wall_postern/renders/`
-- [ ] Max's review
+Installed with the Men pack. 136 -> 1,214 triangles, height 34.6 -> 39.9 (+15.5 %), 51/51 checks.
+Damaged, really damaged and the collapse are derived from the new body.

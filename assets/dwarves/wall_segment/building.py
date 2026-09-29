@@ -74,8 +74,7 @@ class WallSegment(Building):
             t = V((0, 1, 0))
             # 1. coping and chevron parapet (the fortress's), each face
             path = [(s * COPING_X, -HALF), (s * COPING_X, HALF)]
-            ss, segs = sweep(path, COPING, COPING_TAGS)
-            solids += ss
+            solids += sweep(path, COPING, COPING_TAGS)[0]
             a = V((s * COPING_X, -HALF, 0))
             solids += kit.chevron_parapet(a, t, n, 2 * HALF)
             # 2. battered plinth between the end buttresses

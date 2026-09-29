@@ -1,7 +1,7 @@
 """Men wall trebuchet (MenWallTrebuchetSmall, and Arnor's; model GBWallTrebN): EA's bastion kept
 whole - the ten-sided ashlar drum, the corbelled flare under the rim, the parapet ring with its
 painted arcade and ironwork, the open platform (P1, the trebuchet's bone: nothing stands on it) -
-and given the citadel's crown on the rim (men/wall_hub/dome.py):
+and given the citadel's crown on the rim (men/dome.py):
 
 - a moulded coping along the parapet's top and square merlons with capstones round the rim,
   their fronts facing the field and their backs the platform;
@@ -51,7 +51,7 @@ class WallTrebuchet(Building):
 
         from sagekit.blender.geometry import sweep
 
-        from ..wall_hub import dome as D
+        from .. import dome as D
         from ..wall_segment.wall import FACE, slit
         sec = D.Outline(RIM, 1.0)
         z0, z1 = COPING

@@ -25,37 +25,6 @@ from sagekit.building import Building
 from ..style import DwarvenStyle
 
 
-def _figure_seams():
-    """Recipe-side layout tweak, as in fortress_statues (sagekit/blender/layout.py _seams cuts EA's
-    faces only at hard edges over 40 degrees): EA's Atlas statues are organic, and their smooth
-    loops, unwrapped uncut, fold over themselves in the new layout (0.04 % of texels painted
-    twice). Here every edge between two of EA's faces is a seam too, so none can overlap.
-    Blender side only; the patch is shared with fortress_statues (same marker, applied once)."""
-    try:
-        import bmesh
-        from sagekit.blender import layout
-    except ImportError:
-        return
-    if getattr(layout._seams, "figure_fix", False):
-        return
-    seams = layout._seams
-
-    def fixed(me, *args):                   # (layout's own options pass through)
-        seams(me, *args)
-        bm = bmesh.new()
-        bm.from_mesh(me)
-        tagl = bm.faces.layers.int[layout.TAG_ATTR]
-        for e in bm.edges:
-            if all(f[tagl] == 0 for f in e.link_faces):
-                e.seam = True
-        bm.to_mesh(me)
-        bm.free()
-    fixed.figure_fix = True
-    layout._seams = fixed
-
-
-_figure_seams()
-
 AP = 16.15                                    # the drum's apothem (a 12-gon, faces at 0, 30, 60, ... degrees)
 FACES = [math.radians(30 + 60 * k) for k in range(6)]      # the drum faces between the ribs
 RIBS = [math.radians(60 * k) for k in range(6)]
@@ -83,6 +52,7 @@ class FortressMonument(Building):
     parts = ("ModuleTag_MightyCatapultTowerDraw",)
     bake_hidden = ("P1",)
     tri_budget = 5000
+    facet_islands = True        # EA's Atlas statues fold over themselves unwrapped uncut
     views = {
         "rts": ((0, 0, 110), 300, 50, -38, 50),
         "close": ((0, 0, 148), 95, 22, -30, 45),

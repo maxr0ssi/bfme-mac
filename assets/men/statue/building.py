@@ -24,11 +24,6 @@ PANEL = (-4.91, 6.04, 6.97, 18.41)          # x0, x1, z0, z1 on the die's front 
 TOP = 25.37
 
 
-def box(x0, x1, y0, y1, z0, z1, tags, cap0=("stoneB", False), cap1=("top", True)):
-    from sagekit.blender.geometry import box_rings, loft
-    return loft([box_rings((x0, x1), (y0, y1), z0, 0), box_rings((x0, x1), (y0, y1), z1, 0)], [tags], cap0=cap0, cap1=cap1)
-
-
 class Statue(Building):
     style = MenStyle()
     source = "GPHealstue"
@@ -99,7 +94,7 @@ class Statue(Building):
     def _top(kit):
         """A moulded step under the figure's plinth; braziers on the front corners, pinnacles on the
         back ones (the figure's hem stays inside |y| 4.1..6.2 there)."""
-        from sagekit.blender.geometry import box_rings, loft
+        from sagekit.blender.geometry import box, box_rings, loft
 
         from ..shapes import turned
         out = [box(-5.95, 7.08, -6.38, 7.3, TOP - 0.2, TOP + 0.55, ["stoneB", "course", "course", "course"], cap1=("top", True))]

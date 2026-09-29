@@ -1,5 +1,5 @@
 """The Gondor siege workshop at level 2 (Upgrade_StructureLevel2): V1, redesigned on the finished
-workshop (`base`; the chain and its rules: assets/men/barracks/levels.py). EA's V1 is the yard's
+workshop (`base`; the chain and its rules: assets/men/levels.py). EA's V1 is the yard's
 wall ring - two thick battered walls with a walk and a corbel arcade, diagonal returns to two
 octagonal bastions flanking the yard's open end - plus a block against each tower's outer face
 and a ribbed slate cap on each tower top. Now:
@@ -22,7 +22,7 @@ the return's outer edge on x + y = 78.0 to the bastion; the bastion's top at 21.
 -36.0..-22.4, y 30.3..41.2 (it runs into the tower's face at y 34.5); the cap from a
 chamfered square (half 10.1, chamfer 2.9) at 51.09 through octagons to its apex (-29.37, 26.51,
 58.70)."""
-from ..barracks.levels import LevelMesh, chain, level_textures
+from ..levels import LevelMesh, chain, level_textures
 
 WALK, OUTER, CORNER = 18.9, 43.68, 34.3
 RETURN = 78.0                                   # the returns' outer edge: x + |y| = 78
@@ -47,7 +47,7 @@ class WorkshopLevel2(LevelMesh):
 
     @property
     def sheet_atlas(self):
-        from ..workshop.prodkit import VET_TILES, with_tiles
+        from ..prodkit import VET_TILES, with_tiles
         return with_tiles(super().sheet_atlas, VET_TILES)       # EA's slate caps stay slate
 
     def design(self, kit):
@@ -64,7 +64,7 @@ class WorkshopLevel2(LevelMesh):
     def _walls(kit, s):
         from mathutils import Vector as V
 
-        from ..barracks import motifs as M
+        from .. import motifs as M
         out = []
         a, t, n = M.face((0.0, s * OUTER), (0, s))
         u0, u1 = sorted((t.x * -20.8, t.x * CORNER))
@@ -84,7 +84,7 @@ class WorkshopLevel2(LevelMesh):
         """Merlons round the rim (not where the wall's return comes in) and a watch turret."""
         from sagekit.blender.geometry import box_rings
 
-        from ..barracks import motifs as M
+        from .. import motifs as M
         import math
 
         from ..shapes import beam, turned
@@ -123,7 +123,7 @@ class WorkshopLevel2(LevelMesh):
 
     @staticmethod
     def _block(kit, s):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         x0, x1, yi, yo, z = BLOCK
         out = []
         ym = s * (yi + yo) / 2

@@ -1,4 +1,4 @@
-"""Writing the stubs `sagekit new` plans (sagekit/scaffold.py): names, flags, text, measurements.
+"""Writing the stubs `sagekit new` plans (sagekit/scaffold.py): names, flags, text.
 
 Nothing existing is overwritten: a folder that already holds a building.py, or a recipe of the
 faction on the same source and target, is left alone and reported."""
@@ -14,7 +14,6 @@ PREFIX = {"elves": "EB", "dwarves": "DB", "men": "GB", "isengard": "IB", "mordor
 STYLE_CLASS = {"elves": "ElvenStyle", "dwarves": "DwarvenStyle", "men": "MenStyle", "isengard": "IsengardStyle",
                "mordor": "MordorStyle", "goblins": "GoblinStyle", "angmar": "AngmarStyle"}
 AUTO_VIEWS = {"rts": (2.2, 50, -38, 50), "close": (1.3, 24, -30, 45), "ingame": (5.0, 53, -62, 50)}   # render.py's
-WALL_ROLES = ("wall_end", "wall_segment", "wall_hub", "wall_gate", "wall_tower", "wall_postern", "wall_trebuchet")
 
 
 def style_class(faction):
@@ -161,14 +160,13 @@ def wrap(text, width=98, indent=""):
     return out
 
 
-def stub(u, faction, measured=None):
+def stub(u, faction):
     head = "%s %s (%s): stub from `sagekit new %s`." % (faction.capitalize(), u["name"].replace("_", " "),
                                                         ", ".join(u["objects"]), faction)
     doc = wrap(head) + [""]
     for f in facts(u, faction):
         doc += wrap(f)
-    if measured:
-        doc += [""] + measured
+    doc += wrap("EA's body measured: `python3 -m sagekit measure %s/%s` -> work/measure.json." % (faction, u["name"]))
     doc += ["", "Nearest Dwarven recipe: assets/dwarves/%s (the same role; start from its shapes)." % u["nearest"]
             if u["nearest"] else "No Dwarven recipe plays this role."]
     if u["base"]:
@@ -199,9 +197,7 @@ def stub(u, faction, measured=None):
     body.append("    views = {")
     for n, (c, d, e, a, lens) in views(u).items():
         body.append('        "%s": (%s, %d, %d, %d, %d),' % (n, c, d, e, a, lens))
-    body += ["    }", "", "    def design(self, kit):",
-             "        # EA's body, measured: from sagekit.measure import measured; m = measured(self)",
-             "        return []", ""]
+    body += ["    }", "", "    def design(self, kit):", "        return []", ""]
     return "\n".join(body)
 
 
@@ -219,24 +215,6 @@ def readme(u, faction):
     t += ["- EA's body measured: `python3 -m sagekit measure %s/%s` -> `work/measure.json`." % (faction, u["name"]), "",
           "## Status", "", "- [ ] healthy body designed", "- [ ] checks pass, renders reviewed", ""]
     return "\n".join(t)
-
-
-def measured_lines(m):
-    """The measurer's headline numbers for the docstring."""
-    out = ["Measured (sagekit measure; work/measure.json has the rest):"]
-    b = m["bands"]
-    out.append("bands: ground %s, plinth top %s, walkways %s, roof %s, top %s." % (
-        b["ground"], b["plinth_top"], b["walkways"] or "-", b["roof"], b["top"]))
-    walls = [p for p in m["planes"] if p["kind"] == "wall"][:4]
-    if walls:
-        out.append("walls: " + "; ".join("n %s at %.2f (u %s, z %s)" % (p["normal"][:2], p["offset"], p["u"], p["v"]) for p in walls) + ".")
-    if m["heads"]:
-        out.append("heads: " + "; ".join("%s z %.2f" % (h["centre"], h["z"]) for h in m["heads"][:6]) + ".")
-    if m["openings"]:
-        out.append("openings: " + "; ".join("%s %.1f x %.1f at u %s z %s" % (o["kind"], o["width"], o["height"], o["centre_u"], o["z"])
-                                           for o in m["openings"][:6]) + ".")
-    out.append("symmetry: %s." % (", ".join("%s (%s)" % (s["axis"], s["c"]) for s in m["symmetry"]) or "none"))
-    return [line for x in out for line in wrap(x)]
 
 
 # ------------------------------------------------------------------------------------ the command
@@ -290,32 +268,15 @@ def execute(faction, write):
 
 
 def measure_written(units, faction):
-    """Measure every stub just written and put the headline numbers into its docstring."""
-    import json
+    """Measure every stub just written (work/measure.json)."""
     from .measure import path, run
     for u in units:
         bid = "%s/%s" % (faction, u["name"])
         try:
             run(bid)
-            m = json.load(open(path(bid)))
         except (RuntimeError, ImportError, OSError) as e:
             print("  %s: not measured (%s) - run `python3 -m sagekit measure %s` once the style exists" % (
                 bid, str(e).strip().splitlines()[-1] if str(e).strip() else e, bid))
             continue
-        insert_measured(os.path.join(paths.ASSETS, faction, u["name"], "building.py"), measured_lines(m))
-        print("  wrote %s (measured)" % bid)
+        print("  measured %s -> %s" % (bid, path(bid)))
 
-
-def insert_measured(path, lines):
-    """Put the measured block into a stub's docstring, before its Dwarven line (replacing an older one)."""
-    text = open(path).read().split("\n")
-    end = text.index('"""', 1)
-    doc = text[:end]
-    if "Measured (sagekit measure; work/measure.json has the rest):" in doc:
-        i = doc.index("Measured (sagekit measure; work/measure.json has the rest):")
-        j = next((k for k in range(i, len(doc)) if not doc[k].strip()), len(doc))
-        doc = doc[:i - 1] + doc[j:]
-    at = next(k for k, x in enumerate(doc) if x.startswith(("Nearest Dwarven recipe", "No Dwarven recipe")))
-    doc = doc[:at - 1] + [""] + lines + doc[at - 1:]
-    with open(path, "w") as fh:
-        fh.write("\n".join(doc + text[end:]))

@@ -9,8 +9,7 @@
 
 Why: BFME2/RotWK do not parse a model file when they load it; asset.dat caches, per model, where
 each top-level chunk is and the engine reads those ranges directly. A re-exported model with any
-change in layout is read at stale offsets and silently fails to render (the Dwarven fortress
-vanished for every edited variant until its record was patched). A texture the cache has no
+change in layout is read at stale offsets and silently fails to render. A texture the cache has no
 record for is drawn magenta. The format: sagekit/formats/assetcache.py (this is its command line).
 Only records whose entry names and count match the file are patched (the record's size never
 changes); the first write keeps <asset.dat>.orig.

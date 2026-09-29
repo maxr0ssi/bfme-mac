@@ -1,7 +1,6 @@
-# Men fortress boiling oil (`MenFortressCitadel`, UPGRADE_BOILING_OIL)
+# Men citadel boiling oil (`MenFortressCitadel`, `UPGRADE_BOILING_OIL`)
 
-Staged for review, not installed. Renders: `build/assets/men/fortress_oil/renders/` (close: an
-outlet; hearth); on the citadel: `build/assets/men/_group_addons/compare_citadel_back.png`.
+Model `GBFBOil`, mesh `GBFBOIL`, own texture `GBFortressJ.tga` (from `GBFortress1.tga`).
 
 ## What changed
 
@@ -11,13 +10,16 @@ outlet; hearth); on the citadel: `build/assets/men/_group_addons/compare_citadel
 - **Hearth** (back wall walk): a stone kerb round EA's firebox with an iron grating band and
   steel corner bosses; steel straps, stone feet and a steel apex bearing on the wooden trestles; a
   stone rim with steel studs round the hopper's grate.
-- **Paint**: EA's glowing coals keep EA's colours, the trestles stay wood and the plates dark
-  iron. The stone recolour would have turned all three white.
+- **Paint**: EA's glowing coals, wooden trestles and dark iron plates keep EA's colours.
+- **Banners**: none.
 
-## Fit and status
+## Kept clear
 
-- `GBFBOIL` 154 -> 1,686 triangles (budget 5,000); height +1.1 %; `footprint_margin = 1.0` (the
-  housings stand 1.5 out of the curtain walls, inside the citadel's footprint). Checks 137/137.
-- Clear of the pot's swing: nothing new in |y| 5.6..9.5 above z 49.2 but inside the trestles'
-  own planes. The gate-side housings stop at the pilot's pilasters (|y| 19.4).
-- No banner (cap 0).
+- The pot's swing: nothing new in |y| 5.6..9.5 above z 49.2 but inside the trestles' own planes.
+- The gate-side housings stop at the citadel's pilasters (|y| 19.4).
+
+## Status
+
+Installed with the Men pack. 154 -> 1,686 triangles (budget 5,000), height +1.1 %, 137/137 checks,
+`footprint_margin = 1.0` (the housings stand 1.5 out of the curtain walls, inside the citadel's
+footprint). Construction, really damaged and rubble are rebuilt along EA's pieces.

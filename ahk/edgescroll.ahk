@@ -1,6 +1,6 @@
 ; edgescroll.ahk - borderless window + emulated screen-edge camera scrolling for BFME2/RotWK.
 ; AutoHotkey 1.1.37.02 (ahk/AutoHotkeyU32.exe, 32-bit Unicode) running inside the Wine prefix:
-;     cd ahk && wine AutoHotkeyU32.exe edgescroll.ahk [margin]
+;     cd ahk && wine AutoHotkeyU32.exe edgescroll.ahk [on|off] [margin] [input|event|play]
 ;
 ; This is a superset of borderless.ahk: it does the same borderless/pin-to-(0,0) setup and then
 ; STAYS RESIDENT. The play scripts launch this one script instead of borderless.ahk, because
@@ -10,7 +10,7 @@
 ;
 ; Why: the SAGE engine disables edge scrolling in windowed mode (-win), the only mode usable
 ; under Wine's Mac driver. The camera still responds to the arrow keys, so while the cursor sits
-; within `margin` points of the game window's edge we simply hold the matching arrow key(s) down;
+; within `margin` points of the game window's edge this holds the matching arrow key(s) down;
 ; a corner holds two. The engine reads the mouse through Win32 messages and the keyboard through
 ; DirectInput, and both SendInput and keybd_event feed Wine's input queue, so held keys arrive.
 ;
@@ -19,7 +19,7 @@
 ;   and the F-keys; it has no Ctrl+Alt combinations). Mac keyboards have no Scroll Lock, which is
 ;   why the primary binding is Ctrl+Alt+E. The hotkeys only fire while the game window is active.
 ; Rescue: Ctrl+Alt+R forces the game window back to the foreground - the manual half of the
-;   Cmd-Tab mouse-death workaround (Sikarugir #237, see README "Mouse after Cmd-Tab").
+;   Cmd-Tab mouse-death workaround (Sikarugir #237, docs/PLAYING.md "Mouse after Cmd-Tab").
 
 #NoTrayIcon
 #SingleInstance Force
@@ -45,7 +45,7 @@ hwnd    := 0
 ; desktop window, while macdrv_app_activated() restores neither - recovery depends on a
 ; WINDOW_GOT_FOCUS / WM_MOUSEACTIVATE round-trip that the busy 3D window can miss. Set this to
 ; true to run Recapture() automatically whenever the window regains focus. Off by default: it is
-; a guess, and Ctrl+Alt+R does the same thing on demand. See README "Mouse after Cmd-Tab".
+; a guess, and Ctrl+Alt+R does the same thing on demand. See docs/PLAYING.md "Mouse after Cmd-Tab".
 recaptureOnActivate := false
 
 ; Command line: [on|off] [margin] [input|event|play]. "off" starts with edge scrolling disabled (the

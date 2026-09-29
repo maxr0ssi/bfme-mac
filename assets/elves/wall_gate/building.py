@@ -73,7 +73,7 @@ class WallGate(Building):
 
         from assets.elves.shapes import turned
 
-        from ..wall_segment.wall import ARCH_OGEE, COPING, box
+        from ..wall_segment.wall import ARCH_OGEE, COPING
         half, spring, apex = ARCH
         out = kit.arch(V((0, 0, 0)), V((0, 1, 0)), V((1, 0, 0)), 0.0, half, COPING[1] - 0.1, spring, apex, w=1.3,
                        d0=-0.8, d1=0.8, ogee=ARCH_OGEE, free=True)

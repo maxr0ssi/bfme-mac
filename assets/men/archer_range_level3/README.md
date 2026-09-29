@@ -1,8 +1,9 @@
 # Men archer range, level 3 (`V2` of `GBArcheryN_SKN`)
 
 The arcades, the north-west turret and the archer's statue EA shows from
-`Upgrade_GondorArcheryRangeLevel3`, chained on level 2 (`base = "men/archer_range_level2"`). The
-chain's last link: its `gbarcheryn_skn.w3d` ships. Own texture `GBVA2` (damaged `GBVA2D`).
+`Upgrade_GondorArcheryRangeLevel3`. Chained on `men/archer_range_level2`
+([`levels.py`](../levels.py)); the chain's last link, so its `gbarcheryn_skn.w3d` ships.
+Own texture `GBVA2` (damaged `GBVA2D`).
 
 ## What changed
 
@@ -12,9 +13,9 @@ chain's last link: its `gbarcheryn_skn.w3d` ships. Own texture `GBVA2` (damaged 
   dome's slate charcoal.
 - **Arcades**: square merlons along both arcades' tops, a frieze of gilt stars on the middle
   arcade's south face, pinnacles on the three end piers.
-- The statue and its plinth stay EA's. No cloth, no night lights; closed solids.
+- The statue and its plinth stay EA's. Closed solids.
 
 ## Status
 
-- `V2` 797 -> 6,413 triangles; height unchanged (the statue is the top); 269/269 checks; every
-  lifecycle model carries it. Awaiting review.
+Installed with the Men pack. `V2` 797 -> 6,413 triangles, height unchanged (138.8, the statue is
+the top), 269/269 checks. Every lifecycle state carries the redesign.

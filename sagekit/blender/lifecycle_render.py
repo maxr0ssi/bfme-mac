@@ -100,6 +100,9 @@ def render_model(b, model, who, out, res="1100x760", spp="48", **textures):
     m = Model(path, skel, anim)
     from ..nightlights import day_hidden               # night meshes: the game hides them by day
     hidden = set(day_hidden(b, m.data))
+    for o in bpy.data.objects:                          # EA's W3D boxes (B:...OBBOX), which the add-on imports
+        if o.type == "MESH" and o.name not in m.w3d.meshes:     # as meshes: collision, never drawn in game
+            o.hide_render = True
     render.rig(tuple(int(x) for x in res.split("x")), int(spp), hidden)
     sc = bpy.context.scene
     sc.camera = render.camera("rts", *rts_camera(b, ws))

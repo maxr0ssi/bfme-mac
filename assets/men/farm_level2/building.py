@@ -18,7 +18,7 @@ y -34.99 (south), 35.72 (north), its inner faces about 5 in, its top about 13, t
 (1.3 thick, in the middle) to about 18; the gate's opening y -6.35..5.54 to its springing at
 14.5, crown 20.2, its front x -48.76 (yard face -42.41), its top 22.8. The piers stand 0.9
 out of the wall's faces (footprint_margin: the wall's collision is the building's)."""
-from ..barracks.levels import LevelMesh, chain
+from ..levels import LevelMesh, chain
 
 # EA's timber on GBFarm (Blender UV, v up, modulo 1): the palisade stakes' planks and the corner posts' strip
 STAKES = [(0.21, 0.24, 0.27, 0.41), (0.0, 0.455, 0.27, 0.5)]
@@ -44,18 +44,18 @@ class FarmLevel2(LevelMesh):
     }
 
     def variants(self, install):
-        from ..workshop.prodkit import same_length_variants
+        from ..prodkit import same_length_variants
         return same_length_variants(self, install, super().variants(install))
 
     def decals(self):
-        from ..workshop.prodkit import props_layer
+        from ..prodkit import props_layer
         return [props_layer(sat=(0.12, 0.22), gate=(0.4, 0.65), hue=(22.0, 50.0), rects=STAKES)]          # EA's palisade and posts stay timber
 
     def design(self, kit):
         out = self._gate(kit)
         for key, (p, nrm, us) in FACES.items():
             out += self._piers(kit, p, nrm, us)
-        from ..workshop.prodkit import closed
+        from ..motifs import closed
         return closed(out)                  # EA's wall faces are open planes behind the piers
 
     @staticmethod
@@ -63,7 +63,7 @@ class FarmLevel2(LevelMesh):
         from mathutils import Vector as V
 
         from sagekit.blender.geometry import prism_uz
-        from ..barracks import motifs as M
+        from .. import motifs as M
         xo, xy, yc, half, spring, rise, top = GATE
         out = []
         for x, nx in ((xo, -1), (xy, 1)):
@@ -92,7 +92,7 @@ class FarmLevel2(LevelMesh):
 
     @staticmethod
     def _piers(kit, p, nrm, us):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         from ..shapes import turned
         a, t, n = M.face(p, nrm)
         out = []

@@ -1,7 +1,6 @@
 """The Elven look, Lórien and Rivendell: soft ivory stone, strong mithril silver and strong mallorn
-gold (Max's pick, 2026-09-26, after the stark moonsilver round: "strong silver and gold elements
-with a soft white"). Both metals must read at a glance from the RTS camera, on a stone quiet
-enough to carry them:
+gold. Both metals must read at a glance from the RTS camera, on a stone quiet enough to carry
+them:
 
     stone    soft warm ivory, mids about (0.86, 0.84, 0.80), shading to a gentle warm grey; never
              stark white, never muddy
@@ -111,35 +110,13 @@ STARLIGHT = NightLook("EBStarlight.tga", ramp=[(0, (0, 0, 0)), (.3, (.08, .16, .
 
 @functools.lru_cache(maxsize=None)
 def elven_layers():
-    """(Foliage, Scales, Groove, Repaint): the Elven paint layers, built on first use. sagekit.paint needs numpy (on
-    Blender's Python); this module must import anywhere (validate, the registry, the host)."""
+    """(Foliage, Scales, Groove, Repaint): the Elven paint layers (Foliage and Groove are sagekit.paint.layers'),
+    built on first use. sagekit.paint needs numpy (on Blender's Python); this module must import anywhere
+    (validate, the registry, the host)."""
     import numpy as np
 
     from sagekit.paint.fields import hash01, hsv, ramp, smooth
-    from sagekit.paint.imageio import to_srgb
-    from sagekit.paint.layers import Layer
-
-    class Foliage(Layer):
-        """Green texels of the original sheet (ivy, grass, moss) painted with the leaf ramp by their own
-        luminance, over whatever the Recolour made of them. Works on building canvases (the baked
-        atlas colour) and on flat sheets (SheetCanvas.rgb)."""
-
-        def __init__(self, strength=0.9, hue=(62.0, 150.0), sat=(0.16, 0.30)):
-            self.strength, self.hue, self.sat = strength, hue, sat
-
-        @staticmethod
-        def source(cv):
-            rgb = getattr(cv, "rgb", None)
-            if rgb is not None:
-                return rgb
-            return cv.memo("foliage_rgb", lambda: to_srgb(cv.load("atlas")).astype(np.float32))
-
-        def apply(self, col, cv, pal):
-            H, S, V = hsv(self.source(cv))
-            (h0, h1), (s0, s1) = self.hue, self.sat
-            m = smooth(H, h0, h0 + 12) * (1 - smooth(H, h1 - 12, h1)) * smooth(S, s0, s1) * smooth(V, 0.06, 0.16)
-            m = (m * self.strength * (1 - getattr(cv, "painted", 0.0)))[..., None]
-            return col * (1 - m) + ramp(np.clip(cv.lum * 1.1, 0, 1), pal["leaf"]) * m
+    from sagekit.paint.layers import Foliage, Groove, Layer, sheet_rgb
 
     class Scales(Layer):
         """Fish-scale slates in world space on new roof faces: rows follow z (each offset half a scale),
@@ -174,49 +151,6 @@ def elven_layers():
         def height(self, cv, ds):
             return ds(-self.depth * self.cells(cv)[1] * cv.tag_is(self.tag))
 
-    class Groove(Layer):
-        """A thin grey groove on the stone beside new metal (the `tags`' faces): silver on ivory stone
-        has nearly the stone's value and reads as more stone; a shadowed joint round it makes it metal
-        set in stone. World space, as the faces lie on the mesh (their UV islands are apart): the silver
-        texels are binned in cells of half the width, and every stone texel takes its distance to the
-        nearest cell's mean point among the 27 round its own; dark at the joint, gone at `width`."""
-
-        def __init__(self, tags=("trim", "gilt"), width=0.6, strength=0.75, depth=0.08):
-            self.tags, self.width, self.strength, self.depth = tags, width, strength, depth
-
-        def mask(self, cv):
-            def compute():
-                out = np.zeros(cv.covm.shape, np.float32)
-                src = cv.tag_is(*self.tags) & (cv.covm > 0.5)
-                cand = (cv.covm > 0.5) & ~src & (cv.w_stone > 0.05)
-                if not src.any() or not cand.any():
-                    return out
-                q = np.floor(cv.pos / (self.width / 2)).astype(np.int64)
-                B = 1 << 20
-
-                def key(c):
-                    return ((c[..., 0] + B) << 42) | ((c[..., 1] + B) << 21) | (c[..., 2] + B)
-                cells, inv = np.unique(key(q[src]), return_inverse=True)
-                ps = cv.pos[src]
-                n = np.bincount(inv, minlength=len(cells)).astype(np.float32)
-                mean = np.stack([np.bincount(inv, ps[:, i], len(cells)) for i in range(3)], -1) / n[:, None]
-                qc, pc = q[cand], cv.pos[cand]
-                d = np.full(len(pc), 9.0, np.float32)
-                for off in np.stack(np.meshgrid(*[(-1, 0, 1)] * 3, indexing="ij"), -1).reshape(-1, 3):
-                    k = key(qc + off)
-                    i = np.clip(np.searchsorted(cells, k), 0, len(cells) - 1)
-                    d = np.where(cells[i] == k, np.minimum(d, np.linalg.norm(pc - mean[i], axis=1)), d)
-                out[cand] = 1 - smooth(d, 0.3 * self.width, self.width)
-                return out * cv.w_stone
-            return cv.memo(("groove", id(self)), compute)
-
-        def apply(self, col, cv, pal):
-            g = (self.strength * self.mask(cv))[..., None]
-            return col * (1 - g) + np.array(pal["groove"], np.float32) * g
-
-        def height(self, cv, ds):
-            return ds(-self.depth * self.mask(cv))
-
     class Repaint(Layer):
         """EA's own motifs on the faction sheet repainted as a material by their colour: texels of EA's
         faces (tag "old") whose sheet position lies in `rects` (original px, atlas.py) and whose
@@ -238,7 +172,7 @@ def elven_layers():
                 inside = np.zeros(x.shape, bool)
                 for x0, y0, x1, y1 in self.rects:
                     inside |= (x >= x0) & (x < x1) & (y >= y0) & (y < y1)
-                H, S, V = hsv(Foliage.source(cv))
+                H, S, V = hsv(sheet_rgb(cv))
                 warm = smooth(S, 0.06, 0.12) * (1 - smooth(S, 0.36, 0.46)) * smooth(H, 14, 20) * \
                     (1 - smooth(H, 56, 64)) * smooth(V, 0.48, 0.62)
                 gate = {"warm": warm, "dark": (1 - smooth(V, 0.36, 0.5)) * (1 - warm),

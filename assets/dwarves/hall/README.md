@@ -1,16 +1,9 @@
 # Dwarven fortress hall expansion (`DwarvenHallExpansion`)
 
-Model `DBFGBunk`, redesigned mesh `DBFGBUNK`, `Tier.STANDARD`, painted from the faction atlas
-`DBFortress1` onto its own textures `DBFortressG.tga` / `DBFortressG_NRM.tga` (the fortress owns
-`DBFortressH`).
+Model `DBFGBunk`, mesh `DBFGBUNK`, own texture `DBFortressG.tga` (from the faction atlas
+`DBFortress1.tga`; the fortress owns `DBFortressH`). `Tier.STANDARD`.
 
-It stands on an expansion pad against the fortress: the low connecting wall on its -X side
-(x -55..-27, the side facing the fortress) and the footprint are left exactly as they are. The
-eight `ARROW_*` bones fire from the head's windows (z 80.3) and `ENTERBONE` sits at the door foot
-(-2, 0, 0): nothing new stands in front of either (the crown starts at 85.1, the door frame
-surrounds the opening without entering it).
-
-## What changed (body, healthy)
+## What changed
 
 - **Crown:** the fortress's tower crown lowered onto the hall's head (top 85.1): a battered crown
   ring with a bronze step, stepped-pyramid corner blocks and a stepped gable in the middle of each
@@ -23,19 +16,17 @@ surrounds the opening without entering it).
 - **Flanks:** a rune panel between bronze bands, with a small stepped triangle over it, on each
   side of the tower above the stepped slabs; battered plinths at the foot of the side slabs,
   either side of the low cross buttress.
-- **Banners:** a long Erebor-blue banner (gold rod, gold piping, rune band) on each of the four
-  chamfered corners of the shaft under the head (z 42.5..61.4), hung in the corner's notch 2.6 out
-  of the chamfer, its rod set into the facet that squares the corner out: the chamfers face the
-  RTS camera square-on. The medallion over the door and the flank rune panels stay clear. The same
-  banners as the Erebor tower's.
-- **Paint:** the faction style (honey granite, burnished gold and bronze, gold-inlaid runes, Erebor-blue
-  enamel behind every rune band).
+- **Banners**: four, as [`erebor_tower`](../erebor_tower/README.md)'s (z 42.5..61.4); cloth in
+  `DBHCFGBunk`.
 
-Footprint unchanged (x -55.4..0.6, y -19.1..19.2), height 94.0 -> 104.6 (+11.2 %, limit 20 %),
-379 -> 1,457 triangles. `checks`: 36/36 pass.
+## Kept clear
 
-## Status (`python3 -m sagekit inventory dwarves/hall`)
+- The low connecting wall on the -X side (x -55..-27, facing the fortress) and the footprint.
+- The eight `ARROW_*` bones fire from the head's windows (z 80.3); the crown starts at 85.1.
+- `ENTERBONE` at the door foot (-2, 0, 0); the medallion over the door and the flank rune panels.
 
-| Part | Healthy | Damaged (`_D` sheet) / snow / stonework | Really damaged (`DBFGBunk_D2`) | Construction (`_A`), rubble (`_D3`) |
-|---|---|---|---|---|
-| body (`DBFGBunk`) | done, rendered, not installed | our body on the variant sheets | derived: carries our body | old (separate models, not derived by the pipeline) |
+## Status
+
+Installed with the Dwarven pack. 379 -> 1,441 triangles, height 93.97 -> 104.55 (+11.2 %), 85/85
+checks. Construction, really damaged and rubble are rebuilt along EA's pieces; damaged draws the
+body on its own `_D` sheet.

@@ -55,7 +55,7 @@ class Fortress(Building):
     tier = Tier.HERO
     own_textures = {"DBFortress1.tga": "DBFortressH.tga"}      # already in players' caches
     bake_hidden = ("DBFBANNER", "P1")
-    views = {                                                   # round 1's cameras (the before shots)
+    views = {                                                   # the before shots' cameras
         "rts": ((20, 0, 40), 560, 50, -38, 50),
         "close": ((68, -14, 62), 330, 24, -30, 45),
         "ingame": ((20, 0, 30), 1300, 53, -62, 50),

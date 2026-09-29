@@ -1,8 +1,7 @@
 # Men siege workshop, level 3 (`V2` of `GBWorkshop`)
 
-Draft for review, not installed. Chained on [`workshop_level2`](../workshop_level2/README.md);
-this is the chain's last link, so its `gbworkshop.w3d` is the one that ships. Renders:
-`build/assets/men/workshop_level3/renders/`.
+Chained on `men/workshop_level2` ([`levels.py`](../levels.py)); the chain's last link, so
+its `gbworkshop.w3d` ships. Own texture `GBVW2`; slate hints as level 2.
 
 ## What changed
 
@@ -16,11 +15,13 @@ dome and a thin stone spike. Now, like the citadel's towers:
 - the dome: a steel eave band, ribs up its hips and middles, a lantern cupola where EA's spike
   stood (cleared: `clear`), a steel mast, gilt orb and spike.
 
-## Fit and status
+## Kept clear
 
-- `V2` 1,304 -> 7,904 triangles; height 45.5 -> 51.2 (+12.6 %); the bartizans stand 0.6 past
-  the storey's faces (`footprint_margin` 0.8: the building's collision is the INI's); 93/93
-  checks.
-- Own texture `GBVW2`; slate hints as level 2.
-- Lifecycle: construction and rubble carry V2; the really damaged model is left as level 2
-  built it (the lifecycle step: V2 and the damaged body use different sheets).
+- The bartizans stand 0.6 past the storey's faces (`footprint_margin` 0.8: the building's
+  collision is the INI's).
+
+## Status
+
+Installed with the Men pack. `V2` 1,304 -> 7,904 triangles, height 45.5 -> 51.2 (+12.6 %), 93/93
+checks. Construction and rubble carry V2; damaged is derived. Really damaged (`GBWorkshop_D2`)
+does not carry V2: V2 and the damaged body are painted from different sheets.

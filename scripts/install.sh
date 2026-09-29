@@ -2,6 +2,7 @@
 # scripts/install.sh — set up BFME2 and Rise of the Witch-king on this Mac from your own game folders.
 #
 #   scripts/install.sh --bfme2 <dir> [--rotwk <dir>] [options]
+#   scripts/install.sh --buildings [list] | --no-buildings     (on an existing install)
 #   scripts/install.sh --status
 #   scripts/install.sh --uninstall
 #
@@ -20,11 +21,19 @@
 #                     instead of downloading the latest GitHub release
 #   --group-pack      also build and install the group pack (MULTIPLAYER.md); everyone you play
 #                     with needs the same one
+#   --buildings [list]  also install the new buildings from the release (RotWK): every finished
+#                     faction (dwarves,elves,men,goblins: Arnor uses Men's; Dwarves and Elves bring
+#                     their builder) or a comma list. Without this flag the installer asks
+#                     (default no). Everyone in a LAN game must choose
+#                     the same. The packs hold none of EA's files: each is checked against your game
+#                     and rebuilt from it (sagekit/pack.py); a faction whose EA files differ is skipped
+#   --no-buildings    take them out again (asset.dat restored from the scoped backup)
 #   --no-apps         don't put the app bundles in /Applications
 #   BFME2_KEY= / ROTWK_KEY=   CD keys (asked for otherwise; Enter generates one, as the
 #                     All-in-One Launcher does)
 set -eu
 export BFME_ROOT="${0:A:h:h}" WINE_BUILD=w10
+. "$BFME_ROOT/scripts/lib.sh"
 DL="$BFME_ROOT/downloads"; ENG="$BFME_ROOT/engines"
 ENGINE_URL="https://github.com/Sikarugir-App/Engines/releases/download/v1.0/WS12WineSikarugir10.0_6.tar.xz"
 ENGINE_SHA="9da7ee0cbf386522f3a9906943726d9c3c125dbbd9ab120e3cde80e88d6091b2"
@@ -45,7 +54,6 @@ fetch() {  # fetch <url> <sha256> <dest>: download once, verify
   sha_ok "$3.part" "$2" || { rm -f "$3.part"; die "checksum mismatch for ${1:t}"; }
   mv "$3.part" "$3"
 }
-running() { pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null; }
 LIBDIR() { print -r -- "$ENG/w10/wswine.bundle/lib/wine"; }
 
 status() {
@@ -57,15 +65,19 @@ status() {
     [[ -d "$BFME_ROOT/prefixes/w10/$EA/$g" ]] && echo "$g: installed" || echo "$g: not installed"
   done
   [[ -f "$BFME_ROOT/prefixes/w10/$EA/RotWK/gamepatch.ini" ]] && echo "game patch: installed" || echo "game patch: not installed"
+  pack status
 }
 
+pack() { (cd "$BFME_ROOT" && python3 -m sagekit.pack "$@" --prefix "$BFME_ROOT/prefixes/w10"); }
+
 uninstall() {
-  running && die "a game is running; quit it first"
+  game_running && die "a game is running; quit it first"
   local trash="$BFME_ROOT/.trash-$(date +%Y%m%d-%H%M%S)"
   echo "This moves engines/w10, engines/template and prefixes/w10 (your copied games AND saved games"
   echo "under its My ... Files folders) to ${trash:t}/ and removes the app bundles. downloads/ is kept."
   read "ans?Type 'uninstall' to continue: "
   [[ "$ans" == uninstall ]] || { echo "nothing changed"; exit 1; }
+  [[ -z "$(pack status --list)" ]] || pack revert || echo "buildings not reverted; they go with the prefix"
   "$BFME_ROOT/scripts/make-apps.sh" --remove 2>/dev/null || true
   for l in "$ENG"/*.dylib(N@); do rm -f "$l"; done
   mkdir -p "$trash/engines" "$trash/prefixes"
@@ -76,24 +88,33 @@ uninstall() {
 }
 
 # ---- arguments
-FROM="" SRC_BFME2="" SRC_ROTWK="" GROUP=0 APPS=1
+FROM="" SRC_BFME2="" SRC_ROTWK="" GROUP=0 APPS=1 BUILDINGS="" url=""
 while (( $# )); do
   case "$1" in
     --from) FROM="${2:A}"; shift ;;
     --bfme2) SRC_BFME2="${2:A}"; shift ;;
     --rotwk) SRC_ROTWK="${2:A}"; shift ;;
     --group-pack) GROUP=1 ;;
+    --buildings) if [[ $# -gt 1 && "$2" != -* ]]; then BUILDINGS="$2"; shift; else BUILDINGS=all; fi ;;
+    --no-buildings) BUILDINGS=remove ;;
     --no-apps) APPS=0 ;;
     --status) status; exit 0 ;;
     --uninstall) uninstall; exit 0 ;;
-    *) sed -n '2,24p' "$0"; exit 2 ;;
+    -h|--help) usage ;;
+    *) usage 2 ;;
   esac
   shift
 done
 PFX="$BFME_ROOT/prefixes/w10"
 have_bfme2() { [[ -n "$SRC_BFME2" || -d "$PFX/$EA/BFME2" ]]; }
 [[ -z "$FROM" || -f "$FROM" ]] || die "no such file: $FROM"
-[[ -n "$SRC_BFME2$SRC_ROTWK" ]] || die "give your game folder(s): --bfme2 <dir> and/or --rotwk <dir>"
+ONLY_BUILDINGS=0   # --buildings / --no-buildings alone, on an existing install
+[[ -z "$SRC_BFME2$SRC_ROTWK" && -n "$BUILDINGS" && -d "$PFX/$EA/RotWK" ]] && ONLY_BUILDINGS=1
+if (( ONLY_BUILDINGS )) && [[ "$BUILDINGS" == remove ]]; then
+  game_running && die "a game is running; quit it first"
+  pack revert; exit 0
+fi
+[[ -n "$SRC_BFME2$SRC_ROTWK" ]] || (( ONLY_BUILDINGS )) || die "give your game folder(s): --bfme2 <dir> and/or --rotwk <dir>"
 [[ -z "$SRC_BFME2" || -f "$SRC_BFME2/game.dat" && -f "$SRC_BFME2/lotrbfme2.exe" ]] || die "$SRC_BFME2 is not a BFME2 folder (no lotrbfme2.exe + game.dat)"
 [[ -z "$SRC_ROTWK" || -f "$SRC_ROTWK/game.dat" && -f "$SRC_ROTWK/lotrbfme2ep1.exe" ]] || die "$SRC_ROTWK is not a RotWK folder (no lotrbfme2ep1.exe + game.dat)"
 [[ -z "$SRC_ROTWK" ]] || have_bfme2 || die "RotWK is an expansion: give --bfme2 <dir> as well"
@@ -102,7 +123,7 @@ have_bfme2() { [[ -n "$SRC_BFME2" || -d "$PFX/$EA/BFME2" ]]; }
 step "Checking this Mac"
 [[ "$(sysctl -n hw.optional.arm64 2>/dev/null)" == 1 ]] || die "this needs an Apple Silicon Mac"
 arch -x86_64 /usr/bin/true 2>/dev/null || die "Rosetta 2 is not installed. Run: softwareupdate --install-rosetta --agree-to-license"
-running && die "a game is running; quit it first"
+game_running && die "a game is running; quit it first"
 
 # ---- 2. the release file
 if [[ -z "$FROM" ]]; then
@@ -124,6 +145,44 @@ rm -rf "$REL"; mkdir -p "$REL"
 tar -xzf "$FROM" -C "$REL" --strip-components 1
 ( cd "$REL" && shasum -a 256 -c --quiet SHA256SUMS ) || die "the release file is damaged (SHA256SUMS)"
 [[ "$(cat "$REL/ENGINE")" == "${ENGINE_URL:t} $ENGINE_SHA" ]] || die "the release was built for another engine: $(cat "$REL/ENGINE")"
+
+# the building packs (sagekit/pack.py): REL/BUILDINGS lines are "<faction> <file> <sha256> <bytes>"
+installed_buildings=$(pack status --list)
+if [[ -z "$BUILDINGS" && -s "$REL/BUILDINGS" ]] && [[ -n "$SRC_ROTWK" || -d "$PFX/$EA/RotWK" ]]; then
+  if [[ -n "$installed_buildings" ]]; then
+    BUILDINGS=$installed_buildings   # installed before: updated to this release's packs
+  elif [[ -t 0 ]]; then
+    typeset -A label=(dwarves Dwarves elves Elves men "Men (and Arnor)" goblins Goblins)
+    names=(); for f in $(cut -d' ' -f1 "$REL/BUILDINGS"); do names+=("${label[$f]:-$f}"); done
+    echo "New buildings for ${(j:, :)names} ($(awk '{s += $4} END {printf "%d", s / 1048576}' "$REL/BUILDINGS") MB download)."
+    read "ans?Install them? Everyone in a LAN game must choose the same (they change INI files; mismatched INIs desync) [y/N] "
+    [[ "$ans" == [yY]* ]] && BUILDINGS=all || BUILDINGS=no
+  fi
+fi
+buildings() {  # install the chosen packs from the release, or take them out
+  [[ "$BUILDINGS" == (|no) ]] && return 0
+  step "Buildings"
+  if [[ "$BUILDINGS" == remove ]]; then pack revert; return 0; fi
+  [[ -d "$PFX/$EA/RotWK" ]] || { echo "skipped: the buildings are for RotWK"; return 0; }
+  [[ -s "$REL/BUILDINGS" ]] || die "this release has no building packs (${FROM:t})"
+  local want=$BUILDINGS f n sha size src unpacked="$BFME_ROOT/build/install/buildings"
+  local -a dirs
+  [[ "$want" == all ]] && want=$(awk '{printf "%s%s", (NR > 1 ? "," : ""), $1}' "$REL/BUILDINGS")
+  rm -rf "$unpacked"; mkdir -p "$unpacked"
+  for f in ${(s:,:)want}; do
+    read -r n sha size <<< "$(awk -v f="$f" '$1 == f {print $2, $3, $4}' "$REL/BUILDINGS")"
+    [[ -n "$n" ]] || die "no $f buildings in this release (it has: $(cut -d' ' -f1 "$REL/BUILDINGS" | tr '\n' ' '))"
+    src="${FROM:h}/$n"   # beside the release file: --from's folder, or downloads/
+    if [[ -n "$url" ]]; then fetch "${url%/*}/$n" "$sha" "$src"
+    else sha_ok "$src" "$sha" || die "$n (SHA-256 $sha) must be beside ${FROM:t}"; fi
+    tar -xzf "$src" -C "$unpacked"
+    dirs+=("$unpacked/${n%.tar.gz}")
+  done
+  echo "checking them against your game, rebuilding them from its files and updating asset.dat (a few minutes)"
+  pack install "${dirs[@]}" || echo "buildings not installed (above)"
+  rm -rf "$unpacked"
+}
+if (( ONLY_BUILDINGS )); then buildings; exit 0; fi
 
 # ---- 3. Wine engine, its support libraries, AutoHotkey
 step "Wine engine"
@@ -246,6 +305,7 @@ if (( GROUP )) && [[ -d "$G" ]]; then
   python3 "$BFME_ROOT/tools/make_group_pack.py" rotwk
   "$BFME_ROOT/scripts/install-mod.sh" rotwk "$BFME_ROOT/build/group-pack/rotwk/install"
 fi
+buildings
 (( APPS )) && { step "App bundles"; "$BFME_ROOT/scripts/make-apps.sh"; }
 
 step "Done"

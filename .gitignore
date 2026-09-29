@@ -31,3 +31,9 @@ __pycache__/
 .claude/settings.local.json
 # uninstall.sh moves engines/prefixes here; the user deletes them
 .trash-*/
+
+# Claude Code worktrees; Jupyter and Blender scratch outside build/
+.claude/worktrees/
+.ipynb_checkpoints/
+*.blend
+*.blend1

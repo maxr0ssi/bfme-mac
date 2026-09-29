@@ -20,7 +20,7 @@ What stands on it here:
 No cloth, no night lights (a level mesh: levels.py). Footprint = V1's bounding box.
 """
 from ..archer_range.building import NOT_BAKED
-from ..barracks.levels import LevelMesh, chain, level_textures
+from ..levels import LevelMesh, chain, level_textures
 
 OBELISKS = [(-45.1, y) for y in (-28.6, -2.15, 25.6, 50.9)] + [(44.94, y) for y in (-28.7, -1.9, 25.3, 50.9)]
 Z_TOP, Z_CORBEL, Z_SLAB, OUT = 19.87, 14.2, 17.7, 1.1
@@ -47,14 +47,14 @@ class ArcherRangeLevel2(LevelMesh):
         out = self._walls(kit)
         for cx, cy in OBELISKS:
             out += self._obelisk(kit, cx, cy)
-        from ..barracks.motifs import closed
+        from ..motifs import closed
         return closed(out)
 
     @staticmethod
     def _walls(kit):
         from mathutils import Vector as V
 
-        from ..barracks.motifs import corbel_table, slab
+        from ..motifs import corbel_table, slab
         out = []
         for x0, sx, u0, u1 in ((-35.9, 0.035, -36.5, 10.0), (35.5, -0.035, -11.0, 50.0)):
             n = V((-1, 0, 0)) if x0 < 0 else V((1, 0, 0))
@@ -74,7 +74,7 @@ class ArcherRangeLevel2(LevelMesh):
 
         from sagekit.blender.geometry import box_rings, loft
 
-        from ..barracks.motifs import knob, roundel
+        from ..motifs import knob, roundel
         out = [loft([box_rings((cx - 3.75, cx + 3.75), (cy - 3.75, cy + 3.75), 5.2, 0),
                      box_rings((cx - 3.75, cx + 3.75), (cy - 3.75, cy + 3.75), 5.85, 0)], ["course"], cap0=("stoneB", True), cap1=("top", True))]
         h = shaft_half(15.6) + 0.28

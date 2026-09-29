@@ -382,7 +382,7 @@ class Cache(Step):
             for line in apply_cache_ops(cache, ops, self.shipped):
                 print("    " + line)
             for op in ops:
-                if op[0] == "patch" and cache.stale_entries(self.shipped(op[1]), op[1]):
+                if op[0] in ("patch", "model") and cache.stale_entries(self.shipped(op[1]), op[1]):
                     raise StepFailed("cache record of %s still stale after patching" % op[1])
             os.makedirs(os.path.dirname(cache.path), exist_ok=True)
             cache.save(backup=False)
@@ -396,7 +396,9 @@ def apply_cache_ops(cache, ops, model_path):
     """model_path(model file name) -> the file whose layout the record must match."""
     lines = []
     for op in ops:
-        if op[0] == "texture":
+        if op[0] == "model":
+            lines += cache.add_model(op[1], op[2], model_path(op[1]))
+        elif op[0] == "texture":
             lines += cache.add_texture(*op[1:])
         elif op[0] == "patch":
             lines += cache.patch_model(model_path(op[1]), op[1])
@@ -417,7 +419,7 @@ class Checks(Step):
 
 class Render(Step):
     name = "render"
-    FONT = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+    FONT = paths.FONT                   # (the Mac's Arial Bold; DejaVu on Linux)
 
     def run(self, views=None, res="1600x1100", spp="64"):
         """The healthy model, then every derived model that carries this building's body (EA's

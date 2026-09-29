@@ -1,4 +1,4 @@
-/* R5 worker-pool bench + verification (standalone; runs under Wine in the research prefix).
+/* Worker-pool bench + verification (standalone; build-and-run.sh runs it under Wine in its own prefix).
  *   forkjoin  - fork/join round-trip cost, N workers, empty job (hybrid must not hang)
  *   grain     - par_for overhead vs grain size on a synthetic compute workload
  *   verify    - serial vs parallel byte-for-byte output comparison + FPU propagation check

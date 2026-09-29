@@ -22,9 +22,7 @@ import math
 
 from mathutils import Vector as V
 
-from sagekit.blender.geometry import box_rings, loft, prism_uz
-
-Z = V((0, 0, 1))
+from sagekit.blender.geometry import Z, box_rings, loft, prism_uz
 
 
 def beam(p, q, r, tag="trim", r2=None):

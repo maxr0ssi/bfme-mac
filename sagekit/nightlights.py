@@ -441,7 +441,10 @@ def cache_ops(b):
     for f, obj in found:
         m = ea_of.get(f)
         ea = W3DFile(g.read(g.model_path(m))).meshes.get(obj.split(".")[-1]) if m and g.has_model(m) else None
-        dep = next((d for d in (c.dependencies(f, obj) for c in g.asset_caches().values()) if d is not None), None)
+        # a model of our own name (own_model) is filed as a copy of EA's records (AssetCache.add_model)
+        ea_f, ea_obj = (m.lower() + ".w3d", m.upper() + "." + obj.split(".", 1)[-1]) if m else (f, obj)
+        dep = next((d for d in (c.dependencies(x, o) for c in g.asset_caches().values()
+                                for x, o in ((f, obj), (ea_f, ea_obj))) if d is not None), None)
         sheets = [t.lower() for t in (dep or [])] or [t.lower() for t in (ea.textures if ea else [])]
         sheets = [t for t in sheets if t != mine and "_nrm" not in t and t.endswith((".tga", ".dds"))]
         if sheets and not ops:

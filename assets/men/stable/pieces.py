@@ -1,5 +1,5 @@
 """Pieces the stable and the forge share (and their level-up meshes), on top of the citadel's kit
-(assets/men/shapes.py) and the production motifs (assets/men/barracks/motifs.py, imported, never
+(assets/men/shapes.py) and the production motifs (assets/men/motifs.py, imported, never
 edited). Blender side: mathutils imports stay inside the functions, so the recipes load anywhere.
 
     mirrored        solids reflected through a vertical plane (y = c or x = c), re-oriented
@@ -53,7 +53,7 @@ def dormer(kit, a, t, n, u, d_front, z0, z1, half, rise, d_back, glass="window",
     d_back, which must lie inside the roof (the back and the foot are buried)."""
     from sagekit.blender.geometry import prism_uz
 
-    from ..barracks.motifs import knob as knob_, window
+    from ..motifs import knob as knob_, window
     apex = z1 + rise
     body = [(u - half, z0), (u + half, z0), (u + half, z1), (u, apex), (u - half, z1)]
     out = [prism_uz(a, t, n, body, d_back, d_front, [None, "stoneA", "stoneA", "stoneA", "stoneA"], "stoneA", None)]
@@ -114,7 +114,7 @@ def keystone(a, t, n, u, z0, z1, half0=0.6, half1=0.95, d0=-0.3, d1=0.8):
 def archivolt(kit, a, t, n, u, half, spring, rise, w=1.4, d=0.7, count=11, key=0.35, back=-0.3):
     """A ring of voussoirs w wide round an arch at u (its opening: half, springing, rise), d proud,
     a keystone rising `key` over the ring, and a moulded impost block at each springing."""
-    from ..barracks.motifs import slab
+    from ..motifs import slab
     c = a + t * u
     out = kit.voussoirs(c, t, n, (half, rise, spring), (half + w, rise + w, spring), back, d, count=count,
                         key=(0.45 * w + 0.3, spring + rise + w + key, 0.3))
@@ -126,7 +126,7 @@ def archivolt(kit, a, t, n, u, half, spring, rise, w=1.4, d=0.7, count=11, key=0
 
 def cornice(a, t, n, u0, u1, z, depth=1.5, dentils=True, pitch=1.1, back=-0.25):
     """motifs.cornice (fillet, dentils, corona, cymatium; about 2.15 high), every solid closed on top."""
-    from ..barracks.motifs import cornice as cornice_
+    from ..motifs import cornice as cornice_
     out = cornice_(a, t, n, u0, u1, z, depth=depth, dentils=dentils, pitch=pitch, back=back)
     for sol in out:
         for p in sol.polys:
@@ -136,7 +136,7 @@ def cornice(a, t, n, u0, u1, z, depth=1.5, dentils=True, pitch=1.1, back=-0.25):
 
 def socle(cx, cy, z0, half, steps=((1.4, "stoneB"), (1.0, "course"))):
     """A stepped square base centred on (cx, cy) from z0: each step (height, tag), narrowing."""
-    from ..barracks.motifs import box
+    from ..motifs import box
     out, z, h = [], z0, half
     for dz, tag in steps:
         out.append(box(cx - h, cx + h, cy - h, cy + h, z, z + dz, tag))

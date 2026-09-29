@@ -78,6 +78,15 @@ class Style:
         """The colour layers for flat sheets (no geometry): [sagekit.paint.layers.Layer]."""
         raise NotImplementedError
 
+    # palette options for the owner's pick (`sagekit palettes <faction>`, sagekit/palettes.py): the
+    # choices, a line on each, the recipe whose EA model shows them, its views, and the swatches
+    # under each column as (label, ramp, position)
+    palettes = {}                   # {"A": Palette, ...}
+    palette_notes = {}              # {"A": "near-black stone, ..."}
+    palette_building = 'fortress'
+    palette_views = ('rts', 'close')
+    swatches = ()
+
     night = None                    # NightLook: the faction's night lights (sagekit/nightlights.py);
                                     # None keeps EA's night meshes
     master_variants = {}            # {"damaged": "DBFortress1_D.tga", ...} the faction atlas's variants

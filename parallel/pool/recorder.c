@@ -1,4 +1,4 @@
-/* R5 deferred-effect recorder. See recorder.h and parallel/DESIGN.md §3.
+/* Deferred-effect recorder. See recorder.h and parallel/DESIGN.md §3.
  *
  * Per-site stub (17 bytes, generated at rec_site_add, lives in RWX memory):
  *     51                push ecx            ; thiscall 'this' (harmless for other conventions)

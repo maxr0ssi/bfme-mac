@@ -1,6 +1,7 @@
 """Scene plumbing: the W3D add-on's import/export, clean scenes, the GPU."""
 import os
 import shutil
+import sys
 import tempfile
 
 import bpy
@@ -91,6 +92,11 @@ def save(path):
 
 
 def use_gpu(scene):
+    """Cycles on the GPU: Metal on the Mac (every device), else the first of OptiX, CUDA, HIP and
+    oneAPI with a device (its devices only; the A100 offload: OptiX). SAGEKIT_CYCLES_DEVICE picks
+    one (e.g. CUDA)."""
+    if sys.platform != "darwin" or os.environ.get("SAGEKIT_CYCLES_DEVICE"):
+        return _use_gpu_other(scene)
     try:
         prefs = bpy.context.preferences.addons["cycles"].preferences
         prefs.compute_device_type = "METAL"
@@ -100,6 +106,33 @@ def use_gpu(scene):
         scene.cycles.device = "GPU"
     except (KeyError, TypeError, AttributeError) as e:
         print("gpu unavailable, rendering on the CPU:", e)
+
+
+def _use_gpu_other(scene):
+    kinds = [os.environ["SAGEKIT_CYCLES_DEVICE"].upper()] if os.environ.get("SAGEKIT_CYCLES_DEVICE") else \
+        ["OPTIX", "CUDA", "HIP", "ONEAPI"]
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+    except (KeyError, AttributeError) as e:
+        print("gpu unavailable, rendering on the CPU:", e)
+        return
+    for kind in kinds:
+        try:
+            prefs.compute_device_type = kind
+            prefs.get_devices()
+        except (TypeError, AttributeError, ValueError):
+            continue
+        gpus = [d for d in prefs.devices if d.type == kind]
+        if not gpus:
+            continue
+        for d in prefs.devices:
+            d.use = d.type == kind
+        scene.cycles.device = "GPU"
+        if not _use_gpu_other.__dict__.get("said"):
+            print("cycles on %s: %s" % (kind, ", ".join(d.name for d in gpus)), flush=True)
+            _use_gpu_other.said = True
+        return
+    print("gpu unavailable (%s), rendering on the CPU" % "/".join(kinds))
 
 
 def tri_count(me):

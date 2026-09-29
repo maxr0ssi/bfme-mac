@@ -1,4 +1,4 @@
-/* R5 core-placement probe: do Wine thread priorities steer macOS P-core vs E-core placement?
+/* Core-placement probe: do Wine thread priorities steer macOS P-core vs E-core placement?
  * place.exe <nthreads> <priority> : each thread runs a fixed scalar kernel for ~2 s and reports
  * its rate; an E-core runs this ~2x slower than a P-core on an M3 Max. Priority is a Win32
  * THREAD_PRIORITY_* value (-2 LOWEST, 0 NORMAL, 1 ABOVE_NORMAL, 2 HIGHEST, 15 TIME_CRITICAL).

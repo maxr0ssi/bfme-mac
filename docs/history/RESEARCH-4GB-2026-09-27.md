@@ -1,6 +1,6 @@
 > **Research snapshot (2026-09-27).** This is web and source research only. No game was run for it.
 > The w10 LAA investigation (crash history and the `laaprobe` run) is in
-> [MEMORY-4GB.md](../MEMORY-4GB.md). This file collects outside evidence and gives a source for every claim.
+> [LAA-W10-2026-09-27.md](LAA-W10-2026-09-27.md); the current state is [MEMORY-4GB.md](../MEMORY-4GB.md). This file collects outside evidence and gives a source for every claim.
 > Confidence: **H** = read in source or a primary document, **M** = several secondary sources agree,
 > **L** = one forum post or a search snippet (the page itself was blocked).
 

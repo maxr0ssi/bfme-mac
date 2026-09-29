@@ -1,11 +1,12 @@
 #!/bin/zsh
 # test-skirmish.sh [label] [-- extra game args]
 #
-# Hands-free harness for bisecting the "hang after loading" bug: kills any running RotWK, launches
-# it via play-rotwk.sh (any WINEDEBUG / WINE_BUILD / other env vars set by the caller pass
-# through; arguments after "--" are appended to the game command line), drives the menus with
-# ahk/autoskirmish.ahk, then polls every 20 s (CPU + window capture classified by
-# classify-capture.py) for up to 8 minutes and prints exactly one of
+# Hands-free skirmish run (bench-matchstart.sh and bench-battle.sh use it; agents don't run it,
+# docs/DEVELOPMENT.md). Refuses while a game runs (FORCE=1 kills it), launches the game with
+# play-rotwk.sh or play-bfme2.sh (GAME=; WINEDEBUG, WINE_BUILD and other env vars set by the caller
+# pass through; arguments after "--" are appended to the game command line), drives the menus with
+# ahk/autoskirmish.ahk, then polls every POLL (20) s (CPU + window capture classified by
+# classify-capture.py) for up to MAX_SECS (660) s and prints exactly one of
 #   RESULT: MAP_RENDERED      the 3D map + HUD appeared (game is left running)
 #   RESULT: HANG_AFTER_LOAD   loading UI vanished / window went dark and CPU dropped (game killed)
 #   RESULT: CRASHED           process gone or a new DUMP_*.dmp appeared (game killed)
@@ -63,7 +64,7 @@ KEEP_ON_HANG=${KEEP_ON_HANG:-0} # 1 = leave the hung process alive (for live mem
 # Menu timing (ms) handed to autoskirmish.ahk: wait before the first Esc, wait for the main menu.
 # Engine-level, not per-game: the w10 engine starts the intro movie ~20 s later than 11.0 and its
 # splash lasts ~50 s (measured on RotWK). BFME2 was still on the intro at +133 s with one Esc
-# burst at preEsc, so autoskirmish.ahk now keeps tapping Esc through the first half of MENU_WAIT
+# burst at preEsc, so autoskirmish.ahk keeps tapping Esc through the first half of MENU_WAIT
 # rather than these values being raised; the poll loop also re-clicks up to 3 times.
 case "$WINE_BUILD" in
   w10) PRE_ESC=${PRE_ESC:-48000}; MENU_WAIT=${MENU_WAIT:-55000} ;;
@@ -143,7 +144,7 @@ finish() {  # finish <RESULT> <detail>
 # --- launch -------------------------------------------------------------------------------
 # Never take down someone's match: refuse to start while any game process exists unless the
 # caller says FORCE=1 (the harness's own kill_game below is what stops the previous run).
-if pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null && [[ "${FORCE:-0}" != "1" ]]; then
+if game_running && [[ "${FORCE:-0}" != "1" ]]; then
   echo "a game is already running; quit it (or FORCE=1 to kill it) before a hands-free run"; exit 3
 fi
 log "label=$LABEL GAME=$GAME WINEDEBUG=${WINEDEBUG:-} WINE_BUILD=$WINE_BUILD extra_args=(${EXTRA_ARGS[*]:-})"

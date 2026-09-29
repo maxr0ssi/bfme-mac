@@ -1,5 +1,5 @@
 """Men forge, level 2 (Upgrade_StructureLevel2: ShowSubObjects V1): the towers and yard walls V1,
-redesigned on the finished forge (`base`; the chain and its rules: assets/men/barracks/levels.py).
+redesigned on the finished forge (`base`; the chain and its rules: assets/men/levels.py).
 
 EA's V1 (model coordinates): four square towers round the hall's corner piers (east x
 22.85..32.31, west -32.17..-22.7; front y 6.41..16.75, back 32.39..42.73) to 47.71 under
@@ -19,7 +19,7 @@ What stands on it here:
             square merlons with capstones on the outer edge; buttresses below
 
 No cloth and no night lights (a level mesh: levels.py)."""
-from ..barracks.levels import LevelMesh, chain, level_textures
+from ..levels import LevelMesh, chain, level_textures
 from ..forge.building import NOT_BAKED
 
 T_TOP, T_APEX = 47.71, 51.87
@@ -44,7 +44,7 @@ class ForgeLevel2(LevelMesh):
     }
 
     def design(self, kit):
-        from ..barracks.motifs import closed
+        from ..motifs import closed
         out = []
         for (x0, x1), (y0, y1) in TOWERS:
             out += self._tower(kit, x0, x1, y0, y1)
@@ -58,7 +58,7 @@ class ForgeLevel2(LevelMesh):
 
         from sagekit.blender.geometry import sweep
 
-        from ..barracks.motifs import corbel_table, roundel, window
+        from ..motifs import corbel_table, roundel, window
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
         ring = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]
         prof = [(-0.4, T_TOP - 2.0), (0.9, T_TOP - 2.0), (0.9, T_TOP), (-0.4, T_TOP)]
@@ -86,7 +86,7 @@ class ForgeLevel2(LevelMesh):
         slab to the top, merlons; buttresses every 13 below."""
         from mathutils import Vector as V
 
-        from ..barracks.motifs import corbel_table, slab
+        from ..motifs import corbel_table, slab
         n = V((e, 0, 0))
         t = V((-n.y, n.x, 0))
         a = V((x, 0, 0))
@@ -107,7 +107,7 @@ class ForgeLevel2(LevelMesh):
 
     @property
     def sheet_atlas(self):
-        from ..workshop.prodkit import VET_TILES, with_tiles
+        from ..prodkit import VET_TILES, with_tiles
         return with_tiles(super().sheet_atlas, VET_TILES)       # EA's slate caps stay slate
 
     def emphasis(self, c, n):

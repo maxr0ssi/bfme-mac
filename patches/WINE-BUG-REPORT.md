@@ -1,5 +1,7 @@
 # Draft Wine bug report: WoW64 `syscall_32to64` executed in 32-bit mode on macOS/Apple Silicon (Rosetta)
 
+Status: not filed. Both games avoid the bug by running on Sikarugir's Wine 10.0 build.
+
 **Summary.** In WoW64 mode on macOS 26.3 (Apple M3 Max, Rosetta 2), a 32-bit game (SAGE engine:
 *LOTR: Battle for Middle-earth II / Rise of the Witch-king*, 2006) reliably kills its main thread at
 one specific `NtWaitForSingleObject` call: the 64-bit `wow64cpu!syscall_32to64` entry is executed
@@ -53,6 +55,19 @@ handlers), never reaches the site.
 **Environment.** macOS 26.3.1 (Darwin 25.3.0), Apple M3 Max, Rosetta 2; Gcenx wine-stable 11.0_1
 and wine-staging 11.17 osx64; game 32-bit, no NX_COMPAT (also tested with); wined3d/OpenGL.
 
-**Logs.** `~/Documents/BFME-MAC/logs/rotwk-20260922-141331.log` (+seh, first fault line 987715),
-`rotwk-20260922-150149.log` (+seh +virtual, fault line 87500 after callback unwinds), dumps in
-`.../RotWK/dumps/`.
+**Reproducer without the game.** Wine's own 32-bit d3d9 test suite hits it:
+`wine dlls/d3d9/tests/i386-windows/d3d9_test.exe visual` (WoW64, `WINEDEBUG=-all,err+seh`) aborts
+within 1–3 s with no test output and `err:seh:NtRaiseException Exception frame is not in stack
+limits`, in 2 to 4 runs out of 12 on wine-11.0 built from source. The other runs complete all
+211,245 checks, so this is a race.
+
+**Bisect.** Not a 10.0→11.0 regression. The oldest commit in `wine-10.0..wine-11.0` that runs at all
+on macOS 26.3 is `8fd49c4d8e9` ("ntdll: Don't use private writable mappings on macOS"; everything
+older fails with `could not load kernel32.dll`), and it already aborts in 9 of 12 runs; wine-10.5
+3/12, wine-11.0 4/12. The defect predates the bisectable window; its rate drifts with the macOS
+GSBASE-swap rework (`3a16aabbf55`, `928eb3a9b70`, `245e8cedf05`).
+
+**Logs.** Excerpts attached: the `+seh` log from the first fault (above) and the `+seh +virtual` log
+showing the fault right after the callback unwinds.
+(Local copies, not for the report: `logs/rotwk-20260922-141331.log`, first fault at line 987715;
+`logs/rotwk-20260922-150149.log`, line 87500.)

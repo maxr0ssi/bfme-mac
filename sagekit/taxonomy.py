@@ -99,15 +99,26 @@ def variant_class(texture):
     return {"d": "damaged", "d1": "damaged", "d2": "damaged", "snow": "snow", "s": "snow", "u": "stonework"}.get(tail)
 
 
-def own_variant_name(atlas_texture, own_texture, variant_texture):
+def own_variant_name(atlas_texture, own_texture, variant_texture, same_length=False):
     """A state variant of a building's own texture, named like EA named theirs:
     (DBFortress1.tga, DBFortressH.tga, DBFortress1_D.tga) -> DBFortressH_D.tga,
-    (DBFortress1.tga, DBFortressH.tga, DBFortress_U.tga)  -> DBFortressH_U.tga."""
-    a, v = atlas_texture[:-4], variant_texture[:-4]
+    (DBFortress1.tga, DBFortressH.tga, DBFortress_U.tga)  -> DBFortressH_U.tga.
+    same_length (a name patched into a model in place): when that is longer or shorter than EA's,
+    EA's state suffix stays and our stem, cut or padded from EA's name, ends in our letter:
+    (GBBlkSmithNew, GBBlkSmithNeH, GBBlkSmithN_D) -> GBBlkSmithH_D,
+    (WBStone, WBStonH, WBBStone_D1) -> WBStonHH_D1 (a damaged body painted from another sheet)."""
+    a, v, own = atlas_texture[:-4], variant_texture[:-4], own_texture[:-4]
     n = 0
     while n < min(len(a), len(v)) and a[n].lower() == v[n].lower():
         n += 1
-    return own_texture[:-4] + v[n:] + ".tga"
+    name = own + v[n:]
+    if same_length and len(name) != len(v):
+        tail = v[v.rfind("_"):] if "_" in v else v[n:]
+        stem = (own + v[len(own):])[:len(v) - len(tail)]
+        name = stem[:-1] + own[-1] + tail
+        if not tail or name.lower() in (own.lower(), v.lower()):
+            raise ValueError("no name for %s as long as EA's; pin one in own_textures" % variant_texture)
+    return name + ".tga"
 
 
 def check_id(kind, value):

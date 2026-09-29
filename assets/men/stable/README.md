@@ -1,9 +1,7 @@
 # Men stable (`GondorStable`, `ArnorStable`)
 
-Draft for review, not installed. Renders: `build/assets/men/stable/renders/compare_*.png` (level 1:
-`rts`, `close`, `gable`, `stalls`, `ingame`). The level-up meshes are chained on this recipe:
-[`stable_level2`](../stable_level2/README.md) (V1, the paddock wall and gate arch) and
-[`stable_level3`](../stable_level3/README.md) (V2, the belfry); rebuild them after this one, in that order.
+Level-ups: [`stable_level2`](../stable_level2/README.md) (V1), [`stable_level3`](../stable_level3/README.md)
+(V2), chained on this recipe.
 
 ## What changed
 
@@ -19,13 +17,12 @@ arcades and porched gable ends). Added, in the citadel's kit:
   dormers with arched windows on the north-east wing's yard slope.
 - **Gables**: pinnacles on EA's raking cornice's eave corners and on the south-east apex; a
   voussoir archivolt round each porch arch.
-- **Banner**: one house-colour banner over the stable door; with EA's house banner (GBHCStable,
-  on the north-east gable's apex) that is the cap of 2. The cloth shows after `sagekit house men`
-  (until then the renders show its steel rod and White Tree only).
+- **Banners**: one, over the stable door; with EA's house banner (on the north-east gable's apex)
+  that is the cap of 2. Cloth in `GBHCStable`.
 - **Paint**: EA's slate roofs stay charcoal slate (`with_tiles` mask hints on GBStable); the hay
   and gilt keep EA's colours (`pieces.KeepFire`).
 
-## Clearances
+## Kept clear
 
 - Stall arches: nothing in the openings (the horse heads HRSHEADS come out of them); keystones
   stop at the arch crowns.
@@ -34,18 +31,22 @@ arcades and porched gable ends). Added, in the citadel's kit:
   there), the porch keystones end under z 28, nothing else on the centre lines.
 - The yard (horse walker, the walking horse) is untouched.
 
-## Fit and status
+## Status
 
-- `GBSTABLE` 2,186 -> 6,516 triangles; footprint EA's; height +13.4 % (bartizans, cupola knob).
-- 120/120 checks. Damaged, really damaged and rubble rebuilt along EA's
-  pieces (`GBStable_D1`-`D3`); EA's damaged models draw `GBStable_D`, which no INI state swaps
-  to, so the recipe adds its own copy (`levels.with_damaged`) as the barracks does.
-- The construction model `GBStable_A` stays EA's (recoloured): its horse piece (`GBSTABLE_05`,
-  painted from the horse sheets too) has no variant of ours, and the rest fails the open-backs
-  check at the finished frame even with no design at all (3.7 %, EA 0.03 %); `force` does not
-  pass the checks either.
+Installed with the Men pack. `GBSTABLE` 2,186 -> 6,516 triangles, footprint EA's, height
+61.6 -> 69.8 (+13.4 %, bartizans, cupola knob), 120/120 checks. Damaged, really damaged and
+rubble are rebuilt along EA's pieces (`GBStable_D1`-`D3`).
+
+- Own texture `GBStablH`. EA's damaged models draw `GBStable_D`, which no INI state swaps to, so
+  the recipe adds its own copy (`levels.with_damaged`) as the barracks does.
 - The model is symmetric about y = -0.56 except the south-east arcade, which stands 0.7 further
   back: the wing pieces are mirrored with their own face offsets.
+
+## Known limits
+
+- Construction (`GBStable_A`) stays EA's (recoloured): its horse piece (`GBSTABLE_05`, painted
+  from the horse sheets too) has no variant of ours, and the rest fails the open-backs check at
+  the finished frame (2.88 % of our area, EA's 0.03 %).
 
 ## Shared module here
 

@@ -9,7 +9,7 @@ silver stars and merlons in the same rhythm, a pilaster with the White Tree shie
 pinnacle in the middle of each bay, arrow slits, the string course, caps on the piers. No
 battered foot: the faces run on down the cliff. The cut end gets a Gondor end turret standing on
 the wall top: a chamfered-square tower corbelled out over the wall's faces, its own machicolated
-gallery with merlons (men/wall_hub/dome.py, the citadel's), a steel-ribbed slate dome with a
+gallery with merlons (men/dome.py, the citadel's), a steel-ribbed slate dome with a
 steel eave band, a gilt orb and a spike - the end of the wall seen from the field. No banners
 (the wall run's two hang on the gate).
 
@@ -68,7 +68,7 @@ class WallEnd(Building):
 
     @staticmethod
     def _turret(kit):
-        from ..wall_hub import dome as D
+        from .. import dome as D
         from ..wall_segment.wall import FACE
         sec = D.Section(0.0, TURRET_Y, chamfer=0.28)
         h = TURRET_HALF

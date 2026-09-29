@@ -47,7 +47,7 @@ class Well(Building):
     def _basin(kit):
         """A moulded kerb along the raised basin's outer edge, a pinnacle over every other vertex."""
         from ..shapes import turned
-        r0, r1, z = BASIN
+        _, r1, z = BASIN
         out = [turned(0, 0, [(r1 - 1.3, z - 0.2), (r1 + 0.05, z - 0.2), (r1 + 0.05, z + 0.35), (r1 - 0.2, z + 0.75),
                              (r1 - 1.1, z + 0.75), (r1 - 1.3, z - 0.2)], [None, "course", "course", "top", "stoneB"],
                       k=16, phase=0.0,

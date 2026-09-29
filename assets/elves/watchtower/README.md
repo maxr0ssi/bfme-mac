@@ -1,36 +1,23 @@
-# Elven watchtower
+# Elven watchtower (`ElvenWatchtowerExpansion`)
 
-Model `EBFWTower`, redesigned mesh `EBFWTOWER`, `Tier.STANDARD`. Its own textures are
-`EBFortresP.tga` / `EBFortresP_NRM.tga` and state variants, painted from `EBFortress.tga`
-with EA's cut-out alpha retained.
+Model `EBFWTower`, mesh `EBFWTOWER`, own texture `EBFortresP.tga` (from `EBFortress.tga`, EA's
+cut-out alpha kept). `Tier.STANDARD`.
 
-## Current design
+EA's tower, knotwork, dormers, roof and horns stay whole.
 
-EA's tower, knotwork, dormers, roof and horns stay whole. A needle spire continues the pyramid,
-with mithril ribs and gilt leaf tips on the horns. Mithril coping and crystal lanterns crown
-the cornice; silver frames dress the flank doors and connecting arch. Two banners hang down
-the shaft's flanks. The arrow bones and their firing space remain clear.
+## What changed
 
-The shared palette is the approved citadel's soft ivory, strong mithril and mallorn gold, slate
-roofs and EA's teal glass. No face of EA's healthy body is removed.
+- **Spire**: a needle continues EA's pyramid, with mithril ribs; gilt leaf tips on the horns.
+- **Cornice**: a mithril coping and crystal lanterns.
+- **Doors and arch**: silver frames on the flank doors and the connecting arch.
+- **Banners**: two, down the shaft's flanks; cloth in `EBHCFWTower`.
 
-## Lifecycle and review
+## Kept clear
 
-Construction, really damaged and rubble models rebuild along EA's pieces and motion.
-Damaged, snow and stonework variants retain our body.
+- The arrow bones and their firing space.
 
-Build outputs and before/after images are in `build/assets/elves/watchtower/`. The current
-`work/lifecycle.json` identifies each rebuilt or derived model; `work/logs/checks.log` records
-the checks. Review images are `renders/compare_*.png` and `renders/lifecycle/*.png`.
-Healthy and lifecycle comparisons were rebuilt and visually checked in this finishing pass.
-Nothing is installed; the player’s review remains the next step.
+## Status
 
-EA supplies no night meshes or `NightWindowName` here; the new crystals are day-lit.
-
-## Superseded first-pass measurements
-
-These figures describe the previous design, not the current output. Current reports live in
-`build/assets/elves/watchtower/work/` and are verified again for this finishing pass.
-
-Footprint unchanged (x -42.54..12.73, y -18.42..18.44), height 151.88 -> 175.49 (+15.5 %, limit
-20 %), 476 -> 3,350 triangles. `checks`: 92/92.
+Installed with the Elven pack. 476 -> 4,242 triangles, height 151.88 -> 175.49 (+15.5 %), footprint
+unchanged, 92/92 checks. Construction, really damaged and rubble are rebuilt along EA's pieces and
+motion; damaged, snow and stonework variants carry the new body.

@@ -16,7 +16,7 @@ What stands on it here:
 
 Nothing stands in a window (the arrows leave through them). No cloth, no night lights (levels.py).
 """
-from ..barracks.levels import LevelMesh, chain, level_textures
+from ..levels import LevelMesh, chain, level_textures
 from ..forge.building import NOT_BAKED
 
 C, HALF, CH = (0.34, 32.46), 8.63, 3.85
@@ -46,7 +46,7 @@ class ForgeLevel3(LevelMesh):
     def design(self, kit):
         from mathutils import Vector as V
 
-        from ..barracks.motifs import band_path, closed, crown_dome, octagon, window_surround
+        from ..motifs import band_path, closed, crown_dome, octagon, window_surround
         from ..stable.pieces import faces
         cx, cy = C
         out = []
@@ -64,7 +64,7 @@ class ForgeLevel3(LevelMesh):
 
     @property
     def sheet_atlas(self):
-        from ..workshop.prodkit import VET_TILES, with_tiles
+        from ..prodkit import VET_TILES, with_tiles
         return with_tiles(super().sheet_atlas, VET_TILES)       # EA's slate caps stay slate
 
     def emphasis(self, c, n):

@@ -1,14 +1,16 @@
-# Textures and the 2 GB address space
+# Texture memory in the 32-bit address space
 
-BFME2/RotWK is a 32-bit process with LARGEADDRESSAWARE off: 2 GB of address space for the game,
-its DLLs, Wine's PE side (d3d9, wined3d, opengl32 thunks) and every heap. The art mod adds
-higher-resolution textures (sagekit budget 256 MB per faction). This page answers what a texture
-byte costs in that 2 GB under our Wine 10.0 WoW64 engine (`engines/w10`, wined3d with
-`patches/wined3d-wow64-buffers/` 0001–0021), and how to make it cost almost nothing.
+BFME2 runs with LARGEADDRESSAWARE off (2 GB of address space), RotWK with it on (4 GB;
+[MEMORY-4GB.md](MEMORY-4GB.md)). That space holds the game, its DLLs, Wine's PE side (d3d9,
+wined3d, opengl32 thunks) and every heap. The art packs add higher-resolution textures (sagekit
+budget 512 MB per faction, `budget_mb` in `sagekit/style.py`). This page is what a texture byte
+costs in that space under the w10 engine (wined3d with `patches/wined3d-wow64-buffers/`
+0001–0021), and how to make it cost almost nothing. The per-byte costs apply to both games; only
+the ceiling differs. The measurements below were taken in the 2 GB case.
 
-**Answer: 1.03 bytes per texture byte today, kept for as long as the texture is loaded. With
-0022 (below): 0.002 bytes per byte for textures of 0.5 MB and up, about 2.7 KB per texture for the
-objects.** The GPU copy never costs 32-bit space: the macOS GL driver keeps it above 4 GB.
+1.03 bytes per texture byte today, kept for as long as the texture is loaded. With 0022 (below):
+0.002 bytes per byte for textures of 0.5 MB and up, about 2.7 KB per texture for the objects. The
+GPU copy never costs 32-bit space: the macOS GL driver keeps it above 4 GB.
 
 ## Where the memory goes (static analysis)
 
@@ -54,8 +56,9 @@ before/after eviction and relock. `tools/d3d9lockcheck.c`: 0 failures on both.
 
 ## Patch 0022 — managed textures' system memory in host memory
 
-`patches/wined3d-wow64-buffers/0022-wined3d-Keep-managed-textures-system-memory-in-host-memory-under-WoW64.patch`
-(against bfme-fixes-10.0; applies with `git apply --check`; **not built into the engine**).
+`patches/wined3d-wow64-buffers/unbuilt/0022-wined3d-Keep-managed-textures-system-memory-in-host-memory-under-WoW64.patch`
+(against bfme-fixes-10.0; applies with `git apply --check`). Written, not built into the
+engine and not played; `scripts/wine-fixes.sh` does not apply `unbuilt/`.
 
 - When the game has filled a managed texture (unmap of its last mip) and after every upload, the
   CS thread copies the CPU half's memory into a `malloc` in `wined3d.so` (64-bit, above 4 GB; the
@@ -68,8 +71,7 @@ before/after eviction and relock. `tools/d3d9lockcheck.c`: 0 failures on both.
 - A texture locked again after a stash stays in 32-bit memory for good (radar, dynamic UI).
 - Switch: `WINED3D_STASH_MANAGED=0`; off automatically without `wined3d.so` or outside WoW64.
 
-Checks: Wine's d3d9 tests, installed vs patched: `visual` 86 = 86 failures, identical lines
-(a first version failed 36 more in the volume-texture tests — PBO path — now fixed); `device`
+Checks: Wine's d3d9 tests, installed vs patched: `visual` 86 = 86 failures, identical lines; `device`
 34 vs 32 failures (two flaky ones gone; the patched run skipped the large-query test on time),
 `stateblock` 0 vs 0, `d3d9ex` 24 vs 24.
 
@@ -89,12 +91,12 @@ Capping 0014 by bytes in flight would fix it for the rest.
 
 ## What it means for the art budget
 
-- **Today:** every MB of loaded texture takes 1.03 MB of the 2 GB, from load until release, and
-  nothing else in the address space shrinks to make room. What the game already uses of the 2 GB in
-  a battle has not been measured (no VirtualQuery walk of the game yet); the empty-process wall is
-  1.87 GB of textures. Count normal-map TGAs at 5.33 B/px: STANDARD tier = 2.7 + 5.3 = 8.0 MB,
+- **Today:** every MB of loaded texture takes 1.03 MB of the address space, from load until
+  release, and nothing else in the address space shrinks to make room. What the game already uses
+  in a battle has not been measured (no VirtualQuery walk of the game yet); in a 2 GB process the
+  empty-process wall is 1.87 GB of textures. Count normal-map TGAs at 5.33 B/px: STANDARD tier = 2.7 + 5.3 = 8.0 MB,
   HERO = 10.7 + 21.3 = 32 MB per building, against 5.7 / 22.7 in `sagekit budget`.
 - **With 0022:** textures stop costing 32-bit space once filled (2.7 KB per texture object). The
-  budget then follows host RAM and load time, not the 2 GB — but only after Max's in-game check of
-  0022 (load a map, a long battle with an eviction, alt-tab; compare memory with
-  `scripts/monitor_mem.sh`). Until then keep 256 MB per faction and fix the TGA count.
+  budget would then follow host RAM and load time, but only once 0022 has been played with (load a
+  map, a long battle with an eviction, alt-tab; compare memory with `scripts/memwatch.sh`).
+  Until then the budget stays at 512 MB per faction.

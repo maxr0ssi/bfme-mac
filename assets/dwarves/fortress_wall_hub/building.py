@@ -12,8 +12,6 @@ EA's west run (mesh coordinates): faces at |y| 8.0 from x -45.03 (where it meets
 the hexagon's west corner (-25.49, 0), up to z 50.53, a chamfer to a flat walk at z 52.21 for
 |y| <= 4.92; the rock bank rises from the ground at |y| 12..16 to a ridge inside the wall (|y| 7,
 z 18..28); the bank's ground line reaches x -56.52 (the footprint's west edge)."""
-from sagekit.building import Building
-
 from ..style import DwarvenStyle
 from ..wall_hub.building import WallHub
 from ..wall_segment.building import COPING, COPING_TAGS, COPING_X

@@ -12,8 +12,8 @@
  *   i686-w64-mingw32-gcc -O2 -o build/eipsample.exe tools/eipsample.c
  *   WINE_BUILD=w10 . ./env.sh && wine build/eipsample.exe [seconds] [interval_ms] [exe] [thread]
  *   defaults: 20 s, 5 ms, lotrbfme2ep1.exe, scout
- *   thread: "scout" suspends every thread ~130 times over 3 s to find the busy one (this preceded a
- *   game crash once, 2026-09-24: don't use it on a game you care about); "main" samples the
+ *   thread: "scout" suspends every thread ~130 times over 3 s to find the busy one (it has
+ *   crashed the game: don't use it on a game you care about); "main" samples the
  *   process's first thread (the game's main thread) and touches no other; a number is a thread id.
  *
  * Library time (memcpy, heap, ntdll) is attributed to its caller by scanning the top of

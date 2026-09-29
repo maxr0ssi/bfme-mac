@@ -4,7 +4,9 @@
 #
 # Each fix is a patch series under patches/ and the one DLL it changes. The series are applied in
 # FIXES order onto wine-10.0 in the worktree wine/src-d3dx10, only the DLLs are built, and each is
-# copied over the engine's own (kept once as <dll>.orig-$WINE_BUILD):
+# copied over the engine's own (kept once as <dll>.orig-$WINE_BUILD). Only the *.patch files at the
+# top of a series folder are applied: a subfolder such as wined3d-wow64-buffers/unbuilt/ holds
+# patches that are written but not yet played, and stays out of the build and the release.
 #
 #   d3dx9    patches/d3dx9-setrawvalue       d3dx9_27.dll  loading time ~170 s -> ~12 s (docs/LOAD-TIME.md)
 #   wined3d  patches/wined3d-wow64-buffers   wined3d.dll + wined3d.so (new unix library)
@@ -21,8 +23,9 @@ set -e
 export BFME_ROOT="${0:A:h:h}"
 export WINE_BUILD="${WINE_BUILD:-w10}"
 . "$BFME_ROOT/env.sh"
+case "${1:-}" in ""|--revert) ;; -h|--help) usage ;; *) usage 2 ;; esac
 command -v wine >/dev/null || exit 1
-pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null && { echo "a game is running; close it first"; exit 1; }
+game_running && { echo "a game is running; close it first"; exit 1; }
 
 # name | patch series | make target | DLL override to set ("" = none) | unix library target ("" = none)
 FIXES=(

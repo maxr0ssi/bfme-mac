@@ -21,7 +21,7 @@ What stands on it here:
 
 No cloth and no night lights (a level mesh: levels.py). Footprint = V1's bounding box."""
 from ..barracks.building import NOT_BAKED
-from ..barracks.levels import LevelMesh, chain, level_textures
+from ..levels import LevelMesh, chain, level_textures
 
 Z_TOP, Z_CORBEL, Z_SLAB = 19.87, 14.0, 17.3
 OUT = 1.1                                        # the slab's front, out of the face at z 17
@@ -66,7 +66,7 @@ class BarracksLevel2(LevelMesh):
         out += self._bays(kit)
         for name in TOWERS:
             out += self._tower(kit, name)
-        from ..barracks.motifs import closed
+        from ..motifs import closed
         return closed(out)
 
     @staticmethod
@@ -75,7 +75,7 @@ class BarracksLevel2(LevelMesh):
 
         from sagekit.blender.geometry import sweep
 
-        from ..barracks.motifs import corbel_table
+        from ..motifs import corbel_table
         e, n_ = FACES["E"][0](17.0)[0], FACES["N"][0](17.0)[1]
         w, s = FACES["W"][0](17.0)[0], FACES["S"][0](17.0)[1]
         path = [(TOWERS["N"][0][0] + 0.2, n_), (w, n_), (w, s), (e, s), (e, TOWERS["E"][1][0] - 0.2)]
@@ -93,7 +93,7 @@ class BarracksLevel2(LevelMesh):
         """Upright piers every 14 (their fronts on the footprint's edge, so they stand out of the
         battered face as it leans back) and, between them on the faces the camera sees (south and
         east), White Tree roundels and arrow slits in turn."""
-        from ..barracks.motifs import roundel, slab, window
+        from ..motifs import roundel, slab, window
         out = []
         for name, us in PIERS.items():
             a0, t, n = frame(name, 0.0)
@@ -120,7 +120,7 @@ class BarracksLevel2(LevelMesh):
 
         from sagekit.blender.geometry import box_rings, loft
 
-        from ..barracks.motifs import roundel, window
+        from ..motifs import roundel, window
         (x0, x1), (y0, y1) = TOWERS[name]
         k, zc = TOWER
 

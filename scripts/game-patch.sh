@@ -20,7 +20,6 @@ OUT="$BFME_ROOT/build/gamepatch"
 DLL="$GAMEDIR/dinput8.dll"; INI="$GAMEDIR/gamepatch.ini"
 winpath() { print -r -- "Z:${1//\//\\}"; }
 ours() { [[ -f "$DLL" ]] && grep -aq "gamepatch proxy dinput8.dll for RotWK" "$DLL"; }
-running() { pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null; }
 build() { make -s -C "$BFME_ROOT/gamepatch" MINGW="${MINGW:-/opt/homebrew/bin/i686-w64-mingw32-gcc}"; }
 
 case "${1:-}" in
@@ -29,7 +28,7 @@ case "${1:-}" in
   [[ -f "$BFME_ROOT/logs/gamepatch.log" ]] && { echo "last log lines:"; tail -12 "$BFME_ROOT/logs/gamepatch.log"; }
   exit 0 ;;
 --revert)
-  running && { echo "the game is running; quit it first"; exit 1; }
+  game_running && { echo "the game is running; quit it first"; exit 1; }
   if [[ -f "$DLL" ]] && ! ours; then echo "$DLL is not gamepatch's; left alone"; exit 1; fi
   rm -f "$DLL" "$INI"
   [[ -f "$DLL.orig" ]] && mv "$DLL.orig" "$DLL" && echo "restored the previous dinput8.dll"
@@ -71,11 +70,12 @@ case "${1:-}" in
   echo "friends: copy $OUT/bundle/{dinput8.dll,gamepatch.ini} into the RotWK 2.02 folder (Windows: nothing"
   echo "else; Wine/Mac: also WINEDLLOVERRIDES=dinput8=n,b). Log: gamepatch.log next to the DLL."
   exit 0 ;;
+-h|--help) usage ;;
 "") ;;
-*) echo "usage: $0 [--revert|--test|--status|--bundle]"; exit 2 ;;
+*) usage 2 ;;
 esac
 
-running && { echo "the game is running; quit it first"; exit 1; }
+game_running && { echo "the game is running; quit it first"; exit 1; }
 [[ -f "$GAMEDIR/lotrbfme2ep1.exe" ]] || { echo "no RotWK in $GAMEDIR"; exit 1; }
 build
 # Every patch checks its bytes again at game start; checking here too means an unexpected exe is

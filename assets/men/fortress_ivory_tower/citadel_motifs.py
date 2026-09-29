@@ -1,6 +1,6 @@
 """The citadel's motifs as functions (Blender side), so the fortress add-ons match the approved
-citadel (assets/men/fortress: crown.py, gate.py) without importing its recipe. Copied and
-generalised from the pilot: any convex outline, any scale.
+citadel (assets/men/fortress: crown.py, gate.py) without importing its recipe, for any convex
+outline and any scale.
 
     polygon        a regular k-gon or a chamfered square as a closed 2D path
     cornice        a moulded cornice swept round an outline (the citadel's eave band)
@@ -19,7 +19,7 @@ import math
 
 from mathutils import Vector as V
 
-from sagekit.blender.geometry import box_rings, loft, prism_uz, sweep
+from sagekit.blender.geometry import box_rings, prism_uz, sweep
 
 # the citadel's gallery section, in units of its own (the towers' gallery: 2.0 out, z from the
 # corbels' foot at 73.8 up to the parapet's top at 81.6): (d out of the face, z above the foot)
@@ -214,8 +214,3 @@ def stars_arc(kit, a, t, n, u, z, radius, d0, d1, r=0.8, count=7, spread=120.0):
         th = math.radians(90 - spread / 2 + spread * i / (count - 1))
         out += kit.star(a, t, n, u + radius * math.cos(th), z + radius * math.sin(th), r, d0, d1)
     return out
-
-
-def box(x0, x1, y0, y1, z0, z1, tags, cap0=("stoneB", False), cap1=("top", True), ch=0.0):
-    """An axis-aligned (optionally chamfered) block."""
-    return loft([box_rings((x0, x1), (y0, y1), z0, ch), box_rings((x0, x1), (y0, y1), z1, ch)], [tags], cap0=cap0, cap1=cap1)

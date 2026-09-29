@@ -78,7 +78,7 @@ class Barracks(Building):
         return s
 
     def cache_ops(self, variants=None, derived=()):
-        """Recipe-side workaround (sagekit/building.py cache_ops, 2026-09-26): our normal map's copy
+        """Recipe-side workaround (sagekit/building.py cache_ops): our normal map's copy
         for the D1 state, nbelvnbarH_D_NRM, is registered like EA's NBElvnBarx_D_NRM, which no
         asset.dat files (EA's D1 names a map the game never shipped), so the cache step fails.
         Register it like EA's nbelvnbarx_nrm.tga instead, the map it is a copy of."""
@@ -110,7 +110,7 @@ class Barracks(Building):
     @staticmethod
     def _front(kit):
         from mathutils import Vector as V
-        from .motifs import lancet_window
+        from ..motifs import lancet_window
         a, t, n = V((0, FRONT_Y, 0)), V((1, 0, 0)), V((0, -1, 0))
         out = []
         for u in BAYS:
@@ -123,7 +123,7 @@ class Barracks(Building):
     # ------------------------------------------------------------------ 3. porches
     @staticmethod
     def _porches(kit):
-        from .motifs import hanging_lantern
+        from ..motifs import hanging_lantern
         out = []
         for x, y in PEDESTALS:
             out += kit.crystal_lantern(x, y, 8.25, h=PEDESTAL_H, r=PEDESTAL_R)
@@ -145,7 +145,7 @@ class Barracks(Building):
         lancet windows of the hall front (panes without halos: a halo would drape over the sills); not
         the last window, behind the bows of EA's rack (a bow crosses it, and its pane would face the bow)."""
         from sagekit.nightlights import Light
-        from .motifs import crystal_light, hanging_base, lantern_glow
+        from ..motifs import crystal_light, hanging_base, lantern_glow
         out = [crystal_light(x, y, hanging_base(z, HORN_H, HORN_ROD), HORN_H, HORN_R, "horn %+.0f" % x)
                for x, y, z in HORN_LANTERNS]
         out += [lantern_glow(x, y, hanging_base(z, HORN_H, HORN_ROD), HORN_H, "horn %+.0f" % x)   # EA's glow

@@ -147,7 +147,7 @@ class Statue(Building):
         from an arm beside the die's flank (in the plane |y| ~8.7, x -5.15..-1.65), clear of the
         flank's hexagon niche (x >= -1.3) and of the cloak (|y| <= 8.3)."""
         from mathutils import Vector as V
-        from sagekit.blender.geometry import loft, prism_uz
+        from sagekit.blender.geometry import loft
         (x0, x1), (a, b) = BACK_PIERS
         y0, y1 = sorted((sy * a, sy * b))
 

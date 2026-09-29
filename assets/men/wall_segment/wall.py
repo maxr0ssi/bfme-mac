@@ -34,7 +34,7 @@ unit vector `t` (u), with the face's outward normal `n` (d): the segment runs al
 """
 from mathutils import Vector as V
 
-from sagekit.blender.geometry import loft, prism_uz, sweep
+from sagekit.blender.geometry import prism_uz, sweep
 
 # ---- EA's section (measured on GBWallN, the same on GBWallNE) ----
 FACE = 4.98
@@ -231,9 +231,4 @@ def straight(kit, u0, u1, bays, a=None, t=None, sides=(1, -1), **kw):
         out += face(kit, a, t, nx * s, u0, u1, bays, **kw)
     return out
 
-
-def box(x0, x1, y0, y1, z0, z1, tags, bottom=("stoneB", False), top=("top", True)):
-    from sagekit.blender.geometry import box_rings
-    return loft([box_rings((x0, x1), (y0, y1), z0, 0), box_rings((x0, x1), (y0, y1), z1, 0)], [tags],
-                cap0=bottom, cap1=top)
 

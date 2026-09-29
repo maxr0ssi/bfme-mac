@@ -12,8 +12,9 @@ Read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) before editing.
 - Every number goes into `docs/PERFORMANCE.md` with date, build and scene. Counts only outside
   the run-to-run spread. Correct overturned claims in place and keep dead ends.
 - Confirm a code path runs at the player's settings before optimising it.
-- Every patch checks original bytes and has a switch; every install script has `--revert`.
+- Every patch checks original bytes and has a switch; every install script can undo itself
+  (`--revert`; `scripts/install.sh --uninstall`).
 - No game or Wine binaries in git. Never bypass the harness hooks.
-- Every script gets a line in `docs/REFERENCE.md`. No file over 600 lines.
+- Every script gets a line in `docs/REFERENCE.md`. No code file over 600 lines.
 - Nothing installs into the game without the player's review (art is shown before/after first).
 - Ask before changing measured claims, the multiplayer contract (`MULTIPLAYER.md`) or harness limits.

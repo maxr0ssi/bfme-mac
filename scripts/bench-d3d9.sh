@@ -20,10 +20,10 @@ set -eu
 BFME_ROOT="${0:A:h:h}"
 export BFME_ROOT WINE_BUILD="${WINE_BUILD:-w10}"
 . "$BFME_ROOT/env.sh"
-[[ $# -ge 1 ]] || { sed -n '2,20p' "$0"; exit 1; }
+[[ "${1:-}" == (|-h|--help) ]] && usage $(( $# == 0 ))
 variant=$1; shift
 
-if pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null; then
+if game_running; then
   echo "a game is running; close it first (the bench would compete with it for the GPU and CPU)"; exit 1
 fi
 

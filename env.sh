@@ -4,6 +4,7 @@
 #   WINE_BUILD=w10 . ./env.sh        pick a build: engines/<build> + prefixes/<build>
 BFME_ROOT="${BFME_ROOT:-$HOME/Documents/BFME-MAC}"
 export BFME_ROOT
+. "$BFME_ROOT/scripts/lib.sh"      # game_running, usage
 # Not exported when unset: each launch script picks its own default (play-rotwk.sh needs w10).
 _build="${WINE_BUILD:-stable}"
 

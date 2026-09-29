@@ -6,15 +6,20 @@ ignores. This page is the map: what exists, where it lives, how the pieces conne
 faction stands. The rules and each standard in detail: [assets/README.md](../assets/README.md).
 What comes next: [FACTIONS-PLAN.md](FACTIONS-PLAN.md).
 
-## Where each faction stands (2026-09-26)
+## Where each faction stands
 
 | Faction | Recipes | State |
 |---|---|---|
-| Dwarves | 35 | Installed; every model the game draws carries the redesign: healthy, construction, damaged, really damaged, rubble, placement cursor, night. Reinstalled 2026-09-27 with the monument's banners shown only with its upgrade. Max's in-game check pending. |
-| Elves | 23 | Installed (2026-09-26; reinstalled 2026-09-27 with the anvil banner shown only with its upgrade). [`assets/elves/ROLLOUT.md`](../assets/elves/ROLLOUT.md). |
-| Men of the West (and Arnor) | 44 | Installed 2026-09-27: citadel, upgrades, expansions, walls, production with level-ups, towers and specials; every build ALL PASS. Poster `build/assets/men/men_poster.jpg`; [`assets/men/ROLLOUT.md`](../assets/men/ROLLOUT.md). Max's in-game check pending. |
-| Men | 31 stubs | Measured stubs, citadel pilot in progress; framework pass done 2026-09-27. Plan: [`assets/men/ROLLOUT.md`](../assets/men/ROLLOUT.md). |
-| Isengard, Mordor, Goblins, Angmar | 0 | Surveyed; plan in FACTIONS-PLAN.md. |
+| Dwarves | 35 | Installed; every model the game draws carries the redesign: healthy, construction, damaged, really damaged, rubble, placement cursor, night. Not yet checked in game. |
+| Elves | 23 | Installed. Not yet checked in game. [`assets/elves/ROLLOUT.md`](../assets/elves/ROLLOUT.md). |
+| Men of the West (and Arnor) | 44 | Installed: citadel, upgrades, expansions, walls, production with level-ups, towers and specials. Not yet checked in game. [`assets/men/ROLLOUT.md`](../assets/men/ROLLOUT.md). |
+| Goblins | 14 | Installed: palette E "Blood, iron and bone", every building. Not yet checked in game. [`assets/goblins/ROLLOUT.md`](../assets/goblins/ROLLOUT.md). |
+| Isengard | 25 | Measured stubs; palette A with silver (Max's pick); the citadel's third shape pass (a Gothic foundry tower, war-works on the walks). [`assets/isengard/ROLLOUT.md`](../assets/isengard/ROLLOUT.md). |
+| Mordor, Angmar | 0 | Surveyed; plan in [FACTIONS-PLAN.md](FACTIONS-PLAN.md). |
+
+Budget: 512 MB of own textures per faction (`budget_mb` in `sagekit/style.py`; `sagekit budget`).
+An installed faction adds `!!!!!!!!!!!sagekit-<faction>.big` with edited INIs to the game folder,
+so everyone in a LAN game needs the same packs ([MULTIPLAYER.md](../MULTIPLAYER.md)).
 
 ## One building, step by step
 
@@ -45,6 +50,7 @@ flowchart LR
 | cache | host | asset.dat records for every new or changed model and texture |
 | checks | Blender | the check suite against EA's original: format, bones, footprint, height, UVs, sky-facing backs, alpha, night, lifecycle |
 | render | Blender | `renders/compare_*.png` (EA against ours), `night/`, `lifecycle/` |
+| *preview* | Blender | not a build step: `sagekit preview` runs extract (once), the geometry job into `preview/`, EEVEE renders in flat atlas-tag colours (`preview/compare_*.png`) and the bake-free checks (budget, footprint, height, winding, sky-facing backs, closed solids) in 10-20 s, for design iterations |
 
 Faction-wide steps: `sagekit sheets <faction>` recolours the faction's own sheets (models we don't
 redesign still match); `sagekit house <faction>` builds the player-colour models from every
@@ -52,7 +58,7 @@ building's cloth; `sagekit install` / `revert` put everything in the game and ta
 
 ## The standards every faction inherits
 
-| Standard | Recipe says | Faction style says | Engine |
+| Standard | Recipe says | Faction style says | Engine (under `sagekit/`) |
 |---|---|---|---|
 | One palette | nothing | ramps, materials, paint stack | `style.py`, `paint/` |
 | Player colour | `house_tags` (which atlas tags are cloth) | `house_template` | `house.py`, `housemesh.py`, `blender/house.py` |
@@ -64,9 +70,9 @@ building's cloth; `sagekit install` / `revert` put everything in the game and ta
 
 ## Where the code is
 
-| Area | Modules |
+| Area | Modules (under `sagekit/`) |
 |---|---|
-| Commands | `__main__.py`: list, validate, inventory, budget, build, sheets, house, names, owners, new, measure, install, revert |
+| Commands | `__main__.py`: list, validate, inventory, budget, build, preview (`preview.py`, `blender/preview.py`), sheets, house, names, owners, new, measure, board (`board.py`, `blender/board.py`), palettes (`palettes.py`, `paint/palette.py`), install, revert |
 | A building | `building.py` (the recipe base class), `style.py`, `atlas.py`, `taxonomy.py`, `registry.py`, `workspace.py`, `paths.py` |
 | The game | `game.py` (archives in load order), `formats/big.py`, `formats/assetcache.py`, `formats/ini.py`, `ownership.py` |
 | Models | `formats/w3d.py` (read, fix the exporter's losses), `w3dframes.py`, `w3dpose.py`, `w3dmesh.py`, `w3dcopy.py`, `w3dlight.py` |
@@ -89,12 +95,14 @@ assets/<faction>/
     <building>/   building.py (the recipe) and README.md (what changed, status, decisions)
 build/assets/<faction>/<building>/
     src/ work/ out/ renders/      EA's sources, intermediates and logs, what ships, the previews
+    preview/                      `sagekit preview`: its geometry scene, compare_<view>.png, checks.txt
 ```
 
 ## Things the engine knows so recipes don't have to
 
 - asset.dat files every model and texture: a texture without a record renders magenta, a model
-  with a stale record renders invisible; models of our own are parsed directly.
+  with a stale record or no record renders invisible; models of our own name get a copy of EA's
+  record (`AssetCache.add_model`; the own copies were invisible in game on 2026-09-28 without one).
 - Blender's W3D exporter drops materials, collision trees, versions and pivots; fixup restores them.
 - W3D texture v runs up from the image's bottom row; the game's normal maps have red inverted
   against Blender's; 82 of EA's normal maps are 32-bit.
@@ -125,4 +133,6 @@ build/assets/<faction>/<building>/
 - A few Elven lifecycle states stay EA's where our design fails the sky check (listed in each
   recipe's `work/lifecycle.json` and README).
 - The lifecycle choice uses open backs as its only quality signal; thin shards need a human look.
-- Renders approximate the game's lighting; the in-game look is Max's call.
+- Renders approximate the game's lighting; the in-game look is checked in play.
+- Open bug (2026-09-28): own-copy models (the Men citadel, the Elven barracks and mallorn) render
+  invisible in game.

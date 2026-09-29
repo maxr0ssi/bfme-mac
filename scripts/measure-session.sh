@@ -8,10 +8,11 @@
 #   summary   frame-time distribution and the latest per-pass lines from logs/gamepatch.log
 #   off       diagnostics off again (the speed patches stay on)
 set -eu
-BFME_ROOT="${0:A:h:h}"; cd "$BFME_ROOT"
+BFME_ROOT="${0:A:h:h}"
+. "$BFME_ROOT/scripts/lib.sh"
+cd "$BFME_ROOT"
 INI="prefixes/w10/drive_c/Program Files (x86)/Electronic Arts/RotWK/gamepatch.ini"
 LOG=logs/gamepatch.log
-running() { pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null; }
 setkey() {   # setkey name value: [patches] name=value, added after the [patches] header if missing
   if grep -q "^$1=" "$INI"; then sed -i '' "s/^$1=.*/$1=$2/" "$INI"
   else sed -i '' "/^\[patches\]/a\\
@@ -23,10 +24,10 @@ on|off)
   [[ -f "$INI" ]] || { echo "gamepatch is not installed (scripts/game-patch.sh)"; exit 1; }
   v=$([[ $1 == on ]] && echo 1 || echo 0)
   for k in passtimers renderstats particlestats; do setkey $k $v; done
-  running && echo "note: the game is running; this applies from its next start"
+  game_running && echo "note: the game is running; this applies from its next start"
   grep -E '^(passtimers|renderstats|particlestats)=' "$INI" ;;
 sample)
-  running || { echo "the game is not running"; exit 1; }
+  game_running || { echo "the game is not running"; exit 1; }
   label=${2:-$(date +%Y%m%d-%H%M%S)}; out=logs/incl-$label.txt
   echo "sampling the main thread for 20 s -> $out"
   WINE_BUILD=w10 . ./env.sh
@@ -46,5 +47,6 @@ for lo,hi in ((0,34),(34,40),(40,50),(50,60),(60,1e9)):
     c=sum(lo<=x<hi for x in v); print(f'  {lo:>3}-{hi if hi<1e9 else \"\":<3} ms: {c:4d} ({100*c/len(v):.0f}%)')
 print('  worst:', sorted(v)[-3:])"
   awk -v s="$since" '$2>=s' "$LOG" | grep -E "renderstats: (ms|HLod|last)|particlestats:|logicmath:" | tail -6 | cut -c12-400 ;;
-*) sed -n '2,10p' "$0"; exit 1 ;;
+-h|--help) usage ;;
+*) usage 2 ;;
 esac

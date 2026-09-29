@@ -11,6 +11,8 @@ blind: a re-exported model with any layout change silently fails to render until
 patched. Textures have a record too (one "XET" entry, offset/size 0; BFME2's list is sorted
 case-insensitively) and a texture without one is drawn as the engine's missing-texture magenta.
 Object records list what each object depends on (its textures, sub-objects).
+A model the cache does not file is not drawn at all, even when an archive holds it: a model of
+our own name needs a record (add_model).
 """
 import os
 import shutil
@@ -153,6 +155,85 @@ class AssetCache:
             lines.append("patched %-24s offset %d -> %d, size %d -> %d" % (r[0], r[2], h[2], r[3], h[3]))
         self.data = bytes(data)
         return lines or ["record already matches the file"]
+
+    def add_model(self, new, like, w3d_path):
+        """File model `new` (our copy of EA's `like` under another name: sagekit/owncopy.py,
+        house.py) - the engine draws no model the cache does not file, even when an archive holds
+        it. The asset record has like's timestamp and the file's own layout; the object records are
+        like's, renamed (a dropped mesh left out, a mesh of ours without one given the textures it
+        names). An earlier filing of `new` is replaced. Returns report lines."""
+        import re
+        newb, likeb = new.lower().encode("latin-1"), like.lower().encode("latin-1")
+        old_u, new_u = likeb[:-4].upper(), newb[:-4].upper()
+        data = self.data
+        assets, _, objs = self.sections(data)
+        tmpl = next(((n, s) for n, s, e in assets if n.lower() == likeb and self._entries_at(data, s + 1 + len(n) + 8)), None)
+        if tmpl is None:
+            raise CacheError("no W3D record for %s to copy" % like)
+        stamp = data[tmpl[1] + 1 + len(tmpl[0]):tmpl[1] + 9 + len(tmpl[0])]
+
+        def ren(x):                                         # like's name in an object or dependency
+            u = x.upper()
+            for pre in (b"", b"H*"):
+                if u == pre + old_u or u.startswith(pre + old_u + b"."):
+                    return pre + new_u + u[len(pre) + len(old_u):]
+            return u
+
+        like_entries = {n.upper().encode("latin-1") for n, _, _, _, _ in self._entries_at(data, tmpl[1] + 9 + len(tmpl[0]))}
+        like_names = {o.upper() for f, o, s, e in objs if f.lower() == likeb} | {b"H*" + old_u} | like_entries
+        cloned = {}
+        for f, o, s, e in objs:
+            if f.lower() == likeb and ren(o) not in cloned:
+                rec, deps = data[s:e], []
+                p = 2 + rec[0] + rec[1 + rec[0]] + 2
+                while p < len(rec):                         # sub-objects renamed, textures kept
+                    d = rec[p + 1:p + 1 + rec[p]]
+                    deps.append((ren(d) if d.upper() in like_names else d).lower())
+                    p += 1 + rec[p]
+                cloned[ren(o)] = cloned[o.upper()] = deps           # (a lone mesh keeps its name)
+        gone = [0, 0]
+        for f, o, s, e in reversed(objs):                   # objects come after every asset record
+            if f.lower() == newb:
+                data, gone[1] = data[:s] + data[e:], gone[1] + 1
+        for n, s, e in reversed(assets):
+            if n.lower() == newb:
+                data, gone[0] = data[:s] + data[e:], gone[0] + 1
+        data = data[:8] + struct.pack("<II", len(assets) - gone[0], len(objs) - gone[1]) + data[16:]
+
+        f = W3DFile(w3d_path)
+        entries = f.cache_entries()
+        rec = bytes([len(newb)]) + newb + stamp + struct.pack("<H", len(entries))
+        for name, tag, off, size in entries:
+            nb = name.encode("latin-1")
+            rec += bytes([len(nb)]) + nb + tag + struct.pack("<II", off, size)
+        kept = {n.upper().encode("latin-1") for n, _, _, _ in entries if n}
+        dropped = {ren(n).lower() for n in like_entries if ren(n) not in kept}       # `replaces`
+        body, n_obj = b"", 0
+        for name, tag, off, size in entries:
+            key = (name or "").upper().encode("latin-1")
+            if tag not in (b"HSEM", b"DOLH"):
+                continue
+            if key in cloned:                               # the HLOD without the meshes we dropped
+                deps = [d for d in cloned[key] if d not in dropped]
+            elif tag == b"HSEM":
+                deps = sorted({t.lower().encode("latin-1") for t in re.findall(
+                    r"[A-Za-z0-9_\-]+\.(?:tga|dds|fx)", f.data[off:off + size].decode("latin-1"), re.I)})
+            else:
+                continue
+            if deps:
+                body += bytes([len(newb)]) + newb + bytes([len(key)]) + key + struct.pack("<H", len(deps))
+                body += b"".join(bytes([len(d)]) + d for d in deps)
+                n_obj += 1
+        assets, end, objs = self.sections(data)
+        at = next((s for n, s, e in assets if n.lower() > newb), end)
+        data = data[:at] + rec + data[at:]
+        at = next((s + len(rec) for fl, o, s, e in objs if fl.lower() > newb), len(data))
+        data = data[:at] + body + data[at:]
+        data = data[:8] + struct.pack("<II", len(assets) + 1, len(objs) + n_obj) + data[16:]
+        self.sections(data)                                         # still parses end to end
+        self.data = data
+        return ["filed %s (copied from %s): %d entries, %d objects%s" % (
+            new, like, len(entries), n_obj, ", replacing an earlier filing" if any(gone) else "")]
 
     # ------------------------------------------------------------------ textures
     def add_texture(self, new, like, model=None, obj=None):

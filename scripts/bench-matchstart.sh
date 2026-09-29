@@ -8,8 +8,9 @@ set -u
 export BFME_ROOT="${0:A:h:h}"
 export WINE_BUILD="${WINE_BUILD:-w10}"
 . "$BFME_ROOT/env.sh"
-LABEL="${1:?usage: bench-matchstart.sh <label> [seconds]}"; SECS="${2:-20}"
-pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null && { echo "a game is running; close it first"; exit 1; }
+[[ "${1:-}" == (|-h|--help) ]] && usage $(( $# == 0 ))
+LABEL=$1; SECS="${2:-20}"
+game_running && { echo "a game is running; close it first"; exit 1; }
 WINEDEBUG=-all,+fps,+frametime POLL=5 GAME=rotwk "$BFME_ROOT/scripts/test-skirmish.sh" "bench-$LABEL" \
   | grep -E "RESULT" | tail -1
 if pgrep -f 'lotrbfme2ep1.exe -win' >/dev/null; then

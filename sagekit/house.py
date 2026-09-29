@@ -5,7 +5,8 @@ banners: DBHCFortress, DBHCMine...). A building's geometry step takes its cloth 
 Building.house_tags regions) out of the body into work/house_cloth.json; this step adds every
 building's cloth to the house-colour model it is shown with (several buildings may share one; an
 add-on has its own, below), splices the result into EA's file and records
-what install must do: the model's cache record, and MultiPlayerOnly = No on its Draw modules (EA
+what install must do: the model's cache record (a model of our own gets one copied from EA's
+template or original, AssetCache.add_model), and MultiPlayerOnly = No on its Draw modules (EA
 shows house banners in multiplayer only; ours are part of the building), and no model in the states
 whose lifecycle model cuts or moves the faces the banners hang on (sagekit/lifecycle.py). A house
 model of our own on a Draw showing two build variations (the fortress expansions) is shown in its

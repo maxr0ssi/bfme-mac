@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""parse_minidump.py — read the exception out of a Windows ``.dmp`` minidump.
+"""parse_minidump.py - print the exception, modules and system info of a Windows minidump.
 
-When the SAGE engine (BFME1/BFME2, C&C Generals) crashes it writes a
-``DUMP_*.dmp`` next to the game ``.exe``. These are standard ``MDMP`` minidumps.
-You don't need Visual Studio or WinDbg to read the one fact that matters — what
-faulted and where — so this is a dependency-free reader for the exception,
-module, and system-info streams.
-
-It was written to characterize the deterministic pre-menu crash documented in
-this repo: a byte-identical access violation (``0xC0000005``) writing to
-``0x08110000`` from inside ``game.dat`` — the SAGE GameLOD "UltraHigh"
-mis-selection under Rosetta. Point it at any minidump:
+The SAGE engine (BFME1/BFME2, C&C Generals) writes a standard ``MDMP`` minidump,
+``DUMP_*.dmp``, next to the game's ``.exe`` when it crashes. This reads the exception, module
+list and system-info streams with the stdlib only: what faulted and where. The pre-menu crash
+(tools/neuter_gamelod.py) shows as a write access violation (``0xC0000005``) to ``0x08110000``
+inside ``game.dat``.
 
     parse_minidump.py DUMP_1.06.2429.30210_*.dmp
 

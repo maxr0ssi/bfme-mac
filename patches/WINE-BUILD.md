@@ -1,11 +1,9 @@
 # Building Wine from source on this Mac
 
-Status 2026-09-22: wine-11.0 built this way (`engines/src-11.0`, ~11 min at -j16), WoW64 confirmed
-(`cmd /c ver` from syswow64), smoke-tested in a throwaway prefix. Not yet run with a game.
-
-Purpose: a WoW64 Wine we control, so we can (a) `git bisect` the WoW64 regression between
-`wine-10.0` and `wine-11.0` described in `patches/WINE-BUG-REPORT.md`, and (b) develop a wined3d/d3d9
-fix with the upstream test suite.
+A from-source WoW64 Wine for the d3d9 test suite and the Wine bug work (wine-11.0 built this way
+installs to `engines/src-11.0`, ~11 min at -j16). The shipped fixes are built by
+`scripts/wine-fixes.sh` on wine-10.0 (worktree `wine/src-d3dx10`, branch `bfme-fixes-10.0`) with the
+same toolchain.
 
 ```
 wine/src/              git clone of gitlab.winehq.org/wine/wine.git (full history, ~900 MB)
@@ -47,8 +45,7 @@ Homebrew binaries; macOS exec()s those from an x86_64 process without complaint.
 
 Gcenx's reference builds (github.com/Gcenx/macOS_Wine_builds) take their x86_64 host libraries from
 MacPorts plus a custom overlay; the equivalent here would be a **second, x86_64 Homebrew at
-`/usr/local`**. That is not installed on this machine and `/usr/local` is root-owned and not
-writable, so installing it needs `sudo` (see "If you want the full dependency set" below).
+`/usr/local`**. That is not installed on this machine, and installing it needs `sudo`.
 
 Instead only the one library the game actually needs is built from source, x86_64, into
 `build/deps-x86_64`:
@@ -71,7 +68,7 @@ arch -x86_64 /bin/bash -c '
 **It must be a shared library.** Wine's configure links a test program and then inspects it with
 `otool -L` for a dylib install name (`checking for -lfreetype ... libfreetype.6.dylib`); a
 static-only `libfreetype.a` links fine but reports *not found* and configure aborts with
-"FreeType 64-bit development files not found". This cost one configure round-trip.
+"FreeType 64-bit development files not found".
 
 **And the soname must be pinned to an absolute path.** `win32u` does not link FreeType, it
 `dlopen()`s it at runtime using the string configure captured above — a bare leaf name. dyld only
@@ -115,8 +112,7 @@ Unix-side `libGL`/EGL used by the X11 and Wayland drivers. On macOS `winemac.drv
 ## The configure line
 
 Driven by `scripts/build-wine.sh <label> [extra args]`, which builds in `wine/build-<label>`
-and installs to `engines/src-<label>`. It does **not** check anything out, so it is usable straight
-from `git bisect run`. The command it runs:
+and installs to `engines/src-<label>`. It does not check anything out. The command it runs:
 
 ```sh
 cd wine/build-11.0
@@ -152,9 +148,8 @@ ships stripped release builds) because the whole point of this tree is debugging
 Differences from the Gcenx option list, besides the dropped libraries above:
 
 * **`--disable-tests` is deliberately NOT passed.** Gcenx disables the test suite for distribution;
-  we need `dlls/d3d9/tests` for goal (b). For the bisect, add `--disable-tests` back — it is a
-  meaningful chunk of build time and the bisect never runs the tests:
-  `scripts/build-wine.sh <label> --disable-tests`.
+  the d3d9 test suite needs `dlls/d3d9/tests`. For a build that runs no tests, add it back
+  (`scripts/build-wine.sh <label> --disable-tests`); it saves a good part of the build time.
 * Gcenx builds the PE side with MacPorts **llvm-mingw** (`--with-mingw=/opt/local/libexec/llvm-mingw/bin/clang`);
   we use **mingw-w64 GCC**. The faulting code in the bug report (`wow64cpu!syscall_32to64`) is
   hand-written assembly in `dlls/wow64cpu/`, so it is byte-identical either way. If the bug turns
@@ -175,8 +170,8 @@ arch -x86_64 make -j$(sysctl -n hw.ncpu)
 arch -x86_64 make install
 ```
 
-(`scripts/build-wine.sh` now also exports `BISON=/opt/homebrew/opt/bison/bin/bison` so freshly
-generated Makefiles are self-contained; the PATH line covers build dirs configured before that.)
+`scripts/build-wine.sh` also exports `BISON=/opt/homebrew/opt/bison/bin/bison`, so Makefiles it
+generates are self-contained; the PATH line covers build dirs configured without it.
 
 (`make` does not strictly need the Rosetta shell once configure has baked `CC` into the Makefile,
 but running it under `arch -x86_64` keeps every recursive tool invocation consistent.)
@@ -200,49 +195,4 @@ WINEPREFIX=$BFME_ROOT/build/prefix-smoke engines/src-11.0/bin/wine cmd /c ver
 
 ## Bisecting 10.0 → 11.0
 
-6371 commits, so ~13 build steps. Per step:
-
-```sh
-cd wine/src && git bisect start wine-11.0 wine-10.0
-# each step:
-scripts/build-wine.sh bisect --disable-tests   # reuses wine/build-bisect, installs engines/src-bisect
-```
-
-Do not delete `wine/build-bisect` between steps; an incremental `make` after a checkout is far
-cheaper than a full rebuild.
-
-## Cheaper route to the dropped libraries (no sudo) — untested
-
-`engines/` already contains the **x86_64** support dylibs the Sikarugir and CrossOver bundles ship,
-and they are exactly the ones we dropped — verified with `lipo -info`:
-
-```
-engines/libgnutls.30.dylib   x86_64      engines/libSDL2-2.0.0.dylib  x86_64
-engines/libMoltenVK.dylib    x86_64      engines/libvulkan.1.dylib    x86_64
-engines/libfreetype.6.dylib  x86_64      engines/libinotify.0.dylib   x86_64
-```
-
-What they lack is headers and `.pc` files, which is why configure could not use them. But **headers
-are architecture-independent**: the arm64 Homebrew already has `gnutls`, `sdl2` and `freetype`
-installed, so `-I/opt/homebrew/opt/<pkg>/include` plus `-L$BFME_ROOT/engines -l<pkg>` should
-configure and link. Wine `dlopen()`s most of these by soname anyway (same mechanism as FreeType
-above), so the corresponding `ac_cv_lib_soname_*` variables can simply be preset to
-`$BFME_ROOT/engines/lib<name>.N.dylib` without any link-time library at all.
-
-Worth trying before the sudo route below if video playback or Vulkan is ever needed. Watch for
-version skew between the Homebrew headers and these dylibs.
-
-## If you want the full dependency set (gnutls / gstreamer / sdl2 / MoltenVK)
-
-That needs a second, **x86_64** Homebrew at `/usr/local`, which needs `sudo` and therefore has to be
-run by the user, not by an agent:
-
-```sh
-NONINTERACTIVE=1 arch -x86_64 /bin/bash -c \
-  "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-arch -x86_64 /usr/local/bin/brew install gnutls sdl2 gstreamer molten-vk freetype
-```
-
-Then drop `build/deps-x86_64` from `PKG_CONFIG_LIBDIR` in favour of
-`/usr/local/lib/pkgconfig:/usr/local/opt/*/lib/pkgconfig`, and flip the `--without-` flags above
-back to `--with-`.
+Done; there is no good commit to bisect from: [docs/history/BISECT-2026-09-23.md](../docs/history/BISECT-2026-09-23.md).

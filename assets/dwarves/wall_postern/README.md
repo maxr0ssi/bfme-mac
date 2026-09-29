@@ -1,12 +1,12 @@
 # Dwarven postern gate (`DwarvenWallPosternGateSmall`)
 
-Model `DBWallPGN`, redesigned mesh `OBJECT01` (the two porches), `Tier.STANDARD`, own textures
-`DBFortressP.tga` / `DBFortressP_NRM.tga` (+ `_D`, `_snow`, `_U`). The object also draws the wall
-segment's model `DBWallN` (`ModuleTag_DrawWall`), which `wall_segment` redesigns. Its house-colour
-module keeps the default tag `ModuleTag_Draw_HCBanner`, and the wall's module uses
+Model `DBWallPGN`, mesh `OBJECT01` (the two porches), own texture `DBFortressP.tga` (from the
+faction atlas `DBFortress1.tga`). `Tier.STANDARD`. The object also draws the wall segment's model
+`DBWallN` (`ModuleTag_DrawWall`), which [`wall_segment`](../wall_segment/README.md) redesigns. Its
+house-colour module keeps the default tag `ModuleTag_Draw_HCBanner`, and the wall's module uses
 `ModuleTag_Draw_HCWallN`, so the two don't collide.
 
-## What changed (body, healthy)
+## What changed
 
 On each porch (both faces of the wall):
 
@@ -16,20 +16,16 @@ On each porch (both faces of the wall):
 - **Crown:** a corbelled cornice with the hexagon frieze, then a stepped gable (bronze step,
   triangle-frieze tier, stone point, top z 48.3).
 - **Corner blocks:** the front blocks carry stepped pyramids with gilded points.
-- **Banner poles:** a pole stands on each low side block. Their cloth is in `DBHCWallPGN`.
+- **Banners:** a pole on each low side block; cloth in `DBHCWallPGN`.
 
-## Where the wall meets it
+## Kept clear
 
-The wall passes through x +-8.3 up to z 53 (coping 57, chevrons 63.6). The porches stand against
-both its faces. Nothing new sits inside |x| < 8.3, and everything stays under the walkway (the
-+20 % limit is z 48.96). Faces against the wall are closed: the wall is another model, and the
-sky check cannot see it.
-
-Footprint unchanged, height 40.8 -> 48.3 (+18.4 %), 156 -> 1,280 triangles. `checks`: 44/44.
+- The wall passes through x +-8.3 up to z 53 (coping 57, chevrons 63.6). Nothing new sits inside
+  |x| < 8.3, and everything stays under the walkway (the +20 % limit is z 48.96). Faces against the
+  wall are closed: the wall is another model, and the sky check cannot see it.
 
 ## Status
 
-| Part | Healthy | Construction (`_A`) | Damaged (`_D1`) | Really damaged / collapse (`_D2`, `_D3`) | Snow / stonework |
-|---|---|---|---|---|---|
-| body (`DBWallPGN`) | built, rendered, not installed | derived: our body | derived: our body, own `_D` sheet | old | own `_snow` / `_U` sheets |
-| wall (`DBWallN`) | `wall_segment` | | | | |
+Installed with the Dwarven pack. 156 -> 1,280 triangles, height 40.78 -> 48.30 (+18.4 %), 79/79
+checks. Construction and damaged derive the new body; really damaged and collapse are rebuilt
+along EA's pieces.

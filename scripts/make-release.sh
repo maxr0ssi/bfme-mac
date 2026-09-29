@@ -7,12 +7,30 @@
 # (dinput8.dll; gamepatch.ini with the diagnostic counters off; t_misc.exe, which checks a user's
 # exe against every patch site before install), LICENSE, patches/COPYING.LIB, a SOURCES.md naming the Wine source and patch series (LGPL:
 # the corresponding source is this repo at the recorded commit), and SHA256SUMS.
-#   scripts/make-release.sh
+#   scripts/make-release.sh [--buildings [dwarves,elves,men,goblins]]
+# --buildings also packs the finished buildings (every faction above by default, with its builder
+# where it has one) as build/release/bfme-mac-buildings-<faction>-<version>.tar.gz, the files
+# install.sh --buildings installs: `python3 -m sagekit install <faction> --check` stages the current
+# build (a builder is staged by `python3 -m assets.<faction>.porter.install --check`; the pack refuses
+# one that is not the reviewed build), then `python3 -m sagekit.pack build` turns every archive
+# member into a delta against the EA files it was made from, checks the inserted bytes hold no run of
+# EA's, and adds the asset.dat edits (sagekit/pack.py, sagekit/packbuild.py). No EA file is in a pack. The fixes file lists the packs in BUILDINGS (faction, file, SHA-256, bytes);
+# build/release/SHA256SUMS-<version> covers every file to publish.
 # It only copies into a fresh staging dir; installed files are compared, never overwritten, so no
 # .orig/.bak copies are needed here.
 set -eu
 BFME_ROOT="${0:A:h:h}"
+. "$BFME_ROOT/scripts/lib.sh"
 cd "$BFME_ROOT"
+BUILDINGS=""
+while (( $# )); do
+  case "$1" in
+    --buildings) if [[ $# -gt 1 && "$2" != -* ]]; then BUILDINGS="${2//,/ }"; shift; else BUILDINGS="dwarves elves men goblins"; fi ;;
+    -h|--help) usage ;;
+    *) usage 2 ;;
+  esac
+  shift
+done
 ENGINE_TAR="WS12WineSikarugir10.0_6.tar.xz"
 ENGINE_SHA="9da7ee0cbf386522f3a9906943726d9c3c125dbbd9ab120e3cde80e88d6091b2"
 WB="$BFME_ROOT/wine/build-d3dx10"
@@ -61,10 +79,24 @@ cp LICENSE patches/COPYING.LIB "$STAGE/"
   echo "Game patch (MIT, LICENSE): gamepatch/ at the same commit, for Rise of the Witch-king 2.02."
 } > "$STAGE/SOURCES.md"
 echo "$ENGINE_TAR $ENGINE_SHA" > "$STAGE/ENGINE"
+OUT="$BFME_ROOT/build/release"
+packs=()
+for f in ${=BUILDINGS}; do
+  p="bfme-mac-buildings-$f-$version"
+  python3 -m sagekit install "$f" --check
+  python3 -m sagekit.pack build "$f" --version "$version" --out "$OUT"
+  tar -C "$OUT" -czf "$OUT/$p.tar.gz" "$p" && rm -rf "$OUT/$p"
+  echo "$f $p.tar.gz $(shasum -a 256 "$OUT/$p.tar.gz" | cut -d' ' -f1) $(stat -f %z "$OUT/$p.tar.gz")" >> "$STAGE/BUILDINGS"
+  packs+=("$p.tar.gz")
+  echo "$p.tar.gz ($(du -h "$OUT/$p.tar.gz" | cut -f1))"
+done
+[[ -z "$BUILDINGS" ]] || echo "Building packs (BUILDINGS): the finished buildings from assets/ at the same commit (sagekit/pack.py), for RotWK 2.02. They hold our changes only; the installer rebuilds each file from the player's own game." >> "$STAGE/SOURCES.md"
 ( cd "$STAGE" && find . -type f ! -name SHA256SUMS | sed 's|^\./||' | sort | xargs shasum -a 256 > SHA256SUMS )
 
-tar -C "$BFME_ROOT/build/release" -czf "$BFME_ROOT/build/release/$name.tar.gz" "$name"
-echo "build/release/$name.tar.gz ($(du -h "$BFME_ROOT/build/release/$name.tar.gz" | cut -f1))"
-echo "sha256 $(shasum -a 256 "$BFME_ROOT/build/release/$name.tar.gz" | cut -d' ' -f1)"
+tar -C "$OUT" -czf "$OUT/$name.tar.gz" "$name"
+( cd "$OUT" && shasum -a 256 "$name.tar.gz" "${packs[@]}" > "SHA256SUMS-$version" )
+echo "build/release/$name.tar.gz ($(du -h "$OUT/$name.tar.gz" | cut -f1))"
+echo "sha256 $(shasum -a 256 "$OUT/$name.tar.gz" | cut -d' ' -f1)"
 echo "publish (install.sh downloads the latest release): gh release create v$version \\
-  build/release/$name.tar.gz --title \"Fixes $version\" --notes-file $STAGE/SOURCES.md"
+  build/release/$name.tar.gz ${packs[*]/#/build/release/} build/release/SHA256SUMS-$version \\
+  --title \"Fixes $version\" --notes-file $STAGE/SOURCES.md"

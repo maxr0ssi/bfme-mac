@@ -9,9 +9,10 @@ set -u
 export BFME_ROOT="${0:A:h:h}" WINE_BUILD=w10
 . "$BFME_ROOT/env.sh"
 cd "$BFME_ROOT"
-L="${1:?usage: bench-battle.sh <label> [max_minutes]}"; MAXMIN="${2:-25}"
+[[ "${1:-}" == (|-h|--help) ]] && usage $(( $# == 0 ))
+L=$1; MAXMIN="${2:-25}"
 OUT="logs/battle-$L"; mkdir -p "$OUT"
-pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null && { echo "a game is running; close it first"; exit 1; }
+game_running && { echo "a game is running; close it first"; exit 1; }
 # One game session at a time across agents: logs/.game-session holds the owner while a run is on.
 [ -e logs/.game-session ] && { echo "logs/.game-session exists ($(cat logs/.game-session)); another run owns the game"; exit 1; }
 echo "bench-battle $L $$" > logs/.game-session; trap 'rm -f logs/.game-session' EXIT

@@ -184,6 +184,9 @@ def bodies(install, model, units=False, tallest=False):
     data = install.read(install.model_path(model))
     f, fr = W3DFile(data), frames(install, model)
     zs = {n: [apply(fr.get(n, IDENTITY), v)[2] for v in m.verts] for n, m in f.meshes.items() if m.verts}
+    # a mesh wholly under the model's origin is buried (WBPit_SKN's rocks, z -14..-12, rise only in
+    # an animation): neither the ground nor a body, or the pit's WBPITMETAL counts as raised
+    zs = {n: z for n, z in zs.items() if max(z) >= 0} or zs
     ground = min(min(z) for z in zs.values()) if zs else 0.0
     top = max(max(z) for z in zs.values()) if zs else 1.0
     out = []

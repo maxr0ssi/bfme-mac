@@ -33,7 +33,7 @@ Height limit +20 %: z 61.95 (the mast's spike)."""
 from sagekit.building import Building
 
 from ..style import MenStyle
-from .prodkit import banner
+from ..prodkit import banner
 
 YC = 0.155                              # the mirror plane
 LOWER = (-49.65, -32.35, 17.1, 34.37)   # lower shafts: x front, x yard, |y| inner, |y| outer
@@ -69,7 +69,7 @@ class Workshop(Building):
     }
 
     def variants(self, install):
-        from .prodkit import same_length_variants
+        from ..prodkit import same_length_variants
         return same_length_variants(self, install, super().variants(install))
 
     def design(self, kit):
@@ -87,7 +87,7 @@ class Workshop(Building):
     # ------------------------------------------------------------------ tower tops
     @staticmethod
     def _crown(kit, s):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         x0, x1, yi, yo, z = TOP
         ya, yb = sorted((YC + s * yi, YC + s * yo))
         out = []
@@ -113,7 +113,7 @@ class Workshop(Building):
         shaft) at the corners of the front, outer and yard faces (the window pediments and the
         yard recess take the middles), and a battered plinth round the shaft's feet (not in the
         gate passage)."""
-        from ..barracks import motifs as M
+        from .. import motifs as M
         xf, xy, yi, yo = LOWER
         yc_t = YC + s * (yi + yo) / 2           # the tower's centre line
         out = []
@@ -131,9 +131,9 @@ class Workshop(Building):
     @staticmethod
     def _windows(s):
         """A pediment on consoles over the front and outer windows."""
-        from ..barracks import motifs as M
-        yc, half, z0, z1 = WINDOW
-        xf, xy, yi, yo = LOWER
+        from .. import motifs as M
+        yc, half, _, z1 = WINDOW
+        xf, xy, _, yo = LOWER
         out = []
         for p, nrm in (((xf, YC + s * yc), (-1, 0)), (((xf + xy) / 2, YC + s * yo), (0, s))):
             a, t, n = M.face(p, nrm)
@@ -157,7 +157,7 @@ class Workshop(Building):
         from mathutils import Vector as V
 
         from sagekit.blender.geometry import prism_uz
-        from ..barracks import motifs as M
+        from .. import motifs as M
         xm = -47.34 if sx < 0 else -34.2          # the merlons' middle line
         a, t, n = V((xm, YC, 0)), V((0, sx, 0)), V((sx, 0, 0))
         # n points away from the bridge's axis: out of the front (sx -1) or the yard face (sx 1)
@@ -184,7 +184,7 @@ class Workshop(Building):
     # ------------------------------------------------------------------ banners
     @staticmethod
     def _banner(kit, s):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         z_top, w, L = BANNER
         a, t, n = M.face((UPPER[1], YC + s * 26.6), (1, 0))
         return banner(kit, a, t, n, 0.0, z_top, w, L, d=0.9)

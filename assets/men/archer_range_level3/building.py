@@ -18,7 +18,7 @@ archer's statue on its plinth on the tower's dome (z 96..139). What stands on it
 The statue and its plinth stay EA's. No cloth, no night lights (levels.py).
 """
 from ..archer_range.building import NOT_BAKED
-from ..barracks.levels import LevelMesh, chain, level_textures
+from ..levels import LevelMesh, chain, level_textures
 
 TUR = (-29.76, 48.97)
 R_LEDGE, R_DRUM, R_TOP = 9.9, 8.59, 8.26
@@ -42,7 +42,7 @@ class ArcherRangeLevel3(LevelMesh):
     }
 
     def design(self, kit):
-        from ..barracks.motifs import closed
+        from ..motifs import closed
         return closed(self._turret(kit) + self._arcades(kit))
 
     @staticmethod
@@ -62,7 +62,7 @@ class ArcherRangeLevel3(LevelMesh):
     def _turret(self, kit):
         import math
 
-        from ..barracks.motifs import knob, window_surround
+        from ..motifs import knob, window_surround
         from ..shapes import rail, turned
         cx, cy = TUR
         out = [turned(cx, cy, [(R_LEDGE + 0.1, 37.6), (R_LEDGE + 0.1, 39.9)], ["course"], k=8, phase=0.0,
@@ -86,7 +86,7 @@ class ArcherRangeLevel3(LevelMesh):
     def _arcades(kit):
         from mathutils import Vector as V
 
-        from ..barracks.motifs import star_frieze
+        from ..motifs import star_frieze
         out = []
         for ys, yn in ARCADES:
             x0, x1 = (-26.4, 25.3) if ys > 0 else (-26.4, 22.8)
@@ -100,7 +100,7 @@ class ArcherRangeLevel3(LevelMesh):
         return out
 
     def decals(self):
-        from ..barracks.paintkit import Slate                # the turret's dome in charcoal slate
+        from ..paint import Slate                # the turret's dome in charcoal slate
         return [Slate(58.8, box=(-41.0, -18.5, 37.5, 60.5))]
 
     def emphasis(self, c, n):

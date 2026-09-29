@@ -97,7 +97,8 @@ class FortressOil(Building):
 
     @staticmethod
     def _hearth(kit):
-        from ..fortress_ivory_tower.citadel_motifs import box
+        from sagekit.blender.geometry import box
+
         from ..shapes import beam
         out = []
         # the kerb round the firebox: low on the levers' side (+y), an iron grating band outside

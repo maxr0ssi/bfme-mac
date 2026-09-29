@@ -1,29 +1,16 @@
 #!/usr/bin/env python3
-"""neuter_gamelod.py — the one-shot fix for the SAGE GameLOD pre-menu crash.
+"""neuter_gamelod.py - remove the LODPreset rows that crash the game before the main menu.
 
-On Apple Silicon under Rosetta, the SAGE engine's raw-assembly ``RDTSC``/``CPUID``
-CPU benchmark mis-reads the fast translated CPU and matches the **"UltraHigh"**
-hardware profile in ``gamelodpresets.ini``. Applying that top detail tier writes
-out of bounds and the game crashes every launch, before the main menu, with a
-deterministic ``0xC0000005`` access violation inside ``game.dat`` (see
-``parse_minidump.py``).
+Under Rosetta the engine's startup CPU benchmark (RDTSC/CPUID) matches the "UltraHigh" hardware
+profile in gamelodpresets.ini; applying it writes out of bounds, and every launch ends before the
+main menu in an access violation (0xC0000005) inside game.dat (parse_minidump.py reads the dump).
+With no LODPreset rows the engine uses its built-in default instead. scripts/install.sh runs this
+on the games' ini.big and __patch202.big.
 
-You can't stop the hardcoded benchmark, but you can delete the presets it is
-allowed to pick. With **no ``LODPreset`` rows present**, the engine falls back to
-its built-in ``VeryLow`` default — and the crash is gone.
+    neuter_gamelod.py "/path/to/.../ini.big" [--dry-run]
 
-This script does the whole edit in place:
-
-    1. find ``data\\ini\\gamelodpresets.ini`` inside ``ini.big``
-    2. strip every ``LODPreset = ...`` row (the ``P4 .../K7 ...`` CPU profiles)
-    3. back up ``ini.big`` -> ``ini.big.preLODfix.bak`` and repack
-
-Usage:
-    neuter_gamelod.py "/path/to/.../ini.big"
-    neuter_gamelod.py "/path/to/.../ini.big" --dry-run
-
-Pair it with single-core pinning (``WINE_CPU_TOPOLOGY=1:0``) at launch. Fully
-reversible — restore the ``.preLODfix.bak`` to undo.
+It strips every ``LODPreset = ...`` row from ``data\\ini\\gamelodpresets.ini`` and repacks
+the archive, keeping the original as ``ini.big.preLODfix.bak`` (copy it back to undo).
 """
 from __future__ import annotations
 

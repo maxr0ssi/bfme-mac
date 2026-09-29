@@ -6,7 +6,8 @@
 #   scripts/setup-prefix.sh cx       CrossOver-derived engine
 set -e
 export BFME_ROOT="${0:A:h:h}"
-[ -z "$1" ] && { echo "usage: setup-prefix.sh <build>   (a directory under engines/)"; exit 1; }
+. "$BFME_ROOT/scripts/lib.sh"
+case "${1:-}" in -h|--help) usage ;; "") usage 1 ;; esac
 export WINE_BUILD="$1"
 . "$BFME_ROOT/env.sh"
 [ "$WINEPREFIX" = "$BFME_ROOT/prefixes/stable" ] && { echo "refusing to rebuild the primary prefix"; exit 1; }
@@ -35,12 +36,12 @@ for d in "My Battle for Middle-earth II Files" "My Rise of the Witch-king Files"
 done
 # DirectX 9 helper DLLs (the game imports d3dx9_27).
 "$BFME_ROOT/downloads/winetricks" -q d3dx9 >/dev/null 2>&1 || echo "winetricks d3dx9 reported a problem (may be fine if the engine bundles d3dx9)"
-# winetricks forces Microsoft's d3dx9 DLLs native. If scripts/d3dx9-fix.sh has installed the patched
+# winetricks forces Microsoft's d3dx9 DLLs native. If scripts/wine-fixes.sh has installed the patched
 # builtin d3dx9_27 in this engine, use that instead: Microsoft's is what makes the second half of the
 # loading bar crawl (x87 texture code under Rosetta, docs/LOAD-TIME.md).
 if [ -f "$(dirname "$(command -v wine)")/../lib/wine/i386-windows/d3dx9_27.dll.orig-$WINE_BUILD" ]; then
   wine reg add 'HKCU\Software\Wine\DllOverrides' /v '*d3dx9_27' /t REG_SZ /d builtin /f >/dev/null 2>&1
-  echo "d3dx9_27: patched builtin (scripts/d3dx9-fix.sh)"
+  echo "d3dx9_27: patched builtin (scripts/wine-fixes.sh)"
 fi
 ls "$WINEPREFIX/drive_c/windows/syswow64/d3dx9_27.dll" >/dev/null 2>&1 && echo "d3dx9_27 present" || echo "WARNING: d3dx9_27.dll missing in $WINEPREFIX"
 echo "prefix ready: $WINEPREFIX"

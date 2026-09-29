@@ -1,6 +1,6 @@
 #!/bin/zsh
 # scripts/perf-install.sh [--revert|--status] — every performance fix for RotWK in one step:
-#   1. scripts/wine-fixes.sh   Wine 10.0 fixes (d3dx9 load time; wined3d patches 0001-0019)
+#   1. scripts/wine-fixes.sh   Wine 10.0 fixes (d3dx9 load time; patches/wined3d-wow64-buffers)
 #   2. scripts/game-patch.sh   the in-memory game patch (gamepatch/gamepatch.ini says which are on)
 # msync (WINEMSYNC=1) is already the default in play-rotwk.sh / play-bfme2.sh.
 #
@@ -15,7 +15,9 @@
 set -eu
 BFME_ROOT="${0:A:h:h}"
 S="$BFME_ROOT/scripts"
-pgrep -f '(lotrbfme2(ep1)?\.exe|game\.dat) -win' >/dev/null && { echo "a game is running; quit it first"; exit 1; }
+. "$S/lib.sh"
+[[ "${1:-}" == (-h|--help) ]] && usage
+game_running && { echo "a game is running; quit it first"; exit 1; }
 
 case "${1:-}" in
 --revert)
@@ -38,7 +40,7 @@ case "${1:-}" in
   "$S/game-patch.sh" --status
   exit 0 ;;
 "") ;;
-*) sed -n '2,15p' "$0"; exit 1 ;;
+*) usage 2 ;;
 esac
 
 "$S/wine-fixes.sh"

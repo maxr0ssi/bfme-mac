@@ -1,9 +1,7 @@
 # Men barracks (`GondorBarracks`, `ArnorBarracks`)
 
-Draft for review, not installed. Renders: `build/assets/men/barracks/renders/compare_*.png`
-(level 1). The level-up meshes are chained on this recipe: [`barracks_level2`](../barracks_level2/README.md)
-(V1, the yard wall) and [`barracks_level3`](../barracks_level3/README.md) (V2, the belfry and turrets);
-rebuild them after this one, in that order.
+Level-ups: [`barracks_level2`](../barracks_level2/README.md) (V1),
+[`barracks_level3`](../barracks_level3/README.md) (V2), chained on this recipe.
 
 ## What changed
 
@@ -19,22 +17,24 @@ in the citadel's kit:
   gilt stars on sable, a slate-coped pediment with the White Tree, a winged-helm crest and
   corner pinnacles.
 - **Wings**: square merlons with capstones on every parapet, surrounds round EA's windows.
-- **Banners**: three house-colour banners (cap 3): two on the keep's south face, one on the
-  north wing's yard face. The cloth shows after `sagekit house men`.
-- **Paint**: the dome's slate stays charcoal (`paintkit.Slate`; the recolour turned it pale).
+- **Banners**: three (cap 3): two on the keep's south face, one on the north wing's yard face;
+  cloth in `GBHCBarracks`.
+- **Paint**: the dome's slate stays charcoal (`paint.Slate`; the recolour turned it pale).
 
-## Fit and status
+## Status
 
-- `BARRACKS` 1,452 -> 7,386 triangles; footprint EA's; height +18.7 % (dome spike, z 88.5).
-- 134/134 checks. Construction, damaged, really damaged and rubble all rebuilt along EA's pieces.
+Installed with the Men pack. `BARRACKS` 1,452 -> 7,386 triangles, footprint EA's, height
+77.6 -> 92.1 (+18.7 %, the dome spike), 134/134 checks. Construction, damaged, really damaged and
+rubble are rebuilt along EA's pieces.
+
 - Own texture `gbbarracks_neH`; EA's damaged models draw `GBBarracks_NewD`, which no INI state
   swaps to: the recipe adds `gbbarracks_neHD` (`levels.with_damaged`), without which the
   lifecycle step left D1-D3 to EA.
 
-## Shared modules here
+## Shared modules
 
-- `motifs.py`: the production group's motifs (windows, courses, cornices, parapets,
-  machicolations, roofs, domes, roundels, friezes, banners, masts, `closed`, `knob`).
-- `levels.py`: the chained level-up recipe (`LevelMesh`, `chain`, `level_textures`,
-  `with_damaged`; GBVet copies `GBV<letter><1|2>`).
-- `paintkit.py`: `Slate`, EA slate on a building's own sheet painted charcoal.
+- [`../motifs.py`](../motifs.py): the production group's motifs (windows, courses, cornices,
+  parapets, machicolations, roofs, domes, roundels, friezes, banners, masts, `closed`, `knob`).
+- [`../levels.py`](../levels.py): the chained level-up recipe (`LevelMesh`, `chain`,
+  `level_textures`, `with_damaged`; GBVet copies `GBV<letter><1|2>`).
+- [`../paint.py`](../paint.py): `Slate`, EA slate on a building's own sheet painted charcoal.

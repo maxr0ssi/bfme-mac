@@ -1,5 +1,5 @@
-"""Crown pieces shared by the wall's towers and gates (wall_tower, wall_gate, wall_trebuchet,
-wall_postern): the fortress's tower-crown vocabulary at any scale and height. Blender side only
+"""Crown pieces shared by the Dwarven walls, new and old (wall_*, oldwall_*): the fortress's
+tower-crown vocabulary at any scale and height. Blender side only
 (mathutils); every function returns closed, oriented solids."""
 from mathutils import Vector as V
 

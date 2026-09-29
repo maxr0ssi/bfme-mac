@@ -113,6 +113,22 @@ def prepare():
     return files,{LIVE/"asset.dat":cache.data}
 
 
+def release():
+    """The builder for sagekit/pack.py, staged with --check: (archive, {game: [cache op]} as prepare()
+    applies them, {INI: the lines added to EA's}, [folders of the EA files it was made from])."""
+    original, new = W3DFile(str(FOLDER/"src"/MODEL)), W3DFile(str(FOLDER/"work"/MODEL))
+    ops = [("patch", MODEL), ("texture", MASK, "hc_duporter.tga", None, None)]
+    ops += [("texture", texture, old, MODEL, m.container+"."+m.name) for n, m in new.meshes.items()
+            for old, texture in zip(original.meshes[n].textures, m.textures) if old.lower() != texture.lower()]
+    staged = Archive(str(STAGE/ARCHIVE))
+    work = {compiled_path(n, ".dds"): n[:-4]+".dds" for n in NAMES.values()}
+    work.update({Install.model_path("duporter_skn"): MODEL, compiled_path(MASK, ".tga"): MASK})
+    if any(staged.read(m) != (FOLDER/"work"/f).read_bytes() for m, f in work.items()):
+        raise SystemExit("The staged builder is not the reviewed build: stage it again (--check)")
+    ea = Install().read(INI)
+    return STAGE/ARCHIVE, {"rotwk": ops}, {INI: housecolour(ea, False)[len(ea):]}, [FOLDER/"src"]
+
+
 def install(check_only=False):
     if game_running():raise SystemExit("Close the game before staging/installing.")
     expected = {Path(d)/"asset.dat":read(Path(d)/"asset.dat") for d in paths.GAMEDIRS.values()}

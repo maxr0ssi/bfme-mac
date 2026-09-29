@@ -1,4 +1,4 @@
-/* R5 recorder test: a job calls three "shared side effect" functions (cdecl, stdcall with a
+/* Recorder test: a job calls three "shared side effect" functions (cdecl, stdcall with a
  * pointer to a stack buffer, thiscall). Reference: the job run serially with direct calls.
  * Test: the job run with par_for, calls retargeted to recorder stubs, replayed on main.
  * The shared effect log (order + values) must be identical byte-for-byte. */

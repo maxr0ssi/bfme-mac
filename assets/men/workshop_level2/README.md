@@ -1,8 +1,7 @@
 # Men siege workshop, level 2 (`V1` of `GBWorkshop`)
 
-Draft for review, not installed. Chained on [`workshop`](../workshop/README.md) (`base`), followed
-by [`workshop_level3`](../workshop_level3/README.md); the pattern is
-[`barracks/levels.py`](../barracks/levels.py). Renders: `build/assets/men/workshop_level2/renders/`.
+Chained on `men/workshop` ([`levels.py`](../levels.py)). Own texture `GBVW1` (levels.py
+letter W).
 
 ## What changed
 
@@ -17,8 +16,7 @@ by [`workshop_level3`](../workshop_level3/README.md); the pattern is
 - **Slate**: GBVet's slate triangle is given to the painter as `tiles`
   (`prodkit.VET_TILES`), so the caps stay charcoal slate instead of turning to stone.
 
-## Fit and status
+## Status
 
-- `V1` 604 -> 3,792 triangles; footprint EA's; height unchanged; 108/108 checks.
-- Own texture `GBVW1` (levels.py letter W). No cloth, no lights (a level mesh).
-- Lifecycle: construction, really damaged and rubble carry V1; D1 derived.
+Installed with the Men pack. `V1` 604 -> 3,792 triangles, footprint EA's, height unchanged,
+108/108 checks. Construction, really damaged and rubble carry V1; damaged is derived.

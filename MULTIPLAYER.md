@@ -1,49 +1,79 @@
 # Playing together (Mac ↔ Mac, Mac ↔ Windows)
 
-EA's servers are gone; the two routes are a virtual LAN (simplest) or the community
-online service. Both require *identical game data* on both machines.
+EA's servers are gone. Play over a virtual LAN (ZeroTier, below). Everyone needs identical game
+data: the same game version, the same group pack and the same art packs. A "mismatch" error when
+joining means the game data differs.
 
-## 1. Same game version on both sides
+## Same game version
 
 - Everyone runs the same versions: BFME2 1.06, or RotWK 2.02 (the All-in-One BFME Launcher's
   `Vanilla (2.01)` + `Patch 2.02 (9.7.7)`). The RotWK 2.02 HD Edition is cosmetic and may differ.
 - `scripts/install.sh` removes the `LODPreset` rows from `INI.big` / `__patch202.big` (RotWK) and
   `ini.big` (BFME2), which stops the crash before the menu under Rosetta; every Mac install makes
-  the same edit. A friend on Windows can make it too (`tools/neuter_gamelod.py <archive>`, Python)
+  the same edit. A player on Windows can make it too (`tools/neuter_gamelod.py <archive>`, Python)
   or use the Mac's edited archives (the originals are kept as `*.preLODfix.bak`). Whether the
-  multiplayer check covers these rows is not yet verified; matching them removes the question.
-- Keep `Maps.big` untouched on both sides (don't install `resfix-maps/` for online play).
+  multiplayer check covers these rows is not verified; matching them removes the question.
+- Keep `Maps.big` untouched on every machine.
 
-## 1b. The group pack — everyone runs the same one
+## The group pack
 
-Our tweaks (and later any mods) live in one add-on archive, `!!!!!!!!!!group-pack.big`, built by
-`tools/make_group_pack.py` and installed next to the game's own `.big` files; its name makes it
-win over them. It changes `gamedata.ini`, which multiplayer checks, so **every player needs the
-identical file**: Mac friends build or copy it and install with `scripts/install-mod.sh`; PC
-friends drop the same `.big` into their RotWK folder. Send the file itself rather than rebuilding
-it per machine, so everyone's copy is byte-identical.
+The repo's INI changes live in one add-on archive, `!!!!!!!!!!group-pack.big`: particle limit
+4000 and heat effects off at UltraHigh, camera max height 700 (the `EDITS` list in
+`tools/make_group_pack.py`). Its name sorts before the game's own `.big` files, so it wins over
+them. It changes `gamedata.ini`, which multiplayer checks, so every player needs the identical
+file.
 
-## 2. Virtual LAN over the internet (ZeroTier) — the route to use
+One player builds it (`scripts/install.sh … --group-pack`, or `tools/make_group_pack.py rotwk`)
+and sends `build/group-pack/rotwk/install/!!!!!!!!!!group-pack.big` to the others. Mac players
+install that file with `scripts/install-mod.sh rotwk <folder with the file>`; PC players drop it
+into their RotWK folder. Send the file rather than rebuilding it on each machine, so every copy
+is byte-identical.
 
-"LAN" in the game doesn't mean same house: ZeroTier makes everyone's machines look like one local
-network wherever they are, and the game's **Multiplayer → LAN** works over the internet. Macs and
-PCs alike, any version as long as everyone runs the same one (ours included).
+## Art packs
 
-**Cost:** free for up to 10 devices on one network (ZeroTier's Personal plan, as of Aug 2026; each
-player's computer is one device). Beyond that it's $18/month.
+The redesigned buildings ([docs/ART.md](docs/ART.md)) are optional in the installer:
+`scripts/install.sh --buildings` adds them, `--no-buildings` takes them out. They go into the
+RotWK folder as `!!!!!!!!!!!sagekit-<faction>.big` archives with edited faction INIs, and the game
+compares INI data when you join. So everyone in a LAN game makes the same choice: the same
+factions from the same release, or none.
+
+The builders (`!!!!!!!!!!!!sagekit-<unit>-builder.big`) come with their faction's pack. Anything
+built on your own machine with `python3 -m sagekit install` is not in the release. If you play with
+that, one player copies every `*sagekit-*.big` file and `asset.dat` from their RotWK folder to the others (keep a
+copy of your own `asset.dat` first), or everyone takes them out (`python3 -m sagekit revert
+<faction>`, `python3 -m assets.<faction>.porter.install --revert`).
+
+To check, compare on every machine:
+
+```sh
+cd "prefixes/w10/drive_c/Program Files (x86)/Electronic Arts/RotWK"
+shasum *sagekit-*.big '!!!!!!!!!!group-pack.big'
+```
+
+The file names and hashes must be the same everywhere. A pack built on two machines from the same
+recipes can still differ in bytes, so install the release's packs or copy the files instead of
+building them twice.
+
+## Virtual LAN over the internet (ZeroTier)
+
+ZeroTier puts every player's computer on one virtual network, so the game's **Multiplayer → LAN**
+works over the internet. Macs and PCs alike.
+
+**Cost:** free for up to 10 devices on one network (ZeroTier's Personal plan; each player's
+computer is one device). Beyond that it's $18/month; check zerotier.com/pricing.
 
 **Setup (~10 minutes):**
 1. Host, once: sign up at zerotier.com → *Create Network* → copy the 16-character network ID.
 2. Everyone (Mac or PC): install the ZeroTier app → *Join Network* → paste the ID.
-3. Host: in the ZeroTier web console, tick *Auth* next to each friend's device.
+3. Host: in the ZeroTier web console, tick *Auth* next to each player's device.
 4. In game: Multiplayer → LAN. One person hosts, the others see the game and join.
 
 Tailscale won't do: the game discovers LAN games by UDP broadcast, which Tailscale doesn't forward.
 
-**If a guest sees no games:** the game may be bound to Wi-Fi instead of the ZeroTier adapter —
-pick the ZeroTier address in the game's network/IP option (SAGE games have one; exact place in
-BFME2 not yet confirmed). Also check both are on the network (`zerotier-cli listnetworks`), the
-Windows firewall allows the game, and both versions match (a "mismatch" error is data, not network).
+**If a guest sees no games:** the game may be bound to Wi-Fi instead of the ZeroTier adapter.
+Pick the ZeroTier address in the game's network/IP option (stored as `GameSpyIPAddress` in
+Options.ini). Also check that everyone is on the network (`zerotier-cli listnetworks`) and that
+the Windows firewall allows the game.
 
 **Turning it off when you're not playing:**
 - Between sessions: ZeroTier menu-bar icon → disconnect from (or leave) the network. You're off the
@@ -56,16 +86,11 @@ Windows firewall allows the game, and both versions match (a "mismatch" error is
 **Privacy:** game traffic is end-to-end encrypted and usually goes directly between players.
 ZeroTier (the company) sees metadata while the service runs (that a device is online, its public
 IP), not content; with the service stopped, nothing. While connected, the other members can reach
-your machine as on a home network — keep System Settings → General → Sharing (File/Screen Sharing)
+your machine as on a home network: keep System Settings → General → Sharing (File/Screen Sharing)
 off unless wanted and the macOS firewall on. Only devices you approve can join.
 
-## 3. Community online service (later)
+## Mac ↔ PC sync
 
-T3A:Online / Online Battle Arena provide lobbies and ladders; their client is Windows-only,
-so on the Mac it's another program to run under Wine. Do the LAN route first.
-
-## Cross-platform sync
-
-The Mac runs the x86 game through Rosetta, which reproduces x86 floating point exactly, and
-RTS lockstep relies on that. First real match will confirm; if it desyncs, the first suspects
-are differing INIs, not the CPU.
+Mac ↔ Mac games run the same code and stay in sync. Mac ↔ PC is untested: Wine's builtin
+`msvcr71` may round `sqrt` (and `sin`/`cos`) differently from Microsoft's, so results could differ
+([PERFORMANCE.md](docs/PERFORMANCE.md) §10).

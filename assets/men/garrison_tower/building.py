@@ -1,7 +1,7 @@
 """Men garrison tower (MenGarrisonTowerExpansion, build variation one; model GBFDOTOWA): EA's
 gate tower kept whole - the shaft with its gate and crest, the diagonal buttresses, the belfry
 and its windows, the slate dome - and crowned the citadel's way (pad.py, shared with
-men/garrison_tower_b, and the shared tower top men/wall_hub/dome.py): a machicolated gallery with a
+men/garrison_tower_b, and the shared tower top men/dome.py): a machicolated gallery with a
 black band of silver stars and square merlons round the shaft top, a voussoir archivolt with
 quoins, imposts and portcullis teeth on the gate, pinnacles on the buttresses and the belfry's
 chamfers, hoods and sills on the belfry windows, a steel-ribbed dome under a lantern cupola, a

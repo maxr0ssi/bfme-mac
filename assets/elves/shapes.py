@@ -10,7 +10,6 @@ polygon convex (the mesh triangulates fans). Curves are sampled; `k` sets how fi
 
     arch_outline     half an arch [(u, z)]: pointed (ogee 0) through to a full ogee (1)
     arch             a pointed or ogee arch frame round an opening: jambs, voussoirs, a leaf at the tip
-    ogee_gable       a house-front gable whose outline is an ogee, enamel-edged, with a finial
     lancet_parapet   a wall's parapet of merlons, each topped with a leaf blade (silver-rimmed)
     coping_run       a moulded coping swept along a wall run
     filigree_band    a knotwork band between two gilt beads along a wall run
@@ -24,7 +23,6 @@ polygon convex (the mesh triangulates fans). Curves are sampled; `k` sets how fi
     crystal_lantern  a crystal in a gilt cup under a gilt cap (the night lights' motif)
     hung_lantern     a crystal lantern hanging from a swan-neck bracket on a wall
     balustrade       a curved-friendly balustrade: plinth, turned balusters, rounded rail
-    terrace          stacked rounded platforms (superellipse plan), each with a coping lip
     leaf_banner      a leaf-shaped hanging banner with a gilt midrib on a gilt rod (house colour)
     pennant          a long leaf pennant flying from a pole (house colour)
     banner_pole      a slender gilt pole with a leaf finial, flying a leaf banner and a pennant
@@ -148,30 +146,6 @@ class ElvenShapes:
         if finial:
             tip = outer[-1][1]
             out += self.leaf_finial_on(a, t, n, u, tip - 0.2, 2.4 * w, (d0 + d1) / 2, w * 0.9)
-        return out
-
-    def ogee_gable(self, a, t, n, u, half, z0, apex, w=0.55, d0=0.0, d1=0.8, k=10, ogee=0.7):
-        """A house-front gable (over a door, a bay, a stable front): an ogee outline from (u +- half,
-        z0) to the tip (arch_outline's `ogee`: 1 is a full onion-like S, 0.7 a leaf), edged in enamel
-        standing 0.25 proud, a leaf finial on the tip. The fill is one stone slab up to where the
-        outline turns back (the convex part) and upright strips above."""
-        inner = self.arch_outline(half, z0, apex, ogee, k)
-        outer = self._offset(inner, w)
-        turn = next((i for i in range(1, k) if (inner[i][0] - inner[i - 1][0]) * (inner[i + 1][1] - inner[i][1])
-                     - (inner[i][1] - inner[i - 1][1]) * (inner[i + 1][0] - inner[i][0]) < 0), k)
-        zt = inner[turn][1]
-        low = [(u + x, z) for x, z in inner[:turn + 1]] + [(u - x, z) for x, z in reversed(inner[:turn + 1])]
-        out = [prism_uz(a, t, n, low, d0, d1, [None] * len(low), "stoneB", None)]
-        for s in (1, -1):
-            def U(p):
-                return (u + s * p[0], p[1])
-            for i in range(k):
-                if i >= turn:
-                    strip = [U((inner[i][0], zt)), U((inner[i + 1][0], zt)), U(inner[i + 1]), U(inner[i])]
-                    out.append(prism_uz(a, t, n, strip, d0, d1, [None] * 4, "stoneB", None))
-                q = [U(inner[i]), U(inner[i + 1]), U(outer[i + 1]), U(outer[i])]
-                out.append(prism_uz(a, t, n, q, d0, d1 + 0.25, ["enamel", None, "enamel", None], "enamel|a", None))
-        out += self.leaf_finial_on(a, t, n, u, outer[-1][1] - 0.2, 5.0 * w, (d0 + d1) / 2, 1.6 * w)
         return out
 
     # ------------------------------------------------------------------ walls
@@ -406,7 +380,7 @@ class ElvenShapes:
         out += self.crystal_lantern(p.x, p.y, zt - 0.9 - h, h, 0.5, finial=False)
         return out
 
-    # ------------------------------------------------------------------ balustrades and terraces
+    # ------------------------------------------------------------------ balustrades
     @staticmethod
     def balustrade(path, z0, height=3.0, pitch=1.4, center=(0, 0), r=0.26):
         """A balustrade along a path (straight runs or arc(): it follows curves): a plinth, turned
@@ -425,22 +399,6 @@ class ElvenShapes:
                 f = (i + 0.5) / m
                 out.append(turned(x0 + (x1 - x0) * f, y0 + (y1 - y0) * f, prof, ["stoneB", "trim", "stoneB"], 8,
                                   cap0=("top", False), cap1=("top", False)))
-        return out
-
-    @staticmethod
-    def terrace(cx, cy, rx, ry, z0, tiers, k=32, sq=2.6):
-        """Stacked platforms of a rounded plan (superellipse rx x ry, squared by sq), bottom up:
-        tiers [(height, inset)] - each rises `height` from the last one's top, `inset` in from its
-        edge (the first from rx, ry), with a slight batter and a coping lip (0.35 out) under a pale top."""
-        out, z, ix, iy = [], z0, rx, ry
-        for hgt, inset in tiers:
-            ix, iy = ix - inset, iy - inset
-
-            def R(e, zz):
-                return ring(cx, cy, ix + e, zz, k, ry=iy + e, sq=sq)
-            rings = [R(0.0, z), R(-0.25, z + hgt - 0.5), R(0.35, z + hgt - 0.35), R(0.35, z + hgt - 0.1), R(0.0, z + hgt)]
-            out.append(loft(rings, ["stoneA", "course", "coping", "trim"], cap0=("stoneB", False), cap1=("top", True)))
-            z += hgt
         return out
 
     # ------------------------------------------------------------------ cloth (house colour)

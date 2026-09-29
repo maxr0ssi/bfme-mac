@@ -1,7 +1,7 @@
 """Men wall tower (MenWallTowerSmall, and Arnor's; model GBWallTwrN): EA's wall tower kept whole -
 the ashlar shaft with its corner buttresses and the carved emblem on its field faces, the belfry
 with its painted arched windows, the slate dome - and crowned as the citadel's towers are
-(men/wall_hub/dome.py, the shared tower top):
+(men/dome.py, the shared tower top):
 
 - the citadel's machicolated gallery round the shaft top: two-step corbels, a slab whose front is
   a black band of silver stars, a parapet and square merlons with capstones;
@@ -52,7 +52,7 @@ class WallTower(Building):
     def design(self, kit):
         from mathutils import Vector as V
 
-        from ..wall_hub import dome as D
+        from .. import dome as D
         sec = D.Section(*C, chamfer=0.28)
         zc, out_ = GALLERY
         res = D.gallery(kit, sec, SHAFT, zc, out=out_)

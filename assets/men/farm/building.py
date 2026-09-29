@@ -30,7 +30,7 @@ north x 18.15..25.0 (z 6.9..17.6, EA's frames to x 16.9..26.2), east y -11.43..-
 from sagekit.building import Building
 
 from ..style import MenStyle
-from ..workshop.prodkit import banner, closed
+from ..prodkit import banner
 
 X0, X1, YH = 8.25, 34.22, 18.68
 QUOIN_TOP = 21.4                        # under the eaves (the roof is at z 22.35 over the quoins' fronts)
@@ -57,11 +57,11 @@ class Farm(Building):
     }
 
     def decals(self):
-        from ..workshop.prodkit import props_layer
+        from ..prodkit import props_layer
         return [props_layer(sat=(0.12, 0.22), gate=(0.4, 0.65), hue=(22.0, 50.0), rects=[(0.16, 0.22, 0.42, 0.46), (0.0, 0.455, 0.27, 0.5)])]          # EA's thatch (the awning, the shed) and timber stay straw and wood
 
     def design(self, kit):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         out = []
         faces = {"W": M.face((X0, 0.0), (-1, 0)), "E": M.face((X1, 0.0), (1, 0)),
                  "S": M.face(((X0 + X1) / 2, -YH), (0, -1)), "N": M.face(((X0 + X1) / 2, YH), (0, 1))}
@@ -87,7 +87,7 @@ class Farm(Building):
             out += self._hood(a, t, n)
             out += self._kneelers(a, t, n)
         out += self._porch(kit, *faces["W"])
-        out = closed(out)                     # EA's walls are single planes: no buried backs
+        out = M.closed(out)                   # EA's walls are single planes: no buried backs
         out += self._dovecote(*DOVECOTE)
         return out
 
@@ -95,7 +95,7 @@ class Farm(Building):
     def _hood(a, t, n):
         """A label moulding over the gable window (above EA's frame, which stands 1.04 proud to
         z 19.53), with short drops at its ends."""
-        from ..barracks import motifs as M
+        from .. import motifs as M
         u0, u1 = sorted(((16.35 - a.x) * t.x, (26.75 - a.x) * t.x))
         out = [M.slab(a, t, n, u0 - 0.3, u1 + 0.3, 19.65, 20.35, -0.3, 1.35, front="course")]
         for u in (u0, u1):
@@ -107,7 +107,7 @@ class Farm(Building):
         """A kneeler on each corner of a gable wall over the quoins: a moulded block and a
         weathered top rising inward under the thatch's eaves."""
         from sagekit.blender.geometry import prism_uz
-        from ..barracks import motifs as M
+        from .. import motifs as M
         half = (X1 - X0) / 2
         out = []
         for e in (-1, 1):
@@ -125,7 +125,7 @@ class Farm(Building):
         columns, an architrave on side beams back to the wall, a slated pediment with the White
         Tree on sable, raking cornices and a gilt knob."""
         from sagekit.blender.geometry import prism_uz
-        from ..barracks import motifs as M
+        from .. import motifs as M
         from ..shapes import turned
         out = []
         for e in (-1, 1):

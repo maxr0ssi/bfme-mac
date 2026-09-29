@@ -1,8 +1,9 @@
-/* R5 deferred-effect recorder (research prototype). Cloned game code runs on workers; its calls
- * with shared side effects (list pushes, D3D/COM methods, game functions that write shared state)
- * are retargeted to per-site stubs that RECORD the call instead of making it. After the join the
- * main thread replays every record in item order, then in call order within an item, so the side
- * effects happen in exactly the order the serial game would have made them.
+/* Deferred-effect recorder (not used by the game patch; tested by rectest.c). Cloned game code
+ * runs on workers; its calls with shared side effects (list pushes, D3D/COM methods, game
+ * functions that write shared state) are retargeted to per-site stubs that RECORD the call
+ * instead of making it. After the join the main thread replays every record in item order, then
+ * in call order within an item, so the side effects happen in exactly the order the serial game
+ * would have made them.
  *
  * A clone's `call rel32 <target>` is retargeted to rec_site_stub(id) by the clone installer; a COM
  * call `call [reg+off]` is redirected by pointing the object pointer the clone loads (a redirected

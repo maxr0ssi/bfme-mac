@@ -1,5 +1,5 @@
 """Men stable, level 2 (Upgrade_StructureLevel2: ShowSubObjects V1): the yard wall V1, redesigned
-on the finished stable (`base`; the chain and its rules: assets/men/barracks/levels.py) in the
+on the finished stable (`base`; the chain and its rules: assets/men/levels.py) in the
 citadel's wall language.
 
 EA's V1 (model coordinates; V1 hangs on no bone): two curved walls from the wings' gable ends
@@ -24,7 +24,7 @@ What stands on it here:
             pinnacles on its haunches over the piers and moulded bands round both legs
 
 No cloth and no night lights (a level mesh: levels.py). Footprint = V1's bounding box."""
-from ..barracks.levels import LevelMesh, chain, level_textures
+from ..levels import LevelMesh, chain, level_textures
 from ..stable.building import NOT_BAKED
 
 Z_TOP, Z_CORBEL, Z_SLAB = 19.86, 14.3, 17.4
@@ -52,7 +52,7 @@ class StableLevel2(LevelMesh):
     }
 
     def design(self, kit):
-        from ..barracks.motifs import closed
+        from ..motifs import closed
         out = []
         for path in (NORTH, SOUTH):
             out += self._gallery(kit, path)
@@ -67,7 +67,7 @@ class StableLevel2(LevelMesh):
 
         from sagekit.blender.geometry import sweep
 
-        from ..barracks.motifs import corbel_table, roundel, slab
+        from ..motifs import corbel_table, roundel, slab
         prof = [(-1.2, Z_SLAB), (OUT, Z_SLAB), (OUT, Z_TOP), (-1.2, Z_TOP)]
         out, segs = sweep(path, prof, ["stoneB", "enamel", "top", None], center=YARD)
         for a, b, t, n in segs:
@@ -116,7 +116,7 @@ class StableLevel2(LevelMesh):
 
     @property
     def sheet_atlas(self):
-        from ..workshop.prodkit import VET_TILES, with_tiles
+        from ..prodkit import VET_TILES, with_tiles
         return with_tiles(super().sheet_atlas, VET_TILES)       # EA's slate caps stay slate
 
     def emphasis(self, c, n):

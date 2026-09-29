@@ -1,6 +1,6 @@
 # d3dx9-setrawvalue — fast loading with Wine's own d3dx9_27
 
-Applied on top of `wine-10.0` by `scripts/d3dx9-fix.sh`, which builds only
+Applied on top of `wine-10.0` by `scripts/wine-fixes.sh`, which builds
 `dlls/d3dx9_27/i386-windows/d3dx9_27.dll` and installs it into the engine.
 
 | patch | author | what |
@@ -18,7 +18,7 @@ Applied on top of `wine-10.0` by `scripts/d3dx9-fix.sh`, which builds only
 loading bar is D3DX turning textures into GPU formats in x87 floating-point code, which
 Rosetta emulates slowly: 99 % of the load's main-thread samples land in one x87 loop inside
 `d3dx9_27.dll` (`tools/eipsample.c`). Wine's own d3dx9_27 does the same work in ~12 s instead
-of ~170 s, but in Wine 10.0 `SetRawValue` is a stub, and both games upload their skinning
+of ~190 s, but in Wine 10.0 `SetRawValue` is a stub, and both games upload their skinning
 palette through it — `struct { float4 Rotation; float4 Translation_Zero; } [90]` in
 `defaultw3d.fxo` (100 in `normalmapped.fxo`) — so every skinned unit rendered invisible.
 
@@ -37,9 +37,9 @@ resampling mode Wine's D3DX falls back from; cosmetic at most.
 
 **0005–0007: the effect framework's main-thread cost.** Per batch the game re-sets every
 engine-bound parameter (camera, lights, fog, shadow, time) and per mesh the per-object ones
-(world matrix, bones, point lights) before `CommitChanges()` (see docs/PERFORMANCE.md, "d3dx9
-effects"). Each set marks the parameter dirty, so the vertex shader preshaders (~70 instructions
-in `defaultw3d.fxo`) ran again on every `BeginPass()` and `CommitChanges()`, through a generic
+(world matrix, bones, point lights) before `CommitChanges()`
+([PERFORMANCE.md](../../docs/PERFORMANCE.md) §11). Each set marks the parameter dirty, so the
+vertex shader preshaders (~70 instructions in `defaultw3d.fxo`) ran again on every `BeginPass()` and `CommitChanges()`, through a generic
 interpreter: ~70 % of the effect framework's time. 0005 gives each directly addressed instruction
 pointers to its registers and inlines the common operations (same registers, same order, same
 double operations: bit-identical). 0006 keeps a copy of each preshader's input registers: no
@@ -54,4 +54,6 @@ frame (shadow-map pass + main view) went from 10.9 to 3.3 ms, `BeginPass` 9.5 �
 `ID3DXEffectStateManager`) is identical, and Wine's d3dx9_36 effect tests pass unchanged
 (233,887 tests, 0 failures, 26 todo). `WINE_D3DX9_FXOPT=0` restores the old paths at run time.
 
-0008 leaves the ~12 constant, non-shader states of each pass out of CommitChanges()'s walk (they never make a device call there) and fixes `d3dx_fxopt()`, which re-read the environment on every call when the variable was unset: CommitChanges 0.45 → 0.39 µs per mesh.
+0008 leaves out ~12 constant states per pass that never make a device call, and reads
+`WINE_D3DX9_FXOPT` once (it was read on every call when unset): CommitChanges 0.45 → 0.39 µs per
+mesh.

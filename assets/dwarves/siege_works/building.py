@@ -181,7 +181,6 @@ class SiegeWorks(Building):
     def _chimney_crown(self, kit):
         """Corbels under the cap, a rune belt on the shaft, and on the cap a battered crown ring
         (hexagon frieze) with stepped-pyramid corners and stepped gables, the flue left open."""
-        from mathutils import Vector as V
         from sagekit.blender.geometry import box_rings, loft, sweep
         out = []
         ss, segs = sweep(CAP, CROWN, CROWN_TAGS, center=FLUE)

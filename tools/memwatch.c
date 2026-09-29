@@ -9,11 +9,15 @@
  *
  *   i686-w64-mingw32-gcc -O2 -Wl,--large-address-aware -o build/memwatch.exe tools/memwatch.c -lpsapi
  *   wine build/memwatch.exe [interval_s] [exe[,exe...]] [max_samples] [duty_pct]
- *   defaults: 2 s; game.dat,lotrbfme2ep1.exe,lotrbfme2.exe (the match with most threads); 0 = until
+ *   defaults: 10 s; game.dat,lotrbfme2ep1.exe,lotrbfme2.exe (the match with most threads); 0 = until
  *   the target exits; 2 %. scripts/memwatch.sh runs it beside the game and adds the macOS figures.
  *
+ * It may crash the game: use it for measurement sessions only. A session with it attached ended
+ * in a fault at lotrbfme2ep1.exe+0x76D9E2 at exit, the address seen once before while eipsample
+ * suspended the game's threads; the queries below interrupt the game's threads the same way.
+ *
  * Read-only: the process is opened with PROCESS_QUERY_INFORMATION | PROCESS_VM_READ; nothing is
- * written or suspended. But a query is not free for the target. In Wine a cross-process
+ * written. But a query is not free for the target. In Wine a cross-process
  * VirtualQueryEx is a system APC that a thread of the target runs (dlls/ntdll/unix/virtual.c,
  * server/thread.c queue_apc), and on the w10 engine with msync it is always the first thread - the
  * game's main thread - interrupted with SIGUSR1 (the mechanism SuspendThread uses), ~50 us each,
@@ -165,7 +169,7 @@ static int walk(HANDLE proc, DWORD lo, DWORD hi, Walk *w, int skip_images)
 
 int main(int argc, char **argv)
 {
-    int interval = argc > 1 ? atoi(argv[1]) : 2;
+    int interval = argc > 1 ? atoi(argv[1]) : 10;
     const char *list = argc > 2 && *argv[2] ? argv[2] : "game.dat,lotrbfme2ep1.exe,lotrbfme2.exe";
     int max = argc > 3 ? atoi(argv[3]) : 0;
     double duty = argc > 4 ? atof(argv[4]) : 2.0;

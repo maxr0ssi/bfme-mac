@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""pe_laa.py - show, set or clear the LARGEADDRESSAWARE flag of a 32-bit Windows executable.  (harness-allow)
+"""pe_laa.py - show, set or clear the LARGEADDRESSAWARE flag of a 32-bit Windows executable.
 
-RotWK 2.02 ships lotrbfme2ep1.exe and game.dat with the flag on (the 4 GB patch). The crash once
-blamed on it was Wine 11's (docs/MEMORY-4GB.md); on w10 it passes tools/laaprobe.c. The first
-change to a file keeps <file>.preLAAoff.bak or <file>.preLAAon.bak.
+RotWK 2.02 ships lotrbfme2ep1.exe and game.dat with the flag on (4 GB of address space) and
+runs that way on the w10 engine (docs/MEMORY-4GB.md, tools/laaprobe.c); BFME2 ships it off. The
+first change to a file keeps <file>.preLAAoff.bak or <file>.preLAAon.bak.
 
     pe_laa.py <file>...            print on/off for each file
     pe_laa.py --off <file>...      clear the flag (no-op when it is already off)

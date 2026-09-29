@@ -1,7 +1,7 @@
 """The installed game, as the engine sees it: archives in load order, first provider wins."""
 import os
 
-from . import paths
+from . import paths, snapshot
 from .formats.big import Archive, norm
 from .formats.ini import parse_draws, parse_objects
 
@@ -19,6 +19,8 @@ class Install:
 
     def archives(self):
         """Every .big the game loads, in the order it searches them."""
+        if self._archives is None and snapshot.active():     # no game here: the offload snapshot
+            self._archives = snapshot.archives(snapshot.active())
         if self._archives is None:
             self._archives = []
             for g in paths.SEARCH_ORDER[self.game]:
@@ -63,6 +65,9 @@ class Install:
             self._caches = {}
             for g in paths.SEARCH_ORDER[self.game]:
                 live = os.path.join(paths.GAMEDIRS[g], "asset.dat")
+                if snapshot.active():
+                    self._caches[live] = AssetCache(snapshot.cache_path(snapshot.active(), live))
+                    continue
                 self._caches[live] = AssetCache(live + ".orig" if os.path.exists(live + ".orig") else live)
         return self._caches
 
@@ -76,11 +81,18 @@ class Install:
     def route_cache_ops(self, ops):
         """{live asset.dat: [op]} (op as Building.cache_ops). A texture is registered in the cache
         that files the texture it copies - RotWK files some models in its own cache and their sheets
-        in BFME2's - and its dependency switched only where that cache has the object; a model is
-        patched where it is filed, and skipped when no cache files it (the game parses it)."""
-        out = {}
+        in BFME2's - and its dependency switched only where that cache has the object; a model of
+        ours ('model') is filed where EA's model it copies is; a model is patched where it is filed."""
+        out, filed = {}, {}
         for op in ops:
-            if op[0] == "texture":
+            if op[0] == "model":                # a model of ours: filed where EA's model it copies is
+                live = next((p for p, c in self.asset_caches().items() if c.has_model(op[2])), None)
+                if live is None:
+                    raise FileNotFoundError("no asset.dat files %s to copy for %s" % (op[2], op[1]))
+                filed[op[1].lower()] = (live, op[2])
+            elif op[0] == "texture" and op[3] and op[3].lower() in filed and self._copies_object(filed[op[3].lower()], op):
+                live = filed[op[3].lower()][0]  # its object is filed there by the op before
+            elif op[0] == "texture":
                 _, new, like, model, obj = op
                 have = [p for p, c in self.asset_caches().items() if c.has_texture(like)]
                 # the cache that also has the object, if another files the sheet first (RotWK re-files
@@ -92,11 +104,17 @@ class Install:
                 if model and self.asset_caches()[live].dependencies(model, obj) is None:
                     op = ("texture", new, like, None, None)
             else:
-                live = next((p for p, c in self.asset_caches().items() if c.has_model(op[1])), None)
+                live = filed.get(op[1].lower(), (None,))[0] or next((p for p, c in self.asset_caches().items() if c.has_model(op[1])), None)
                 if live is None:
                     continue
             out.setdefault(live, []).append(op)
         return out
+
+    def _copies_object(self, filed, op):
+        """Whether the cache a model of ours is filed in has the texture op[2] and EA's object
+        that becomes op[4] (CONTAINER.MESH under our name) in the copy."""
+        (live, like), c = filed, self.asset_caches()[filed[0]]
+        return c.has_texture(op[2]) and c.dependencies(like, like[:-4].upper() + "." + op[4].split(".", 1)[-1]) is not None
 
     # ------------------------------------------------------------------ art lookups
     @staticmethod

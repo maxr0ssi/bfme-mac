@@ -1,5 +1,5 @@
-/* R5 parallel framework — shared worker pool for the RotWK in-memory patch DLL (research
- * prototype; not wired into gamepatch/). Persistent workers, spin-then-park, a parallel_for with
+/* Worker pool for the RotWK in-memory patch DLL, built into it for shadowpar (gamepatch/src/
+ * par_shadow.c, off by default in gamepatch.ini). Persistent workers, spin-then-park, a parallel_for with
  * chunking and a serial fallback, x87+MXCSR propagation, and SEH exception safety so a fault in a
  * worker falls back to serial instead of hanging the game.
  *

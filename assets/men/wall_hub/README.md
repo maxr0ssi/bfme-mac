@@ -1,37 +1,27 @@
 # Men wall hub (`MenWallHubSmall`, `ArnorWallHubSmall`)
 
-Model `GBWallRmprtN`, redesigned mesh `OBJECT03` (the mesh hangs on a bone at z 80.79: design in
-mesh coordinates, ground at -80.72). Own texture `GBFortressE.tga` from `GBFortress1.tga`.
+Model `GBWallRmprtN`, mesh `OBJECT03` (on a bone at z 80.79: design in mesh coordinates, ground at
+-80.72). Own texture `GBFortressE.tga` from `GBFortress1.tga`. EA's hexagonal tower kept whole
+(ashlar, painted corbel arcade, drum with slit windows, slate dome), crowned with [`dome.py`](../dome.py).
 
-## Design (2026-09-27)
+## What changed
 
-EA's hexagonal tower is kept whole (ashlar, painted corbel arcade, drum with slit windows, slate
-dome) and crowned with the shared tower top, [`dome.py`](dome.py):
+- **Rim**: a flush parapet with a black band of silver stars and square merlons.
+- **Bartizans**: six on the corners (slit windows, steel cornices, slate spirelets).
+- **Drum**: pilasters up the corners, a round-arched window frame on every face.
+- **Dome**: steel eave band and ribs, a lantern cupola in place of EA's stone spike, mast, gilt
+  orb and spike.
+- **Banners**: none.
 
-- a flush parapet round the rim with a black enamel band of silver stars (StarBand) and square
-  merlons, kept 4.4 from the corners;
-- six corbelled bartizans on the corners (slit windows, steel cornices, slate spirelets); they stay
-  inside every face's plane and clear of the middle 15.8 of each face, where segments run in;
-- pilasters up the drum's corners and a round-arched window frame (voussoirs, keystone, sill) on
-  every drum face;
-- a steel eave band, steel ribs up the six edges and faces of EA's dome, a lantern cupola, a steel
-  mast, gilt orb and spike (EA's stone spike is cleared: `clear`, the lantern stands there).
+## Kept clear
 
-No banners. Footprint EA's (x +-23.44, y +-20.3); height 98.08 -> 110.22 (+12.4 %); 94 -> 2,820
-triangles. `WallHub.section/rim/drum/dome` are reused by `men/wall_hub_upgradeable` (a subclass)
-and `men/fortress_wall_hub`.
-
-## dome.py (shared, owned by the walls group)
-
-`Section` (k-gon or chamfered square by half width), `Outline` (explicit polygon), `drum`,
-`moulding`, `eave_band`, `dome`, `ribs`, `parapet`, `gallery` (the citadel's machicolated
-gallery), `bartizans`, `pilasters`, `window_frames` (`panel=False` frames EA's real openings),
-`crown` (eave band + ribs + lantern + finial), `spire` (a finial scaled to fit). Stable API:
-functions are added, never renamed. Used by the hub, the upgradeable plot, the wall end's turret,
-the gate towers and the wall tower.
+- Where segments run in: merlons stay 4.4 from the corners; bartizans stay inside every face's
+  plane and clear of the middle 15.8 of each face.
 
 ## Status
 
-- [x] healthy body designed; checks 72/72; renders `build/assets/men/wall_hub/renders/`
-- [x] lifecycle: `_A` derived, `_D2` and `_D3` rebuilt (`work/lifecycle.json`)
-- [ ] Max's review
+Installed with the Men pack. 94 -> 2,820 triangles, height 98.1 -> 110.2 (+12.4 %), 72/72 checks.
+Construction is derived; really damaged and the collapse are rebuilt. `WallHub` is reused by
+[`wall_hub_upgradeable`](../wall_hub_upgradeable/README.md) and
+[`fortress_wall_hub`](../fortress_wall_hub/README.md); `dome.py` also serves the wall end, gate
+and wall tower (functions are added, never renamed).

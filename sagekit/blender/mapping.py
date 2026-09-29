@@ -116,8 +116,8 @@ class AtlasMapper:
         eu, ev = (umax - umin) * s, (vmax - vmin) * s
         fit = max(eu / W, ev / H)
         if 1.0 < fit <= self.atlas.max_shrink:
-            s = s / fit * 0.999
-            eu, ev = eu / fit, ev / fit
+            s = s / fit * 0.999                 # the extent shrinks by the same factor, so it fits the
+            eu, ev = eu / fit * 0.999, ev / fit * 0.999     # region (not a hair over: a corner placement)
         if eu <= W and ev <= H:
             ou, ov = self.rng.uniform(0, W - eu), self.rng.uniform(0, H - ev)
             return [(pts, [self._uv(x0 + ou + (q.x - umin) * s, y1 - ov - (q.y - vmin) * s) for q in p2])]

@@ -1,8 +1,7 @@
 # Men of the West troops and upgrades
 
-Staged review art for Gondor infantry, Rohan Spearmen, Rangers, cavalry, Dol Amroth,
-Trebuchets, banners and collector-edition appearances. Heroes remain deferred.
-Nothing here installs assets or launches the game.
+Gondor infantry, Rohan Spearmen, Rangers, cavalry, Dol Amroth, Trebuchets, banners and the
+collector-edition appearances. Built and staged; not installed. Heroes later.
 
 ```sh
 python3 -B -m assets.men.troops.build
@@ -11,38 +10,33 @@ python3 -B -m assets.men.troops.preview
 python3 -B -m assets.men.troops.audit --previews
 ```
 
-The gallery is `build/assets/men/troops/redesign/review.html`. Every equipment combination
-has paired source/proposed stills; representative loadouts show original authored animations.
-Use `--stills`, `--motion`, `--unit`, `--variant` and `--pose` to narrow preview work;
-`--force` refreshes existing renders after an art change.
+The gallery is `build/assets/men/troops/redesign/review.html`: paired source/new stills for every
+equipment combination, and representative loadouts in their original animations. `--stills`,
+`--motion`, `--unit`, `--variant` and `--pose` narrow the preview; `--force` re-renders after an
+art change. Staging, the skin audit and the preview pipeline are the Dwarves' (`assets/dwarves/troops`).
 
-The palette emphasizes steel, original white-tree details and restrained warm metal accents.
-Rangers retain green and leather; Rohirrim retain their own character and natural horse skins.
-Original helmets, faces, hair, bodies and equipment remain intact. Small fitted edges enhance
-supported rigid pieces. Meshes with secondary skin channels stay byte-exact; the shared troop
-poser evaluates both bone coordinates and original weights. Lower-detail geometry is retained.
-Texture alpha, original mip counts and player-colour masks are preserved. The Gondor/Ranger
-banner sheets keep their existing shared HC_GUBanner mapping, including its original cache
-lookup; its unusual JPEG/PNG source resources are recorded without conversion. Protected face/hair
-compressed RGB blocks are copied from source at every mip; the CE sheet retains native DXT1.
+## What changed
 
-The catalog follows installed recruitment and animation routes. Rangers have fire arrows but
-no purchased armor; Dol Amroth has no purchased equipment skin. Both Rohirrim weapon modes
-and all authored random rider/horse textures are retained. Missing source upgrade subobjects
-and incompatible or absent animation references are reported rather than invented.
+- **Palette**: steel, the original White Tree details, restrained warm metal accents. Rangers keep
+  their green and leather; the Rohirrim keep their own look and natural horse skins.
+- **Detail**: small fitted edges on supported rigid pieces. Helmets, faces, hair, bodies and
+  equipment stay as EA made them.
+- **Kept**: meshes with secondary skin channels (byte-exact), lower-detail geometry, texture
+  alpha, mip counts and player-colour masks. Face and hair blocks are copied from source at every
+  mip; the CE sheet stays DXT1.
+- **Banners**: the Gondor and Ranger banner sheets keep EA's shared `HC_GUBanner` mapping.
 
-Private model/texture names isolate the work. Only troop visual directives change. Campaign
-Royal Guard, the Lone Tower archer and the enemy Morgul Trebuchet receive their original
-inherited Draw and SubObjectsUpgrade modules, preserving their visuals. Other descendants
-retain their original overrides, or inherit troop visuals where appropriate for summoned troops.
-Heroes, builders, structures, recruitment, gameplay and source animation files remain unchanged.
+## Scope
 
-The shared Dwarven staging, skin audit and preview pipeline is reused. The motion check decodes
-every frame of available matching clips; GIFs sample whole clips at their nominal duration.
-Particles, projectiles, player-colour blending and game lighting are not simulated. Forged-blade
-glow shows offline speckling in both comparison columns; source effect materials are unchanged.
-These are offline review results, not runtime approval or performance measurements.
+- The catalog follows the installed recruitment and animation routes. Rangers get fire arrows but
+  no bought armour; Dol Amroth has no bought equipment skin. Both Rohirrim weapon modes and all
+  random rider and horse textures are kept.
+- Private model and texture names isolate the work; only troop Draw modules change. Campaign Royal
+  Guard, the Lone Tower archer and the Morgul Trebuchet keep their inherited Draw and
+  SubObjectsUpgrade modules. Heroes, builders, structures, recruitment and gameplay are unchanged.
 
-No installer is provided. A reviewed installation must freshly compose current asset caches
-and the house-colour table, check source hashes and provide scoped backups and `--revert`.
-Do not copy staged caches over a later installation.
+## Known limits
+
+- Missing source upgrade subobjects and animation references are listed in the audit.
+- Not simulated offline: particles, projectiles, player-colour blending, game lighting.
+- The forged-blade glow speckles in both columns of the previews; EA's effect materials are unchanged.

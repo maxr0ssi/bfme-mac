@@ -67,13 +67,13 @@ class WallHub(Building):
 
     @staticmethod
     def section():
-        from .dome import Section
+        from ..dome import Section
         return Section(0.0, 0.0, k=6, phase=0.0)
 
     @classmethod
     def rim(cls, kit):
         """The flush parapet with its enamel band and merlons, and the six corner bartizans."""
-        from . import dome as D
+        from .. import dome as D
         sec = cls.section()
         out = D.parapet(kit, sec, FACE, *PARAPET, d_in=-2.4, d_out=-0.05, band=(*BAND, "enamel"), merlon=MERLONS,
                         trim=MERLON_TRIM)
@@ -84,7 +84,7 @@ class WallHub(Building):
     @classmethod
     def drum(cls, kit):
         """Pilasters up the drum's corners and a window frame on every face."""
-        from . import dome as D
+        from .. import dome as D
         sec = cls.section()
         half, z0, z1 = DRUM
         out = D.pilasters(sec, half, z0 - 0.3, z1 - 0.6, w=0.75, d=(-0.6, 0.75))
@@ -94,7 +94,7 @@ class WallHub(Building):
     @classmethod
     def dome(cls, kit):
         """Steel ribs, a lantern cupola, a steel mast, a gilt orb and a spike."""
-        from . import dome as D
+        from .. import dome as D
         return D.crown(kit, cls.section(), EAVE, DOME, lantern=LANTERN, finial=FINIAL)
 
     def decals(self):

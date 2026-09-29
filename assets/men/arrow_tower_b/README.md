@@ -1,18 +1,19 @@
 # Men arrow tower b (`MenArrowTowerExpansion`, variation two)
 
-Ships as our own GBFARTOWB2. The tower crowned as variation one (`men/arrow_tower/spire.py`),
-here with the gallery all round (the wall frees the -X side) and four bartizans; the one banner on
-the shaft's -Y face. On the wall walk (`wall.py`): stepped buttresses, a black band with silver
-stars and merlons on both parapets; on the stair-house: archivolt, quoins, imposts, corner
-pinnacles and shields (`men/trebuchet/drum.stair_house`).
+Model `GBFARTOWB`, shipped as our own `GBFARTOWB2` (Blue Mountains draws `GBFARTOWB`), own texture
+`GBFortressR.tga` (from `GBFortress1.tga`). The tower is crowned as
+[`arrow_tower`](../arrow_tower/README.md) (`men/arrow_tower/spire.py`).
 
-Blocked on the same framework bug as `arrow_tower`: the embedded animation keeps EA's name
-(`A*GBFARTOWB.GBFARTOWB`), so the own-copy name check fails; every other check passes.
+## What changed
+
+- **Tower**: the gallery runs all the way round (the wall frees the -X side), with four bartizans.
+- **Wall walk** (`wall.py`): stepped buttresses, a black band with silver stars and merlons on both
+  parapets.
+- **Stair-house**: archivolt, quoins, imposts, corner pinnacles and White Tree shields
+  (`men/trebuchet/drum.py`, `stair_house`).
+- **Banners**: one, on the shaft's -Y face; cloth in `GBHCFARTOWB2`.
 
 ## Status
 
-- [x] healthy body designed (draft for Max's review; nothing installed)
-- [x] lifecycle: construction, really damaged and rubble rebuilt along EA's pieces (`work/lifecycle.json`)
-- [ ] checks pass, renders reviewed (`build/assets/men/arrow_tower_b/renders/compare_*.png`)
-
-368 -> 4574 triangles; height 122.93 -> 140.5 (+14.3 %); checks all but the own-copy name; banners 1.
+Installed with the Men pack. 368 -> 4,558 triangles, height 122.9 -> 140.5 (+14.3 %), 81/81
+checks. Construction, really damaged and rubble are rebuilt along EA's pieces.

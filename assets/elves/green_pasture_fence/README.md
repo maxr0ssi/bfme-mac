@@ -1,28 +1,25 @@
-# Elves green pasture fence (`ElvenGreenPasture`)
+# Elven green pasture fence (`ElvenGreenPasture`)
 
-EA's carved branch rails and open filigree gateway remain whole. This is mesh `FENCE` of
-`EBStable_SKN`, chained on `elves/green_pasture`; build it after the stable.
+Mesh `FENCE` of `EBStable_SKN`, own texture `EBStable_AlphH.tga` (from `EBStable_Alpha.tga`, EA's
+cut-out alpha kept, no normal map). `Tier.STANDARD`. Chained on
+[`green_pasture`](../green_pasture/README.md); rebuild after it. Model axes (`world_space`), as the stable.
 
-## Current design
+EA's carved branch rails and open filigree gateway stay whole.
 
-- A gilt leaf finial crowns the existing gate.
-- A small crystal lantern hangs on a gilt rod under the crown, clear of the passage.
-- Gilt collars and leaf finials crown the corner posts.
-- No cloth.
+## What changed
 
-The first pass's stone hood and pointed moulding were removed because they hid EA's filigree.
-The gate stays open. The allowed footprint margin accommodates the crown finial's blade.
+- **Gate**: a gilt leaf finial on its crown and a small crystal lantern on a gilt rod under it.
+- **Corner posts**: gilt collars and leaf finials.
+- **Night**: two lights, the lantern's crystal pane and a small free glow card; `always_shown` lets
+  them glow at every upgrade level.
+- **Banners**: none.
 
-## Models, lifecycle and night
+## Kept clear
 
-Own texture `EBStable_AlphH` preserves the original cut-out alpha; there is no normal map.
-The tilted bone requires model-space design coordinates. `always_shown` permits the chained
-fence's lantern to glow at every upgrade level: a crystal pane and a small free glow card.
-Lifecycle builds combine the stable and fence recipes along EA's pieces.
+- The gate's passage; the crown finial's blade stands proud of the gate's face (`footprint_margin = 0.6`).
 
-## Verification (2026-09-26)
+## Status
 
-Current body: 1,332 → 2,210 triangles; height 35.46 → 39.66. Checks: 159/159.
-Construction, damaged, really damaged and rubble states carry the chained redesign.
-Day, lifecycle and night previews are in `build/assets/elves/green_pasture_fence/renders/`.
-Nothing installed; awaiting player review.
+Installed with the Elven pack. 1,332 -> 2,210 triangles, height 35.46 -> 39.66 (+11.9 %), 159/159
+checks. Construction, really damaged and rubble rebuild the stable and fence together along EA's
+pieces; damaged derives both.

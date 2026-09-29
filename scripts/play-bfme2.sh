@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Launch BFME2 under Wine. Logs go to logs/.
-#   ./play-bfme2.sh            normal run
-#   DEBUG=1 ./play-bfme2.sh    verbose d3d logging for diagnosing rendering problems
+#   scripts/play-bfme2.sh            normal run
+#   DEBUG=1 scripts/play-bfme2.sh    verbose d3d logging for diagnosing rendering problems
 set -e
 # BFME2 plays on the Wine 10.0 engine too: Wine 11.0 faults in WoW64 whenever a second Wine process
 # starts in the game's first ~8 s (see patches/WINE-BUG-REPORT.md), which the AutoHotkey helper does.
@@ -12,8 +12,8 @@ GAMEDIR="$WINEPREFIX/drive_c/Program Files (x86)/Electronic Arts/BFME2"
 LOGDIR="$BFME_ROOT/logs"; mkdir -p "$LOGDIR"
 LOG="$LOGDIR/bfme2-$(date +%Y%m%d-%H%M%S).log"
 
-# The engine's startup CPU benchmark never converges on a many-core machine under
-# Rosetta and picks an LOD preset that crashes it; pin it to one core (DrewHoo's fix #2).
+# One core for the engine's startup CPU benchmark (DrewHoo's fix #2), for Wine builds that read
+# it; the w10 engine does not. The pre-menu crash is fixed by tools/neuter_gamelod.py (install.sh).
 export WINE_CPU_TOPOLOGY=1:0
 # msync: Wine's in-process (Mach) sync objects instead of a wineserver round trip per wait/release.
 # The game takes a kernel mutex around its rendering thousands of times a second; in a big battle that

@@ -151,7 +151,7 @@ class GreenPasture(Building):
         the pavilion's corner lanterns, and EA's two glow cards at the wings' end horns (its night lanterns hung
         there, outside the footprint our geometry keeps to: the glow stays, free)."""
         from sagekit.nightlights import Light
-        from ..barracks.motifs import crystal_light, lantern_glow
+        from ..motifs import crystal_light, lantern_glow
         cx, cy = DOME_C
         z, h, r = CRYSTAL
         out = [crystal_light(cx, cy, z, h, r, "cupola"), lantern_glow(cx, cy, z, h, "cupola", size=12.0)]

@@ -6,7 +6,7 @@ carved filigree - touched with gold and starlight:
 - a crystal lantern hangs on a gilt rod from the crown, above the passage;
 - each of the four corner posts gets a gilt collar and a leaf finial.
 
-EA's filigree gate stays open: the first pass's stone hood over it is gone (it hid the filigree).
+EA's filigree gate stays open: nothing hoods it (a hood hides the filigree).
 A second body of EBStable_SKN: chained on elves/green_pasture (`base`), built after it. The fence is
 drawn at every upgrade level (`always_shown`), so it may carry cloth and night lights like a body:
 the crown lantern glows at night (a pane on its crystal and a small glow card round it). No cloth.
@@ -73,7 +73,7 @@ class GreenPastureFence(Building):
     def night_lights(kit):
         """The crown lantern: a pane on its crystal's camera side and a glow card round it, small
         enough (10 across) to stay in the gateway between the jambs."""
-        from ..barracks.motifs import crystal_light, lantern_glow
+        from ..motifs import crystal_light, lantern_glow
         x, y = GATE_X + GATE_D0 / 2, GATE_U
         return [crystal_light(x, y, LAMP_Z, LAMP_H, LAMP_R, "crown lantern"),
                 lantern_glow(x, y, LAMP_Z, LAMP_H, "crown lantern", size=10.0)]

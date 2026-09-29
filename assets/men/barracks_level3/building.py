@@ -20,7 +20,7 @@ and a spike to 74.6. What stands on it here:
 Nothing stands in a window (the arrows leave through them). No cloth, no night lights (levels.py).
 """
 from ..barracks.building import NOT_BAKED
-from ..barracks.levels import LevelMesh, chain, level_textures
+from ..levels import LevelMesh, chain, level_textures
 
 KEEP = (-19.94, -25.73, 16.6, 4.6)               # centre, half, chamfer
 TURRETS = [(26.75, -29.25), (-24.85, 28.25)]
@@ -65,7 +65,7 @@ class BarracksLevel3(LevelMesh):
         out = self._storey(kit)
         for cx, cy in TURRETS:
             out += self._turret(kit, cx, cy)
-        from ..barracks.motifs import closed
+        from ..motifs import closed
         return closed(out)
 
     @staticmethod
@@ -90,7 +90,7 @@ class BarracksLevel3(LevelMesh):
         return out
 
     def _storey(self, kit):
-        from ..barracks.motifs import crown_dome, star_frieze, window_surround
+        from ..motifs import crown_dome, star_frieze, window_surround
         cx, cy, half, ch = KEEP
         out = []
         for a, t, n in faces(cx, cy, half):
@@ -102,7 +102,7 @@ class BarracksLevel3(LevelMesh):
         return out
 
     def _turret(self, kit, cx, cy):
-        from ..barracks.motifs import crown_dome, window_surround
+        from ..motifs import crown_dome, window_surround
         out = []
         for a, t, n in faces(cx, cy, T_HALF):
             for u in (-5.0, 5.0):
@@ -112,7 +112,7 @@ class BarracksLevel3(LevelMesh):
         return out
 
     def decals(self):
-        from ..barracks.paintkit import Slate                # the domes' tiles charcoal, as the body's
+        from ..paint import Slate                # the domes' tiles charcoal, as the body's
         return [Slate(Z_EAVE), Slate(T_EAVE, box=(12.0, 41.5, -44.0, -14.5)), Slate(T_EAVE, box=(-39.5, -10.0, 13.5, 43.0))]
 
     def emphasis(self, c, n):

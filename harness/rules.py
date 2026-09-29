@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Rules for the BFME-MAC harness. Every check returns (path, line_no, message, text).
 
-Three families:
+Four families:
   blob_gate     copyright/binary gate — game data, Wine builds, dumps, archives never enter git
   line_rules    per-line hazards in scripts/docs/ini/reg (added lines only on diff surfaces)
   file_rules    whole-file properties: syntax, shebang/exec bit, env.sh sourcing, guards
-  tree_rules    repo-wide invariants: .gitignore integrity, README index
+  tree_rules    repo-wide invariants: .gitignore integrity, the script index in docs/REFERENCE.md
 """
 
 import ast
@@ -38,8 +38,6 @@ BLENDER_MODULES = {"bpy", "bmesh", "mathutils", "bpy_extras", "numpy"}
 NEVER_COMMIT_DIRS = (
     "prefixes", "engines", "downloads", "wine", "build", "logs", "patches/wined3d",
     "patches/nxcompat/all", "__pycache__",
-    # pre-reorganisation names, so an old-layout blob is refused too
-    "prefix", "dxvk", "resfix-maps", "nxcompat/all", "Wine Stable.app", "Wine Staging.app",
 )
 NEVER_COMMIT_EXT = {
     ".exe", ".dll", ".dat", ".big", ".bag", ".w3d", ".dds", ".tga", ".bik", ".wav", ".mp3",
@@ -108,14 +106,8 @@ GOOD_RESOLUTIONS = {("1512", "982"), ("3024", "1964")}
 
 LINE_RULES = [
     # (extensions or None for all, regex, message)
-    (ANY, r"Games/bfme\b",
-     "the setup lives in ~/Documents/BFME-MAC now — use $BFME_ROOT (env.sh) or ~/Documents/BFME-MAC"),
     (CODE + (".ahk",), r"/Users/[A-Za-z0-9_]+/",
      "hardcoded home path — use $HOME or $BFME_ROOT so the scripts survive a move"),
-    (CODE + (".md", ".ahk"), r"\bprefix-(w10|cx)\b|engines/sik10|Wine (Stable|Staging)\.app|"
-     r"BFME_ROOT/(prefix|dxvk|winetricks|nxcompat|resfix-maps)\b|(^|[\s\"'`(])(dxvk|resfix-maps|nxcompat)/",
-     "pre-reorganisation path — the layout is engines/<build>, prefixes/<build>, downloads/, "
-     "patches/nxcompat, patches/wined3d (see README)"),
     (SH, r"winecfg\s+-v\s+(?!win10\b)\S+",
      "keep the prefix at Windows 10: XP crashes wined3d at startup, other versions are untested"),
     (CODE, r"\bwinedbg\b(?!.*--help)",
@@ -126,7 +118,7 @@ LINE_RULES = [
      "back black"),
     (SH, r"\bsudo\b",
      "scripts must not escalate (a hook or harness run would hang on the password prompt) — "
-     "print the command for the user instead, as README does for pmset"),
+     "print the command for the user to run instead"),
     (SH, r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*\s+.*(prefix|engines|WINEPREFIX|Wine (Stable|Staging))",
      "never rm -r a prefix or engine (hours to rebuild) — mv it to a .trash-* dir and let the user delete"),
     (SH, r"WINEPREFIX=(\"?\$HOME|~)/\.wine\b",
@@ -189,6 +181,7 @@ def line_rules(path, line_no, text, ext=None):
 # ---------------------------------------------------------------------------
 
 SHELL_FOR = {"zsh": "zsh", "bash": "bash", "sh": "sh"}
+SOURCED = ("env.sh", "lib.sh")   # sourced by the scripts, never run: no exec bit, no env.sh rule
 WINE_CALL_RE = re.compile(r"^\s*(?:\(\s*)?(?:cd [^&;|]*&&\s*)?(?:exec\s+)?(wine|wineserver|wineboot|winetricks)\b", re.M)
 OVERWRITE_RE = re.compile(r"\b(cp|mv|install|dd)\b[^\n#]*\.(dll|big|dat|exe)\b")
 BACKUP_RE = re.compile(r"\.orig|\.bak|backup", re.I)
@@ -267,12 +260,12 @@ def file_rules(path, content, root, executable=None):
     lines = content.split("\n")
     base = os.path.basename(path)
 
-    if ext == ".sh" and base != "env.sh" and content.startswith("#!") and executable is False:
+    if ext == ".sh" and base not in SOURCED and content.startswith("#!") and executable is False:
         out.append((path, 0, "script has a shebang but no exec bit — chmod +x (git stores the mode)", ""))
     if ext == ".py" and re.search(r'^if __name__ == "__main__"', content, re.M) and executable is False:
         out.append((path, 0, "CLI tool without exec bit — chmod +x", ""))
 
-    if ext == ".sh" and base not in ("env.sh",) and WINE_CALL_RE.search(content):
+    if ext == ".sh" and base not in SOURCED and WINE_CALL_RE.search(content):
         if not re.search(r"^\s*\.\s+\S*env\.sh\b|^\s*source\s+\S*env\.sh\b|^\s*export\s+WINEPREFIX=", content, re.M):
             out.append((path, 0, "this script runs wine but never sources env.sh (or exports "
                         "WINEPREFIX) — bare wine would use ~/.wine and whatever wine is on PATH", ""))
@@ -322,9 +315,9 @@ def tree_rules(tracked, read):
     # the index lives in docs/REFERENCE.md; the README (the landing page) may name scripts too
     readme = (read("README.md") or "") + (read("docs/REFERENCE.md") or "")
     for path in tracked:
-        if path.startswith(SCRIPT_DIRS_EXEMPT) or not path.endswith((".sh", ".py", ".swift")):
+        if path.startswith(SCRIPT_DIRS_EXEMPT) or not path.endswith((".sh", ".py", ".swift", ".ahk")):
             continue
-        # a Python package the README indexes ("sagekit/") documents its own modules
+        # a Python package the index names ("sagekit/") documents its own modules
         top = path.split("/")[0]
         if "/" in path and path.endswith(".py") and (top + "/") in readme \
                 and os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), top, "__init__.py")):

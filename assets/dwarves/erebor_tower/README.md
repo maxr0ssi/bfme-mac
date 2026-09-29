@@ -1,14 +1,9 @@
 # Dwarven Erebor tower fortress expansion (`DwarvenEreborTowerTowerExpansion`)
 
-Model `DBFTower`, redesigned mesh `DBFTOWER`, `Tier.STANDARD`, painted from the faction atlas
-`DBFortress1` onto its own textures `DBFortressE.tga` / `DBFortressE_NRM.tga`.
+Model `DBFTower`, mesh `DBFTOWER`, own texture `DBFortressE.tga` (from the faction atlas
+`DBFortress1.tga`). `Tier.STANDARD`.
 
-It stands on an expansion pad against the fortress: the low connecting wall on its -X side
-(x -56..-17, the side facing the fortress) and the footprint are left exactly as they are. The
-eight `ARROW_*` bones fire from the shield windows at z 99.5; nothing new is in front of them (the
-cornice starts at 105.4, above the windows).
-
-## What changed (body, healthy)
+## What changed
 
 - **Head and crown:** the tower's head is EA's fortress-tower head (same core, shields and inner
   parapet), so it takes the redesigned fortress's own tower crown, lifted 0.2: a corbelled cornice
@@ -20,19 +15,19 @@ cornice starts at 105.4, above the windows).
 - **Flanks:** a rune panel between bronze bands, with a small stepped triangle over it, on each
   side above the stepped slabs; battered plinths at the foot of the side slabs, either side of the
   low cross buttress.
-- **Banners:** a long Erebor-blue banner (gold rod, gold piping, rune band) on each of the four
-  chamfered corners of the shaft under the head (z 54.4..77.0), hung in the corner's notch 2.6 out
-  of the chamfer, its rod set into the facet that squares the corner out: the chamfers face the
-  RTS camera square-on. The medallion and the flank rune panels stay clear; the points end above
-  the connecting wall (z 52.2). The same banners as the hall's.
-- **Paint:** the faction style (honey granite, burnished gold and bronze, gold-inlaid runes, Erebor-blue
-  enamel behind every rune band).
+- **Banners:** four, a long banner (gold rod, gold piping, rune band) on each chamfered corner of
+  the shaft under the head (z 54.4..77.0), hung in the corner's notch 2.6 out of the chamfer, its
+  rod set into the facet that squares the corner out, so the chamfers face the RTS camera
+  square-on. Cloth in `DBHCFTower`. The [hall](../hall/README.md) carries the same banners.
 
-Footprint unchanged (x -56.5..13.1, y -19.2..19.2), height 125.0 -> 142.0 (+13.6 %, limit
-20 %), 549 -> 1,559 triangles. `checks`: 36/36 pass.
+## Kept clear
 
-## Status (`python3 -m sagekit inventory dwarves/erebor_tower`)
+- The low connecting wall on the -X side (x -56..-17, facing the fortress) and the footprint.
+- The eight `ARROW_*` bones fire from the shield windows at z 99.5; the cornice starts at 105.4.
+- The medallion and the flank rune panels; the banner points end above the connecting wall (z 52.2).
 
-| Part | Healthy | Damaged (`_D` sheet) / snow / stonework | Really damaged (`DBFTower_D2`) | Construction (`_A`), rubble (`_D3`) |
-|---|---|---|---|---|
-| body (`DBFTower`) | done, rendered, not installed | our body on the variant sheets | derived: carries our body | old (separate models, not derived by the pipeline) |
+## Status
+
+Installed with the Dwarven pack. 549 -> 1,543 triangles, height 124.98 -> 142.00 (+13.6 %), 84/84
+checks. Construction, really damaged and rubble are rebuilt along EA's pieces; damaged draws the
+body on its own `_D` sheet.

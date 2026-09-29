@@ -5,7 +5,7 @@ Subcommands:
   hook                          Claude Code PostToolUse (Edit|Write) — JSON on stdin, exit 2 = feedback
   loc     [--staged]            commit size budget: warn >400 changed lines, block >600
   diff    [--staged|--pre-push] blob gate + file rules on touched files, line rules on ADDED lines
-  tree    [--staged|<rev>]      repo-wide invariants (.gitignore protection, README index)
+  tree    [--staged|<rev>]      repo-wide invariants (.gitignore protection, script index)
   objects --pre-push            every object the push uploads: game/Wine binaries, archives, size
 
 Escapes: 'harness-allow' on a line; HARNESS_ALLOW_LARGE=1 (commit budget);
@@ -255,7 +255,7 @@ def cmd_hook():
         violations.extend(rules.file_rules(rel, content, root, executable=os.access(file_path, os.X_OK)))
         for i, text in enumerate(content.split("\n"), start=1):
             violations.extend(rules.line_rules(rel, i, text, ext))
-        if rel in (".gitignore", "README.md"):
+        if rel in (".gitignore", "README.md", "docs/REFERENCE.md"):
             tracked_paths = sht(["git", "ls-files", "--cached"]).splitlines()
             read = lambda p: open(os.path.join(root, p), encoding="utf-8", errors="replace").read() \
                 if os.path.exists(os.path.join(root, p)) else None  # noqa: E731

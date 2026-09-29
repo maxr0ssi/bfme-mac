@@ -1,4 +1,4 @@
-"""Dwarven archery range (DwarvenArcheryRange), second pass: EA's timber hall rebuilt as Dwarven
+"""Dwarven archery range (DwarvenArcheryRange): EA's timber hall rebuilt as Dwarven
 masonry and its tower given a fortress crown.
 
 - the hall's gable roof disappears under a stepped stone roof (the fortress's stepped language:

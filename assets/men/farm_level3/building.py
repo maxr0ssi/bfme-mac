@@ -18,7 +18,7 @@ about 47 under the roof, whose eaves are at x 4.54 and 37.05 about z 49), y +-18
 rising to about 65 at x 21.2); its windows' frames (3.0 wide, 0.7 proud) at z 36.22..44.5:
 west y -12.05, -1.39, 11.0; east y -11.15, 1.23, 11.9; south and north x 16.05, 26.7. The body's
 banner and roundel on the south wall end at z 24.3 below the storey."""
-from ..barracks.levels import LevelMesh, chain
+from ..levels import LevelMesh, chain
 
 X0, X1, YH = 8.25, 34.22, 18.68
 Z0, EAVE = 25.21, 47.0
@@ -43,15 +43,15 @@ class FarmLevel3(LevelMesh):
     }
 
     def variants(self, install):
-        from ..workshop.prodkit import same_length_variants
+        from ..prodkit import same_length_variants
         return same_length_variants(self, install, super().variants(install))
 
     def decals(self):
-        from ..workshop.prodkit import props_layer
+        from ..prodkit import props_layer
         return [props_layer(sat=(0.12, 0.22), gate=(0.4, 0.65), hue=(22.0, 50.0), rects=[(0.16, 0.22, 0.42, 0.46), (0.0, 0.455, 0.27, 0.5)])]          # EA's thatch stays straw
 
     def design(self, kit):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         faces = {"W": M.face((X0, 0.0), (-1, 0)), "E": M.face((X1, 0.0), (1, 0)),
                  "S": M.face(((X0 + X1) / 2, -YH), (0, -1)), "N": M.face(((X0 + X1) / 2, YH), (0, 1))}
         out = []
@@ -72,6 +72,7 @@ class FarmLevel3(LevelMesh):
                     out.append(M.slab(a, t, n, u0, u1, EAVE - 0.8, EAVE + 0.2, -0.3, 0.95, front="course"))
                 x, z, r = ROUNDEL
                 out += M.roundel(kit, a, t, n, (x - a.x) * t.x, z, r, d=0.25)
-        from ..workshop.prodkit import chimney_cap, closed
+        from ..motifs import closed
+        from ..prodkit import chimney_cap
         out += chimney_cap(23.84, 28.32, 9.17, 13.42, 70.33)        # a coping and pots on EA's stack
         return closed(out)                   # EA's walls are single planes: no buried backs

@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""bigtool — list / extract / replace / pack EA SAGE ``.big`` (BIGF) archives.
+"""bigtool - list, extract, replace and pack EA SAGE ``.big`` (BIGF) archives.
 
-The BIGF container is the asset archive used by EA's **SAGE engine** — *Command
-& Conquer: Generals* / *Zero Hour* and *The Lord of the Rings: The Battle for
-Middle-earth 1 & 2*. ``ini.big`` (the file this repo's GameLOD fix edits),
-``W3D.big``, ``Textures.big`` etc. are all BIGF archives.
+BIGF is the asset archive of EA's SAGE engine (Command & Conquer: Generals / Zero Hour, The
+Battle for Middle-earth 1 and 2): ``ini.big``, ``W3D.big``, ``Textures.big`` and so on.
 
 Layout (validated against retail BFME2 ``ini.big``, v1.06, 666 members):
 
@@ -18,7 +16,7 @@ Layout (validated against retail BFME2 ``ini.big``, v1.06, 666 members):
     +4   4     size           BIG       member size in bytes
     +8   var   name           ASCII, NUL-terminated, '\\' path separators
 
-No compression — members are stored raw, so extract/replace is a byte copy.
+No compression: members are stored raw, so extract and replace are byte copies.
 
 Usage:
     bigtool.py list    archive.big
@@ -26,8 +24,7 @@ Usage:
     bigtool.py replace archive.big "data\\ini\\gamelodpresets.ini" new.ini [-o out.big]
     bigtool.py pack    OUTDIR archive.big        # rebuild from an extracted tree
 
-This is a clean-room reimplementation of the public BIGF format; it ships no
-game assets. Bring your own legally-owned copy of the game.
+Written from the public format description; it contains no game data.
 """
 from __future__ import annotations
 

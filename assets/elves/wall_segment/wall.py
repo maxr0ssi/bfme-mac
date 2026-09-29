@@ -38,7 +38,7 @@ import math
 
 from mathutils import Vector as V
 
-from sagekit.blender.geometry import loft, sweep
+from sagekit.blender.geometry import sweep
 
 # ---- EA's section (measured) ----
 FACE_X = 3.06                     # the segment's wall face |x|
@@ -131,9 +131,3 @@ def lantern_post(kit, cx, cy, z, h=5.2, r=0.85, post=2.6):
                            (0.42 * f, z + post - 0.5), (0.85 * f, z + post)],
                   ["trim"] * 5, 8, cap0=("trim", False), cap1=("trim", True))
     return [foot] + kit.crystal_lantern(cx, cy, z + post - 0.1, h, r)
-
-
-def box(x0, x1, y0, y1, z0, z1, tags, bottom=("stoneB", False), top=("top", True)):
-    from sagekit.blender.geometry import box_rings
-    return loft([box_rings((x0, x1), (y0, y1), z0, 0), box_rings((x0, x1), (y0, y1), z1, 0)], [tags],
-                cap0=bottom, cap1=top)

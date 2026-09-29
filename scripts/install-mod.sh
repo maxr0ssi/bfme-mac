@@ -13,11 +13,6 @@ export WINE_BUILD="${WINE_BUILD:-w10}"
 export BFME_ROOT="${0:A:h:h}"
 . "$BFME_ROOT/env.sh"
 
-SELF="${0:A}"   # zsh rebinds $0 to the function name inside a function; keep the path here
-usage() {
-  sed -n '2,11p' "$SELF" | sed 's/^# \{0,1\}//'
-  exit 1
-}
 
 game=""; src=""; revert=0
 for a in "$@"; do
@@ -31,9 +26,9 @@ done
 case "$game" in
   bfme2) sub="BFME2" ;;
   rotwk) sub="RotWK" ;;
-  *) usage ;;
+  *) usage 1 ;;
 esac
-[ -n "$src" ] || [ "$revert" = 1 ] || usage
+[ -n "$src" ] || [ "$revert" = 1 ] || usage 1
 
 GAMEDIR="${GAMEDIR:-$WINEPREFIX/drive_c/Program Files (x86)/Electronic Arts/$sub}"
 [ -d "$GAMEDIR" ] || { echo "no game folder at $GAMEDIR"; exit 1; }
@@ -42,7 +37,7 @@ stamp="$(date +%Y-%m-%dT%H:%M:%S)"
 
 # A half-written .big under a running game is how you lose an install (same guard as the
 # NX_COMPAT experiment in patches/nxcompat/install.sh).
-pgrep -f 'lotrbfme2ep1|lotrbfme2.exe|game.dat' >/dev/null && { echo "a game is running; quit it first"; exit 1; }
+game_running && { echo "a game is running; quit it first"; exit 1; }
 
 if [ "$revert" = 1 ]; then
   # Only the installs since the last revert are live; everything before it was already undone.

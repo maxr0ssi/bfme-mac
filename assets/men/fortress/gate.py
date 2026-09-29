@@ -3,7 +3,7 @@
 EA's gate: a stone frame x 47.7..55.6, |y| <= 17.8, top 41.9 at the jambs and 48.4 at the crown;
 its opening |y| < 11.8 (14.5 at the splayed front), crown 39.1 behind and 42.4 at the front.
 The doors (GBFDoor, outward-swinging) sweep x 51.7..~66, |y| <= 15.4 (at x 57.5), z 0..40.9, so
-nothing new stands there (work/door-clearance.json of the earlier pilot). The oil upgrade's
+nothing new stands there. The oil upgrade's
 outlets sit on the wall at x 48.8..49.6, |y| 19.5..24.4, z 26..38.9; the healing house's front is
 x 48.8 above the walk (z 48+). What is added, in front of them:
 
@@ -21,7 +21,7 @@ import math
 
 from mathutils import Vector as V
 
-from sagekit.blender.geometry import box_rings, loft, prism_uz
+from sagekit.blender.geometry import box, box_rings, loft, prism_uz
 
 X_BACK, X_FRAME = 49.4, 55.6
 PIL_Y, PIL_X = (15.75, 19.3), 57.8
@@ -31,10 +31,6 @@ Z_ARCH, Z_FRIEZE, Z_CORNICE, Z_PED = 51.8, 53.0, 55.6, 57.5
 ENT_Y = 21.2
 PED_Y, PED_APEX = 19.0, 65.3
 A, T, N = V((0, 0, 0)), V((0, 1, 0)), V((1, 0, 0))             # u = y, d = x
-
-
-def box(x0, x1, y0, y1, z0, z1, tags, cap0=("stoneB", False), cap1=("top", True)):
-    return loft([box_rings((x0, x1), (y0, y1), z0, 0), box_rings((x0, x1), (y0, y1), z1, 0)], [tags], cap0=cap0, cap1=cap1)
 
 
 def z_inner(y):

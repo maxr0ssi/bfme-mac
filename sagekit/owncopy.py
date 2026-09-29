@@ -17,12 +17,14 @@ and the pipeline works on a copy of X named Y from the extract step on:
   - lifecycle models: X_D1, X_A... that the covered Draw modules show become Y_D1, Y_A (shipped_name);
   - INI: `Model = X` -> `Model = Y` in the covered Draw modules' states only (ini.set_model), so
     the other factions' objects and this object's other modules keep EA's model;
-  - asset cache: Y has no record, so the game parses the file itself (as it does our house-colour
-    models); the own texture gets its record like any recipe's, and the object-dependency switch
-    finds no object and is skipped (Install.route_cache_ops);
+  - asset cache: Y gets a record of its own, a copy of X's (AssetCache.add_model: X's timestamp
+    and object records renamed, the file's own layout), filed where X is - the engine draws no
+    model its caches do not file (the Men citadel, Elven barracks and mallorn were invisible
+    in game on 2026-09-28 without one); the own texture gets its record like any recipe's and the
+    copied object switches to it (Install.route_cache_ops);
   - texture: the target's own texture (own_textures), as for every recipe - X's sheet is never shipped.
 
-Y must be a name no archive provides and no cache files: a record for it would describe EA's
+Y must be a name no archive provides and no cache files: an EA record for it would describe EA's
 layout (EA left unused DBWallTwr, DBWallPG and DBWallTreb in the archives, filed in BFME2's cache).
 Animations keep playing from EA's files (AnimationName = X.anim loads X's file, which stays).
 """

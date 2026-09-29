@@ -105,8 +105,8 @@ def check_model(b, ws, r, m, e):
 
     caches = [AssetCache(c) for c in ws.caches()]
     home = next((c for c in caches if c.has_model(b.shipped_name(name).lower() + ".w3d")), None)
-    if home is None:
-        r.info(name, "not in the asset caches: the game parses it directly")
+    if home is None:                        # the engine draws no model its caches do not file
+        r.check("%s filed in the asset caches" % b.shipped_name(name), False, "no record: the game would not draw it")
     else:
         st = home.stale_entries(new_path, b.shipped_name(name).lower() + ".w3d")
         r.check("%s: asset cache record matches the file" % name, not st, "%d stale" % len(st))

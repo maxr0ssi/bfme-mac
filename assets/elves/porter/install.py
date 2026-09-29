@@ -8,7 +8,7 @@ from pathlib import Path
 from .unit import EXPECTED, FOLDER, check
 from sagekit import paths
 from sagekit.formats.assetcache import AssetCache
-from sagekit.formats.big import pack
+from sagekit.formats.big import Archive, pack
 from sagekit.formats.textures import compiled_path
 from sagekit.formats.w3d import W3DFile
 from sagekit.game import Install
@@ -16,6 +16,9 @@ from sagekit.install import apply, cache_records, read, revert_faction
 from sagekit.pipeline import game_running
 
 ARCHIVE = "!!!!!!!!!!!!sagekit-elf-builder.big"
+MODEL = "euporter_skn.w3d"
+INI = "data\\ini\\housecolor.ini"
+MAPPING = b"\r\nHouseColor\r\n\tBaseTexture = EUCrafts.tga\r\n\tHouseTexture = HC_EUCrafts.tga\r\nEnd\r\n"
 
 
 def prepare():
@@ -77,7 +80,7 @@ def prepare():
         if not owned or len(matching)!=1 or not re.search(rb"(?im)^\s*HouseTexture\s*=\s*hc_eucrafts\.tga\s*$",matching[0]):
             raise ValueError("Conflicting existing Elven craftsman house-colour mapping")
     else:
-        ini+=b"\r\nHouseColor\r\n\tBaseTexture = EUCrafts.tga\r\n\tHouseTexture = HC_EUCrafts.tga\r\nEnd\r\n"
+        ini+=MAPPING
     # Earlier packs win. Do not report a successful install whose new mapping is shadowed.
     owner=Path(active.owner(member).path)
     folders=[Path(paths.GAMEDIRS[n]) for n in paths.SEARCH_ORDER[active.game]]
@@ -89,6 +92,23 @@ def prepare():
            compiled_path("hc_eucrafts.tga",".tga"):(FOLDER/"work/hc_eucrafts.tga").read_bytes(),
            member:ini}
     return files,{live:cache.data}
+
+
+def release():
+    """The builder for sagekit/pack.py, staged with --check: (archive, {game: [cache op]} as prepare()
+    applies them, {INI: the lines added to EA's}, [folders of the EA files it was made from])."""
+    g=Install()
+    original,new=W3DFile(str(FOLDER/"src"/MODEL)),W3DFile(str(FOLDER/"work"/MODEL))
+    ops=[("patch",MODEL),("texture","hc_eucrafts.tga","hc_euworker.tga",None,None)]
+    ops+=[("texture",texture,old,MODEL,m.container+"."+m.name) for n,m in new.meshes.items()
+          for old,texture in zip(original.meshes[n].textures,m.textures) if old.lower()!=texture.lower()]
+    staged=Archive(str(FOLDER/"_install"/ARCHIVE))
+    work={g.model_path("euporter_skn"):MODEL,compiled_path("eucrafts.tga",".dds"):"eucrafts.dds",
+          compiled_path("hc_eucrafts.tga",".tga"):"hc_eucrafts.tga"}
+    if any(staged.read(m)!=(FOLDER/"work"/f).read_bytes() for m,f in work.items()):
+        raise SystemExit("The staged builder is not the reviewed build: stage it again (--check)")
+    game=next(k for k,d in paths.GAMEDIRS.items() if Path(d)==Path(g.asset_cache(MODEL)).parent)
+    return FOLDER/"_install"/ARCHIVE,{game:ops},{INI:MAPPING},[FOLDER/"src"]
 
 
 def install(check_only=False):

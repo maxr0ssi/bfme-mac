@@ -1,34 +1,25 @@
-# Elves barracks (`ElvenBarracks`)
+# Elven barracks (`ElvenBarracks`)
 
-EA's hall, carved porches, lattice gables, weapon racks, palisade yard and mallorn stay whole.
-The approved citadel's ivory, mithril and mallorn gold palette dresses the original detail.
+Model `NBElvnBarx_SKN`, mesh `NBELVNBARXA`, own texture `nbelvnbarH.tga` (from `nbelvnbarx.tga`).
+`Tier.STANDARD`. Ships as `EBElvnBarx_SKN`: Arnor draws `NBElvnBarx_SKN` too. EA's hall, carved
+porches, lattice gables, weapon racks, palisade yard, trees and mallorn stay whole.
 
-## Current design
+## What changed
 
-- Silver caps follow the ridge's two waves, with a gilt leaf finial on each peak.
-- Six silver-framed lancet windows and silver sills dress the hall front behind EA's racks.
-- Two leaf banners hang on the front corner piers.
-- Crystal lanterns stand on the porch pedestals and hang from the gable horns.
-- Gilt leaf finials crown the yard's two obelisks.
+- **Ridge**: silver caps follow its two waves, with a gilt leaf finial on each peak.
+- **Hall front**: six silver-framed lancet windows and silver sills behind EA's racks.
+- **Lanterns**: crystal lanterns on the porch pedestals and hanging from the gable horns; gilt leaf
+  finials on the yard's two obelisks.
+- **Night**: 11 lights: the horn and east porch lanterns and five front windows (the sixth is
+  behind EA's rack).
+- **Banners**: two, on the front corner piers; cloth in `EBHCElvnBarx`, an own copy of Arnor's.
 
-The earlier balustrade, intermediate columns, extra ridge leaves and obelisk pennants were
-removed from the first pass to retain EA's detail and keep the additions modest.
+## Status
 
-## Models, lifecycle and night
+Installed with the Elven pack. 2,211 -> 4,881 triangles, height 60.07 -> 61.33 (+2.1 %), 169/169
+checks. Construction is rebuilt along EA's pieces; damaged derives the new body. Really damaged
+and rubble stay EA's: they hold no piece of this body.
 
-The body is `NBELVNBARXA`, shipped as `EBElvnBarx_SKN` with its own `nbelvnbarH` texture family.
-The shared Arnor model and cloth stay untouched: the Elven body and house colour use own copies,
-`EBElvnBarx_SKN` and `EBHCElvnBarx`. Only Elven Draw modules are repointed.
+## Known limits
 
-Construction carries the redesign. `_D1` derives the healthy body with its damaged texture;
-`_D2` and `_D3` have no matching body pieces and remain EA's recoloured models. Cloth is hidden
-in moving construction/break states. EA's trees and upgrade crown remain unchanged.
-
-At night, the horn lanterns, east porch lanterns and five front windows glow. The sixth window
-is behind EA's rack. Free glow cards stay at the two horn lanterns' original locations.
-
-## Verification (2026-09-26)
-
-Current body: 2,211 → 4,881 triangles; height 60.07 → 61.33; footprint unchanged.
-Checks: 169/169. Day, lifecycle and night comparisons are in
-`build/assets/elves/barracks/renders/`. Awaiting player review; nothing installed.
+- Renders invisible in game (own-copy bug, being fixed).

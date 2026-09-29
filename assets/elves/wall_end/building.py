@@ -63,15 +63,13 @@ class WallEnd(Building):
 
         from mathutils import Vector as V
 
-        from sagekit.blender.geometry import prism_uz
-
-        from ..wall_segment.wall import box
+        from sagekit.blender.geometry import box, prism_uz
         hx, y0, y1, z0, z1 = TURRET
-        out = [box(-hx, hx, y0, y1, z0, z1, ["stoneA", "stoneA", "stoneA", "stoneA"], bottom=("stoneB", False),
-                   top=("top", False))]
+        out = [box(-hx, hx, y0, y1, z0, z1, ["stoneA", "stoneA", "stoneA", "stoneA"], cap0=("stoneB", False),
+                   cap1=("top", False))]
         # a string course under the eaves
-        out.append(box(-hx - 0.25, hx + 0.25, y0 - 0.25, y1 + 0.25, z1 - 1.0, z1 - 0.4, "trim", bottom=("trim", True),
-                       top=("top", True)))
+        out.append(box(-hx - 0.25, hx + 0.25, y0 - 0.25, y1 + 0.25, z1 - 1.0, z1 - 0.4, "trim", cap0=("trim", True),
+                       cap1=("top", True)))
         # a lancet window (EA's lattice glass) in an arch frame on the two faces and the end
         cy = (y0 + y1) / 2
         faces = [(V((hx, 0, 0)), V((0, 1, 0)), V((1, 0, 0)), cy), (V((-hx, 0, 0)), V((0, -1, 0)), V((-1, 0, 0)), -cy),

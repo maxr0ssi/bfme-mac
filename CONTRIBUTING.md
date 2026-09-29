@@ -7,17 +7,20 @@ With the game running and a fight on screen:
 
 ```sh
 scripts/measure-session.sh on             # diagnostics on (~2 ms per frame)
-scripts/measure-session.sh sample mymac   # 20 s read-only sample during the fight
 scripts/measure-session.sh summary        # frame-time distribution, per-pass times
 scripts/measure-session.sh off
 ```
+
+(`measure-session.sh sample` needs a local profiler build and the game's function map, which are
+not in the repo; leave it out.)
 
 Open an issue with your Mac model, macOS version, resolution, the settings you play at, and the
 `summary` output.
 
 ## Performance work
 
-In large battles a frame takes 40–60 ms, about 25 ms of it outside rendering. Game-side changes
+In large battles a frame takes 42–51 ms, 25–32 ms of it in the game's own code
+([PERFORMANCE.md](docs/PERFORMANCE.md) §8). Game-side changes
 must not change what the game computes:
 
 1. Find the cost with a measurement (`docs/PERFORMANCE.md` has the tools and the current map).

@@ -9,6 +9,8 @@ One pass over the game answers "who else draws this?" for every model and sheet:
     texture swaps, attributed to a group by the INI's folder: goodfaction\\structures\\elven -> elves,
     ...\\units\\rohan -> men; the civilian files by the culture they are named after
     (civilian\\ereborbuildings.ini -> civilian/erebor, which counts as the Dwarves');
+  - a ChildObject or ObjectReskin draws what it inherits, for its own group: the civilian
+    LumberMill's MBLumMill_SKN is drawn by the Goblins', Isengard's and Mordor's lumber mills;
   - every drawn model read once for the textures its meshes name.
 
 Groups that are not a playable faction (civilian props, nature, cinematics, ents) are reported but
@@ -23,10 +25,10 @@ import os
 import re
 
 from . import paths
-from .formats.ini import parse_draws
+from .formats.ini import parse_draws, parse_objects
 from .taxonomy import FACTIONS
 
-VERSION = 3
+VERSION = 4
 CACHE = os.path.join(paths.BUILD, "_ownership.json")
 
 # INI folder name -> group (good/evilfaction\structures|units|hordes\<name>)
@@ -73,24 +75,32 @@ def key(texture):
 def scan(install):
     """{"objects": {object: {"group", "file", "draws": [[tag, [models]]]}}, "models": {model (lower):
     {"name", "textures": [keys]}}, "swaps": {texture key: [groups]}} - the raw index."""
-    objects, swaps, names = {}, {}, {}
+    objects, swaps, names, parents, where, parsed = {}, {}, {}, {}, {}, {}
     for member in install.members("data\\ini\\object"):
         if not member.endswith(".ini"):
             continue
         folder = group_of(member)
-        for d in parse_draws(install.read(member).decode("latin-1")):
-            m = NAMED.match(d.object or "")
-            g = NAMED_GROUP.get(m.group(1), m.group(1).lower()) if m else folder
-            models = d.models() + d.fields.get("ModelName", "").split()[:1]      # W3DTreeDraw & co.
+        text = install.read(member).decode("latin-1")
+        for obj, parent in parse_objects(text).items():
+            parents.setdefault(obj, parent)
+            where.setdefault(obj, (member, _group(obj, folder)))
+        for d in parse_draws(text):
+            g = _group(d.object, folder)
+            parsed.setdefault(d.object, []).append(d)
             o = objects.setdefault(d.object, {"group": g, "file": member, "draws": []})
-            o["draws"].append([d.tag, models])
-            names.update({m.lower(): m for m in models})
-            if g.startswith("civilian"):        # map castles swap in each owner's decal (USER_n): not theirs
-                continue
-            for st in d.states:
-                for pair in st.textures:
-                    for t in pair:
-                        swaps.setdefault(key(t), set()).add(g)
+            _add_draw(o, d, names, swaps)
+    # a ChildObject or ObjectReskin draws the Draw modules it inherits (WildLumberMill, IsengardLumberMill
+    # and MordorLumberMill all draw the civilian LumberMill's MBLumMill_SKN): they count for its group
+    for child, parent in parents.items():
+        own_tags, seen = {d.tag for d in parsed.get(child, [])}, {child}
+        while parent and parent not in seen:
+            seen.add(parent)
+            for d in parsed.get(parent, []):
+                if d.tag not in own_tags:
+                    own_tags.add(d.tag)
+                    member, g = where[child]
+                    _add_draw(objects.setdefault(child, {"group": g, "file": member, "draws": []}), d, names, swaps)
+            parent = parents.get(parent)
     from .formats.w3d import W3DFile
     models = {}
     for low, name in sorted(names.items()):
@@ -104,7 +114,29 @@ def scan(install):
     return {"objects": objects, "models": models, "swaps": {k: sorted(v) for k, v in swaps.items()}}
 
 
+def _group(obj, folder):
+    """An object's group: the faction it is named for, else its INI folder's."""
+    m = NAMED.match(obj or "")
+    return NAMED_GROUP.get(m.group(1), m.group(1).lower()) if m else folder
+
+
+def _add_draw(o, d, names, swaps):
+    """Record Draw module d as drawn by object entry o (its models, and its INI swaps for o's group)."""
+    models = d.models() + d.fields.get("ModelName", "").split()[:1]      # W3DTreeDraw & co.
+    o["draws"].append([d.tag, models])
+    names.update({m.lower(): m for m in models})
+    if o["group"].startswith("civilian"):       # map castles swap in each owner's decal (USER_n): not theirs
+        return
+    for st in d.states:
+        for pair in st.textures:
+            for t in pair:
+                swaps.setdefault(key(t), set()).add(o["group"])
+
+
 def fingerprint(install):
+    from . import snapshot
+    if snapshot.active():                   # the offload snapshot: the real archives', recorded at pack
+        return snapshot.fingerprint(snapshot.active())
     return [VERSION] + [[os.path.basename(a.path), os.path.getsize(a.path), int(os.path.getmtime(a.path))]
                         for a in install.archives()]
 

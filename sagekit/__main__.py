@@ -5,13 +5,18 @@
     inventory <faction/building>       its lifecycle as the game defines it, and what exists
     budget [faction]                   memory the own textures take, per faction
     build <faction/building> [--from STEP] [--to STEP]
+    preview <faction/building> [--views rts,close]   geometry + flat-colour renders + bake-free checks (~1 min)
     sheets <faction> [--only NAME]     recolour every texture sheet of the faction to its palette
     house <faction>                    add the buildings' cloth to the house-colour models (player colour)
     names <faction> [--write]          every model and texture name the faction ships (assets/<faction>/NAMES.md)
     owners <faction> [--refresh]       what the faction draws that other factions draw too (sagekit/ownership.py)
     new <faction> [--write]            one stub recipe per design unit of EA's (sagekit/scaffold.py)
+    board <faction>                    EA's buildings as they are, one labelled grid (sagekit/board.py)
+    palettes <faction> [--only A,B]    EA's citadel recoloured with each palette option (sagekit/palettes.py)
     measure <faction/building>         EA's body measured into work/measure.json (sagekit/measure.py)
     install <faction> | revert <faction>   put everything built into the game / take it out
+    offload pack <faction> [--only b1,b2] | run [--builds N] | results | unpack <zip> [--print-only]
+                                       full-quality builds on another machine (sagekit/offload.py)
 """
 import argparse
 import sys
@@ -133,6 +138,11 @@ def cmd_build(a):
     return 0
 
 
+def cmd_preview(a):
+    from .preview import run
+    return run(a.building, a.views, a.res, a.extract, a.force)
+
+
 def cmd_sheets(a):
     """Recolour the faction's sheets (sagekit/paint/sheets.py) into build/assets/<faction>/_sheets/out,
     four at a time on Blender's Python."""
@@ -205,6 +215,16 @@ def cmd_new(a):
     return run(a.faction, a.write)
 
 
+def cmd_board(a):
+    from .board import run
+    return run(a.faction)
+
+
+def cmd_palettes(a):
+    from .palettes import run
+    return run(a.faction, a.only)
+
+
 def cmd_measure(a):
     """EA's body measured (sagekit/measure.py), on Blender's Python (numpy)."""
     import os
@@ -233,6 +253,11 @@ def cmd_revert(a):
     revert_faction(a.faction)
 
 
+def cmd_offload(a):
+    from .offload import main as offload
+    return offload(a)
+
+
 def _style(faction):
     import importlib
     mod = importlib.import_module("assets.%s.style" % faction)
@@ -253,6 +278,12 @@ def main(argv=None):
     p.add_argument("--from", dest="first")
     p.add_argument("--to", dest="last")
     p.add_argument("--force", action="store_true", help="build even while the game is running")
+    p = sub.add_parser("preview", help="a fast shape preview (sagekit/preview.py)")
+    p.add_argument("building")
+    p.add_argument("--views", help="comma-separated views (default: the recipe's, else rts,close,ingame)")
+    p.add_argument("--res", default="1200x825")
+    p.add_argument("--extract", action="store_true", help="extract again first")
+    p.add_argument("--force", action="store_true", help="run even while the game is running")
     p = sub.add_parser("sheets")
     p.add_argument("faction")
     p.add_argument("--only")
@@ -270,6 +301,10 @@ def main(argv=None):
     p.add_argument("faction")
     p.add_argument("--write", action="store_true", help="write the stubs (never over an existing recipe)")
     sub.add_parser("measure").add_argument("building")
+    sub.add_parser("board", help="EA's buildings as they are (sagekit/board.py)").add_argument("faction")
+    p = sub.add_parser("palettes", help="the palette options on EA's citadel (sagekit/palettes.py)")
+    p.add_argument("faction")
+    p.add_argument("--only", help="comma-separated palette keys (default: every one in the style)")
     for name in ("install", "revert"):
         p = sub.add_parser(name)
         p.add_argument("faction")
@@ -277,6 +312,14 @@ def main(argv=None):
             modes = p.add_mutually_exclusive_group()
             modes.add_argument("--check",action="store_true",help="stage and verify without installing")
             modes.add_argument("--revert",action="store_true",help="restore the last scoped installation")
+    p = sub.add_parser("offload", help="builds on another machine (docs/OFFLOAD.md)")
+    p.add_argument("action", choices=["pack", "run", "results", "unpack"])
+    p.add_argument("target", nargs="?", help="pack: the faction; unpack: the results zip")
+    p.add_argument("--only", help="comma-separated building names (pack, run)")
+    p.add_argument("--no-extract", action="store_true", help="pack: use the sources extracted before")
+    p.add_argument("--builds", type=int, default=4, help="run: buildings at once")
+    p.add_argument("--with-bakes", action="store_true", help="results: keep work/bake (large)")
+    p.add_argument("--print-only", action="store_true", help="unpack: print the Mac's commands, run nothing")
     a = ap.parse_args(argv)
     return globals()["cmd_" + a.cmd](a) or 0
 

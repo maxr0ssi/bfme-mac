@@ -1,5 +1,5 @@
 /* particlevtx: the colour pack of the particle / point-group vertex write loop without the two
- * x87 control-word switches per vertex (fldcw is expensive under Rosetta; research R3). The code
+ * x87 control-word switches per vertex (fldcw is expensive under Rosetta). The code
  * and the exactness argument are in p_particle.S; test: tests/t_particle.c (all 2^32 inputs). */
 #include "gp.h"
 #include "gp_render.h"

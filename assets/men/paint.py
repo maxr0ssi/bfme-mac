@@ -1,11 +1,10 @@
 """Gondor's own paint layers (built on first use: sagekit.paint needs numpy, on Blender's Python;
 this module must import anywhere).
 
-    Lawn        the courtyard's grass and the sheet's ivy stay green: green texels of EA's sheet
-                painted with the leaf ramp by their luminance, over the stone recolour
+    Lawn        the courtyard's grass and the sheet's ivy stay green (sagekit.paint.layers.Foliage)
     StarBand    silver seven-pointed stars painted in a row along black enamel bands
-    SteelJoint  a dark joint on the white stone beside new steel and gold, so bright metal on
-                bright limestone reads as metal set in stone, not as more stone
+    SteelJoint  a dark joint on the white stone beside new steel, gold and iron, so bright metal
+                on bright limestone reads as metal set in stone (sagekit.paint.layers.Groove)
 
 keep_layers(): what the stone recolour must not turn to white stone, shared by the sheet
 recolour (MenStyle.sheet_layers) and the recipes' decals. The Recolour reads every unsaturated or
@@ -18,8 +17,9 @@ out white and its blue-grey slate pale.
     SheetSlate  EA's blue-grey slate painted with the charcoal slate ramp ("tiles") by colour
                 alone (coherent, a little saturated, blue): flat sheets, whose stone is greyer
     Props       (prodkit.props_layer) EA's saturated props keep their colours, tuned per sheet
-    Slate       (barracks.paintkit) slate by colour above a height and inside a box
-    Keep        (barracks.paintkit) EA's colour on its saturated texels of a hue
+    Slate       slate by colour above a height and inside a box: Slate(z0=65.4), Slate(z0=29.5,
+                box=(x0, x1, y0, y1)) (design coordinates); a recipe's decals() take it from here
+    Keep        EA's colour on its saturated texels of a hue (the archer range's red targets)
     KeepFire    (stable.pieces) EA's colour on warm bright texels inside a box (coals, hay)
 """
 import functools
@@ -29,66 +29,14 @@ import functools
 def men_layers():
     import numpy as np
 
-    from sagekit.paint.fields import hsv, ramp, smooth
-    from sagekit.paint.imageio import to_srgb
-    from sagekit.paint.layers import Layer
+    from sagekit.paint.fields import ramp, smooth
+    from sagekit.paint.layers import Foliage, Groove, Layer
 
-    def source(cv):
-        rgb = getattr(cv, "rgb", None)
-        if rgb is not None:
-            return rgb
-        return cv.memo("men_rgb", lambda: to_srgb(cv.load("atlas")).astype(np.float32))
-
-    class Lawn(Layer):
-        def __init__(self, strength=0.9, hue=(62.0, 150.0), sat=(0.16, 0.30)):
-            self.strength, self.hue, self.sat = strength, hue, sat
-
-        def apply(self, col, cv, pal):
-            H, S, V = hsv(source(cv))
-            (h0, h1), (s0, s1) = self.hue, self.sat
-            m = smooth(H, h0, h0 + 12) * (1 - smooth(H, h1 - 12, h1)) * smooth(S, s0, s1) * smooth(V, 0.06, 0.16)
-            m = (m * self.strength * (1 - getattr(cv, "painted", 0.0)))[..., None]
-            return col * (1 - m) + ramp(np.clip(cv.lum * 1.1, 0, 1), pal["leaf"]) * m
-
-    class SteelJoint(Layer):
-        """Stone texels within `width` of a new metal face (world space, binned in cells) darken
-        toward the joint and sink a little in the normal map."""
+    class SteelJoint(Groove):
+        """Groove beside new steel and gold (and iron), narrower and a little lighter than the Elves'."""
 
         def __init__(self, tags=("trim", "gilt", "iron"), width=0.55, strength=0.7, depth=0.08):
-            self.tags, self.width, self.strength, self.depth = tags, width, strength, depth
-
-        def mask(self, cv):
-            def compute():
-                out = np.zeros(cv.covm.shape, np.float32)
-                src = cv.tag_is(*self.tags) & (cv.covm > 0.5)
-                cand = (cv.covm > 0.5) & ~src & (cv.w_stone > 0.05)
-                if not src.any() or not cand.any():
-                    return out
-                q = np.floor(cv.pos / (self.width / 2)).astype(np.int64)
-                B = 1 << 20
-
-                def key(c):
-                    return ((c[..., 0] + B) << 42) | ((c[..., 1] + B) << 21) | (c[..., 2] + B)
-                cells, inv = np.unique(key(q[src]), return_inverse=True)
-                ps = cv.pos[src]
-                cnt = np.bincount(inv, minlength=len(cells)).astype(np.float32)
-                mean = np.stack([np.bincount(inv, ps[:, i], len(cells)) for i in range(3)], -1) / cnt[:, None]
-                qc, pc = q[cand], cv.pos[cand]
-                d = np.full(len(pc), 9.0, np.float32)
-                for off in np.stack(np.meshgrid(*[(-1, 0, 1)] * 3, indexing="ij"), -1).reshape(-1, 3):
-                    k = key(qc + off)
-                    i = np.clip(np.searchsorted(cells, k), 0, len(cells) - 1)
-                    d = np.where(cells[i] == k, np.minimum(d, np.linalg.norm(pc - mean[i], axis=1)), d)
-                out[cand] = 1 - smooth(d, 0.3 * self.width, self.width)
-                return out * cv.w_stone
-            return cv.memo(("steeljoint", id(self)), compute)
-
-        def apply(self, col, cv, pal):
-            g = (self.strength * self.mask(cv))[..., None]
-            return col * (1 - g) + np.array(pal["groove"], np.float32) * g
-
-        def height(self, cv, ds):
-            return ds(-self.depth * self.mask(cv))
+            super().__init__(tags, width, strength, depth)
 
     class StarBand(Layer):
         """Silver seven-pointed stars in a row along black enamel bands (the towers' gallery fronts):
@@ -120,7 +68,7 @@ def men_layers():
         def height(self, cv, ds):
             return ds(self.depth * self.mask(cv))
 
-    return Lawn, SteelJoint, StarBand
+    return Foliage, SteelJoint, StarBand
 
 
 @functools.lru_cache(maxsize=None)
@@ -130,12 +78,7 @@ def keep_layers():
     from sagekit.paint.fields import box_blur, hsv, ramp, smooth
     from sagekit.paint.imageio import to_srgb
     from sagekit.paint.layers import Layer
-
-    def source(cv):
-        rgb = getattr(cv, "rgb", None)
-        if rgb is not None:
-            return rgb
-        return cv.memo("men_rgb", lambda: to_srgb(cv.load("atlas")).astype(np.float32))
+    from sagekit.paint.layers import sheet_rgb as source
 
     def new_faces(cv):
         return getattr(cv, "painted", 0.0)
@@ -266,3 +209,13 @@ def keep_layers():
             return col * (1 - m) + src * m
 
     return dict(Materials=Materials, SheetSlate=SheetSlate, Props=Props, Slate=Slate, Keep=Keep, KeepFire=KeepFire)
+
+
+def Slate(*a, **kw):
+    """keep_layers()'s Slate, for a recipe's decals()."""
+    return keep_layers()["Slate"](*a, **kw)
+
+
+def Keep(*a, **kw):
+    """keep_layers()'s Keep, for a recipe's decals()."""
+    return keep_layers()["Keep"](*a, **kw)

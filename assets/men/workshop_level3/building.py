@@ -18,7 +18,7 @@ chamfer) (70.1, 10.44, 2.94) .. (78.9, 3.35, 0.65), apex 82.1, the spike to 93.8
 The bartizans stand 0.6 past the storey's faces (footprint_margin); height +20 %: z 102.9."""
 from sagekit.clear import Box
 
-from ..barracks.levels import LevelMesh, chain, level_textures
+from ..levels import LevelMesh, chain, level_textures
 
 CX, CY = -29.37, 26.5
 FACE, CH = 13.47, 3.9
@@ -47,7 +47,7 @@ class WorkshopLevel3(LevelMesh):
 
     @property
     def sheet_atlas(self):
-        from ..workshop.prodkit import VET_TILES, with_tiles
+        from ..prodkit import VET_TILES, with_tiles
         return with_tiles(super().sheet_atlas, VET_TILES)       # EA's slate caps stay slate
 
     def design(self, kit):
@@ -59,13 +59,13 @@ class WorkshopLevel3(LevelMesh):
 
     @staticmethod
     def _faces(cx, cy):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         return [M.face((cx + FACE * nx, cy + FACE * ny), (nx, ny)) for nx, ny in ((1, 0), (0, 1), (-1, 0), (0, -1))]
 
     def _storey(self, kit, cx, cy):
         import math
 
-        from ..barracks import motifs as M
+        from .. import motifs as M
         out = []
         flat = FACE - CH - 0.2
         uw, half, sill, spring, rise = WINDOWS
@@ -82,7 +82,7 @@ class WorkshopLevel3(LevelMesh):
 
     @staticmethod
     def _dome(kit, cx, cy):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         z, h, ch = DOME[0]
         out = M.band_path(M.octagon(cx, cy, h, ch), z - 0.45, z + 0.35, -0.4, 0.25, "trim", center=(cx, cy), top="trim")
         out += kit.ribs(cx, cy, DOME, r=(0.32, 0.18), proud=0.18)

@@ -16,9 +16,11 @@ def _target(b):
     return bpy.data.objects[b.target]
 
 
-def job_geometry(b):
-    """Original model + the building's design merged into its target mesh, then its own layout."""
+def job_geometry(b, stage=None, cloth=None):
+    """Original model + the building's design merged into its target mesh, then its own layout.
+    stage, cloth: where the scene and the house cloth go instead of work/ (the preview's copies)."""
     ws = workspace.Workspace(b)
+    stage, cloth = stage or ws.stage("geometry"), cloth or ws.house_cloth
     scene.import_w3d(ws.source_model, ws.src)
     obj = _target(b)
     meshes = [o.name for o in bpy.data.objects if o.type == "MESH"]
@@ -28,10 +30,10 @@ def job_geometry(b):
         from .clear import apply
         print("CLEARED", apply(obj, b.clear, b.world_space), "of EA's faces")
     solids = b.design(b.style.shapes())
-    if os.path.exists(ws.house_cloth):
-        os.remove(ws.house_cloth)
+    if os.path.exists(cloth):
+        os.remove(cloth)
     if ws.house:                            # cloth goes to the house-colour model (the player's colour)
-        print("house colour:", take_faces(obj, solids, b.house_tags, ws.house_cloth, b.world_space), "faces ->",
+        print("house colour:", take_faces(obj, solids, b.house_tags, cloth, b.world_space), "faces ->",
               ws.house["model"])
     added, stats = add_solids(obj, solids, b.style.atlas, b.world_space)
     bb1 = scene.bbox(obj.data, obj.matrix_world if b.world_space else None)
@@ -46,7 +48,14 @@ def job_geometry(b):
     print("loose verts", sum(1 for v in bm.verts if not v.link_faces),
           "zero-area", sum(1 for f in bm.faces if f.calc_area() < 1e-6))
     bm.free()
-    scene.save(ws.stage("geometry"))
+    scene.save(stage)
+
+
+def job_preview(b, prefix, views="rts,close", res="1200x825", cloth=None):
+    """The geometry stage and EA's model drawn fast in flat atlas-tag colours, and the checks that
+    need no bake (sagekit/preview.py)."""
+    from .preview import run
+    run(b, workspace.Workspace(b), prefix, views.split(","), tuple(int(x) for x in res.split("x")), cloth)
 
 
 def job_bake(b):

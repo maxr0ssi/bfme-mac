@@ -1,6 +1,6 @@
 """Men wall gate (MenWallGateSmall, and Arnor's; model GBWallGateN): EA's two gate towers kept whole -
 the ashlar shafts on their battered bases, the belfries with their four round-arched openings,
-the slate domes - and made a Gondor gatehouse (men/wall_hub/dome.py and men/wall_segment/wall.py,
+the slate domes - and made a Gondor gatehouse (men/dome.py and men/wall_segment/wall.py,
 the walls' shared kit):
 
 - each tower: the citadel's machicolated gallery round the shaft top (corbels, a black band of
@@ -66,7 +66,7 @@ class WallGate(Building):
     def _tower(kit, cx, cy, belfry):
         from mathutils import Vector as V
 
-        from ..wall_hub import dome as D
+        from .. import dome as D
         from ..wall_segment.wall import FACE, slit
         sec = D.Section(cx, cy, chamfer=0.28)
         top = D.Section(*belfry, chamfer=0.28)
@@ -90,10 +90,12 @@ class WallGate(Building):
     def _bridge(kit):
         from mathutils import Vector as V
 
-        from ..wall_segment.wall import CORNICE, FACE, box, crown
+        from sagekit.blender.geometry import box
+
+        from ..wall_segment.wall import CORNICE, FACE, crown
         half, z0 = BRIDGE
-        out = [box(-half, half, -FACE, FACE, z0, 42.2, "stoneA", bottom=("stoneB", True), top=("top", False)),
-               box(-half, half, -CORNICE, CORNICE, 42.0, 49.5, "stoneA", bottom=("stoneB", True), top=("top", True))]
+        out = [box(-half, half, -FACE, FACE, z0, 42.2, "stoneA", cap0=("stoneB", True), cap1=("top", False)),
+               box(-half, half, -CORNICE, CORNICE, 42.0, 49.5, "stoneA", cap0=("stoneB", True), cap1=("top", True))]
         a, t = V((0, 0, 0)), V((1, 0, 0))
         for s in (1, -1):
             n = V((0, s, 0))

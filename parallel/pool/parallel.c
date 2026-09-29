@@ -1,12 +1,12 @@
-/* R5 worker pool implementation. See parallel.h and parallel/DESIGN.md.
+/* Worker pool implementation. See parallel.h and parallel/DESIGN.md.
  * Build (mingw): i686-w64-mingw32-gcc -O2 -msse2 -mfpmath=sse -c parallel.c
  *
  * Single producer (the game's main thread) fans a job out to persistent workers.
  *  - Publication: job fields are written, then the claim word, then gen (release order).
  *  - Claims: one CAS word {gen:16 | next index:16}. A straggler that still holds an older gen
- *    fails the gen check and can never claim (or count down) a chunk of a newer job. This is the
- *    fix for the hang: resetting next/remaining while a late worker was still inside drain() let
- *    its decrement be overwritten, so remaining never reached 0.
+ *    fails the gen check and can never claim (or count down) a chunk of a newer job. Without it,
+ *    resetting next/remaining while a late worker is still inside drain() lets its decrement be
+ *    overwritten, remaining never reaches 0, and the main thread hangs.
  *  - Parking: arm-then-recheck with a per-worker auto-reset event. If the worker disarms too late
  *    (main already swapped arm to 0 and will SetEvent), it consumes that signal so no stale wake
  *    is left behind.

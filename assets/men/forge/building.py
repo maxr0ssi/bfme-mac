@@ -98,8 +98,8 @@ class Forge(Building):
 
         from sagekit.blender.geometry import sweep
 
-        from ..barracks.motifs import corbel_table, knob, roundel, star_frieze
-        x0, x1, y0, y1, top = CHIMNEY
+        from ..motifs import corbel_table, knob, roundel, star_frieze
+        x0, x1, y0, y1, _ = CHIMNEY
         path = [(x0, y1), (x0, y0), (x1, y0), (x1, y1)]
         c = ((x0 + x1) / 2, (y0 + y1) / 2)
         out = []
@@ -120,7 +120,7 @@ class Forge(Building):
         """The ridge roll stops at x +-9.6 (V2's belfry stands over the middle at level 3) and at
         the parapets; dormers at x -19 and 17 (clear of the chimney, the door's windows and the
         smoke emitter at (-15, 19, 36.9)): fronts at y 14.0, backs buried at y 20.4."""
-        from ..barracks.motifs import ridge
+        from ..motifs import ridge
         from ..stable.pieces import dormer
         out = []
         for xa, xb in ((-23.0, -9.8), (9.8, 23.0)):
@@ -133,7 +133,7 @@ class Forge(Building):
     # ------------------------------------------------------------------ the yard front
     @staticmethod
     def _front(kit):
-        from ..barracks.motifs import star_frieze, window_surround
+        from ..motifs import star_frieze, window_surround
         from ..stable.pieces import archivolt, cornice
         a, t, n = front()
         out = archivolt(kit, a, t, n, *DOOR)
@@ -150,7 +150,7 @@ class Forge(Building):
         through it), clear of the hood over the forge bed (x -8.5..-3.5)."""
         from mathutils import Vector as V
 
-        from ..barracks.motifs import course
+        from ..motifs import course
         a, t, n = V((0, 7.38, 0)), V((1, 0, 0)), V((0, -1, 0))
         out = []
         for u0, u1 in ((-16.85, -9.0), (-3.0, 4.58)):
@@ -162,7 +162,7 @@ class Forge(Building):
     def _gable(kit):
         """The east gable end (the west one is its mirror): an archivolt round the door, surrounds
         round the windows, a string course at the eaves, a shield over EA's painted one and the apex pinnacle."""
-        from ..barracks.motifs import course, window_surround
+        from ..motifs import course, window_surround
         from ..stable.pieces import archivolt
         a, t, n = east()
         out = archivolt(kit, a, t, n, *GABLE_DOOR, d=0.5)          # its keystone inside x 28.24 (EA's piers)
@@ -177,7 +177,7 @@ class Forge(Building):
     def _piers(kit):
         """Moulded caps round the east piers' tops (flush with the footprint's edges), EA's finials
         standing out of them, gilt orbs on the outer corners."""
-        from ..barracks.motifs import box, knob
+        from ..motifs import box, knob
         out = []
         for x0, x1, y0, y1 in PIERS:            # the caps stay inside EA's footprint (x 28.24, y 39.19)
             front = y0 < 20
@@ -189,7 +189,7 @@ class Forge(Building):
 
     @property
     def sheet_atlas(self):
-        from ..workshop.prodkit import with_tiles
+        from ..prodkit import with_tiles
         return with_tiles(super().sheet_atlas, [(0, 0, 184, 224)])     # EA's slate roof stays slate
 
     def decals(self):
@@ -199,8 +199,8 @@ class Forge(Building):
                 KeepFire(((-30.0, -40.0, -1.0), (30.0, -26.0, 15.0)), hue=(12.0, 48.0), sat=(0.16, 0.28), val=(0.08, 0.18))]   # planks
 
     def variants(self, install):
-        from ..barracks.levels import with_damaged      # EA's damaged forge (D1-D3) draws GBBlkSmithN_D
-        from ..workshop.prodkit import same_length_variants     # ... as GBBlkSmithH_D (W3D renames in place)
+        from ..levels import with_damaged      # EA's damaged forge (D1-D3) draws GBBlkSmithN_D
+        from ..prodkit import same_length_variants     # ... as GBBlkSmithH_D (W3D renames in place)
         return same_length_variants(self, install, with_damaged(self, super().variants(install), "GBBlkSmithN_D.tga"))
 
     def emphasis(self, c, n):

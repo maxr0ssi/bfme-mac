@@ -2,8 +2,7 @@
 dressed as the citadel's outer ring - the citadel's silver coping on the parapet, a knotwork band of
 silver on sea-green between gilt beads along its outer face, the citadel's crystal lanterns on
 short silver posts on the parapet's sixteen corners (two of them flanking the gate's gap), and a
-cluster of starlight crystals rising from the water in the middle of every face. No cloth: the
-first pass's fifteen drapes are gone.
+cluster of starlight crystals rising from the water in the middle of every face. No cloth.
 
 EA's model (EBFCMOAT1, 158 triangles, its own object at the fortress's origin; mesh coordinates): a
 16-sided ring open toward +x (the gate's face; the ring runs over the other 15 faces, its ends at the

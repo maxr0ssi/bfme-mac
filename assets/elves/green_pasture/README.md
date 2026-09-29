@@ -1,33 +1,24 @@
-# Elves green pasture (`ElvenGreenPasture`)
+# Elven green pasture (`ElvenGreenPasture`)
 
-EA's stable remains whole: both hip-roofed wings, stall arches, pavilion gateway and blue lattice
-dome. The fence is the chained `elves/green_pasture_fence` recipe, built after the stable.
+Model `EBStable_SKN`, mesh `EBBSTABLES`, own texture `EBStablH.tga` (from `EBStable.tga`).
+`Tier.STANDARD`. The bone is tilted 90 degrees, so the recipe works in model axes (`world_space`).
+The fence is the chained [`green_pasture_fence`](../green_pasture_fence/README.md), built after this one.
 
-## Current design
+EA's stable stays whole: both hip-roofed wings, the stall arches, the pavilion gateway and the blue
+lattice dome, with the trees, upgrade crown, horses, feed and bones.
 
-- A silver collar follows the dome's foot, leaving its lattice visible.
-- A small lantern cupola crowns the dome: gilt collar, silver colonnettes, crystal, slate cap and
-  gilt leaf finial.
-- Crystal lanterns on silver posts stand on the pavilion's corners.
-- Two player-colour leaf banners flank the existing gateway.
-- Silver caps follow the wing ridges, with one gilt leaf finial on each.
+## What changed
 
-The first pass's large crossing tower, dome-covering spire, pointed portal infill, stall frames
-and extra banners were removed. EA's detailed body is kept whole.
+- **Dome**: a silver collar round its foot, leaving the lattice visible, and a small lantern cupola
+  on top: gilt collar, silver colonnettes, crystal, slate cap, gilt leaf finial.
+- **Pavilion**: crystal lanterns on silver posts on its corners.
+- **Wings**: silver caps on the ridges, a gilt leaf finial on each.
+- **Night**: 11 lights: the four front stalls, the gateway recess, the cupola crystal and the front
+  corner lanterns; EA's two horn glow cards stay where they were.
+- **Banners**: two, flanking EA's gateway; cloth in `EBHCStable`.
 
-## Models, lifecycle and night
+## Status
 
-The body `EBBSTABLES` in `EBStable_SKN` uses the own `EBStablH` texture family. The tilted bone
-requires model-space design coordinates (`world_space`). Cloth goes to `EBHCStable`; trees,
-upgrade crown, horses, feed and bones remain unchanged.
-
-Construction, really damaged and rubble states carry the redesign; `_D1` derives the healthy
-body. Night panes light the four front stalls, the gateway recess, the cupola crystal and front
-corner lanterns. EA's two horn glow cards stay at their original locations.
-
-## Verification (2026-09-26)
-
-The cupola's column tops and cornice are closed solids, fixing exposed back faces without changing
-validation limits. Current body: 1,116 → 3,994 triangles; height 58.30 → 68.66; footprint unchanged.
-Checks: 163/163. Day, lifecycle and night comparisons are in
-`build/assets/elves/green_pasture/renders/`. Awaiting player review; nothing installed.
+Installed with the Elven pack. 1,116 -> 3,994 triangles, height 58.30 -> 68.66 (+17.8 %), footprint
+unchanged, 163/163 checks. Construction, really damaged and rubble are rebuilt along EA's pieces;
+damaged derives the new body.

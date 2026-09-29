@@ -36,10 +36,9 @@ warn:d3d:wined3d_resource_check_box_dimensions Box (0, 0, 0)-(0, 1, 1) is invali
 warn:d3d:wined3d_device_context_map Map box is invalid.
 ```
 
-## Root cause, and a correction to `patches/README.md`
+## Root cause
 
-`patches/README.md` (section 1) says the invalid box makes `Lock()` **fail**, so the game writes
-through an uninitialised pointer. **That is not what happens in wine-11.0.** In
+An invalid box does not make `Lock()` fail on a buffer in wine-11.0. In
 `wined3d_device_context_map()` (`dlls/wined3d/device.c:4632` in 11.0, `:4714` in master) an invalid
 box is only fatal for resources that are neither buffers nor 2D textures:
 
@@ -60,7 +59,7 @@ Buffers fall through and the map proceeds. That exemption has been there since
 `(0, 0)` in `test_vb_lock_flags()`, `test_vertex_buffer_alignment()`, `test_vertex_buffer_read_write()`
 and `test_resource_access()` and requires `D3D_OK`.
 
-So the real defects are smaller than advertised, but real:
+Two defects:
 
 1. **Wrong dirty range for `Lock(offset > 0, 0)`.** `buffer_resource_sub_resource_map()`
    (`dlls/wined3d/buffer.c:560`) derives `offset = box->left`, `size = box->right - box->left`.
@@ -72,12 +71,6 @@ So the real defects are smaller than advertised, but real:
 2. **wined3d is fed an invalid box** on a path that only survives because of the
    buffer/2D-texture escape hatch, and every such lock logs two warnings (a few thousand per
    second in BFME2's menu with `WINEDEBUG=warn+d3d`).
-
-Consequence for this repo: the binary `jae`→`ja` patch in
-`patches/wined3d/wined3d.dll.emptyrect-patched` removes the warning spam but almost certainly did
-**not** fix a crash — `Lock(0, 0)` already returned `D3D_OK` with a valid pointer. The BFME2 /
-RotWK access violations are the WoW64 issue in section 2 of `patches/README.md`. The source fix
-here is still worth upstreaming, and it makes the binary patch unnecessary for this path.
 
 Textures/surfaces are unaffected: `d3d9_surface_LockRect()` (`dlls/d3d9/surface.c:249`) passes
 `NULL` for a `NULL` rect, and `wined3d_device_context_map()` then builds a full-subresource box
@@ -149,7 +142,7 @@ No `todo_wine`: every assertion is documented or driver-confirmed Windows behavi
 passes with the patched d3d9. Managed-pool buffers are used for the read-back steps so that reading
 through the lock is legal on Windows.
 
-**That test does not detect the bug** — measured, not guessed (see below). All of its read-backs go
+The device test cannot detect the bug (measured, see below): all of its read-backs go
 through `Lock()`, which for a managed buffer reads the system-memory copy, and that copy is always
 written whatever dirty range wined3d recorded. The defect is that the *GPU* copy is stale, and only
 a draw can see it. So the series also adds a second test.
@@ -176,8 +169,7 @@ BFME2 uses. On this machine that variant **passes even unpatched**: a dynamic de
 returns a pointer directly into the mapped GL buffer object, and the only thing the dirty range
 drives is `glFlushMappedBufferRange()`, which Apple's GL evidently does not need in order to see
 the write. It is kept because it is the case the game actually hits and it would catch the same bug
-on a driver that honours `GL_MAP_FLUSH_EXPLICIT_BIT` (and under the Vulkan backend); just do not
-expect it to be the assertion that goes red.
+on a driver that honours `GL_MAP_FLUSH_EXPLICIT_BIT` (and under the Vulkan backend).
 
 ## Applying
 
@@ -256,13 +248,11 @@ WINEDEBUG=-all WINEDLLOVERRIDES="mscoree,mshtml=" WINEPREFIX=$BFME_ROOT/build/pr
 (`wine/build-11.0/loader/wine` looks like it should serve the same purpose, but it hangs on this
 machine instead of running anything.)
 
-**Unrelated, but worth knowing before anyone else runs these:** `d3d9:visual` aborts about two
-seconds in, with no test output at all and
+`d3d9:visual` aborts about two seconds in, with no test output and
 `err:seh:NtRaiseException Exception frame is not in stack limits => unable to dispatch exception`,
-in roughly one run in three. Re-running gets a complete run; the failure list is identical either
-way. That is a 2-second, no-game reproducer of what looks like the WoW64 exception-dispatch problem
-in `patches/WINE-BUG-REPORT.md`, and it may be a much cheaper `git bisect run` predicate than
-starting BFME2.
+in roughly one run in three; re-running gets a complete run with the same failure list. That abort
+is the WoW64 bug in [../WINE-BUG-REPORT.md](../WINE-BUG-REPORT.md)
+([bisect](../../docs/history/BISECT-2026-09-23.md)).
 
 ## Upstream submission
 
@@ -278,10 +268,9 @@ Upstream is GitLab merge requests, not the old mailing list.
    series. Wine's CI (`winetest`) runs the d3d9 tests on Windows; if the `Lock(offset, 0)`
    assertions fail there, the semantics need to be relaxed to "whole buffer" rather than
    "offset → end", and the test updated accordingly.
-5. Expect review from Elizabeth Figura / Henri Verbeet. Two things they will likely ask about:
-   calling `wined3d_resource_get_desc()` without taking `wined3d_mutex_lock()` (the resource size
-   is immutable, so this should be fine, and the lock path deliberately avoids the mutex), and
-   whether the out-of-range `offset` case should return `D3DERR_INVALIDCALL` (needs a Windows test
+5. Open questions for review: (1) `wined3d_resource_get_desc()` is called without
+   `wined3d_mutex_lock()` (the resource size is immutable, and the lock path avoids the mutex);
+   (2) whether an out-of-range `offset` should return `D3DERR_INVALIDCALL` (needs a Windows test
    first).
 
 No Wine Bugzilla entry was found for this (searches for "SizeToLock 0" / "lock entire buffer" /

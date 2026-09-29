@@ -15,92 +15,9 @@ EA's plinth, cornice and base, so the statue stands on one clean stepped block. 
 inside EA's bounding box (x 71.93..90.66, y -9.73..9.10). All measurements in DBFSTATUS mesh
 coordinates (= the fortress's), taken from the original model."""
 from sagekit.building import Building
-from sagekit.formats import w3d as _w3d
 
 from ..style import DwarvenStyle
 
-
-def _bare_mesh_entries(cache_entries):
-    """Framework workaround (sagekit/formats/w3d.py W3DFile.cache_entries): a bare mesh file (no
-    hierarchy, empty container name, like dbfstatus.w3d) is filed in asset.dat as 'DBFSTATUS',
-    not '.DBFSTATUS'; with the dot, the cache step cannot match the record to patch it."""
-    if getattr(cache_entries, "bare_mesh_fix", False):
-        return cache_entries
-
-    def fixed(self):
-        return [(n[1:] if tag == b"HSEM" and n and n.startswith(".") else n, tag, o, s)
-                for n, tag, o, s in cache_entries(self)]
-    fixed.bare_mesh_fix = True
-    return fixed
-
-
-_w3d.W3DFile.cache_entries = _bare_mesh_entries(_w3d.W3DFile.cache_entries)
-
-
-def _bare_mesh_snapshot():
-    """Framework workaround (sagekit/blender/checks.py snapshot): it reads arms[0] and so crashes
-    on a model without a hierarchy. Blender side only: while a snapshot imports a model that has
-    no armature, an empty stand-in armature is added, so the original and ours both report one
-    armature with no bones (the structure checks then compare like with like)."""
-    try:
-        import bpy
-        from sagekit.blender import checks
-    except ImportError:                          # host side: nothing to patch
-        return
-    if getattr(checks.snapshot, "bare_mesh_fix", False):
-        return
-    snapshot = checks.snapshot
-
-    def fixed(path, skeletons=None):
-        imp = checks.scene.import_w3d
-
-        def import_w3d(p, skl=None):
-            imp(p, skl)
-            if not any(o.type == "ARMATURE" for o in bpy.data.objects):
-                o = bpy.data.objects.new("NO_HIERARCHY", bpy.data.armatures.new("NO_HIERARCHY"))
-                bpy.context.collection.objects.link(o)
-        checks.scene.import_w3d = import_w3d
-        try:
-            return snapshot(path, skeletons)
-        finally:
-            checks.scene.import_w3d = imp
-    fixed.bare_mesh_fix = True
-    checks.snapshot = fixed
-
-
-_bare_mesh_snapshot()
-
-
-def _figure_seams():
-    """Recipe-side layout tweak (sagekit/blender/layout.py _seams cuts EA's faces only at hard
-    edges over 40 degrees): EA's dwarf figure is organic - arms, beard, axe haft - and its
-    smooth loops, unwrapped uncut, fold over themselves in the new layout (0.2 % of texels
-    painted twice, arms and axe). Here every edge between two of EA's faces is a seam too, so each
-    of EA's triangles is its own island and none can overlap. Blender side only."""
-    try:
-        import bmesh
-        from sagekit.blender import layout
-    except ImportError:
-        return
-    if getattr(layout._seams, "figure_fix", False):
-        return
-    seams = layout._seams
-
-    def fixed(me, *args):                   # (layout's own options pass through)
-        seams(me, *args)
-        bm = bmesh.new()
-        bm.from_mesh(me)
-        tagl = bm.faces.layers.int[layout.TAG_ATTR]
-        for e in bm.edges:
-            if all(f[tagl] == 0 for f in e.link_faces):
-                e.seam = True
-        bm.to_mesh(me)
-        bm.free()
-    fixed.figure_fix = True
-    layout._seams = fixed
-
-
-_figure_seams()
 
 X0, X1 = 71.93, 90.66                         # EA's statue box, back and front
 Y0, Y1 = -9.73, 9.10
@@ -114,6 +31,7 @@ class FortressStatues(Building):
     own_textures = {"DBFortress1.tga": "DBFortressS.tga"}
     parts = ("ModuleTag_StatueDraw",)
     tri_budget = 1500
+    facet_islands = True        # EA's figure (arms, beard, axe haft) folds over itself unwrapped uncut
     views = {
         "rts": ((81, -0.3, 70), 150, 50, -38, 50),
         "close": ((82, -0.3, 72), 95, 20, -30, 45),

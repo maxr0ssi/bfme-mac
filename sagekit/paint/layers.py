@@ -7,7 +7,8 @@ new colour. Parameters are constructor arguments so a faction tunes a layer with
 """
 import numpy as np
 
-from .fields import hash01, ramp, seg_dist, smooth
+from .fields import hash01, hsv, ramp, seg_dist, smooth
+from .imageio import to_srgb
 
 
 class Layer:
@@ -262,6 +263,75 @@ class StrokeSigil(Layer):
         sg = self.mask(cv)[..., None]
         L = np.clip(cv.lum, 0, 1)
         return col * (1 - sg) + ramp(np.clip(L * 0.6 + 0.45, 0, 1), pal[self.ramp_name]) * sg
+
+    def height(self, cv, ds):
+        return ds(-self.depth * self.mask(cv))
+
+
+def sheet_rgb(cv):
+    """EA's own colour under the canvas: a flat sheet's pixels (SheetCanvas.rgb), or on a building
+    the original sheet as baked through the atlas mapping."""
+    rgb = getattr(cv, "rgb", None)
+    if rgb is not None:
+        return rgb
+    return cv.memo("sheet_rgb", lambda: to_srgb(cv.load("atlas")).astype(np.float32))
+
+
+class Foliage(Layer):
+    """Green texels of the original sheet (ivy, grass, moss) painted with the leaf ramp by their own
+    luminance, over whatever the Recolour made of them; new faces keep their own paint. Works on
+    building canvases and on flat sheets."""
+
+    def __init__(self, strength=0.9, hue=(62.0, 150.0), sat=(0.16, 0.30)):
+        self.strength, self.hue, self.sat = strength, hue, sat
+
+    def apply(self, col, cv, pal):
+        H, S, V = hsv(sheet_rgb(cv))
+        (h0, h1), (s0, s1) = self.hue, self.sat
+        m = smooth(H, h0, h0 + 12) * (1 - smooth(H, h1 - 12, h1)) * smooth(S, s0, s1) * smooth(V, 0.06, 0.16)
+        m = (m * self.strength * (1 - getattr(cv, "painted", 0.0)))[..., None]
+        return col * (1 - m) + ramp(np.clip(cv.lum * 1.1, 0, 1), pal["leaf"]) * m
+
+
+class Groove(Layer):
+    """A dark joint on the stone beside new metal (the `tags`' faces), so bright metal on pale stone
+    reads as metal set in stone, not as more stone; it sinks a little in the normal map. World
+    space, as the faces lie on the mesh (their UV islands are apart): the metal texels are binned
+    in cells of half the width, and every stone texel takes its distance to the nearest cell's mean
+    point among the 27 round its own; dark at the joint (the palette's "groove"), gone at `width`."""
+
+    def __init__(self, tags=("trim", "gilt"), width=0.6, strength=0.75, depth=0.08):
+        self.tags, self.width, self.strength, self.depth = tags, width, strength, depth
+
+    def mask(self, cv):
+        def compute():
+            out = np.zeros(cv.covm.shape, np.float32)
+            src = cv.tag_is(*self.tags) & (cv.covm > 0.5)
+            cand = (cv.covm > 0.5) & ~src & (cv.w_stone > 0.05)
+            if not src.any() or not cand.any():
+                return out
+            q = np.floor(cv.pos / (self.width / 2)).astype(np.int64)
+            B = 1 << 20
+
+            def key(c):
+                return ((c[..., 0] + B) << 42) | ((c[..., 1] + B) << 21) | (c[..., 2] + B)
+            cells, inv = np.unique(key(q[src]), return_inverse=True)
+            ps = cv.pos[src]
+            n = np.bincount(inv, minlength=len(cells)).astype(np.float32)
+            mean = np.stack([np.bincount(inv, ps[:, i], len(cells)) for i in range(3)], -1) / n[:, None]
+            qc, pc = q[cand], cv.pos[cand]
+            d = np.full(len(pc), 9.0, np.float32)
+            for off in np.stack(np.meshgrid(*[(-1, 0, 1)] * 3, indexing="ij"), -1).reshape(-1, 3):
+                k = key(qc + off)
+                i = np.clip(np.searchsorted(cells, k), 0, len(cells) - 1)
+                d = np.where(cells[i] == k, np.minimum(d, np.linalg.norm(pc - mean[i], axis=1)), d)
+            out[cand] = 1 - smooth(d, 0.3 * self.width, self.width)
+            return out * cv.w_stone
+        return cv.memo(("groove", id(self)), compute)
+
+    def apply(self, col, cv, pal):
+        g = (self.strength * self.mask(cv))[..., None]
+        return col * (1 - g) + np.array(pal["groove"], np.float32) * g
 
     def height(self, cv, ds):
         return ds(-self.depth * self.mask(cv))

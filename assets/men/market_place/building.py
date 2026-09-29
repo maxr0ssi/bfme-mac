@@ -64,7 +64,7 @@ class MarketPlace(Building):
     }
 
     def decals(self):
-        from ..workshop.prodkit import props_layer
+        from ..prodkit import props_layer
         return [props_layer(sat=(0.3, 0.45), gate=(0.35, 0.6))]          # EA's crates, stalls and awning stay wood and cloth
 
     def design(self, kit):
@@ -76,7 +76,7 @@ class MarketPlace(Building):
 
     @staticmethod
     def _campanile(kit):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         from ..shapes import rail
         out = []
         # ribs up the square dome: its four hips and the middle of each face
@@ -111,7 +111,7 @@ class MarketPlace(Building):
         corbelled bartizan on each corner."""
         import math
 
-        from ..barracks import motifs as M
+        from .. import motifs as M
         zc, zs, zw = GALLERY
         sq = M.octagon(TX, TY, SHAFT, 0.0)
         out = M.band_path(sq, zs, zw, -1.6, 1.8, ["stoneB", "enamel", "top", None], center=(TX, TY))
@@ -131,7 +131,7 @@ class MarketPlace(Building):
 
     @staticmethod
     def _arcade(kit):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         out = []
         y, (x0, x1) = SOUTH
         a, t, n = M.face(((x0 + x1) / 2, y), (0, -1))
@@ -160,7 +160,7 @@ class MarketPlace(Building):
     @staticmethod
     def _pier_top(kit, x, y):
         """A moulded cap over an arcade pier (a plinth block and a cornice), a pinnacle on it."""
-        from ..barracks import motifs as M
+        from .. import motifs as M
         out = [M.box(x - 1.25, x + 1.25, y - 1.25, y + 1.25, TOP_WALL - 0.05, TOP_WALL + 0.9, "stoneB", cap1=("top", True)),
                M.box(x - 1.5, x + 1.5, y - 1.5, y + 1.5, TOP_WALL + 0.9, TOP_WALL + 1.4, "course", cap0=("course", True), cap1=("top", True))]
         return out + kit.pinnacle(x, y, TOP_WALL + 1.4, TOP_WALL + 4.0, half=0.95, spire=3.6)
@@ -175,10 +175,7 @@ class MarketPlace(Building):
 
     @staticmethod
     def _west(kit):
-        from ..barracks import motifs as M
         x0, x1, (y0, y1), z = WEST
-        a, t, n = M.face((x1, (y0 + y1) / 2), (1, 0))
-        h = (y1 - y0) / 2 - 1.1
         out = []
         for y in (y0 + 0.9, y1 - 0.9):
             out += kit.pinnacle((x0 + x1) / 2, y, z, z + 2.2, half=1.0, spire=3.2)
@@ -189,7 +186,7 @@ class MarketPlace(Building):
     def _pediment(kit):
         """A pediment over the west wall's great arch, as deep as the wall, on its raised top."""
         from sagekit.blender.geometry import prism_uz
-        from ..barracks import motifs as M
+        from .. import motifs as M
         x0, x1, _, z = WEST
         yc, half, crown = WEST_ARCH
         a, t, n = M.face((x1, yc), (1, 0))               # u along t = (0, 1)... in world y, d out of the court face

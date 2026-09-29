@@ -35,7 +35,7 @@ heads 20.2. The annex x 13.8..43.05, y -19.9..-1.75, top 32."""
 from sagekit.building import Building
 
 from ..style import MenStyle
-from ..workshop.prodkit import banner, closed, pointed_voussoirs
+from ..prodkit import banner, pointed_voussoirs
 
 CX, CY = 28.3, -31.7
 STAGE = {"S": ((28.2, -43.6), (0, -1), 5.3, 54.5, 3.4), "N": ((28.2, -19.65), (0, 1), 5.3, 54.5, 3.4),
@@ -67,11 +67,11 @@ class StoneMaker(Building):
     }
 
     def decals(self):
-        from ..workshop.prodkit import props_layer
+        from ..prodkit import props_layer
         return [props_layer(sat=(0.18, 0.3), gate=(0.3, 0.55))]     # EA's planks and the guild flag keep their colours
 
     def design(self, kit):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         out = []
         for key, (p, nrm, half, spring, rise) in STAGE.items():
             a, t, n = M.face(p, nrm)
@@ -91,13 +91,13 @@ class StoneMaker(Building):
         out += self._annex(kit)
         a, t, n = M.face(*TOP["S"])
         out += banner(kit, a, t, n, 0.0, 70.0, 4.6, 9.0, d=0.8)
-        return closed(out)                  # the tower is hollow and open at its stage: no buried backs
+        return M.closed(out)                # the tower is hollow and open at its stage: no buried backs
 
     @staticmethod
     def _cornice(kit):
         """Corbels (70.5..73.6) and a sable band of gilt stars (73.6..75.2) under the top storey's
         rim, 1.3 out; on the east face the corbels skip the flag's bracket."""
-        from ..barracks import motifs as M
+        from .. import motifs as M
         out = []
         for key, (p, nrm) in TOP.items():
             a, t, n = M.face(p, nrm)
@@ -115,7 +115,7 @@ class StoneMaker(Building):
 
     @staticmethod
     def _base():
-        from ..barracks import motifs as M
+        from .. import motifs as M
         out = []
         for key, (p, nrm, half) in BASE.items():
             a, t, n = M.face(p, nrm)
@@ -144,7 +144,7 @@ class StoneMaker(Building):
     def _band(kit):
         """A machicolation at the base's top, under the setback: short corbels, a slab 1.5 out with
         a sable front and gilt stars, on the south, east and west faces."""
-        from ..barracks import motifs as M
+        from .. import motifs as M
         zc, zs, zw = BAND
         out = []
         for key, (p, nrm, half) in BASE.items():
@@ -162,7 +162,7 @@ class StoneMaker(Building):
         where the fins step in (z 58): the fins read as dressed pilasters."""
         import math
 
-        from ..barracks import motifs as M
+        from .. import motifs as M
         cx, cy, r, h, (z0, z1) = FINS
         out = []
         for sx, sy in ((1, -1), (1, 1), (-1, 1), (-1, -1)):
@@ -182,7 +182,7 @@ class StoneMaker(Building):
         """A low wall with a moulded coping along the stone yard's east edge (outside the hooks'
         and the stones' reach), a square post with a pyramid cap and a steel knob at each end
         and every `pitch`."""
-        from ..barracks import motifs as M
+        from .. import motifs as M
         x, (y0, y1), pitch = YARD
         out = []
         k = int(round((y1 - y0) / pitch))
@@ -196,7 +196,7 @@ class StoneMaker(Building):
 
     @staticmethod
     def _annex(kit):
-        from ..barracks import motifs as M
+        from .. import motifs as M
         a, t, n = M.face((43.05, -10.8), (1, 0))
         return M.parapet(kit, a, t, n, -8.6, 8.6, 32.0, -1.0, 0.0, h=0.9, merlon=2.2, w=2.0, gap=1.5, cap=0.45)
 

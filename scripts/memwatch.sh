@@ -1,9 +1,13 @@
 #!/bin/zsh
 # scripts/memwatch.sh [interval_s] | summary [csv] [--png] — how close a match gets to the game's 2 GB (4 GB with LAA).
-#   (no args)  start it once the game is running (any time: in the menu or mid-match). Every 2 s
+# WARNING: it may crash the game. Use it for measurement sessions only, never in a game you care about.
+#   A session with it attached ended in a fault at lotrbfme2ep1.exe+0x76D9E2 at exit, the address
+#   seen once before while eipsample suspended the game's threads: under Wine each query below is
+#   run by one of the game's own threads (tools/memwatch.c).
+#   (no args)  start it once the game is running (any time: in the menu or mid-match). Every 10 s
 #              (or interval_s) build/memwatch.exe walks the game's address space from a second Wine
-#              process in the same prefix - read-only, no debugger, nothing suspended - and
-#              tools/memwatch.py adds the macOS side of the same process (resident, footprint).
+#              process in the same prefix - read-only, no debugger - and tools/memwatch.py adds the
+#              macOS side of the same process (resident, footprint).
 #              One row per sample in logs/memwatch-<date>.csv; stops by itself when the game exits,
 #              or Ctrl-C. Then prints the summary.
 #   summary    peak committed, smallest largest-free-block (the out-of-memory predictor) and when,
@@ -12,9 +16,10 @@
 # the interval to keep that under 2 % of wall time (tools/memwatch.c). The per-sample cost is in the
 # log (queries, query_ms). MEMWATCH_PREFIX / MEMWATCH_TARGET point it elsewhere (testing).
 set -eu
-BFME_ROOT="${0:A:h:h}"; cd "$BFME_ROOT"
+BFME_ROOT="${0:A:h:h}"
+. "$BFME_ROOT/scripts/lib.sh"
+cd "$BFME_ROOT"
 EXE=build/memwatch.exe
-GAME='(lotrbfme2(ep1)?\.exe|game\.dat) -win'
 
 summary() { local -a png=(); [[ -n "${2:-}" ]] && png=(--png "${1%.csv}.png"); python3 tools/memwatch.py summary "$1" $png; }
 
@@ -24,8 +29,9 @@ if [[ "${1:-}" == summary ]]; then
   [[ -n "$csv" ]] || { echo "no logs/memwatch-*.csv yet"; exit 1; }
   summary "$csv" "${${(M)@:#--png}:-}"; exit
 fi
-[[ "${1:-2}" == <-> ]] || { sed -n '2,13p' "$0"; exit 1; }
-interval=${1:-2}
+[[ "${1:-}" == (-h|--help) ]] && usage
+[[ "${1:-10}" == <-> ]] || usage 2
+interval=${1:-10}
 
 if [[ ! -x $EXE || tools/memwatch.c -nt $EXE ]]; then
   mkdir -p build
@@ -33,7 +39,7 @@ if [[ ! -x $EXE || tools/memwatch.c -nt $EXE ]]; then
 fi
 
 if [[ -z "${MEMWATCH_TARGET:-}" ]]; then
-  pid=$(pgrep -f "$GAME" | head -1 || true)
+  pid=$(pgrep -f "$BFME_GAME_RE" | head -1 || true)
   [[ -n "$pid" ]] || { echo "the game is not running (start it with play-rotwk.sh / play-bfme2.sh)"; exit 1; }
   # A second Wine process in the game's first seconds can crash it (ahk/edgescroll.ahk): wait.
   secs() { local t=$(ps -o etime= -p $pid | tr -d ' ') d=0; [[ $t == *-* ]] && { d=${t%%-*}; t=${t#*-}; }

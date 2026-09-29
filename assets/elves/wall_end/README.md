@@ -1,37 +1,24 @@
-# Elven wall end
+# Elven wall end (`ElvenWallCliffCap`)
 
-Model `EBWallNE`, redesigned mesh `EBWALLN`, `Tier.STANDARD`. Its own textures are
-`EBFortresE.tga` / `EBFortresE_NRM.tga` and state variants, painted from `EBFortress.tga`
-with EA's cut-out alpha retained.
+Model `EBWallNE`, mesh `EBWALLN`, own texture `EBFortresE.tga` (from `EBFortress.tga`, EA's cut-out
+alpha kept). `Tier.STANDARD`. The crown profile is [`wall.py`](../wall_segment/wall.py), shared by
+every Elven wall piece.
 
-## Current design
+EA's cliff cap and all its window detail stay whole, including the faces below ground.
 
-EA's cliff cap and all its window detail stay whole, including the below-ground faces.
-The segments' filigree band, mithril coping and leaf crest continue to the cut end. A small
-ivory lantern-house crowns the end pier, with lattice lancets, silver frames and a swept slate
-roof with a gilt finial. No banners or extra frames on EA's wall windows. The next segment
-still meets the same section.
+## What changed
 
-The shared palette is the approved citadel's soft ivory, strong mithril and mallorn gold, slate
-roofs and EA's teal glass. No face of EA's healthy body is removed.
+- **Crown**: the segments' filigree band, mithril coping and leaf crest, carried to the cut end.
+- **Lantern-house** on the end pier: ivory, lattice lancets, silver frames, a swept slate roof with
+  a gilt finial.
+- **Banners**: none; no extra frames on EA's wall windows.
 
-## Lifecycle and review
+## Kept clear
 
-Construction and damaged states derive the body; really damaged and collapsing states rebuild
-it along EA's pieces and animations.
+- The joint: the next segment still meets the same section.
 
-Build outputs and before/after images are in `build/assets/elves/wall_end/`. The current
-`work/lifecycle.json` identifies each rebuilt or derived model; `work/logs/checks.log` records
-the checks. Review images are `renders/compare_*.png` and `renders/lifecycle/*.png`.
-Healthy and lifecycle comparisons were rebuilt and visually checked in this finishing pass.
-Nothing is installed; the player’s review remains the next step.
+## Status
 
-EA supplies no night meshes or `NightWindowName` here; the new crystals are day-lit.
-
-## Superseded first-pass measurements
-
-These figures describe the previous design, not the current output. Current reports live in
-`build/assets/elves/wall_end/work/` and are verified again for this finishing pass.
-
-Footprint unchanged, height 102.4 -> 120.35 (+17.5 %, limit 20 %), 1,227 -> 7,178 triangles (96
-cloth faces moved to `EBHCWallNE`). `checks`: 79/79 pass.
+Installed with the Elven pack. 1,227 -> 4,950 triangles, height 102.40 -> 120.35 (+17.5 %),
+footprint unchanged, 79/79 checks. Construction and damaged derive the new body; really damaged
+and collapse are rebuilt along EA's pieces and animations.

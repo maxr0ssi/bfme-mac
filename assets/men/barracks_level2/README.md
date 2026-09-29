@@ -1,8 +1,7 @@
 # Men barracks, level 2 (`V1` of `GBBarracks_SKN`)
 
-The yard wall EA shows from `Upgrade_GondorBarracksLevel2`, chained on the finished barracks
-(`base = "men/barracks"`, `assets/men/barracks/levels.py`). Rebuild after `men/barracks`; rebuild
-`men/barracks_level3` after this. Own texture `GBVB1` (damaged `GBVB1D`, snow `GBVB1_snow`).
+The yard wall EA shows from `Upgrade_GondorBarracksLevel2`. Chained on `men/barracks`
+([`levels.py`](../levels.py)). Own texture `GBVB1` (damaged `GBVB1D`, snow `GBVB1_snow`).
 
 ## What changed
 
@@ -14,11 +13,10 @@ The yard wall EA shows from `Upgrade_GondorBarracksLevel2`, chained on the finis
   towers with a corbelled crown (sable band, merlons), corner pinnacles, a slate spire with a
   steel mast and gilt orb, a roundel and an arrow slit on each outward face.
 - EA's flag pole on the keep's dome is cleared (the body's lantern and spike stand there).
-- No cloth, no night lights (a level mesh). All pieces are closed solids (`motifs.closed`): V1
-  is a one-sided shell.
+- All pieces are closed solids (`motifs.closed`): V1 is a one-sided shell.
 
 ## Status
 
-- `V1` 216 -> 12,202 triangles; footprint V1's; 120/120 checks. Awaiting review.
-- Lifecycle: construction, damaged and rubble carry our V1; really damaged (`GBBarracks_D2`) stays
-  EA's for the level meshes (its V1 and the body's piece are painted from different sheets).
+Installed with the Men pack. `V1` 216 -> 12,202 triangles, footprint V1's, 120/120 checks.
+Construction, damaged and rubble carry our V1; really damaged (`GBBarracks_D2`) stays EA's for
+the level meshes (its V1 and the body's piece are painted from different sheets).

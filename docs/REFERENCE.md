@@ -1,7 +1,7 @@
 # Reference: every script, tool and directory
 
-The lab notebook's index. The player's view is [PLAYING.md](PLAYING.md); the measured record behind
-the performance work is [PERFORMANCE.md](PERFORMANCE.md).
+The player's view is [PLAYING.md](PLAYING.md); the measured record behind the performance work is
+[PERFORMANCE.md](PERFORMANCE.md).
 
 ## Layout
 
@@ -14,9 +14,9 @@ scripts/        launch, setup and diagnostic scripts (below)
 tools/          Python helpers (.big archives, PE flags, dump parsing) + lswin.swift
 sagekit/        the art engine: formats, game install, taxonomy, Blender pipeline, painter, checks
 assets/         our buildings as recipes (a Style per faction, a Building per building) - assets/README.md, map in docs/ART.md
-config/         bfme2.reg, rotwk.reg (registry the launcher would write), options-bfme2.ini
+config/         bfme2.reg, rotwk.reg (registry the launcher would write)
 ahk/            portable AutoHotkey + the scripts that drive the game window and menus
-patches/        Wine bug write-ups, patches/wined3d (binary-patched DLLs), patches/nxcompat (NX_COMPAT experiment)
+patches/        Wine patch series, bug write-ups and the NX_COMPAT experiment (patches/README.md)
 harness/        repo harness (rule engine); .githooks/ and .claude/settings.json wire it in
 engines/        Wine builds, one dir each. w10 (Sikarugir Wine 10.0 with our fixes) is what both games
                 play on and what install.sh sets up; template/ + *.dylib are its support libraries.
@@ -33,7 +33,7 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 
 ## Install and play
 
-- `scripts/install.sh --bfme2 <dir> [--rotwk <dir>] [--from <release.tar.gz>] [--group-pack] [--no-apps]`
+- `scripts/install.sh --bfme2 <dir> [--rotwk <dir>] [--from <release.tar.gz>] [--group-pack] [--buildings [list]] [--no-apps]`
   — a fresh setup from your own game folders: downloads the latest GitHub release of the fixes (or
   uses `--from`, checked against GitHub's SHA-256 and its own `SHA256SUMS`), the Wine engine (Sikarugir
   `WS12WineSikarugir10.0_6` + `Template-1.0.18`) and AutoHotkey 1.1.37.02, each pinned by SHA-256;
@@ -41,13 +41,17 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   (APFS clones, so no extra space on the same volume) and applies `tools/neuter_gamelod.py` and
   `tools/pe_laa.py` to the copies (4 GB on for RotWK, off for BFME2); writes the registry, the CD key (asked for; Enter
   generates one as the All-in-One Launcher does) and an `Options.ini` at the display's resolution;
-  installs the game patch if the RotWK exe matches every patch site. `--status`; `--uninstall`
-  moves the engine and prefix to a `.trash-*` folder. No winetricks: the games import only
-  `d3dx9_27`, which the patched builtin provides.
-- `scripts/make-release.sh` — packages the installed Wine fixes and the game patch as
+  installs the game patch if the RotWK exe matches every patch site; with `--buildings` (asked
+  otherwise, default no) the release's building packs (`sagekit/pack.py`), each checked against
+  the player's game first. `--buildings`/`--no-buildings` alone add or remove them on an existing
+  install. `--status`; `--uninstall` takes the buildings out and moves the engine and prefix to a
+  `.trash-*` folder. No winetricks: the games import only `d3dx9_27`, which the patched builtin provides.
+- `scripts/make-release.sh [--buildings [list]]` — packages the installed Wine fixes and the game patch as
   `build/release/bfme-mac-fixes-<date>-<commit>.tar.gz` (the `--from` file), with `SOURCES.md`,
   `COPYING.LIB` and `SHA256SUMS`, and prints the `gh release create` line that publishes it.
-  Refuses if the engine's DLLs differ from the build tree.
+  Refuses if the engine's DLLs differ from the build tree. `--buildings` also stages each finished
+  faction (dwarves, elves, men, goblins) and packs it as `bfme-mac-buildings-<faction>-<version>.tar.gz`,
+  listed in the fixes file's `BUILDINGS` and in `SHA256SUMS-<version>`.
 - `scripts/play-bfme2.sh`, `scripts/play-rotwk.sh` — launch ([PLAYING.md](PLAYING.md)). `scripts/play-bfme2-dxvk.sh`
   is the DXVK experiment (`d3d9=n`, renders black on MoltenVK; kept for when DXVK/MoltenVK improves).
 - `scripts/make-apps.sh` — puts "Battle for Middle-earth II.app" and "Rise of the Witch-king.app"
@@ -61,7 +65,7 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 - `scripts/retina.sh on|off` — toggle Wine's Retina mode and both games' `Resolution` together.
 - `ahk/edgescroll.ahk` — what the play scripts launch: borderless setup (title bar off, window to
   0,0 full size) and then resident, emulating screen-edge camera scrolling and offering the
-  Cmd-Tab mouse rescue ([PLAYING.md](PLAYING.md), "Settings that matter"). One AutoHotkey process does both jobs because
+  Cmd-Tab mouse rescue ([PLAYING.md](PLAYING.md), "Keys"). One AutoHotkey process does both jobs because
   a second Wine process in the game's first seconds crashes it.
   `ahk/borderless.ahk` is the same borderless setup as a one-shot, kept for diagnostics;
   `ahk/autoskirmish.ahk` is the menu driver.
@@ -98,27 +102,29 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   results (so patched and unpatched players can play together) and can be switched off in
   `gamepatch.ini` or with `GAMEPATCH_<NAME>=0`. `play-rotwk.sh` loads it (`dinput8=n,b`) while
   `gamepatch.ini` is in the game folder; log in `logs/gamepatch.log`. `--test` runs the standalone
-  bit-exactness tests (`gamepatch/tests/`) in a throwaway prefix; `--bundle` makes the two files a
-  friend copies into their RotWK folder. Record: `docs/PERFORMANCE.md` §10–10.2.
+  bit-exactness tests (`gamepatch/tests/`) in a throwaway prefix; `--bundle` makes the two files
+  another player copies into their RotWK folder. Record: `docs/PERFORMANCE.md` §10.
 - `scripts/perf-install.sh [--revert|--status]` — every performance fix in one step: the Wine fixes
   (`wine-fixes.sh`) and the game patch (`game-patch.sh`); `--revert` removes both, `--status` says
   what is installed (and which wined3d build). Switches that need no reinstall are in its header.
 - `scripts/wine-fixes.sh [--revert]` — builds our fixes to Wine 10.0 from source and installs them into
   `engines/$WINE_BUILD` (each DLL's engine copy kept as `<dll>.orig-<build>`): `patches/d3dx9-setrawvalue/`
   (the loading-time fix: SetRawValue for the units' bone palette, so Wine's fast d3dx9_27 can replace
-  Microsoft's, ~170 s -> ~12 s) and `patches/wined3d-wow64-buffers/` (big battles: dynamic-buffer
+  Microsoft's, ~190 s -> ~12 s) and `patches/wined3d-wow64-buffers/` (big battles: dynamic-buffer
   locks stop waiting for the render thread, a new `wined3d.so` writes the locked range straight into
   the GPU buffer, redundant state work removed, SSE2 instead of x87; synthetic battle frame 184 ->
   34 ms, `docs/PERFORMANCE.md`). `--revert` restores the engine's DLLs and removes `wined3d.so`.
-  `scripts/d3dx9-fix.sh` is the old name, a wrapper.
+  It applies only the `*.patch` files at the top of each series folder; `unbuilt/` holds patches
+  that are written but not played (0022), so they stay out of the build and the release.
 - `scripts/build-wine.sh <label>` — configure, build and install a from-source WoW64 Wine from the
   clone in `wine/src` into `engines/src-<label>` (x86_64 host under Rosetta, mingw-w64 PE side;
-  `patches/WINE-BUILD.md` has the toolchain, the two traps, and the 10.0→11.0 bisect recipe).
+  `patches/WINE-BUILD.md` has the toolchain and the two traps).
   `patches/lock-whole-buffer/` — upstream d3d8/d3d9 patches + test for zero-size buffer locks.
-- `patches/README.md` — the wined3d empty-rect fix and the game-data edits;
+- `patches/README.md` — index of the patch series, one line per patch, and the game-data edits;
   `patches/WINE-BUG-REPORT.md` — the WoW64 transition bug; `patches/nxcompat/install.sh` — the
-  NX_COMPAT experiment (no effect; reverted — the prefixes hold the stock binaries again).
-- `parallel/` — the multi-core framework for the game patch (not wired in yet): a fork/join worker
+  NX_COMPAT experiment (no effect; reverted).
+- `parallel/` — the multi-core framework for the game patch (used by the game patch's `shadowpar`,
+  off by default): a fork/join worker
   pool (`pool/parallel.c`: spin-then-park, FPU state copied into jobs, faults retried serially), a
   deferred-call recorder (`pool/recorder.c`) and `parallel/DESIGN.md`. `parallel/pool/build-and-run.sh
   bench|rectest|place` builds and runs its tests under Wine in an isolated prefix, never beside a game.
@@ -189,33 +195,37 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 - `tools/glcallcost.c` — what GL calls and buffer uploads cost a 32-bit program under WoW64 versus a
   64-bit one (build both with mingw; numbers in `docs/PERFORMANCE.md` §3).
 - `scripts/memwatch.sh [secs]` — how close a match gets to the game's address space (2 GB, 4 GB with
-  the large-address flag): start it in a Terminal while the game runs (menu or match); every 2 s `tools/memwatch.c` (built on first
+  the large-address flag). **It may crash the game: use it for measurement sessions only.** A
+  session with it attached ended in a fault at `lotrbfme2ep1.exe+0x76D9E2` at exit, the address
+  seen once before while eipsample suspended the game's threads. Start it in a Terminal while the
+  game runs (menu or match); every 10 s `tools/memwatch.c` (built on first
   use) walks the game's address space read-only from a second Wine process and `tools/memwatch.py`
   adds the macOS side (resident, footprint) into `logs/memwatch-<date>.csv`: committed, reserved,
   largest free block (the out-of-memory predictor), free blocks over 16 MB, committed by type. Stops
   with the game or Ctrl-C and prints the summary; `scripts/memwatch.sh summary [csv] [--png]` again
   later. Each query runs on the game's main thread (~50 µs), so it paces itself under 2 % of it.
-- `scripts/inspect-hung.sh`, `scripts/monitor_mem.sh` — diagnostics: lldb/vmmap look at a hung game,
-  memory samples every 15 s.
 
 ## Art
 
-- `sagekit/install.py` — scoped faction installation over the current asset caches; `python3 -m sagekit install elves --check` stages without installing, `install elves --revert` restores the last scoped backup and refuses to erase later changes. `python3 -m sagekit.install` checks multi-pack preservation, duplicate cache records, rollback and revert guards using temporary files.
-- `sagekit/formats/w3dmesh.py` — W3D mesh assembly; `python3 -m sagekit.formats.w3dmesh` checks optional colour-slot mapping and required-data guards.
-- `sagekit/blender/lifecycle.py` — construction/damage fitting; `check_match_offset()` under Blender checks translated construction coordinates against the built floodgate doors while preserving the zero-offset path.
-- `assets/dwarves/porter/install.py` — `python3 -m assets.dwarves.porter.install [--check|--revert|--selfcheck]`: install/repair the reviewed RotWK builder and player-colour mapping; preserves unrelated records, composes active mappings, accepts legacy receipts and guards scoped reverts.
-- `assets/dwarves/porter/unit.py` — `python3 -m assets.dwarves.porter.unit --render`: build and check the selectable Dwarven builder prototype and before/after previews; no installation.
-- `assets/dwarves/troops/review.py` — Extract the active Dwarven troop source roster and `--render` an offline idle-pose gallery; preserves source hashes, hides upgrade-gated equipment and never installs or launches the game.
-- `assets/dwarves/troops/catalog.py` — Explicit troop, upgrade, passenger, LOD and authored-animation manifest; runnable source/condition/hierarchy validation.
-- `assets/dwarves/troops/infantry.py` — Fitted infantry, banner and passenger metalwork with original geometry/UV/bone preservation checks.
-- `assets/dwarves/troops/siege.py` — Fitted Battlewagon, Demolisher and Catapult joinery, including construction/death fragments; runnable source checks.
-- `assets/dwarves/troops/paint.py` — Private original-size palette sheets with protected faces/fur, original mip counts and retained DXT3/DXT5 alpha blocks.
-- `assets/dwarves/troops/build.py` — Build private troop models, texture/house-colour aliases and visual-only INI edits; stage archive/caches without installation.
-- `assets/dwarves/troops/preview.py` — Paired stills and actual decoded-motion GIFs with upgrade visibility, attached wagon crews and a local review gallery.
-- `assets/dwarves/troops/motion_check.py` — All-authored-clip Blender audit of matching rigs, finite poses/additions and exact original geometry motion, recording inherited source defects.
-- `assets/dwarves/troops/audit.py` — Verify staged package isolation, visual-only INI edits, cache preservation, original geometry, protected pixels, alpha/mips and unchanged live installation.
-- `assets/dwarves/porter/design.py` — builder cart, supplies, outfit and tools bound to the original rig; keeps the original helmet.
-- `assets/dwarves/porter/preview.py` — Blender preview worker invoked by the builder recipe; original animation poses decoded with the installed OpenSAGE add-on.
+- `python3 -m sagekit install <faction> [--check|--revert]` — installs a faction's built art into the
+  game (`--check` stages without installing, `--revert` restores the last backup);
+  `python3 -m sagekit.install` runs its self-checks on temporary files.
+- `python3 -m sagekit.pack build|install|revert|status` (`sagekit/pack.py`, `sagekit/packbuild.py`) —
+  the building packs players install without Blender, holding none of EA's files: `build` turns a
+  staged faction and its builder into a pack (`members.bin`: each archive member as a delta against
+  the EA files it was made from, checked to insert no run of over 256 bytes from them; `pack.json`:
+  the EA files by SHA-256, the asset.dat operations and the records they need); `install <pack
+  dir>... [--prefix]` checks them against that game, skips a faction that differs, rebuilds the
+  archives from the player's EA files, and edits asset.dat in one transaction with a scoped receipt;
+  `revert` restores it. The installer is standard library only.
+- `python3 -m sagekit.delta` (`sagekit/delta.py`) — the packs' copy/insert delta format and the check
+  for EA runs in the inserted bytes; run alone, its self-checks.
+- `assets/<faction>/porter/` — the faction's builder (Dwarves, Elves; installed):
+  `python3 -m assets.<faction>.porter.unit --render` builds and previews it,
+  `python3 -m assets.<faction>.porter.install [--check|--revert]` installs it; its `release()` is
+  what the faction's building pack ships.
+- `assets/<faction>/troops/` — troop redesigns (Dwarves, Elves, Men; staged, not installed):
+  `build.py`, `preview.py`, `audit.py`; each folder's README has the commands.
 - `python3 -m sagekit list|validate|inventory|budget|build` — builds new art for a building from
   your install: `inventory dwarves/fortress` lists every part and lifecycle state the game draws,
   `build dwarves/fortress` runs extract → Blender geometry/bake/paint → export → night lights
@@ -230,9 +240,25 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   change another faction's art). `new elves --write` writes one stub recipe per design unit of EA's
   (never over an existing one). `measure elves/fortress` measures EA's body into `work/measure.json`
   (footprint, planes, levels, setbacks, openings, heads, symmetry; `sagekit/measure.py` for design()).
+- `python3 -m sagekit preview <faction>/<building> [--views rts,close]` (`sagekit/preview.py`,
+  `sagekit/blender/preview.py`) — a shape preview in 10-20 s: the pipeline's geometry job into `preview/`,
+  EA's model and ours in EEVEE with new faces in their atlas tag's palette colour, `preview/compare_<view>.png`,
+  and the checks that need no bake (budget, footprint, height, winding, sky-facing backs, closed solids).
+- `python3 -m sagekit board <faction>` (`sagekit/board.py`, `sagekit/blender/board.py`) — the style
+  board: EA's buildings of the faction as the game draws them, one labelled grid by role, level-up
+  meshes in a last row: `build/assets/<faction>/_board/<faction>_board.jpg`. Works before any recipe
+  exists (the scaffolder's survey); at most two Blender processes.
+- `python3 -m sagekit palettes <faction> [--only A,B]` (`sagekit/palettes.py`,
+  `sagekit/paint/palette.py`) — the palette options: EA's citadel (the style's `palette_building`)
+  as it is and recoloured with each of the style's `palettes` through its flat-sheet layers, in the
+  style's `palette_views`, with swatches: `build/assets/<faction>/_palettes/palette_options.jpg`.
+- `python3 -m sagekit offload pack|run|results|unpack` (`sagekit/offload.py`, `sagekit/snapshot.py`) and
+  `tools/colab/offload.ipynb` — a faction's full-quality Blender builds on a Colab A100 from a zip with
+  the code, the extracted sources and a game snapshot, finished on the Mac (ship, shared, ini, cache,
+  checks on the real game): `docs/OFFLOAD.md`.
 - `tools/w3d_fixup.py <original.w3d> <exported.w3d>` — repairs what the OpenSAGE Blender add-on drops or
   changes on re-export (materials and texture references, mesh version 5.0, surface types, pivot
-  fixups, and it generates the AABTREE collision trees BFME2 requires). Details in `docs/MODDING.md` §h.
+  fixups, and it generates the AABTREE collision trees BFME2 requires). Details in `docs/MODDING.md` §g.
 - `tools/asset_dat.py show|check|patch|texture <asset.dat> ...` — `asset.dat`: BFME2 caches every
   model's chunk offsets and sizes and reads them blind, so an edited model must have its record
   patched to match (`check` says whether it does; the first write keeps `asset.dat.orig`); `texture`
@@ -244,14 +270,20 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 - `scripts/setup-prefix.sh <build>` — the development setup: build `prefixes/<build>` for
   `engines/<build>`, symlinking the game folders from `prefixes/stable` (idempotent; refuses to
   touch `stable`). New installs use `scripts/install.sh`.
+- `scripts/lib.sh` — the helpers the scripts share: `game_running` (the one "is a game running"
+  check) and `usage` (prints the script's header comment). `env.sh` sources it; scripts that need
+  no Wine source it directly.
 - `harness/README.md` — what the repo harness enforces and why.
 
 ## Experiments and dead ends
 
 Kept for the record. The hands-free runs take over the screen and are not used any more: the
-player plays, the agents read logs (AGENTS.md). The DXVK and NX_COMPAT experiments are under
-`scripts/play-bfme2-dxvk.sh` and `patches/README.md` above; the Wine 11 bisect is in
-[BISECT.md](BISECT.md); the old state snapshot is [history/STATE-2026-09-23.md](history/STATE-2026-09-23.md).
+game is played by hand and measured from its logs (AGENTS.md). The DXVK and NX_COMPAT experiments
+are under `scripts/play-bfme2-dxvk.sh` and `patches/README.md` above. History:
+[the Wine 11 bisect](history/BISECT-2026-09-23.md), [the first state snapshot](history/STATE-2026-09-23.md),
+[the load-time research](history/LOAD-TIME-RESEARCH-2026-09-22.md),
+[the LAA investigation](history/LAA-W10-2026-09-27.md) and
+[the September art and troop review log](history/ART-LOG-2026-09.md).
 
 - `scripts/test-skirmish.sh [label]` — hands-free: launches, clicks through to a skirmish, classifies the
   outcome (`GAME=bfme2|rotwk`, `WINE_BUILD=`, `KEEP_ON_HANG=1`). Takes over the screen ~8 min for
@@ -267,26 +299,4 @@ player plays, the agents read logs (AGENTS.md). The DXVK and NX_COMPAT experimen
   ship as uncompressed TGA (no mipmaps) into DDS with precomputed mip chains via `tools/tga2dds.c`
   (`cc -O2 -o build/tga2dds tools/tga2dds.c`), and patches every `.tga` reference in W3D, INI and
   `asset.dat` in place (same length). Each rewritten archive is kept as `.prebake.bak`. Measured
-  231 s → 168 s on RotWK with Microsoft's d3dx9; the big win is `scripts/d3dx9-fix.sh`.
-
-| `assets/elves/porter/unit.py` | Build/check the selectable Elven craftsman with original rig/anatomy and private diffuse/house-colour atlas; `--render` makes matched motion previews. |
-| `assets/elves/porter/design.py` | Curved birch cart, open-spoke wheels, ivory masonry and plans, attached to the original porter bones. |
-| `assets/elves/porter/preview.py` | Offline OpenSAGE-decoded Elven builder poses, including source opaque-texture alpha handling. |
-| `assets/elves/porter/install.py` | Stage `--check`, reviewed scoped install and guarded `--revert` for the Elven builder; preserves active house-colour mappings and unrelated cache records. |
-
-- `assets/elves/troops/catalog.py` — Active Elven troop, upgrade, banner, natural-creature and animation manifest with offline validation; heroes/builders excluded.
-- `assets/elves/troops/art.py` — Fitted leafwork and private neutral-cloth/silver/gold sheets, retaining original bodies, rigs, protected pixels and alpha.
-- `assets/elves/troops/build.py` — Reuse the private troop pipeline to stage Elven models, textures and scoped visual INI edits without installation.
-- `assets/elves/troops/preview.py` — Paired Elven equipment stills and decoded-motion comparisons in a local review gallery.
-- `assets/elves/troops/audit.py` — Read-only Elven staged-package validation and optional full matching-source animation audit.
-
-- `assets/dwarves/troops/posing.py` — Troop preview skinning with original primary/secondary positions and bone weights; shared by Dwarven, Elven and Men motion reviews.
-
-- `assets/men/troops/catalog.py` — Active Men of the West troop, equipment, banner, cavalry mode and siege-state manifest with source validation.
-- `assets/men/troops/art.py` — Private silver/steel, neutral-cloth and restrained-gold troop sheets plus supported fitted edging; original blended bodies preserved.
-- `assets/men/troops/build.py` — Stage isolated Men troop models, textures, masks and scoped visual INI overrides without installation.
-- `assets/men/troops/preview.py` — Paired Men troop equipment and original-animation comparisons using weighted skinning.
-- `assets/men/troops/audit.py` — Verify private Men art, complete source skin arrays, object scope, animations and current review media.
-- `assets/men/atlas.py` — Measured original Gondor fortress sheet regions for the citadel pilot.
-- `assets/men/style.py` — Citadel pilot palette and paint stack: neutral limestone, charcoal slate and forged steel.
-- `assets/men/fortress/building.py` — Private Men citadel recipe preserving original body and shared Arnor assets.
+  231 s → 168 s on RotWK with Microsoft's d3dx9; the big win is `scripts/wine-fixes.sh`.

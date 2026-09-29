@@ -109,7 +109,7 @@ class Stable(Building):
 
         from sagekit.blender.geometry import sweep
 
-        from ..barracks.motifs import corbel_table, octagon
+        from ..motifs import corbel_table, octagon
         cx, cy = C
         path = octagon(cx, cy, HALF, CH)
         slab = [(-2.0, Z_SLAB), (OUT, Z_SLAB), (OUT, Z_WALK), (-2.0, Z_WALK)]
@@ -137,7 +137,7 @@ class Stable(Building):
     def _cupola(kit):
         import math
 
-        from ..barracks.motifs import knob
+        from ..motifs import knob
         from ..shapes import rail, turned
         cx, cy = CUP
         out = [turned(cx, cy, [(DRUM + 0.25, 52.7), (DRUM + 0.25, 53.5)], ["trim"], k=8, phase=math.pi / 8,
@@ -166,7 +166,7 @@ class Stable(Building):
         buttresses below). `face`: the piers' faces out of the anchor line (SE_FACE on the SE wing,
         whose arcade stands 0.7 further back than the NE one's mirror image). A sable band of gilt
         stars on the eave's fascia (its front at `eave`, 32.6-35.4)."""
-        from ..barracks.motifs import slab, star_frieze
+        from ..motifs import slab, star_frieze
         from .pieces import keystone
         a, t, n = ne_frame(ARCADE[0], face)
         out = []
@@ -184,7 +184,7 @@ class Stable(Building):
         """The ridge roll and two dormers on the yard slope (the roof: z = 37.4 - 0.85 d, d along n
         from the anchor line; the front of a dormer at d -1.2, its back buried at d -9.5). The SE
         wing's yard slope faces away from the light and crowds the central block: no dormers."""
-        from ..barracks.motifs import ridge
+        from ..motifs import ridge
         from .pieces import dormer
         p, q = RIDGE
         out = ridge(p, q, r=0.3, cresting=2.0, spike=1.6)
@@ -207,11 +207,11 @@ class Stable(Building):
 
     @property
     def sheet_atlas(self):
-        from ..workshop.prodkit import with_tiles
+        from ..prodkit import with_tiles
         return with_tiles(super().sheet_atlas, TILES)      # EA's slate roofs stay slate (the citadel's charcoal)
 
     def variants(self, install):
-        from ..barracks.levels import with_damaged      # EA's damaged stable (D1-D3) draws GBStable_D
+        from ..levels import with_damaged      # EA's damaged stable (D1-D3) draws GBStable_D
         return with_damaged(self, super().variants(install), "GBStable_D.tga")
 
     def decals(self):

@@ -3,7 +3,7 @@ GBFARTOWA (men/arrow_tower) and GBFARTOWB (men/arrow_tower_b) are two proportion
 a chamfered-square shaft, a slimmer belfry of tall lancets and a steep chamfered dome - B's with
 a taller shaft and joined on its -X side to a wall walk. A Spec holds one model's measurements
 (its mesh coordinates); the functions lay the citadel's crown on it with the shared pieces of
-men/garrison_tower/pad.py (gallery, plinth, banner) and men/wall_hub/dome.py (eave band, ribs):
+men/garrison_tower/pad.py (gallery, plinth, banner) and men/dome.py (eave band, ribs):
 
     gallery    the machicolated gallery round the shaft top (a black band with silver stars,
                a parapet, square merlons), on the outward faces or all round
@@ -39,7 +39,7 @@ B = Spec(shaft=(19.43, 0.26, 13.05, 3.7),                      # to 75.92
 
 def gallery(kit, s):
     from ..garrison_tower import pad
-    from ..wall_hub import dome as D
+    from .. import dome as D
     cx, cy, half, ch = s.shaft
     if not s.closed:                                            # the -X face lies on EA's footprint
         return pad.gallery(kit, 0.0, s.shaft, s.gallery, clear=0.0, back=0.5, skip=(1, 3))
@@ -50,7 +50,7 @@ def gallery(kit, s):
 
 
 def bartizans(kit, s):
-    cx, cy, half, ch = s.shaft
+    cx, cy, _, _ = s.shaft
     R, z0, r, h, spire = s.bartizan
     out = []
     for deg in s.corners:
@@ -77,13 +77,13 @@ def belfry(s):
 
 
 def crown(kit, s):
-    from ..wall_hub import dome as D
-    bx, by, half, ch, z0, z1 = s.belfry
-    cx, cy, h0, _ = s.shaft
+    from .. import dome as D
+    bx, by, half, ch, _, z1 = s.belfry
+    cx, cy, _, _ = s.shaft
     band = D.eave_band(D.Section(bx, by, chamfer=ch / half), half, z1 - 0.75, d=(-0.5, 0.35))   # under the eave's soffit
     sec = D.Section(cx, cy, chamfer=0.28)
     out = band + D.ribs(sec, s.dome)
-    z_eave, h_eave = s.dome[0]
+    h_eave = s.dome[0][1]
     c = h_eave * (1 - 0.28 / 2) + 0.3                         # the eave's chamfers, a little out
     za, zb, spire = s.eave_pins
     for sx in (-1, 1):                                          # pinnacles on the eave's chamfers

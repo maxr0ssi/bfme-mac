@@ -181,8 +181,8 @@ def run(b, ws, r):
     for model, path in [(b.model_file, shipped)] + [
             (n + ".w3d", ws.out("art\\w3d\\%s\\%s.w3d" % (n[:2], n))) for n in (b.shipped_name(m).lower() for m in ws.derived)]:
         cache = home(model)
-        if cache is None:
-            r.info(model, "not in the asset caches: the game parses it directly")
+        if cache is None:                   # the engine draws no model its caches do not file
+            r.check("%s filed in the asset caches" % model, False, "no record: the game would not draw it")
             continue
         st = cache.stale_entries(path, model)
         r.check("record of %s matches the file" % model, not st, "%d stale" % len(st))

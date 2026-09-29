@@ -1,5 +1,5 @@
-; NOTE: the play scripts no longer run this; they run edgescroll.ahk, which does exactly this
-; and then stays resident for emulated screen-edge scrolling. Kept for one-shot/diagnostic use.
+; One-shot borderless setup, run by play-bfme2-dxvk.sh. The play scripts run edgescroll.ahk, which
+; does the same and then stays resident for emulated screen-edge scrolling.
 ; Make the BFME window borderless and pin it to the top-left of the screen so that, at the
 ; screen's native point size, it behaves like fullscreen without exclusive mode.
 ; Run inside the prefix: wine AutoHotkeyU32.exe borderless.ahk  (after the game window exists)

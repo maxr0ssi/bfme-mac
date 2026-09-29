@@ -49,7 +49,7 @@ def gallery(kit, half, z_corbel, out, bartizans=None):
 
     from sagekit.blender.geometry import sweep
 
-    from ..barracks.motifs import corbel_table, octagon
+    from ..motifs import corbel_table, octagon
     zs, zw, zp = z_corbel + 3.4, z_corbel + 5.4, z_corbel + 6.5
     path = octagon(*T, half, CH)
     res, segs = sweep(path, [(-1.6, zs), (out, zs), (out, zw), (-1.6, zw)], ["stoneB", "enamel", "top", None], center=T)
@@ -118,7 +118,7 @@ class ArcherRange(Building):
         yard's south wall (y -28.4 facing south, to z 14; level 3 stands an arcade on it)."""
         from mathutils import Vector as V
 
-        from ..barracks.motifs import closed, eave, ridge, roundel, star_frieze
+        from ..motifs import closed, eave, ridge, roundel, star_frieze
         a, t, n = V((0, -45.95, 0)), V((1, 0, 0)), V((0, -1, 0))
         out = ridge((-3.6, -37.0, 38.7), (15.4, -37.0, 38.7), r=0.32, cresting=2.4, spike=1.9)
         out += closed(eave(a, t, n, -1.7, 17.6, 28.9, out=0.9, h=0.55, brackets=2.6))     # over the wall's top
@@ -133,7 +133,7 @@ class ArcherRange(Building):
         V2's raised walls (z 14 up)."""
         from mathutils import Vector as V
 
-        from ..barracks.motifs import roundel, slab
+        from ..motifs import roundel, slab
         out = []
         for a, t, n, us, rs in ((V((30.43, 0, 0)), V((0, 1, 0)), V((1, 0, 0)), (-5.0, 10.0, 25.0, 40.0), (2.5, 32.5)),
                                 (V((-31.16, 0, 0)), V((0, -1, 0)), V((-1, 0, 0)), (-40.0, -25.0, -10.0, 5.0, 20.0), (-32.5, -2.5))):
@@ -145,13 +145,12 @@ class ArcherRange(Building):
         return out
 
     def variants(self, install):
-        from ..barracks.levels import with_damaged    # EA's damaged ranges (D1-D3) draw GBArcheryN_LD
+        from ..levels import with_damaged    # EA's damaged ranges (D1-D3) draw GBArcheryN_LD
         return with_damaged(self, super().variants(install), "GBArcheryN_LD.tga")
 
     def decals(self):
-        from ..paint import men_layers
+        from ..paint import Keep, Slate, men_layers
         band = men_layers()[2]
-        from ..barracks.paintkit import Keep, Slate
         return [band(zrange=(67.4, 69.4), pitch=3.0, r=0.72), band(zrange=(90.2, 92.2), pitch=3.0, r=0.72),
                 Slate(97.8), Slate(29.0, box=(-7.0, 19.0, -47.0, -27.0)),     # the dome's and the hall roof's tiles
                 Keep()]                                                          # the red and white targets

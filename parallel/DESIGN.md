@@ -1,16 +1,18 @@
-# R5 parallel framework (research prototype)
+# Worker pool (parallel/)
 
 Shared machinery for spreading RotWK's client-side per-frame work across cores from the in-memory
-patch DLL (gamepatch/). Not wired into anything. Measured under Wine 10 (w10 engine, new WoW64,
-`WINEMSYNC=1`) on an M3 Max (12 P + 4 E cores) in the isolated prefix `build/prefix-research`.
+patch DLL (gamepatch/). The game patch's `shadowpar` builds `pool/parallel.c` into the DLL (off by
+default, [PERFORMANCE.md](../docs/PERFORMANCE.md) §10.2); nothing else uses it, and the recorder is
+not used yet. Measured under Wine 10 (w10 engine, new WoW64, `WINEMSYNC=1`) on an M3 Max
+(12 P + 4 E cores) in a throwaway prefix.
 
 | Piece | Where | State |
 |---|---|---|
-| Worker pool, `par_for` | `pool/parallel.[ch]` | prototyped, measured (`pool/bench.c`) |
+| Worker pool, `par_for` | `pool/parallel.[ch]` | measured (`pool/bench.c`); used by shadowpar |
 | Core placement probe | `pool/place.c` | measured |
 | Deferred-effect recorder | `pool/recorder.[ch]` | prototyped, tested (`pool/rectest.c`) |
-| Function cloner | `build/rotwk-re/research-r5/cloner.py` (needs `build/re-venv`: capstone, pefile; lives in the ignored research area because it copies game code) | prototyped on the shadow chain |
-| Serial-vs-parallel checker | §4 | designed; the pieces it compares (output digests, `rec_digest`) are implemented and tested |
+| Function cloner | `cloner.py`, not in the repo (it copies game code; kept locally with capstone and pefile) | prototyped on the shadow chain |
+| Serial-vs-parallel checker | §4 | shadowpar has its own (first 300 frames, byte compare, switches off on a mismatch); a generic region wrapper is not built |
 
 Build and run any test: `parallel/pool/build-and-run.sh bench|rectest|place [args]` (bounded by
 `DEADLINE` seconds; refuses to run while a game is live).
@@ -26,7 +28,7 @@ API (`parallel.h`): `par_init(n)`, `par_for(n, grain, fn, ctx)` with `fn(begin, 
 - **Publishing a job:** write the job fields, then the claim word, then `gen`.
 - **Claiming a chunk:** one CAS on a single word `{gen:16 | index:16}`. A late worker holding an
   older `gen` can never claim, or count down, a chunk of a newer job.
-- **The earlier hang:** `forkjoin.c` mode 2, and this pool's first version, reset
+- **The earlier hang:** an earlier fork-join prototype (not in the repo), and this pool's first version, reset
   `next`/`remaining` while a late worker was still inside `drain()`. Its decrement was lost, so
   `remaining` never reached 0. The claim word above is the fix.
 - **Parking:** arm-then-recheck with a per-worker auto-reset event. A worker that disarms too late
@@ -96,7 +98,7 @@ budget that covers the gaps between parallel sections within a frame, and nothin
   below 12: 6-7 workers. A background-QoS launch (`taskpolicy -b`) puts everything on E-cores
   (PERFORMANCE.md §8); nothing in-process can undo that.
 
-## 2. Function cloner (`build/rotwk-re/research-r5/cloner.py`)
+## 2. Function cloner (`cloner.py`, not in the repo)
 
 `cloner.py <disk.exe> --config X.json [--emit out.bin [--verify-install]] [--survey VA]`
 
@@ -139,7 +141,7 @@ Globals in the `updateVolumes`/`Update` closures fall into two groups:
 The per-item parallel unit is therefore buildSilhouette (+ normals) + constructVolume. The
 allocation, VB fill and list work in updateVolumes/Update stay on main, or go through the recorder.
 
-The task's redirect list (0xdd184c-54, 0xdd1864-6c, 0xdd19d4, 0xdd19ec) is incomplete for
+The first redirect list (0xdd184c-54, 0xdd1864-6c, 0xdd19d4, 0xdd19ec) is incomplete for
 updateVolumes. It also writes 0xdd19d8/dc/f0/f4/f8/fc, 0xdd1718, 0xdd1740, 0xdd1854 and 0xdc3628,
 reads 0xdd1848, and 0xdd1700-0xdd1720 belong to Update.
 
@@ -207,8 +209,9 @@ Already demonstrated in the prototypes:
 - `bench verify`: serial == parallel byte-for-byte under PC_24 + FTZ.
 - `rectest`: identical record digest serial vs parallel, and identical replayed effects.
 
-Not yet built: the region wrapper itself (a check.c). It's ~120 lines on top of `par_for` +
-`rec_*`, and needs adapters written per region by R1-R4.
+Not built: a generic region wrapper (~120 lines on top of `par_for` + `rec_*`, plus an adapter
+per region). shadowpar has its own verify: the first 300 frames are built both ways and compared
+byte for byte, and a mismatch switches it off.
 
 ## 5. Limits and risks
 
@@ -228,5 +231,3 @@ Not yet built: the region wrapper itself (a check.c). It's ~120 lines on top of 
 - **Game restrictions:** D3D stays on main (wined3d is not created MULTITHREADED). Nothing
   lockstep-relevant may be parallelised: client-side only, so patched and unpatched players stay
   in sync.
-- **Harness:** `pool/build-and-run.sh` must be added to README.md's index before committing (tree
-  rule).

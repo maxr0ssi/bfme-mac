@@ -28,7 +28,7 @@ What stands on it:
                parapet and square merlons) round the shaft top on the three outward faces
     belfry     a voussoir hood and a corbelled sill on every window, a slate-capped pinnacle on
                each chamfer
-    crown      the shared tower top (men/wall_hub/dome.py): steel eave band, ribs, a lantern
+    crown      the shared tower top (men/dome.py): steel eave band, ribs, a lantern
                cupola, a gilt orb and a steel spike
 """
 import math
@@ -130,7 +130,7 @@ def gallery(kit, dx, shaft=SHAFT, z=(Z_CORBEL, Z_SLAB, Z_WALK, Z_PARAPET), clear
     outward faces; no corbels within `clear` of the front face's middle (the gate's crest). The
     parapet and merlons stand from `back` out (clear of a belfry overhanging the shaft); `skip`:
     segments (0 the -Y face, 1 its chamfer, 2 the front, ...) without merlons (a turret there)."""
-    cx, cy, half, ch = shaft
+    cx, cy, _, _ = shaft
     z_corbel, z_slab, z_walk, z_parapet = z
     path = front_path(dx, shaft)
     c = (cx + dx, cy)
@@ -159,7 +159,7 @@ def gallery(kit, dx, shaft=SHAFT, z=(Z_CORBEL, Z_SLAB, Z_WALK, Z_PARAPET), clear
 def belfry(kit, dx, back=False):
     """A voussoir hood and a corbelled sill on the windows of the three outward faces (the -X face
     lies on EA's footprint); a pinnacle on each chamfer, standing on the belfry's cornice line."""
-    bx, by, half, ch = BELFRY
+    bx, by, half, _ = BELFRY
     out = []
     faces = [(V((bx + dx + half, by, 0)), Y, X), (V((bx + dx, by + half, 0)), -X, Y), (V((bx + dx, by - half, 0)), X, -Y)]
     if back:                                                 # B: its wall leaves the -X face free
@@ -183,7 +183,7 @@ def belfry(kit, dx, back=False):
 
 def crown(kit, dx):
     """The shared tower top on EA's dome: steel eave band and ribs, lantern, orb and spike."""
-    from ..wall_hub import dome as D
+    from .. import dome as D
     bx, by, half, ch = BELFRY
     sec = D.Section(bx + dx, by, chamfer=ch / half)
     # the band sits 0.6 under the eave: its buried back stays under the dome's first slope
@@ -195,7 +195,7 @@ def crown(kit, dx):
 
 def banner(kit, dx=0.0, face=-1, u=0.0, shaft=SHAFT, z_top=42.4, width=5.6, length=19.0):
     """The one house-colour banner, hung under the gallery's corbels on a side face."""
-    cx, cy, half, ch = shaft
+    cx, cy, half, _ = shaft
     a = V((cx + dx, cy + face * half, 0))
     t = X if face < 0 else -X
     return kit.banner(a, t, V((0, face, 0)), u, z_top, width, length, d=1.0)

@@ -231,7 +231,9 @@ class Building:
             for t in W3DFile(install.read(install.model_path(m))).meshes[mesh].textures:
                 low = t.lower()
                 if "_nrm" not in low and low != atlas.texture.lower() and low not in {k.lower() for k in out}:
-                    out[t] = own_variant_name(atlas.texture, own, t)
+                    out[t] = own_variant_name(atlas.texture, own, t, same_length=True)
+                    if install.owner(compiled_path(out[t], ".dds")):
+                        raise ValueError("%s: %s is one of EA's names; pin one in own_textures" % (t, out[t]))
         return out
 
     def normal_variants(self, install):
@@ -256,8 +258,9 @@ class Building:
         return [(self.target, old, new) for old, new in self.texture_names().items()]
 
     def cache_ops(self, variants=None, derived=()):
-        """Asset-cache edits the shipped files need: [('texture', new, like, model, object) |
-        ('patch', model file)] - applied to a copy at build time and to the game at install."""
+        """Asset-cache edits the shipped files need: [('model', our model file, EA's it copies) |
+        ('texture', new, like, model, object) | ('patch', model file)] - applied to a copy at build
+        time and to the game at install."""
         own = self.texture_names()
         atlas = self.sheet_atlas
         container = self.shipped_name(self.source).upper()
@@ -272,7 +275,11 @@ class Building:
         ops += shared(self)
         from .nightlights import cache_ops as night              # the faction's night-light texture
         ops += night(self)
-        return ops + [("patch", self.model_file)] + [("patch", self.shipped_name(m).lower() + ".w3d") for m in derived]
+        # models of our own name (own_model: the copy and its derived/lifecycle models) are filed
+        # first, as copies of EA's records - the engine draws no model the cache does not file
+        own = [("model", self.shipped_name(m).lower() + ".w3d", m.lower() + ".w3d") for m in [self.source] + list(derived)
+               if self.shipped_name(m).lower() != m.lower()]
+        return own + ops + [("patch", self.model_file)] + [("patch", self.shipped_name(m).lower() + ".w3d") for m in derived]
 
     def ini_ops(self, install, variants):
         """{INI archive path: [op]} (sagekit/formats/ini.py apply_ops): our own texture swaps next to

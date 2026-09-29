@@ -116,7 +116,7 @@ class Forge(Building):
         inner face lining the flue's mouth) and the coronet, tall blades at the corners; the flue
         stays open for the smoke. A leaf banner on the upper shaft's face toward -60."""
         from sagekit.blender.geometry import sweep
-        from ..barracks.motifs import coronet, face
+        from ..motifs import coronet, face
         cx, cy = TOWER
         out = sweep(hexagon(TOWER, CROWN_R), CROWN, CROWN_TAGS, center=TOWER)[0]
         out += coronet(kit, cx, cy, CROWN_R * 0.93, CROWN_TOP, n=6, phase=math.radians(30), **CORONET)
@@ -127,7 +127,7 @@ class Forge(Building):
     # ------------------------------------------------------------------ 2. main shaft
     @staticmethod
     def _shaft(kit):
-        from ..barracks.motifs import face, lancet_window
+        from ..motifs import face, lancet_window
         cx, cy = TOWER
         out = []
         for i in range(6):
@@ -141,7 +141,7 @@ class Forge(Building):
     @staticmethod
     def _hearth(kit):
         from mathutils import Vector as V
-        from ..barracks.motifs import barge_board
+        from ..motifs import barge_board
         a, t, n = V((HEARTH_FRONT, 0, 0)), V((0, 1, 0)), V((1, 0, 0))
         out = barge_board(kit, a, t, n, GABLE_AXIS, GABLE, w=0.8, d0=-0.1, d1=0.85)
         out += kit.leaf_finial(HEARTH_FRONT + 0.35, GABLE_AXIS, GABLE[-1][1] + 1.3, 4.6, 1.6)
@@ -168,7 +168,7 @@ class Forge(Building):
     # ------------------------------------------------------------------ 6. tree lanterns
     @staticmethod
     def _tree_lanterns(kit):
-        from ..barracks.motifs import hanging_lantern
+        from ..motifs import hanging_lantern
         out = []
         for x, y, z in TREE_LANTERNS:
             out += hanging_lantern(kit, x, y, z, h=TREE_H, r=TREE_R, rod=TREE_ROD)
@@ -181,7 +181,7 @@ class Forge(Building):
         """Starlight where EA's night lanterns glowed (our three lanterns in the tree), the planter's
         crystals, the hearth's back wall and the six lancet windows of the shaft."""
         from sagekit.nightlights import Light
-        from ..barracks.motifs import crystal_light, hanging_base, lantern_glow
+        from ..motifs import crystal_light, hanging_base, lantern_glow
         cx, cy = TOWER
         out = [crystal_light(x, y, hanging_base(z, TREE_H, TREE_ROD), TREE_H, TREE_R, "tree %d" % i)
                for i, (x, y, z) in enumerate(TREE_LANTERNS)]

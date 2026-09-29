@@ -19,7 +19,7 @@ What stands on it here:
 
 Nothing stands in a window (the arrows leave through them). No cloth, no night lights (levels.py).
 """
-from ..barracks.levels import LevelMesh, chain, level_textures
+from ..levels import LevelMesh, chain, level_textures
 from ..stable.building import NOT_BAKED
 from ..stable.pieces import faces
 
@@ -51,12 +51,12 @@ class StableLevel3(LevelMesh):
         return [Box((C[0] - 1.5, C[1] - 1.5, 95.5), (C[0] + 1.5, C[1] + 1.5, 98.0))]      # EA's spike: the lantern's
 
     def design(self, kit):
-        from ..barracks.motifs import closed
+        from ..motifs import closed
         return closed(self._storey(kit) + self._crown(kit) + self._shaft())
 
     @staticmethod
     def _storey(kit):
-        from ..barracks.motifs import star_frieze, window_surround
+        from ..motifs import star_frieze, window_surround
         out = []
         for a, t, n in faces(*C, HALF):
             for e in (-1, 1):
@@ -71,7 +71,7 @@ class StableLevel3(LevelMesh):
         from 74, the dome's steel dress, a lantern, orb and spike."""
         import math
 
-        from ..barracks.motifs import crown_dome
+        from ..motifs import crown_dome
         cx, cy = C
         out = []
         L = 2 * (HALF - CH)
@@ -86,7 +86,7 @@ class StableLevel3(LevelMesh):
     @staticmethod
     def _shaft():
         """Long and short quoins up the shaft's four corners, below the flare."""
-        from ..barracks.motifs import quoins
+        from ..motifs import quoins
         cx, cy = C
         h, z0, z1 = SHAFT
         out = []
@@ -97,7 +97,7 @@ class StableLevel3(LevelMesh):
 
     @property
     def sheet_atlas(self):
-        from ..workshop.prodkit import VET_TILES, with_tiles
+        from ..prodkit import VET_TILES, with_tiles
         return with_tiles(super().sheet_atlas, VET_TILES)       # EA's slate caps stay slate
 
     def emphasis(self, c, n):

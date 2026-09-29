@@ -34,8 +34,6 @@ keep's eave (from z 65.3, half 14.9 to 16.5) and turrets on both end blocks (fro
 everything here above 65.3 lies inside V2's storey (the dome dress, seen at levels 1-2), and the
 end blocks carry nothing above the parapets.
 """
-import math
-
 from sagekit.building import Building
 
 from ..style import MenStyle
@@ -82,7 +80,7 @@ class Barracks(Building):
 
         from sagekit.blender.geometry import sweep
 
-        from .motifs import corbel_table, octagon
+        from ..motifs import corbel_table, octagon
         cx, cy = C
         path = octagon(cx, cy, UPPER, CH)
         slab = [(-2.0, Z_SLAB), (OUT, Z_SLAB), (OUT, Z_WALK), (-2.0, Z_WALK)]
@@ -102,7 +100,7 @@ class Barracks(Building):
 
     @staticmethod
     def _dome(kit):
-        from .motifs import crown_dome
+        from ..motifs import crown_dome
         return crown_dome(kit, *C, DOME, eave=(65.05, 14.95, 4.2), lantern=(72.0, 2.9, 76.2), finial=(80.4, 88.5))
 
     @staticmethod
@@ -112,7 +110,7 @@ class Barracks(Building):
         the west face (x = 0.03 z - 38.29)."""
         from mathutils import Vector as V
 
-        from .motifs import roundel, window_surround
+        from ..motifs import roundel, window_surround
         out = []
         t, n = V((1, 0, 0)), V((0, -1, 0))
         def south(z):
@@ -132,7 +130,7 @@ class Barracks(Building):
 
         from sagekit.blender.geometry import prism_uz
 
-        from .motifs import slab, star_frieze
+        from ..motifs import slab, star_frieze
         (px, py), (nx, ny) = PORCH
         a, n = V((px, py, 0)), V((nx, ny, 0))
         t = V((-ny, nx, 0))
@@ -167,7 +165,7 @@ class Barracks(Building):
     def _wings(kit):
         from mathutils import Vector as V
 
-        from .motifs import window_surround
+        from ..motifs import window_surround
         out = []
         # each parapet face, battered: (face at height z, t, n, merlon runs (u0, u1), windows at u),
         # t x n = -z; the end blocks (x >= 17, y >= 21) carry V2's turrets at level 3
@@ -188,12 +186,11 @@ class Barracks(Building):
         return out
 
     def variants(self, install):
-        from .levels import with_damaged           # EA's damaged barracks (D1-D3) draw GBBarracks_NewD
+        from ..levels import with_damaged           # EA's damaged barracks (D1-D3) draw GBBarracks_NewD
         return with_damaged(self, super().variants(install), "GBBarracks_NewD.tga")
 
     def decals(self):
-        from ..paint import men_layers
-        from .paintkit import Slate
+        from ..paint import Slate, men_layers
         return [men_layers()[2](zrange=(Z_SLAB, Z_WALK), pitch=3.1, r=0.72),    # silver stars on the gallery's band
                 Slate(65.4)]                                                     # the dome's tiles in charcoal slate
 

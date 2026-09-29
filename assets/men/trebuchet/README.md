@@ -1,17 +1,23 @@
 # Men trebuchet tower (`MenTrebuchetExpansion`, variation one)
 
-EA's drum kept whole, the open platform clear for the trebuchet (P1 untouched), dressed from
-`drum.py` (shared with `trebuchet_b`): moulded plinth, pilasters up the corners, arrow slits in
-round-headed surrounds, White Tree shields beside the carved prow, a black band with silver stars
-on the parapet's face, square merlons on it, pinnacles at its ends and over the prow.
+Model `GBFTRTOWA`, mesh `GBFTRTOWA`, own texture `GBFortressQ.tga` (from `GBFortress1.tga`).
+EA's drum kept whole, dressed from `drum.py` (shared with [`trebuchet_b`](../trebuchet_b/README.md)).
 
-Decisions: the -X half of the rim stays open as EA left it (the side toward the citadel; nothing
-rises inside the parapet). No banners. Shipped models: GBFTRTOWA and its _A, _D2, _D3 only.
+## What changed
+
+- **Drum**: a moulded plinth, pilasters up the corners, arrow slits in round-headed surrounds,
+  White Tree shields beside the carved prow.
+- **Parapet**: a black band with silver stars on its face, square merlons, pinnacles at its ends
+  and over the prow.
+- **Banners**: none.
+
+## Kept clear
+
+- The open platform for the trebuchet (bone `P1`).
+- The -X half of the rim (toward the citadel) stays open as EA left it; nothing rises inside the
+  parapet.
 
 ## Status
 
-- [x] healthy body designed (draft for Max's review; nothing installed)
-- [x] lifecycle: construction, really damaged and rubble rebuilt along EA's pieces (`work/lifecycle.json`)
-- [x] checks pass, renders reviewed (`build/assets/men/trebuchet/renders/compare_*.png`)
-
-108 -> 2030 triangles; height 56.0 -> 65.34 (+16.7 %); checks pass; banners 0.
+Installed with the Men pack. 108 -> 2,030 triangles, height 56.0 -> 65.3 (+16.7 %), 90/90 checks.
+Construction, really damaged and rubble are rebuilt along EA's pieces.

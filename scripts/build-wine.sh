@@ -22,7 +22,7 @@ BFME_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WINE_SRC="${WINE_SRC:-$BFME_ROOT/wine/src}"
 BUILD_DIR="$BFME_ROOT/wine/build-$LABEL"
 PREFIX="$BFME_ROOT/engines/src-$LABEL"
-DEPS="$BFME_ROOT/build/deps-x86_64"      # our own x86_64 freetype (see BUILD.md)
+DEPS="$BFME_ROOT/build/deps-x86_64"      # our own x86_64 freetype (patches/WINE-BUILD.md)
 
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"

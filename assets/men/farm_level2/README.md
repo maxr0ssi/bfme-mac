@@ -1,8 +1,7 @@
 # Men farm, level 2 (`V1` of `GBFarm_SKN`)
 
-Draft for review, not installed. Chained on [`farm`](../farm/README.md), followed by
-[`farm_level3`](../farm_level3/README.md) (pattern: [`barracks/levels.py`](../barracks/levels.py)).
-Renders: `build/assets/men/farm_level2/renders/`.
+Chained on `men/farm` ([`levels.py`](../levels.py)). Own texture `GBFarW` (GBFarm's copy;
+the damaged state's `GBVetD` gets `GWVetD`, `prodkit.same_length_variants`).
 
 ## What changed
 
@@ -15,13 +14,16 @@ middle, tall posts at the corners and an arched gate in the west wall. Kept, and
 - **Piers**: dressed stone piers against the wall's outer faces (four on the long walls, two on
   the short ones), moulded caps, steel-ringed stone balls.
 - **Props colour**: the palisade stakes and corner posts keep EA's timber colours
-  (`prodkit.props_layer` with `rects`: EA's plank and post UV rectangles on GBFarm; the first
-  pass's colour rule alone missed the grey-brown stakes and they went white).
+  (`prodkit.props_layer` with `rects`: EA's plank and post UV rectangles on GBFarm; a colour
+  rule alone misses the grey-brown stakes and turns them white).
 
-## Fit and status
+## Kept clear
 
-- `V1` 666 -> 2,814 triangles; height +11.3 %; all checks pass.
-- Own texture `GBFarW` (GBFarm's copy; the damaged state's `GBVetD` gets `GWVetD`,
-  `prodkit.same_length_variants`). No cloth, no lights (a level mesh).
 - The piers stand 1.05 out of the wall's faces with their finials (`footprint_margin` 1.1: the
   wall's collision is the building's); every face kept (`prodkit.closed`).
+
+## Status
+
+Installed with the Men pack. `V1` 666 -> 2,814 triangles, height 29.7 -> 33.1 (+11.3 %),
+120/120 checks. Construction and the world-builder model carry V1; damaged, really damaged and
+rubble have no body pieces of ours and stay EA's.

@@ -66,16 +66,19 @@ def collect(faction, install):
                 files[rel] = open(os.path.join(root, n), "rb").read()
         for member, ops in b.ini_ops(install, ws.variants).items():
             ini_ops.setdefault(member, []).extend(ops)
-        ops = [op for op in b.cache_ops(ws.variants, ws.derived + ws.lifecycle) if not (op[0] == "patch" and op[1] in models)]
+        ops = [op for op in b.cache_ops(ws.variants, ws.derived + ws.lifecycle) if not (op[0] in ("patch", "model") and op[1] in models)]
         for live, ops in install.route_cache_ops(ops).items():
             cache_ops.setdefault(live, []).extend((op, ws) for op in ops)
     record, house_out = house.shipped(faction)          # house-colour models (sagekit/house.py)
     if record:
         where = HouseOut(house_out)
+        made = {k: g.get("template") or g.get("copy_of") for k, g in house.groups(faction).items()}
         for member in record["models"]:
             files[member] = open(where.out(member), "rb").read()
             model = member.split("\\")[-1]
-            for live, ops in install.route_cache_ops([("patch", model)]).items():
+            like = made.get(model[:-4].lower())         # a model of our own: filed as a copy of EA's
+            own = [("model", model, like.lower() + ".w3d")] if like else []
+            for live, ops in install.route_cache_ops(own + [("patch", model)]).items():
                 cache_ops.setdefault(live, []).extend((op, where) for op in ops)
         for member, ops in record["ini"].items():
             ini_ops.setdefault(member, []).extend(tuple(op) for op in ops)
@@ -94,15 +97,53 @@ class HouseOut:
         return os.path.join(self.dir, *archive_path.split("\\"))
 
 
-def cache_records(cache, assets=(), objects=()):
-    """Unrelated records, including duplicates, byte-for-byte in their original order."""
+def cache_records(cache, assets=(), objects=(), models=()):
+    """Unrelated records, including duplicates, byte-for-byte in their original order (models: the
+    files whose every object record is ours)."""
     aa, _, oo = cache.sections()
     return ([cache.data[s:e] for n,s,e in aa if n.lower().decode() not in assets],
-            [cache.data[s:e] for f,o,s,e in oo if (f.lower().decode(),o.lower().decode()) not in objects])
+            [cache.data[s:e] for f,o,s,e in oo if (f.lower().decode(),o.lower().decode()) not in objects
+             and f.lower().decode() not in models])
 
 
-def prepare(faction):
-    """Return the archive members and new cache bytes; never alter the installation."""
+def op_scope(ops):
+    """(assets, objects, models) the cache ops [op] may change: cache_records leaves them out."""
+    assets, objects = set(), set()
+    models = {op[1].lower() for op in ops if op[0] == "model"}
+    for op in ops:
+        assets.add(op[1].lower())
+        if op[0] == "texture" and op[3]:
+            objects.add((op[3].lower(),op[4].lower()))
+    return assets, objects, models
+
+
+def stage_ops(cache, ops):
+    """Apply [(op, model_file)] to cache and check the result (model_file(model name) -> the
+    shipped file, a path or its bytes): every model filed and fresh, every texture registered,
+    every dependency switched, every unrelated record byte-for-byte as before."""
+    scope = op_scope([op for op, _ in ops])
+    untouched = cache_records(cache,*scope)
+    for op, where in ops:
+        apply_cache_ops(cache, [op], where)
+    for op, where in ops:
+        if op[0] == "model" and not cache.has_model(op[1]):
+            raise SystemExit("staged cache does not file %s" % op[1])
+        if op[0] in ("model", "patch") and cache.stale_entries(where(op[1]), op[1]):
+            raise SystemExit("staged cache record of %s does not match" % op[1])
+        if op[0] == "texture":
+            if not cache.has_texture(op[1]):
+                raise SystemExit("staged texture is not registered: %s" % op[1])
+            if op[3]:
+                deps = cache.dependencies(op[3],op[4])
+                if deps is None or op[1].lower() not in [d.lower() for d in deps]:
+                    raise SystemExit("staged texture dependency does not match: %s %s" % (op[3],op[4]))
+    if cache_records(cache,*scope) != untouched:
+        raise SystemExit("refusing to change unrelated cache records: %s" % cache.path)
+
+
+def prepare(faction, ops_out=None):
+    """Return the archive members and new cache bytes; never alter the installation. ops_out, a
+    dict, receives {live asset.dat: [op]} in the order applied (the release packs, sagekit/pack.py)."""
     g = Install()
     files, cache_ops = collect(faction, g)
     if not files:
@@ -110,27 +151,10 @@ def prepare(faction):
     updates = {}
     for live, ops in cache_ops.items():
         cache = AssetCache(live)
-        assets, objects = set(), set()
-        for op,_ in ops:
-            assets.add(op[1].lower())
-            if op[0] == "texture" and op[3]:
-                objects.add((op[3].lower(),op[4].lower()))
-        untouched = cache_records(cache,assets,objects)
-        for op, ws in ops:
-            apply_cache_ops(cache, [op], lambda model, ws=ws: ws.out(g.model_path(model[:-4])))
-        for op, ws in ops:
-            if op[0] == "patch" and cache.stale_entries(ws.out(g.model_path(op[1][:-4])), op[1]):
-                raise SystemExit("staged cache record of %s does not match" % op[1])
-            if op[0] == "texture":
-                if not cache.has_texture(op[1]):
-                    raise SystemExit("staged texture is not registered: %s" % op[1])
-                if op[3]:
-                    deps = cache.dependencies(op[3],op[4])
-                    if deps is None or op[1].lower() not in [d.lower() for d in deps]:
-                        raise SystemExit("staged texture dependency does not match: %s %s" % (op[3],op[4]))
-        if cache_records(cache,assets,objects) != untouched:
-            raise SystemExit("refusing to change unrelated cache records: %s" % live)
+        stage_ops(cache, [(op, lambda model, ws=ws: ws.out(g.model_path(model[:-4]))) for op, ws in ops])
         updates[Path(live)] = cache.data
+        if ops_out is not None:
+            ops_out[live] = [op for op, _ in ops]
     return files, updates
 
 
@@ -199,12 +223,17 @@ def install_faction(faction, log=print, check=False):
     dest = Path(paths.GAMEDIRS["rotwk"])/archive_name(faction)
     expected = {Path(g)/"asset.dat":read(Path(g)/"asset.dat") for g in paths.GAMEDIRS.values()}
     expected[dest] = read(dest)
-    files, updates = prepare(faction)
+    ops = {}
+    files, updates = prepare(faction, ops)
     stage = Path(paths.BUILD)/faction/"_install"
     stage.mkdir(parents=True,exist_ok=True)
     archive = stage/archive_name(faction)
     pack(sorted(files.items()),str(archive))
-    updates[Path(paths.GAMEDIRS["rotwk"])/archive.name] = archive.read_bytes()
+    updates[dest] = archive.read_bytes()
+    games = {os.path.realpath(d): g for g, d in paths.GAMEDIRS.items()}   # the ops a release pack replays
+    record = dict(archive_sha256=digest(updates[dest]),
+                  caches={games[os.path.realpath(os.path.dirname(live))]: o for live, o in ops.items()})
+    atomic(stage/"cache-ops.json", (json.dumps(record, indent=1)+"\n").encode())
     for p,data in updates.items():
         if p.name == "asset.dat":
             (stage/(p.parent.name+"-asset.dat")).write_bytes(data)
@@ -218,9 +247,14 @@ def install_faction(faction, log=print, check=False):
 
 
 def revert_faction(faction, log=print):
+    revert_receipt(Path(paths.BUILD)/faction/"_install/receipt.json")
+    log("Restored files from the last %s installation only." % faction)
+
+
+def revert_receipt(receipt):
+    """Restore the files one receipt lists, refusing if any changed since (sagekit/pack.py too)."""
     if game_running():
         raise SystemExit("close the game before reverting")
-    receipt = Path(paths.BUILD)/faction/"_install/receipt.json"
     if not receipt.exists():
         raise SystemExit("No scoped installation receipt; refusing to reset shared caches from .orig.")
     entries = json.loads(receipt.read_text())
@@ -236,7 +270,6 @@ def revert_faction(faction, log=print):
         updates[p] = before
     apply(updates,receipt.with_name("revert-receipt.json"),expected)
     receipt.unlink()
-    log("Restored files from the last %s installation only." % faction)
 
 
 def selfcheck():

@@ -1,7 +1,8 @@
 # Elven troops and upgrades
 
-Private troop art is staged for review only. Heroes and builders remain outside this pass.
-No command here installs assets or launches the game.
+Troop and equipment-upgrade art for 18 units: Lórien warriors and archers, Mithlond sentries (two
+looks), Mirkwood archers, Rivendell lancers, Lindon horse archers, Noldor warriors, five banner
+carriers, four Ents and the fortress Eagle. Heroes later; the builder is [`porter`](../porter/README.md).
 
 ```sh
 python3 -B -m assets.elves.troops.build
@@ -10,30 +11,31 @@ python3 -B -m assets.elves.troops.preview
 python3 -B -m assets.elves.troops.audit --previews
 ```
 
-The gallery is `build/assets/elves/troops/redesign/review.html`. Every equipment combination
-has paired original/proposed stills; representative loadouts use the original authored clips.
-Filter with `--unit`, `--variant` and `--pose`. Existing previews resume; `--force` refreshes
-art after a change. GIFs sample the whole clip at its nominal duration. The motion audit
-separately decodes every frame of matching available source animations. The offline poser evaluates
-both primary and secondary bone coordinates and their original weights. Meshes using secondary skin
-arrays receive texture changes only; their original body geometry remains byte-exact.
+The gallery is `build/assets/elves/troops/redesign/review.html`: paired EA/ours stills for every
+equipment combination, and representative loadouts in EA's own clips. `preview` filters with
+`--unit`, `--variant` and `--pose`; `--force` redraws after a change.
 
-The design uses the Elven buildings' neutral cloth and fitted metal edging.
-Original body vertices, faces, UVs, normals, skin weights, rigid bindings and skeletons are
-retained. Lower-detail models keep their source geometry. Face/hair regions, texture dimensions,
-source alpha and mip counts are checked; player-colour masks are copied exactly.
+## What changed
 
-The shared Dwarven staging and preview pipeline is reused through explicit faction configuration.
-All models and painted sheets receive private names; only targeted troop visual directives are
-changed. Shared hero, builder, source sheets, skeletons and animations are not replaced. The
-recruited fortress Eagle receives its own inherited draw block, leaving the parent hero intact.
-Source animation omissions or incompatibilities are recorded, not silently repaired.
-The source Mirkwood shield has an incomplete single-level mip chain; that original count remains
-unchanged and the audit records it. Ent bark, Eagle feathers and horse hides keep their natural
-source appearance. The Mirkwood leaf cloak retains its green upper region.
+- **Design**: the Elven buildings' neutral cloth and fitted metal edging.
+- **Kept**: EA's vertices, faces, UVs, normals, skin weights, rigid bindings and skeletons. Lower-detail
+  models keep their geometry; meshes with secondary skin arrays change texture only. Face and hair
+  regions, texture sizes, alpha and mip counts are checked; player-colour masks are copied exactly.
+- **Names**: every model and painted sheet gets a private name and only the troops' draw directives
+  change; shared hero, builder and source sheets, skeletons and animations are not replaced. The
+  recruited fortress Eagle gets its own draw block, so the hero Eagle is untouched.
+- **Natural looks**: Ent bark, Eagle feathers and horse hides stay as EA made them; the Mirkwood
+  leaf cloak keeps its green upper part.
+- The staging and preview pipeline is the [Dwarven troops](../../dwarves/troops/README.md)',
+  configured for the Elves.
 
-The staged archive and cache files are review artifacts. A later reviewed installation must
-freshly compose current caches and the house-colour table and provide a scoped `--revert`.
-Do not copy staged caches blindly over a later installation. The live-file snapshot and source
-hashes are verified by the audit. Player-colour blending, particle effects, projectile flight,
-and in-game lighting are not simulated; runtime approval remains with the player.
+## Status
+
+Built and staged, not installed: 53 models, 17 textures, 9 house masks. How a troop pack gets
+installed: [Troop review](../../README.md#troop-review).
+
+## Known limits
+
+- EA's Mirkwood shield has a one-level mip chain; kept as EA made it.
+- Missing or incompatible source animations are listed in `motion-checks.json`.
+- Not simulated offline: player-colour blending, particles, projectile flight, in-game lighting.
