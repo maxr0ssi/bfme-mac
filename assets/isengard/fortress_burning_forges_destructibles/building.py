@@ -37,6 +37,7 @@ class FortressBurningForgesDescrutbiles(Building):
     sheet = "IBFortress.tga"
     sheet_normal = "IBFortress_NRM.tga"
     own_textures = {"IBFortress.tga": "IBFortresM.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    facet_islands = 8                       # the unwrap overlapped (0.02%): seams at EA's islands and 8-degree turns
     parts = ("ModuleTag_DrawBurningForgesDescrutbiles",)
     views = {
         "rts": ((-44.9, -2.0, 62.0), 319, 50, -38, 50),

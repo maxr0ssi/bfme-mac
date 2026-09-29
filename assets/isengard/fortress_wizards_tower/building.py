@@ -39,7 +39,7 @@ class FortressWizardsTower(Building):
     footprint_margin = 1.0              # the doorway's frame on the battered +X face (collision is the INI's)
     views = {
         "rts": ((0.0, 0.0, 100.0), 460, 50, -38, 50),
-        "close": ((0.0, 0.0, 150.0), 170, 24, -30, 45),
+        "close": ((0.0, 0.0, 160.0), 215, 26, -30, 45),
         "foot": ((0.0, 0.0, 45.0), 190, 20, -30, 45),
         "ingame": ((0.0, 0.0, 100.0), 931, 53, -62, 50),
     }

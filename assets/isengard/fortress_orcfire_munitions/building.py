@@ -36,10 +36,11 @@ class FortressOrcfireMunitions(Building):
     sheet = "IBFortress.tga"
     sheet_normal = "IBFortress_NRM.tga"
     own_textures = {"IBFortress.tga": "IBFortresG.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    bake_hidden = ("MBFDPF", "MBFDPFG")     # EA's fire cards: kept in game, left out of bakes and review renders
     parts = ("ModuleTag_DrawOrcfireMunitions",)
     views = {
         "rts": ((13.6, 0.2, 73.2), 326, 50, -38, 50),
-        "close": ((37.5, -37.4, 86.0), 75, 35, -38, 45),
+        "close": ((37.5, -37.4, 86.0), 50, 38, 40, 45),
         "gate": ((61.0, 0.0, 60.0), 45, 30, -30, 45),
         "ingame": ((13.6, 0.2, 73.2), 741, 53, -62, 50),
     }
