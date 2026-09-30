@@ -1,13 +1,14 @@
-# Mordor mumakil pen 02 (`MordorMumakilPen`)
+# Mordor mumakil pen 02 (`MordorMumakilPen`, the door)
 
-Stub from `python3 -m sagekit new mordor`: nothing redesigned yet (`design()` returns no solids).
+Source model `MBMumkpenDSCL`, target mesh `MUMAKILPEN_A` (224 triangles), sheet `MBMumkPen.tga`.
+It covers the Draw module `ModuleTag_02`.
 
-- Source model `MBMumkpenDSCL`, target mesh `MUMAKILPEN_A` (224 triangles), sheet `MBMumkPen.tga` -> own `MBMumkPeX.tga`.
-- Role stable; nearest Dwarven recipe `barracks`.
-- Covers the Draw module `ModuleTag_02`.
-- EA's body measured: `python3 -m sagekit measure mordor/mumakil_pen_02` -> `work/measure.json`.
+**Not a design unit: this stays EA's.** It is the pen's door, a lid over the pit hinged at
+x -41.5, z 50.3. It is animated: `MBMumkpenDSCL` shut, `MBMumkpenDOP` open, and `MBMumkpen_DROCD`
+the swing. It is recoloured with the sheet. Measured over every frame, its swing covers x -43.2..36.9,
+|y| < 23.8, z 35.1..80.2 (about 24 degrees at its widest). The pen's design keeps that clear
+([`../mumakil_pen/README.md`](../mumakil_pen/README.md)).
 
 ## Status
 
-- [ ] healthy body designed
-- [ ] checks pass, renders reviewed
+- [x] stays EA's (recoloured by `sagekit sheets mordor`)
