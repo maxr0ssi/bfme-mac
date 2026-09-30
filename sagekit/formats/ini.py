@@ -6,6 +6,7 @@ Draw modules, whose grammar is small and regular:
 
     Object <Name>                                   (or ChildObject / ObjectReskin <Name> <Parent>)
       Draw = <DrawType> <Tag>
+        WeatherTexture = SNOWY <snow.tga>             (the model's sheet in that weather)
         DefaultModelConditionState | ModelConditionState = FLAG FLAG ...
           Model = <name> | Texture = <old.tga> <new.tga> | ...
         End
@@ -57,6 +58,8 @@ class Draw:
         self.object, self.type, self.tag, self.line = obj, dtype, tag, line
         self.states = []
         self.fields = {}                    # module-level keys (e.g. StaticModelLODMode)
+        self.weather = []                   # [(WEATHER, texture)]: `WeatherTexture = SNOWY X_snow.tga`, the
+                                            # model's sheet in that weather (W3DFloorDraw bibs, streaks)
 
     def models(self):
         return sorted({s.model for s in self.states if s.model and s.model.lower() != "none"}, key=str.lower)
@@ -158,6 +161,9 @@ def parse_draws(text, defines=None):
                 state.modes.append(value(val).upper())
             elif depth == 1:
                 draw.fields[key] = value(val)
+                parts = value(line).replace("=", " ").split()      # EA writes it with or without '='
+                if len(parts) == 3 and parts[0].lower() == "weathertexture":
+                    draw.weather.append((parts[1].upper(), parts[2]))
         draws.append(draw)
     return draws
 

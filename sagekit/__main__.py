@@ -34,6 +34,10 @@ def cmd_list(a):
 
 def cmd_validate(a):
     names, bad = {}, 0
+    from .ownership import self_check
+    for f in self_check():                      # the ownership scan's rules, no game needed
+        bad += 1
+        print("FAIL ownership: %s" % f)
     game = _game_checks()
     for bid in registry.building_ids():
         try:

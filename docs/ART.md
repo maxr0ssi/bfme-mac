@@ -184,6 +184,10 @@ build/assets/<faction>/<building>/
   (a button) is left alone. No other faction's folder has a TGA-only sheet.
 - EA's folders mix factions (`art\compiledtextures\eb` holds Elven and Erebor sheets); the
   ownership map decides, not the folder.
+- A variant sheet is reached only by name: a damaged model's meshes, a state's `Texture =` swap, or
+  a Draw's `WeatherTexture = SNOWY` (the bibs'; read by the ownership scan since 2026-09-30, which
+  showed three factions' lumber mills drawing `MBLumberMill_Bib_snow`). `sagekit sheets` judges
+  each variant on who draws it.
 - House-colour meshes are found by their texture, not only an `HC_` name.
 - An add-on's cloth (`parts` shown under an upgrade flag) goes to a house model of its own whose
   Draw mirrors the add-on's states (`Building.addon_conditions`), never to the object's house

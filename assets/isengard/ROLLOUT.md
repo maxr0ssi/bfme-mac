@@ -181,6 +181,8 @@ White Hand raised on the cloth, cloth in the player's colour. The citadel has th
    `sagekit sheets` lists TGA-only sheets too (2026-09-29): `ibwildbuilding`, `_d`, `_snow` and
    `_bib` are recoloured and ship as TGA at EA's path, size and depth, so the tavern's EA meshes
    (V1 hide walls, V3 stakes, the torch posts) and its rubble and building site take the palette.
-   `ibclansteading.tga` (the tavern's button) and the unused `_bib_snow` stay EA's. The sheet's
+   `ibclansteading.tga` (the tavern's button) stays EA's. `_bib_snow` is not unused: the bib's
+   `WeatherTexture = SNOWY` draws it; the scan reads that since 2026-09-30, so `sagekit sheets
+   isengard` now recolours it too (not yet run). The sheet's
    pelt (the hide walls) paints as dark hide, a rock rect toned to 0.4 (atlas.py SHEETS), not
    the wood ramp's tan.

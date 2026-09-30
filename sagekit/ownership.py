@@ -5,8 +5,9 @@ Dwarves' old castle walls draw Gondor's GBWallTwr, three factions MBLumberMill, 
 art\\compiledtextures\\eb mixes Elven sheets with Erebor's (EBBarracks.* is the Dwarven barracks).
 One pass over the game answers "who else draws this?" for every model and sheet:
 
-  - every Draw module of every object under data\\ini\\object (parse_draws), its models and INI
-    texture swaps, attributed to a group by the INI's folder: goodfaction\\structures\\elven -> elves,
+  - every Draw module of every object under data\\ini\\object (parse_draws), its models, INI
+    texture swaps and weather sheets (`WeatherTexture = SNOWY MBLumberMill_Bib_snow.tga`),
+    attributed to a group by the INI's folder: goodfaction\\structures\\elven -> elves,
     ...\\units\\rohan -> men; the civilian files by the culture they are named after
     (civilian\\ereborbuildings.ini -> civilian/erebor, which counts as the Dwarves');
   - a ChildObject or ObjectReskin draws what it inherits, for its own group: the civilian
@@ -28,7 +29,7 @@ from . import paths
 from .formats.ini import parse_draws, parse_objects
 from .taxonomy import FACTIONS
 
-VERSION = 4
+VERSION = 5                         # 5: WeatherTexture counts as drawn (a bib's snow sheet)
 CACHE = os.path.join(paths.BUILD, "_ownership.json")
 
 # INI folder name -> group (good/evilfaction\structures|units|hordes\<name>)
@@ -131,6 +132,8 @@ def _add_draw(o, d, names, swaps):
         for pair in st.textures:
             for t in pair:
                 swaps.setdefault(key(t), set()).add(o["group"])
+    for _, t in getattr(d, "weather", ()):      # the bib the civilian LumberMill's children inherit
+        swaps.setdefault(key(t), set()).add(o["group"])
 
 
 def fingerprint(install):
@@ -247,7 +250,9 @@ def faction_sheets(style, install, own=None):
     """(recolour, skipped) for `sagekit sheets`: the style's sheets minus those another faction
     draws. skipped: [(member, {faction: models}, the style's copy or None)]. A sheet nobody's Draw
     modules name (debris, props spawned by OCLs) stays in: it lives in the faction's folder; a
-    TGA-only one stays out (EA's TGA-only textures are mostly button and effect images)."""
+    TGA-only one stays out (EA's TGA-only textures are mostly button and effect images).
+    A damaged or snow variant is judged on its own: the game reaches one only by name (a damaged
+    model's meshes, a state's `Texture =` swap, a Draw's `WeatherTexture`), all in the scan."""
     own = own or load(install)
     copies = {key(k): v for k, v in (getattr(style, "shared_sheets", None) or {}).items()}
     keep, skipped = [], []
@@ -260,6 +265,38 @@ def faction_sheets(style, install, own=None):
         else:
             keep.append(m)
     return keep, skipped
+
+
+def self_check():
+    """Game-free check of the scan's rules on EA's own INI shapes (run by `sagekit validate`): a
+    weather sheet counts as drawn (with or without '='), for the group of the object inheriting the
+    Draw, and `faction_sheets` then keeps another faction's variant out. [] when it holds."""
+    ini = ("ChildObject IsengardLumberMill LumberMill\n  Draw = W3DFloorDraw ModuleTag_Bib\n"
+           "    ModelName = MBLumMill_Bib\n    WeatherTexture = SNOWY MBLumberMill_Bib_snow.tga\n  End\n"
+           "  Draw = W3DFloorDraw ModuleTag_V1\n    ModelName = MBLumMill_V1\n"
+           "    WeatherTexture SNOWY MBLumberMill_BibV1_snow.tga\n  End\nEnd\n")
+    draws, names, swaps = parse_draws(ini), {}, {}
+    o = {"group": "isengard", "file": "", "draws": []}
+    for d in draws:
+        _add_draw(o, d, names, swaps)
+    own = Ownership({"objects": {"IsengardLumberMill": o}, "models": {}, "swaps": {k: sorted(v) for k, v in swaps.items()}})
+
+    class Style:
+        faction = "mordor"
+
+        @staticmethod
+        def sheets(install):
+            return ["art\\compiledtextures\\mb\\%s.dds" % n
+                    for n in ("mblumbermill_bib_snow", "mblumbermill_bibv1_snow", "mbtavern_bib_s")]
+    keep, skipped = faction_sheets(Style(), None, own)
+    fails = []
+    if [w for d in draws for w in d.weather] != [("SNOWY", "MBLumberMill_Bib_snow.tga"), ("SNOWY", "MBLumberMill_BibV1_snow.tga")]:
+        fails.append("parse_draws: WeatherTexture lines not read: %s" % [d.weather for d in draws])
+    if sorted(own.sheet_factions("MBLumberMill_Bib_snow.tga")) != ["isengard"]:
+        fails.append("a weather sheet is not drawn by the inheriting group: %s" % own.sheet_groups("mblumbermill_bib_snow"))
+    if [k.split("\\")[-1] for k in keep] != ["mbtavern_bib_s.dds"] or len(skipped) != 2:
+        fails.append("faction_sheets kept %s, skipped %s" % (keep, [m for m, _, _ in skipped]))
+    return fails
 
 
 def empty_model(own, model, install):
