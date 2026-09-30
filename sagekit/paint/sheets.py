@@ -6,6 +6,8 @@ whole faction in one palette. Each sheet is decoded, upscaled 4x (Real-ESRGAN), 
 masked (sagekit/paint/masks.py, with the Atlas's hints when the sheet is a known atlas), passed
 through the style's sheet layers (the colour layers: no geometry exists here) and written back as
 DDS at the faction's sheet size. Alpha (team colour, cut-outs) is kept: resized, never repainted.
+A sheet EA shipped only as TGA (the Isengard tavern's ibwildbuilding family) is written back as TGA
+at EA's own path, size and depth: the faction's archive, first in load order, replaces EA's file.
 
 Runs on Blender's bundled Python (numpy), no Blender needed:
     python3.11 -m sagekit.paint.sheets <faction> <in.dds> <out.dds> <size>
@@ -17,7 +19,7 @@ import tempfile
 
 import numpy as np
 
-from ..formats.textures import MAGICK, dds_info, full_chain
+from ..formats.textures import MAGICK, dds_info, full_chain, tga_header
 from . import masks as masklib
 
 
@@ -78,9 +80,30 @@ def keep_motifs(col, cv):
     return col * (1 - k) + cv.rgb * k
 
 
+def write_tga(png, tga, like):
+    """Uncompressed TGA like EA's `like` header: its bits per texel (32 keeps the alpha) and its row
+    order (ImageMagick's -orient only sets the flag, so bottom-up rows are flipped first). Checked:
+    the header matches EA's and the file decodes to the PNG's pixels."""
+    bpp, up = like["bpp"], not like["desc"] & 0x20
+    tmp = tga + ".tmp.tga"
+    subprocess.check_call([MAGICK, png] + (["-flip", "-orient", "BottomLeft"] if up else ["-orient", "TopLeft"])
+                          + (["-alpha", "on", "-type", "TrueColorAlpha"] if bpp == 32 else ["-alpha", "off", "-type", "TrueColor"])
+                          + ["-depth", "8", "-compress", "None", tmp])
+    got = tga_header(tmp)
+    ch = "RGBA" if bpp == 32 else "RGB"
+    diff = subprocess.run([MAGICK, "compare", "-metric", "AE", "-channel", ch, png, tmp, "null:"],
+                          capture_output=True, text=True).stderr.split()[0]
+    if (got["type"], got["bpp"], got["desc"] & 0x30) != (2, bpp, like["desc"] & 0x30) or float(diff):
+        os.remove(tmp)
+        raise ValueError("%s: written as type %d, %d bit, origin %#x, %s texels off; EA's is %d bit, origin %#x"
+                         % (tga, got["type"], got["bpp"], got["desc"] & 0x30, diff, bpp, like["desc"] & 0x30))
+    os.replace(tmp, tga)
+
+
 def recolour_sheet(style, src_dds, out_dds, size, upscaler):
-    info = dds_info(src_dds)
-    alpha = info["fourcc"] in ("DXT3", "DXT5")
+    """src_dds and out_dds are a DDS pair, or for a TGA-only sheet a TGA pair (size: EA's width)."""
+    tga = tga_header(src_dds) if src_dds.lower().endswith(".tga") else None
+    alpha = tga["bpp"] == 32 if tga else dds_info(src_dds)["fourcc"] in ("DXT3", "DXT5")
     with tempfile.TemporaryDirectory() as tmp:
         src_png, up_png = os.path.join(tmp, "src.png"), os.path.join(tmp, "up.png")
         subprocess.check_call([MAGICK, src_dds + "[0]", "-alpha", "off", src_png])
@@ -108,6 +131,11 @@ def recolour_sheet(style, src_dds, out_dds, size, upscaler):
         png = os.path.join(tmp, "out.png")
         write_png(rgba, png)
         os.makedirs(os.path.dirname(out_dds), exist_ok=True)
+        if tga:
+            if rgba.shape[:2] != (tga["height"], tga["width"]):
+                raise ValueError("%s: recoloured at %s, EA's is %dx%d" % (src_dds, rgba.shape[:2], tga["width"], tga["height"]))
+            write_tga(png, out_dds, tga)
+            return tga_header(out_dds)
         write_dds(png, out_dds, alpha)
     return dds_info(out_dds)
 

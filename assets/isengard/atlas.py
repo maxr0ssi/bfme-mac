@@ -99,7 +99,10 @@ SHEETS = {
         "wood": [(0, 0, 220, 27), (218, 0, 256, 256), (0, 27, 117, 120)],
         "rock": [(0, 120, 240, 256)],                   # trodden earth
     }),
-    "ibwildbuilding.tga": (512, {"wood": [(0, 0, 512, 512)]}),    # tavern: logs, bark, a cut end, a pelt
+    "ibwildbuilding.tga": (512, {                       # tavern: logs, bark, a cut end, a pelt
+        "rock": [(336, 122, 512, 250)],                 # the pelt (the V1 hide walls): dark weathered hide, not tan
+        "wood": [(0, 0, 512, 512)],
+    }, {"rock": (0.4, 0.0)}),                           # the only rock here: the pelt at about 0.4 of its EA brightness
     "iburukpit.tga": (512, {
         "mark": [(384, 112, 456, 242)],                 # the White Hand banner
         "wood": [(288, 0, 512, 25), (372, 22, 456, 112), (456, 22, 512, 290), (0, 220, 45, 512)],

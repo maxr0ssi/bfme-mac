@@ -160,6 +160,9 @@ build/assets/<faction>/<building>/
   (`formats/textures.py` `sheet_member`), keeps a DDS copy in `src/` (`tga_to_dds`), and a
   state swap to a TGA-only sheet (the tavern's snow) is a variant like any other. Sheets with a
   DDS read exactly as before (checked 2026-09-29: every other recipe's members and variants unchanged).
+  `sagekit sheets` recolours a TGA-only sheet some model draws and writes it back as TGA at EA's
+  path, size and bit depth (the faction's archive loads first); a TGA-only image no model draws
+  (a button) is left alone. No other faction's folder has a TGA-only sheet.
 - EA's folders mix factions (`art\compiledtextures\eb` holds Elven and Erebor sheets); the
   ownership map decides, not the folder.
 - House-colour meshes are found by their texture, not only an `HC_` name.

@@ -246,11 +246,14 @@ def load(install=None, refresh=False):
 def faction_sheets(style, install, own=None):
     """(recolour, skipped) for `sagekit sheets`: the style's sheets minus those another faction
     draws. skipped: [(member, {faction: models}, the style's copy or None)]. A sheet nobody's Draw
-    modules name (debris, props spawned by OCLs) stays in: it lives in the faction's folder."""
+    modules name (debris, props spawned by OCLs) stays in: it lives in the faction's folder; a
+    TGA-only one stays out (EA's TGA-only textures are mostly button and effect images)."""
     own = own or load(install)
     copies = {key(k): v for k, v in (getattr(style, "shared_sheets", None) or {}).items()}
     keep, skipped = [], []
     for m in style.sheets(install):
+        if m.endswith(".tga") and not own.sheet_groups(m):
+            continue                                # a TGA-only image no model draws: a button, not a sheet
         others = own.other_sheet(m, style.faction)
         if others:
             skipped.append((m, others, copies.get(key(m))))

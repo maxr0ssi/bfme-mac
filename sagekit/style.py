@@ -57,9 +57,13 @@ class Style:
         return dirs
 
     def sheets(self, install):
-        """Archive paths of every sheet of the faction to recolour."""
-        return [m for m in install.members(self.sheet_dir)
-                if m.endswith(".dds") and not any(k in os.path.basename(m) for k in self.sheet_skip)]
+        """Archive paths of every sheet of the faction to recolour: its DDS sheets, and the few EA
+        shipped only as TGA (the Isengard tavern's ibwildbuilding family; no other faction's folder
+        has one). ownership.faction_sheets drops a TGA no model draws (the tavern's button image)."""
+        members = install.members(self.sheet_dir)
+        dds = {m[:-4] for m in members if m.endswith(".dds")}
+        return [m for m in members if (m.endswith(".dds") or m.endswith(".tga") and m[:-4] not in dds)
+                and not any(k in os.path.basename(m) for k in self.sheet_skip)]
 
     def sheet_size(self, name):
         """Shipped size of a recoloured sheet (memory budget: most at 1024, the shared sheets 2048)."""

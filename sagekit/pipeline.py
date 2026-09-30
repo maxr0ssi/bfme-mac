@@ -483,9 +483,10 @@ class Render(Step):
                 if shipped and t.lower() not in have:
                     out[t.lower()] = shipped[0]
                     continue
-                mine = os.path.join(sheets, *compiled_path(t, ".dds").split("\\"))
-                if recoloured and os.path.exists(mine):
-                    out[t.lower()] = mine
+                mine = [p for p in (os.path.join(sheets, *compiled_path(t, e).split("\\")) for e in (".dds", ".tga"))
+                        if os.path.exists(p)]           # .tga: a TGA-only sheet, recoloured as one
+                if recoloured and mine:
+                    out[t.lower()] = mine[0]
                     continue
                 if t.lower() in have or t.lower() in out:
                     continue

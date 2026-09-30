@@ -152,7 +152,7 @@ def cmd_sheets(a):
     import subprocess
     from concurrent.futures import ThreadPoolExecutor
     from . import paths
-    from .formats.textures import dds_info
+    from .formats.textures import dds_info, tga_header
     from .pipeline import REALESRGAN, game_running
     if game_running() and not a.force:
         print("the game is running - recolouring would take its CPU and GPU. Close it, or pass --force")
@@ -178,12 +178,14 @@ def cmd_sheets(a):
         with open(src, "wb") as fh:
             fh.write(g.read(member))
         out = os.path.join(root, "out", *member.split("\\"))
+        tga = name.endswith(".tga")                     # EA's TGA-only sheet: a TGA again, EA's size
+        size = tga_header(src)["width"] if tga else style.sheet_size(name)
         r = subprocess.run([paths.blender_python(), "-m", "sagekit.paint.sheets", a.faction, src, out,
-                            str(style.sheet_size(name)), REALESRGAN], capture_output=True, text=True,
+                            str(size), REALESRGAN], capture_output=True, text=True,
                            cwd=paths.REPO, env=dict(os.environ, PYTHONPATH=paths.REPO))
         if r.returncode:
             return "FAIL %s\n%s" % (name, r.stderr[-1500:])
-        i = dds_info(out)
+        i = dict(tga_header(out), fourcc="TGA%d" % tga_header(out)["bpp"]) if tga else dds_info(out)
         return "ok   %-28s %4dx%-4d %s" % (name, i["width"], i["height"], i["fourcc"])
     with ThreadPoolExecutor(4) as ex:
         results = list(ex.map(one, todo))

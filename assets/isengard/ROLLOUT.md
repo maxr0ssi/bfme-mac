@@ -178,5 +178,9 @@ White Hand raised on the cloth, cloth in the player's colour. The citadel has th
    orcfire upgrade lies inside the citadel's new solids.
 4. TGA-only sheets (the tavern's `ibwildbuilding` family): fixed 2026-09-29, the extract step
    reads a sheet's DDS, else its TGA, and the tavern's snow swap is a variant (docs/ART.md).
-   `sagekit sheets` still lists DDS sheets only: the tavern's states that stay EA's (rubble, the
-   building site) keep EA's colours until it lists TGA-only sheets too.
+   `sagekit sheets` lists TGA-only sheets too (2026-09-29): `ibwildbuilding`, `_d`, `_snow` and
+   `_bib` are recoloured and ship as TGA at EA's path, size and depth, so the tavern's EA meshes
+   (V1 hide walls, V3 stakes, the torch posts) and its rubble and building site take the palette.
+   `ibclansteading.tga` (the tavern's button) and the unused `_bib_snow` stay EA's. The sheet's
+   pelt (the hide walls) paints as dark hide, a rock rect toned to 0.4 (atlas.py SHEETS), not
+   the wood ramp's tan.
