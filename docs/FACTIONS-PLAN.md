@@ -1,7 +1,8 @@
 # The other factions: plan and tools
 
 Dwarves (35 recipes, about 6,000 lines), Elves (23) and Men of the West (44, Arnor included) are
-installed, and so are the Goblins (14). Isengard has 25 measured stubs, its palette and a citadel shape pass; Mordor and Angmar are surveyed only. The engine map is
+installed, and so are the Goblins (14). Isengard has 25 measured stubs, its palette and a citadel shape pass; Mordor has 25 stubs and
+four palette options; Angmar is surveyed only. The engine map is
 [ART.md](ART.md); every faction inherits the standards in it. The numbers below come from a
 read-only survey of the game (2026-09-25).
 
@@ -11,7 +12,7 @@ read-only survey of the game (2026-09-25).
 |---|---|---|---|---|---|
 | Goblins | 14 | 14 | 51 | 18 | rock and caves; installed ([ROLLOUT](../assets/goblins/ROLLOUT.md)) |
 | Isengard | 19 | 25 | 90 | 22 | borrows Mordor's lumber mill; 25 measured stubs, palettes and the citadel's first pass ([ROLLOUT](../assets/isengard/ROLLOUT.md)) |
-| Mordor | 14 | 19 | 65 | 29 | no player walls; Barad-dur pieces up to 14k triangles |
+| Mordor | 14 | 19 | 65 | 29 | no player walls; Barad-dur pieces up to 14k triangles; 25 stubs (the Haradrim palace and mumakil pen from `structures\evilmen`), palette options ([ROLLOUT](../assets/mordor/ROLLOUT.md)) |
 | Angmar | 20 | 21 | 87 | 0 | ice effect meshes; three master sheets |
 
 80 design units in all. Rohan is not a faction in RotWK; its art is map-placed civilian buildings

@@ -89,9 +89,9 @@ def survey(faction, g):
     """[(row title, label, model, level-up mesh names)] of the faction's design units, main
     models only (an upgrade's second body is the same model)."""
     from .ownership import load
-    from .scaffold import STRUCTURES, plan, switched
+    from .scaffold import plan, roots, switched
     units, _ = plan(faction, g, load(g))
-    by_obj = g.object_draws("data\\ini\\object\\" + STRUCTURES[faction])
+    by_obj = g.object_draws(roots(faction))
     rows, seen = [], set()
     for u in units:
         if u["second"] or u["source"].lower() in seen:

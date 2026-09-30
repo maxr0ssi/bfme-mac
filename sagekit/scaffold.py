@@ -31,8 +31,10 @@ from .formats.w3dframes import IDENTITY, apply, mesh_frames
 
 STRUCTURES = {"men": "goodfaction\\structures\\men", "elves": "goodfaction\\structures\\elven",
               "dwarves": "goodfaction\\structures\\dwarven", "isengard": "evilfaction\\structures\\isengard",
-              "mordor": "evilfaction\\structures\\mordor", "goblins": "evilfaction\\structures\\wild",
-              "angmar": "evilfaction\\structures\\angmar"}
+              "mordor": ("evilfaction\\structures\\mordor", "evilfaction\\structures\\evilmen\\haradrimpalace.ini",
+                         "evilfaction\\structures\\evilmen\\mumakilpen.ini"),
+              "goblins": "evilfaction\\structures\\wild", "angmar": "evilfaction\\structures\\angmar"}
+# (Mordor builds the Haradrim palace and the mumakil pen, whose INIs are in BFME1's evilmen folder)
 MIN_TRIS, SECOND_TRIS, TILT = 100, 1000, 5.0
 MIN_WALL_TRIS = 50          # wall pieces are low (Gondor's hub OBJECT03 has 94 triangles)
 VARIATION_SUFFIX = {"BUILD_VARIATION_ONE": "", "BUILD_VARIATION_TWO": "_b", "BUILD_VARIATION_THREE": "_c"}
@@ -222,13 +224,18 @@ def tilt(frame):
     return math.degrees(math.acos(max(-1.0, min(1.0, R[2][2]))))
 
 
+def roots(faction):
+    """The INI folders and files under data\\ini\\object that define a faction's buildings."""
+    s = STRUCTURES[faction]
+    return ["data\\ini\\object\\" + d for d in ((s,) if isinstance(s, str) else s)]
+
+
 def plan(faction, install, own):
     """[unit dict] for the faction's design units, and [(model, why)] for what was left out."""
     from .building import same_body
     from .formats.ini import variation_states
     from .ownership import empty_model
-    root = "data\\ini\\object\\" + STRUCTURES[faction]
-    by_obj = install.object_draws(root)             # a ChildObject with the Draw modules it inherits
+    by_obj = install.object_draws(roots(faction))   # a ChildObject with the Draw modules it inherits
     units, skipped, seen = [], [], {}
     for obj, ds in by_obj.items():
         fams = [(d,) + h for d in ds if d.type.lower() != "w3dfloordraw" for h in healthy(d)]

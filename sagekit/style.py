@@ -87,6 +87,7 @@ class Style:
     # under each column as (label, ramp, position)
     palettes = {}                   # {"A": Palette, ...}
     palette_notes = {}              # {"A": "near-black stone, ..."}
+    palette_ea_note = ""            # a line on EA's own column
     palette_building = 'fortress'
     palette_views = ('rts', 'close')
     swatches = ()

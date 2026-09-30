@@ -81,6 +81,7 @@ class IsengardStyle(Style):
     # the palette options tool (sagekit/palettes.py): the choices, their notes, where they are shown
     palettes = PALETTES
     palette_notes = NOTES
+    palette_ea_note = "Teal-grey metal throughout"
     palette_building = 'fortress'
     palette_views = ('close', 'keep')
     swatches = (("Orthanc stone", "stone", 0.55), ("rock", "rock", 0.6), ("iron", "iron", 0.6),

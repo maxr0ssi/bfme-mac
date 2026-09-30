@@ -380,6 +380,8 @@ class Building:
             stem = self.shipped_name(self.source)
             stem = stem[:-4] if stem.lower().endswith("_skn") else stem
             name = template[:2].upper() + "HC" + stem[2:]
+        if name[:15].lower() == found["model"].lower():     # Mordor's prefix is EA's (MBHCOrcpit): MBHCOrcpit2
+            name = name[:14] + "2"
         name = name[:15]
         if install.has_model(name) or any(c.has_model(name.lower() + ".w3d") for c in install.asset_caches().values()):
             raise ValueError("%s: own copy %s of house-colour model %s is a name EA's files use" % (self.id, name, found["model"]))

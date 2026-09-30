@@ -1,4 +1,5 @@
-"""Palette options for the owner's pick: `python3 -m sagekit palettes <faction> [--only A,B]`.
+"""Palette options for the owner's pick: `python3 -m sagekit palettes <faction> [--only A,B]`
+(`--only` also sets the column order).
 
 EA's citadel (the style's `palette_building`) rendered as it is and recoloured with each palette
 of the style's `palettes`, side by side and labelled: build/assets/<faction>/_palettes/
@@ -39,7 +40,7 @@ def swatches(style, key, dest, width):
     """A row of labelled colour chips for one palette (style.swatches: label, ramp, position)."""
     from .board import magick
     pal = style.palettes[key] if key else None
-    items = style.swatches if pal else ()
+    items = [i for i in style.swatches if i[1] in pal.ramps] if pal else ()     # a palette may lack a ramp
     cmd = ["-size", "%dx84" % width, "xc:#1c1d21", "-font", paths.FONT, "-pointsize", "19"]
     if not items:
         cmd += ["-fill", "#a8a49c", "-annotate", "+10+30", "EA's own sheet, as it ships"]
@@ -61,7 +62,7 @@ def run(faction, only=None):
     if not style.palettes:
         print("%s's style declares no palettes (Style.palettes)" % faction)
         return 1
-    keys = [k for k in style.palettes if not only or k in only.split(",")]
+    keys = [k for k in only.split(",") if k in style.palettes] if only else list(style.palettes)
     b = registry.load("%s/%s" % (faction, style.palette_building))
     g = Install()
     out = root(faction, "_palettes")
@@ -91,7 +92,7 @@ def run(faction, only=None):
     for k, shot in zip([None] + keys, shots):
         head = os.path.join(out, "_head_%s.png" % (k or "ea"))
         title = "%s  %s" % (k, style.palettes[k].name.split(" ", 1)[1]) if k else "EA's %s as it is" % b.source
-        note = style.palette_notes.get(k, "") if k else "Teal-grey metal throughout"
+        note = style.palette_notes.get(k, "") if k else style.palette_ea_note
         magick(["-size", "%dx62" % RES[0], "xc:#1c1d21", "-font", paths.FONT, "-fill", "#f2ede2", "-pointsize", "28",
                 "-annotate", "+8+30", title, "-fill", "#a8a49c", "-pointsize", "16", "-annotate", "+8+54", note, head])
         sw = os.path.join(out, "_sw_%s.png" % (k or "ea"))
