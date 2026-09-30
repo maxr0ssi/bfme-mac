@@ -32,6 +32,7 @@ only the previews of new cloth faces."""
 from sagekit.style import Palette, Style
 
 from .atlas import MordorAtlas
+from .atlas_sheets import HARAD, SHEET_RAMPS
 
 LEAF = [(0, (.03, .03, .02)), (.5, (.14, .14, .10)), (1, (.36, .35, .28))]         # dead scrub
 GREY_CLOTH = [(0, (.02, .02, .02)), (.5, (.13, .13, .14)), (1, (.34, .34, .36))]      # preview only
@@ -168,11 +169,18 @@ NOTES = {
     "F4": "F3 with the blades' steel only on their bright core, orange heat on the flanks",
     "G": "The films' Barad-dur: black iron-stone, ash ground, dull iron edges, windows and pyres fire-lit",
 }
+# the production kits' painted tags (atlas.py: bone, warpaint, brass) in every palette, the same ramps
+# the production sheets paint EA's tusks and Harad bands with (atlas_sheets.py): new names, so no
+# ramp the citadel reads changes
+for _p in PALETTES.values():
+    _p.ramps.update(ivory=SHEET_RAMPS["bone"], warpaint=HARAD["ramps"]["paint"], brass=HARAD["ramps"]["brass"])
 PALETTE = PALETTES["F2"]
 # new faces of these atlas regions painted as a material: (ramp, gain, lift)
 TAGRAMPS = {"iron": ("iron", 0.9, 0.0), "trim": ("trim", 0.9, 0.25), "cloth": ("cloth", 0.85, 0.2),
             "ember": ("fire", 0.6, 0.55), "flame": ("fire", 0.25, 0.74), "chain": ("iron", 0.8, 0.0),
-            "soot": ("soot", 0.5, 0.0), "witch": ("witch", -2.4, 1.0)}     # witch: lit like a slit (paint.py)
+            "soot": ("soot", 0.5, 0.0), "witch": ("witch", -2.4, 1.0),     # witch: lit like a slit (paint.py)
+            # the production kits' (their regions sample MBFortress's slab and plate, luminance 0.11..0.37)
+            "bone": ("ivory", 1.6, 0.35), "warpaint": ("warpaint", 1.2, 0.1), "brass": ("brass", 1.4, 0.2)}
 
 
 class MordorStyle(Style):
@@ -202,9 +210,23 @@ class MordorStyle(Style):
         from .shapes import MordorShapes
         return MordorShapes()
 
-    def recolour(self):
-        from .paint import mordor_layers
-        return mordor_layers()["MordorRecolour"]()
+    def sheet_atlas(self, name):
+        """The production sheets' own material rects (atlas_sheets.py SHEETS) for `sagekit sheets`;
+        the rest as before (MBFortress: the faction atlas; others: a plain one)."""
+        from .atlas_sheets import sheet_atlas
+        return sheet_atlas(name, self.atlas.ground_sat) or super().sheet_atlas(name)
+
+    def recolour(self, building=None):
+        """The first paint layer: MordorRecolour, or for a building on its own sheet (atlas_sheets.py
+        SHEETS) and for flat sheets MordorSheetRecolour (identical where no table applies)."""
+        from .atlas_sheets import sheet_atlas
+        from .paint import mordor_layers, mordor_sheet_layers
+        if building is None:
+            return mordor_sheet_layers()["MordorSheetRecolour"]()
+        own = sheet_atlas(building.sheet_atlas.texture) if building.two_sheets else None
+        if own is None:
+            return mordor_layers()["MordorRecolour"]()
+        return mordor_sheet_layers()["MordorSheetRecolour"](sheet_atlas=own)
 
     def sheet_layers(self):
         return [self.recolour()]
@@ -212,7 +234,7 @@ class MordorStyle(Style):
     def layers(self, building):
         from sagekit.paint import layers as L
 
-        return [self.recolour(),
+        return [self.recolour(building),
                 *[L.TagRamp(tag, r, gain=g, lift=k) for tag, (r, g, k) in TAGRAMPS.items()],
                 L.BuildingDecals(building),
                 L.WoodGrain(depth=0.22),

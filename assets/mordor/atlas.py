@@ -22,7 +22,8 @@ Colour alone cannot tell the slabs from the plate (both brown-grey, low saturati
 Regions for new faces (the kit, later): a slab (stoneA, stoneB), rock, a plain plate (iron),
 ribbed plate (ribs), a spike row, and the painted materials, each repainted by a TagRamp of the
 style (style.py): trim, cloth (the player's colour), ember, chain, soot, flame, witch (the few
-Morgul-lit slits). The rects were
+Morgul-lit slits), and for the production buildings bone (ivory tusks and skulls), warpaint (the
+Harad pair's deep red) and brass (their gold). The rects were
 read by eye on the flat sheet; confirm them on the citadel's first bake."""
 from sagekit.atlas import Atlas, Region
 
@@ -59,8 +60,14 @@ class MordorAtlas(Atlas):
         # the few slits kept in the Morgul witch-light (pass 7): a crown window's rect, painted green by
         # the style's TagRamp (its own material), while every "slit" is a dim ember
         'witch': Region((856, 326, 876, 366)),
+        # the production kits' (2026-09-30): ivory tusks, bones and skulls (one cracked slab stretched over
+        # each face: grain, never tiles), the Harad pair's war-paint red and gold; each painted by its TagRamp.
+        # Appended: the tags above keep their indices (the citadel's bake is unchanged)
+        'bone': Region(SLAB, Region.STRETCH),
+        'warpaint': Region(PLATE),
+        'brass': Region(PLATE),
     }
-    painted = ('cloth', 'ember', 'chain', 'soot', 'trim', 'flame', 'witch')
+    painted = ('cloth', 'ember', 'chain', 'soot', 'trim', 'flame', 'witch', 'bone', 'warpaint', 'brass')
     materials = {
         'stone': [(838, 290, 948, 640), (485, 180, 722, 520), (445, 640, 620, 1024), (245, 830, 445, 1024),
                   (592, 0, 722, 225), (722, 105, 837, 512), (592, 512, 722, 620), (620, 645, 737, 1024),

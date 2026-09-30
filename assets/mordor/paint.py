@@ -106,3 +106,108 @@ def mordor_layers():
             return out * (1 - p) + col * p
 
     return dict(MordorRecolour=MordorRecolour)
+
+
+@functools.lru_cache(maxsize=None)
+def mordor_sheet_layers():
+    """MordorSheetRecolour: MordorRecolour for the buildings whose EA faces paint from a sheet of
+    their own (assets/mordor/atlas_sheets.py SHEETS). On a building EA's faces (tag 0) take that
+    sheet's material rects, tones and ramps through their own UVs, new faces MBFortress's as before;
+    on a flat sheet with a table (`own_sheet`) its rects. Rects in the table's order (the first
+    material listed whose rect a texel falls in wins; slits lie over the rest); fire by colour only in glow and lava rects and, strongly saturated
+    and bright, outside every rect; slits lit where dark; the rest of the sheet iron or trim. With no
+    table it is MordorRecolour, bit for bit (the citadel's paths never reach the tables)."""
+    import numpy as np
+
+    from sagekit.paint.fields import hsv, ramp, smooth
+    from sagekit.paint.layers import sheet_rgb
+
+    from .atlas_sheets import RAMP_OF
+
+    base = mordor_layers()["MordorRecolour"]
+    MATERIALS = ("glow", "lava", "blade", "bone", "flesh", "hide", "accent", "brass", "cloth", "wood", "trim",
+                 "iron", "mud", "rock", "stone")
+
+    def rects(cv, atlas, rs):
+        """1 inside the rects (atlas's sheet px, y down): by pixel on a flat sheet (rows bottom-up),
+        through the baked atlas coordinates on a building."""
+        size = float(atlas.size)
+        if hasattr(cv, "load"):
+            auv = np.mod(cv.load("auv"), 1.0)
+            x, y = auv[..., 0] * size, (1 - auv[..., 1]) * size
+        else:
+            h, w = cv.lum.shape
+            x = (np.arange(w, dtype=np.float32)[None, :] + 0.5) * size / w * np.ones((h, 1), np.float32)
+            y = size - (np.arange(h, dtype=np.float32)[:, None] + 0.5) * size / h * np.ones((1, w), np.float32)
+        m = np.zeros(x.shape, np.float32)
+        for x0, y0, x1, y1 in rs:
+            m = np.maximum(m, ((x >= x0) & (x < x1) & (y >= y0) & (y < y1)).astype(np.float32))
+        return m
+
+    class MordorSheetRecolour(base):
+        def __init__(self, sheet_atlas=None, **kw):
+            super().__init__(**kw)
+            self.sheet_atlas = sheet_atlas
+
+        def own(self, cv, atlas, pal):
+            """The weights of texels read on a sheet with a table (those the palette has ramps for)."""
+            H, S, V = hsv(sheet_rgb(cv))
+            lum = np.clip(cv.lum, 0, 1)
+            mats = atlas.materials
+            left = np.ones(lum.shape, np.float32)
+            got = {k: 0.0 for k in MATERIALS}
+            for k, rs in mats.items():
+                if k != "slit":
+                    r = rects(cv, atlas, rs)
+                    got[k] = got[k] + r * left
+                    left = left * (1 - r)
+            red = ((H <= 45) | (H >= 345)).astype(np.float32)
+            (s0, s1), (v0, v1) = LAVA_FIRE
+            lava = got["lava"] * red * smooth(S, s0, s1) * smooth(V, v0, v1)
+            warm = ((H <= 60) | (H >= 345)).astype(np.float32)
+            glow = got["glow"] * warm * smooth(S, 0.25, 0.45) * smooth(V, 0.55, 0.8)
+            (s0, s1), (v0, v1) = LOOSE_FIRE
+            loose = left * red * smooth(S, s0, s1) * smooth(V, v0, v1)
+            fire = lava + glow + loose
+            dark = rects(cv, atlas, mats.get("slit", ())) * (1 - smooth(lum, *SLIT)) * (1 - fire)
+            slit = dark if "slit" in pal.ramps else 0.0
+            keep = 1 - dark
+            harad = 1.0 if "paint" in atlas.ramps else 0.0      # red texels war-paint, yellow ones gold
+            paint = got["accent"] * harad * smooth(S, 0.55, 0.7) * ((H <= 20) | (H >= 330))
+            brass = got["brass"] + got["accent"] * harad * smooth(S, 0.3, 0.45) * ((H >= 42) & (H <= 90))
+            metal = got["iron"] + got["glow"] - glow + left - loose
+            edge = smooth(lum, *self.trim)
+            steel = got["blade"] * smooth(lum, *self.steel) if "steel" in pal.ramps else 0.0
+            blade = got["blade"] - steel
+            w = dict(fire=fire, stone=got["stone"], rock=got["rock"] + got["lava"] - lava, mud=got["mud"],
+                     wood=got["wood"], cloth=got["cloth"] + got["accent"] - paint - (brass - got["brass"]),
+                     bone=got["bone"], flesh=got["flesh"], hide=got["hide"], paint=paint, brass=brass,
+                     iron=(metal + blade) * (1 - edge), trim=(metal + blade) * edge + got["trim"], steel=steel)
+            w = {k: v * keep for k, v in w.items() if np.any(v)}
+            if np.any(slit):
+                w["slit"] = slit
+            return w
+
+        def paint(self, cv, atlas, pal):
+            """EA's sheet painted from its own table: each material through its ramp (the table's
+            ramps first, then the palette's) at the table's tones."""
+            L = np.clip(cv.lum, 0, 1)
+            w = self.own(cv, atlas, pal)
+            out = np.zeros(L.shape + (3,), np.float32)
+            for m, wm in w.items():
+                g, k = atlas.tones[m]
+                stops = atlas.ramps.get(m) or pal[RAMP_OF.get(m, m)]
+                out += np.asarray(wm, np.float32)[..., None] * ramp(np.clip(L * g + k, 0, 1), stops)
+            return out / np.maximum(sum(w.values()), 1e-4)[..., None]
+
+        def apply(self, col, cv, pal):
+            if hasattr(cv, "load") and self.sheet_atlas is not None:      # a building on its own sheet
+                old = cv.memo(("mordor_sheet_paint", id(self), id(pal)), lambda: self.paint(cv, self.sheet_atlas, pal))
+                o = (cv.tagi == 0).astype(np.float32)[..., None]
+                return old * o + base.apply(self, col, cv, pal) * (1 - o)
+            atlas = getattr(cv, "atlas", None)
+            if not hasattr(cv, "load") and getattr(atlas, "own_sheet", False):   # a flat sheet with a table
+                return self.paint(cv, atlas, pal)
+            return base.apply(self, col, cv, pal)                          # MBFortress, flat or not: unchanged
+
+    return dict(MordorSheetRecolour=MordorSheetRecolour)
