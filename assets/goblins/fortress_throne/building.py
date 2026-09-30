@@ -19,11 +19,17 @@ from sagekit.building import Building
 
 from ..style import GoblinStyle
 
+# The game's fire (sagekit/fire.py): the coals of the two fire bowls on iron brackets out of the
+# nest's flare (nest.py: BRAZIER, the bowl at (0.8, +-20.9), kit.brazier h 2.6 from z 55.6). EA's
+# own fire is the drake's glow on B_DRAKE (12.8, 0, 74.5) and the head's FXMOUTH/FXEYE: clear.
+FIRE_POINTS = [(0.8, 20.9, 58.5, 'brazier'), (0.8, -20.9, 58.5, 'brazier')]
+
 
 class FortressThrone(Building):
     style = GoblinStyle()
     source = "WBFGThrone"
     target = "WBFGTHRONE"
+    fire_points = FIRE_POINTS
     sheet = "WBFortress.tga"
     sheet_normal = "WBFortress_NRM.tga"
     own_textures = {"WBFortress.tga": "WBFortresC.tga"}      # free in EA's files and every recipe (sagekit/names.py)

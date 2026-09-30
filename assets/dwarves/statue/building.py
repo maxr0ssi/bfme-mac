@@ -23,6 +23,7 @@ X0, X1, Y1 = -7.75, 11.65, 9.70              # just inside EA's footprint (-7.76
 FRONT_PIERS = ((9.25, 11.35), (7.25, 9.35))   # x range, |y| range
 BACK_PIERS = ((-7.45, -5.15), (7.15, 9.45))
 POLE_X, POLE_Y = -6.3, 8.3
+BRAZIER_BED = 26.4                           # the front braziers' fire bed (the bowl's top)
 
 
 def faces(tag, other):
@@ -35,6 +36,14 @@ def square(x0, x1, y0, y1, z, ch):
     return box_rings((x0, x1), (y0, y1), z, ch)
 
 
+def _fire_points():
+    """The two front piers' brazier bowls, just above their fire beds (the gilded flame point stands
+    inside the flame)."""
+    (x0, x1), (a, b) = FRONT_PIERS
+    return [(round((x0 + x1) / 2, 1), round(sy * (a + b) / 2, 1), round(BRAZIER_BED + 0.1, 1), "brazier")
+            for sy in (1, -1)]
+
+
 class Statue(Building):
     style = DwarvenStyle()
     source = "DBStatue"
@@ -42,6 +51,7 @@ class Statue(Building):
     sheet = "dbstatue.tga"                    # lower case, as the model names it (see README)
     sheet_normal = None                       # EA's statue sheet has no normal map
     own_textures = {"dbstatue.tga": "DBStatuH.tga"}
+    fire_points = _fire_points()      # braziers on the front piers' bowls: (10.3, +-8.3, 26.5)
     tri_budget = 4000
     max_z_growth = 0.35
     views = {
@@ -134,9 +144,9 @@ class Statue(Building):
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
         bowl = [square(cx - 0.7, cx + 0.7, cy - 0.7, cy + 0.7, 24.2, 0.2),
                 square(cx - 1.25, cx + 1.25, cy - 1.25, cy + 1.25, 26.0, 0.35),
-                square(cx - 1.25, cx + 1.25, cy - 1.25, cy + 1.25, 26.4, 0.35)]
+                square(cx - 1.25, cx + 1.25, cy - 1.25, cy + 1.25, BRAZIER_BED, 0.35)]
         out.append(loft(bowl, ["trim", "trim"], cap0=("trim", False), cap1=("trim", True)))
-        top = square(cx - 0.95, cx + 0.95, cy - 0.95, cy + 0.95, 26.4, 0.25)
+        top = square(cx - 0.95, cx + 0.95, cy - 0.95, cy + 0.95, BRAZIER_BED, 0.25)
         out.append(loft([top, [V((cx, cy, 28.6))] * len(top)], ["trim"], cap0=("trim", False), cap1=("trim", False)))
         return out
 

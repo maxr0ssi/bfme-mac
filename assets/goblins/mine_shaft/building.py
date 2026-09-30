@@ -47,6 +47,10 @@ HEAPS = [((4.0, -38.0, 0.0), 3.5, 3.4, 1), ((48.0, -33.0, 0.3), 6.5, 6.0, 2)]
 TORCHES = [(-37.9, 5.9, 18.0), (53.6, -18.5, 18.0)]
 BANNER = ((36.5, -37.0, 0.3), 29.5, (0.6, -1.0))
 STAKES = [(21.5, -41.0, 0.3), (31.0, -40.5, 0.3)]
+# The game's fire (sagekit/fire.py): the coal basket of the torch on the winch tower's -X-Y post
+# (torch_bracket at z 12). The baskets on EA's two poles (TORCHES) take none: EA's flame cards
+# N_GLOW01/02 burn there at night.
+FIRE_POINTS = [(44.5, 16.0, 15.8, 'brazier')]
 
 
 def lip_point(angle, rx, ry, z):
@@ -59,6 +63,7 @@ class MineShaft(Building):
     style = GoblinStyle()
     source = "WBPit_SKN"
     target = "WBPITMETAL"
+    fire_points = FIRE_POINTS
     sheet = "wbpit2.tga"
     sheet_normal = "wbpit2_nrm.tga"
     own_textures = {"wbpit2.tga": "wbpitH.tga"}      # free in EA's files and every recipe (sagekit/names.py)

@@ -37,12 +37,17 @@ SPIKES = [((2.0, -20.0, 34.5), 13.0, 3.0), ((10.0, 16.0, 26.5), 14.0, 3.0)]
 BANNERS = [((38.0, -33.0, 0.2), 37.0, (1, -0.45), "eye", -1), ((37.0, 29.0, 0.0), 35.0, (1, 0.25), "hand", 1)]
 IMPALED = (21.0, -40.0, 0.0)
 PILES = [(44.0, -24.0, 1.4, 4, 1), (44.0, 22.0, 1.4, 3, 2)]
+# The game's fire (sagekit/fire.py): the coal baskets of the two torches on iron arms off the gate
+# posts (torch_bracket at y +-12.4, z 17.5), outside the sword-guard's walk (|y| < 12). EA's own
+# glow and embers burn deep in the mouth (FXBONE, 18, -0.4, 10).
+FIRE_POINTS = [(50.4, 13.3, 21.6, 'brazier'), (50.4, -13.3, 21.6, 'brazier')]
 
 
 class Cave(Building):
     style = GoblinStyle()
     source = "WBCave_SKN"
     target = "WBCAVE"
+    fire_points = FIRE_POINTS
     sheet = "wbcave.tga"
     sheet_normal = "wbcave_nrm.tga"
     own_textures = {"wbcave.tga": "wbcavH.tga"}      # free in EA's files and every recipe (sagekit/names.py)

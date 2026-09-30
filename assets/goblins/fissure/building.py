@@ -44,12 +44,16 @@ GATE = [((42.0, -41.0, 0.3), (0.3, -1, 0)), ((44.5, 28.5, 2.4), (0.3, 1, 0))]   
 DECK = 20.0                                 # their decks and the bridge between them
 TOTEM = ((36.0, -48.0, 0.3), 31.0, 5.6)     # foot, height, skull size
 PILES = [(34.0, -43.0, 0.0, 3, 1), (47.0, 37.0, 0.5, 3, 2)]
+# The game's fire (sagekit/fire.py), in model space (CYLINDER01 + (1.6, 8.06)): the coals of the
+# fire bowl on the -Y crest (BRAZIER, kit.brazier h 2.6). EA's STEAM01/FXBONE01 steam the floor.
+FIRE_POINTS = [(-1.4, -21.4, 36.4, 'brazier')]
 
 
 class Fissure(Building):
     style = GoblinStyle()
     source = "WBFissure"
     target = "CYLINDER01"
+    fire_points = FIRE_POINTS
     sheet = "WBStone.tga"
     sheet_normal = "WBStone_NRM.tga"
     own_textures = {"WBStone.tga": "WBStonH.tga"}      # free in EA's files and every recipe (sagekit/names.py)

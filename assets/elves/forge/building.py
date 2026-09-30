@@ -61,6 +61,11 @@ CORONET = dict(height=11.5, width=3.3)
 TREE_LANTERNS = [(22.1, -32.4, 59.8), (6.8, -6.0, 60.7), (-3.4, -44.4, 65.0)]
 TREE_H, TREE_R, TREE_ROD = 5.2, 1.1, 1.2
 HEARTH_BACK = -15.6                     # the hearth's back wall (y -4.0..5.4, z 4.7..14.5)
+FLUE_FLOOR = 69.75                      # the open flue's floor, 5.25 under EA's rim
+# Fire: EA's own covers the hearth (ElvenForgeGlow at FXFIRE) and the flue (ElvenForgeSmoke at
+# FXSMOKE); ours adds only embers rising out of the flue with the smoke (point on the flue's floor,
+# centred in the coronet; the mallorn's leaves stay 10 away from the column)
+FIRE_POINTS = [(round(TOWER[0], 1), round(TOWER[1], 1), round(FLUE_FLOOR + 0.15, 1), "embers")]
 
 
 def hexagon(c, r, phase=30.0):
@@ -78,6 +83,7 @@ class Forge(Building):
     sheet_normal = "ebforge_nrm.tga"
     own_textures = {"ebforge.tga": "ebforgH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     tri_budget = 15000
+    fire_points = FIRE_POINTS
     # the smith and his gear stand in the hearth in the rest pose; the night meshes are light
     bake_hidden = ("ELF", "HAMMER", "FORGED_BLADE", "EULORWAR", "N_WINDOW", "N_GLOW")
     views = {

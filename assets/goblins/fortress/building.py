@@ -31,6 +31,10 @@ RUNS = [(-30.5, -5.2), (5.2, 30.5)]
 HANGINGS = [((-17.0, "hand"), (17.0, "banner")), ((-17.0, "claw"), (17.0, "eye")), ((-17.0, "eye"), (17.0, "fangs"))]
 HIDE = (53.5, 9.0, 17.5)                    # top, width, length
 TOTEM = (40.0, 15.5, 4.3)                   # |c| of its foot, height, skull size
+# The game's fire (sagekit/fire.py): the coals of the two fire bowls on the front walk either side
+# of the dragon's head (gate.py: kit.brazier at (39.5, +-27, 55.2), h 3.2). EA's citadel burns
+# nowhere near them (its smoke is on the fire-arrow upgrade's spire tops, its embers on the throne).
+FIRE_POINTS = [(39.5, 27.0, 58.7, 'brazier'), (39.5, -27.0, 58.7, 'brazier')]
 
 
 class Fortress(Building):
@@ -38,6 +42,7 @@ class Fortress(Building):
     source = "WBFortress"
     target = "WBFORTRESS"
     tier = Tier.HERO
+    fire_points = FIRE_POINTS
     sheet = "WBFortress.tga"
     sheet_normal = "WBFortress_NRM.tga"
     own_textures = {"WBFortress.tga": "WBFortresH.tga"}      # free in EA's files and every recipe (sagekit/names.py)

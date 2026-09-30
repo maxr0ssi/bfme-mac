@@ -38,12 +38,16 @@ BANDS = [[(-17.5, -48.5, 29.0), (-16.5, -48.5, 35.5), (-12.0, -48.5, 35.0), (-8.
           (0.0, -48.5, 36.9), (4.0, -48.5, 35.9), (8.0, -48.5, 36.5), (12.0, -48.5, 37.7), (15.5, -48.5, 34.5),
           (17.3, -48.5, 29.0)]]
 PILES = [(-12.0, -64.0, 4.2, 3, 1), (22.0, -54.0, 6.2, 3, 2)]
+# The game's fire (sagekit/fire.py): the coal basket of the torch on its post among the strongboxes
+# (TORCH, torch_bracket reach 1.2). EA's glow and smoke stay at the jaws (FX_MOUTH).
+FIRE_POINTS = [(53.2, -22.0, 10.4, 'brazier')]
 
 
 class TreasureTrove(Building):
     style = GoblinStyle()
     source = "WBTreaTrov_SKN"
     target = "WBTREATROVT"
+    fire_points = FIRE_POINTS
     sheet = "WBTreaTrov.tga"
     sheet_normal = "WBTreaTrov_NRM.tga"
     own_textures = {"WBTreaTrov.tga": "WBTreaTroH.tga"}      # free in EA's files and every recipe (sagekit/names.py)

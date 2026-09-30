@@ -50,6 +50,8 @@ COPING_TAGS = ["trim", "top", "top", "stoneA", None]
 CHEVRON_Z = (38.3, 40.2, 41.1, 42.0, 43.4)
 # banner poles: x of the pole (its banner hangs 0.6 in front, the rod reaching x 25.0 < 25.64), |y|
 BANNER_X, BANNER_Y = 23.4, 20.2
+BRAZIER = (21.4, 14.65, 46.4)     # the pylons' brazier bowls: centre x, |y|, fire bed (the bowl's top)
+HALL_AT = (10.915, -3.449)        # DBMINE02's bone: model = hall coordinates + this
 
 
 def chevrons(a, t, n, L, z, d0, d1, w=7.2, g=(1.1, 2.2)):
@@ -109,12 +111,22 @@ def portal(kit, arch, axis, back, fronts, depths, outer_u, lintel_z, reveals=Non
     return out
 
 
+def _fire_points():
+    """The two brazier bowls on the gate pylons, just above their fire beds (the gilded flame point
+    stands inside the flame), in model coordinates."""
+    x, y, z = BRAZIER
+    return [(round(x + HALL_AT[0], 1), round(sy * y + HALL_AT[1], 1), round(z + 0.1, 1), "brazier") for sy in (1, -1)]
+
+
 class Mine(Building):
     style = DwarvenStyle()
     source = "DBMine_SKN"
     target = "DBMINE02"
     sheet = "DBMineA.tga"                     # own texture DBMineH.tga (+ _NRM, _D1, _Snow)
     bake_hidden = ("N_WINDOW", "N_GLOW")      # the night windows and their glow cards
+    # braziers on the two gate pylons' bowls: (32.3, 11.2, 46.5), (32.3, -18.1, 46.5); nothing in
+    # the tunnel mouth (units use it)
+    fire_points = _fire_points()
     # the hall is not what sets the building's height - the watch tower (V2) stands 72.9 high, the
     # hall 37.8 - so its gate crown may rise 30 % (to 48.6) and stay far under the tower
     max_z_growth = 0.30
@@ -227,12 +239,12 @@ class Mine(Building):
         a, t, n = V((25.2, sy * (yi + 16.9) / 2, 0)), V((0, 1, 0)), V((1, 0, 0))
         out.append(prism_uz(a, t, n, [(-0.8, 2.2), (0.8, 2.2), (0.8, 30.6), (-0.8, 30.6)], -1.6, 0.4,
                             [None, "stoneB", "top", "stoneB"], "pilaster", None, bat=0.6 / 28.4))
-        cx, cy = 21.4, sy * 14.65                                            # the brazier
+        cx, cy, bed = BRAZIER[0], sy * BRAZIER[1], BRAZIER[2]              # the brazier
         bowl = [box_rings((cx - 1.4, cx + 1.4), (cy - 1.1, cy + 1.1), 43.6, 0.3),
                 box_rings((cx - 2.3, cx + 2.3), (cy - 1.75, cy + 1.75), 46.0, 0.4),
-                box_rings((cx - 2.3, cx + 2.3), (cy - 1.75, cy + 1.75), 46.4, 0.4)]
+                box_rings((cx - 2.3, cx + 2.3), (cy - 1.75, cy + 1.75), bed, 0.4)]
         out.append(loft(bowl, ["trim", "trim"], cap0=("trim", False), cap1=("trim", True)))
-        top = box_rings((cx - 1.8, cx + 1.8), (cy - 1.3, cy + 1.3), 46.4, 0.3)
+        top = box_rings((cx - 1.8, cx + 1.8), (cy - 1.3, cy + 1.3), bed, 0.3)
         out.append(loft([top, [V((cx, cy, 47.8))] * len(top)], ["trim"], cap0=("trim", False), cap1=("trim", False)))
         return out
 
