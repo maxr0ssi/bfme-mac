@@ -44,6 +44,7 @@ class HaradrimPalace(Building):
     # EA's bonfire flame card, and the pieces the game shows only from level 2 (V1, the tusk ring) and 3 (V2A
     # the tower, the banner, the lancer; EA's SubObjectsUpgrades): kept in game, left out of the bakes and the
     # renders, so they show the palace as it is built (level 1)
+    facet_islands = 8                       # the unwrap overlapped (0.24%): seams at EA's islands and 8-degree turns
     bake_hidden = ("FIRE", "V1", "V2A", "BANNER_HARAD01", "MUHARALNCR", "LANCE")
     own_textures = {"MBHrdPlc.tga": "MBHrdPlH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     views = {

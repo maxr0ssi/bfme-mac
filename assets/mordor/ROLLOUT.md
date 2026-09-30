@@ -64,6 +64,16 @@ EA's citadel is painted from four parts of MBFortress: the spiked and fluted wal
 towers' shafts and crowns, the inner walls, and the cratered rock of the walks. Those are stone
 (the plate under the spike rows too), rock, and iron with trim on its lit edges (atlas.py).
 
+## Production sheets (2026-09-30)
+
+Every production sheet the recipes draw has its own paint areas ([`atlas_sheets.py`](atlas_sheets.py)
+SHEETS, `MordorSheetRecolour` in [`paint.py`](paint.py)), after Isengard's and the Goblins'. Board:
+`_review/sheets_v2.jpg` (EA's buildings recoloured, no design; v1 was too dark, Max: "some of these
+feel like a step back"). F2's black is for stone and iron only; wood, bone, hide and cloth keep
+EA's values; the orc pit's green pool is ember sludge; the Harad pair stays sand, gold, war-paint
+red and ivory. MBFortress's paint is bit-identical (the citadel's colour layers hashed on its bake
+before and after). New geometry: tags `bone` (ivory), `warpaint` and `brass` (atlas.py).
+
 ## Units
 
 25 stubs from `sagekit new mordor`. What to know:
@@ -82,6 +92,72 @@ towers' shafts and crowns, the inner walls, and the cratered rock of the walks. 
   door, on a tilted bone) and `troll_cage_module_tag_03` (the chains) are animated parts. They
   stay EA's; dropping the stubs is Max's call.
 - No player walls: `wall_catapult` and `gate_watchers` are fortress expansions.
+
+## Harad group: palace, pen, battle tower, barricade (pass 2, 2026-09-30)
+
+These are shape previews only: nothing is built or installed. Review sheets: `_review/harad_v2.jpg`
+(pass 2) and `_review/harad_v1.jpg` (pass 1). Each sheet opens with the citadel's rts view, then
+shows EA and ours at rts and close at level 1, with fire points marked. `harad_v2.jpg` adds rts rows
+with the palace's and the pen's level 2 and 3 pieces shown. The group's pieces are in
+[`shapes_harad.py`](shapes_harad.py).
+
+| Building | Key new mass | Triangles | Height | Fire |
+|---|---|---|---|---|
+| [haradrim_palace](haradrim_palace/README.md) | a crown of eight ivory tusks round a great fire bowl on a stepped plinth at the peak; grounded tusk claws either side of the -Y door; brass suns on war-paint plates; two sun-and-serpent banners (player's colour) | 1,106 -> 5,797 | +42.1 % | 3 furnace (peak with plume, 2 claws with smoke), EA's bonfire (hearth) |
+| [mumakil_pen](mumakil_pen/README.md) | a great arch of crossed ivory tusks over the open end, a fire bowl at its crown, the sun under it, chains; tusk claws on the berms; howdahs with canopies on the decks; two banners; lava | 1,472 -> 7,757 | +23.2 % | 5 furnace (crown with plume), 4 smoke, 2 embers |
+| [battle_tower](battle_tower/README.md) | an eight-spike claw rising from the roof's dish round a jagged fire bowl, the Eye, lava from the foot | 680 -> 2,565 | +10.8 % | furnace + smoke, 4 embers |
+| [barricade](barricade/README.md) | lava along every front and a moat at the gate, barbed portcullis teeth, stakes, steel lip spikes, a spike claw in the keep, the Eye | 923 -> 5,117 | +8.6 % | 2 braziers, 5 embers, 2 smoke |
+
+- Max approved the Harad twist ("cool like it go for it"): F2's black, ember and steel, with ivory
+  tusks (`bone`), brass (`brass`), war-paint red (`warpaint`) and banners in the player's colour.
+- The palace's and the pen's level 2 and 3 pieces (`V1`, `V2A`/`V2`, banners) are in `bake_hidden`.
+- The door `mumakil_pen_02` stays EA's. Its swing, measured over every animation frame, is kept
+  clear.
+
+## Add-ons group: the citadel's upgrades and expansions (pass 2, 2026-09-30)
+
+Shape previews only (not built, not installed). Review sheet: `_review/addons_v2.jpg` (pass 1: `addons_v1.jpg`; the citadel's
+rts at the top, every add-on built at once on our citadel, then each one EA's and ours in place and
+close, fire points marked). The upgrades sit on the citadel; the expansions were checked on all seven
+of its pads (EA's base file `bases\fortress_mordor`). No face of any add-on crosses the citadel's new
+faces. Shared pieces: [`shapes_addons.py`](shapes_addons.py) (the crowns' claw at any size; `fissure`,
+forked cracks glowing from within in a dark lip, and `runnel`, since pass 1's cracks read as
+painted flames; the Watchers' eyes, arch teeth).
+
+| Building | Key new mass | Triangles | Height | Fire |
+|---|---|---|---|---|
+| [fortress_fire_arrows](fortress_fire_arrows/README.md) | six hooked spikes rising from inside EA's pod between its twelve, closing over embers; barbs on the legs | 376 -> 1,312 | +17.2 % | brazier |
+| [fortress_magma_cauldrons](fortress_magma_cauldrons/README.md) | a larger furnace mouth at the cauldron tower's foot with forked cracks up the tower; lava brimming in all eight spouts, poured down seven walls in runnels | 780 -> 2,339 | 0 % | furnace, 3 embers |
+| [fortress_gorgoroth_spire](fortress_gorgoroth_spire/README.md) | a claw of five spikes round a fire on each corner of the keep's roof; forked cracks up the shaft and the buttresses | 1,060 -> 5,916 | 0 % | 4 brazier |
+| [fortress_lava_moat](fortress_lava_moat/README.md) | slag rafts and glowing bubbles on EA's lava; basalt teeth and impaling stakes on the outer bank between the pads | 630 -> 4,869 | +6.4 % | 2 smoke, 3 embers |
+| [gate_watchers](gate_watchers/README.md) | the Watchers' six eyes in Morgul witch-light (the one green accent), barbed teeth in the arch, two clawed fire baskets | 1,271 -> 2,111 | 0 % | 2 brazier |
+| [wall_catapult](wall_catapult/README.md) | the family's claw on the rim: 13 spikes leaning in, open over the catapult and clear of its arm's swing (EA's animation, by 3.4); fire baskets in its gaps; forked cracks up the drum | 962 -> 4,064 | 0 % | 2 brazier, 2 embers |
+| [fortress_barricade](fortress_barricade/README.md) | the citadel's crown on its tower (eight spikes round a fire), the Eye in its windows, forked cracks, arch teeth | 1,199 -> 5,403 | +5.9 % | brazier |
+
+The `*_morgul_sorcery` stubs stay EA's (effect meshes). EA's moat bank covers the citadel's own
+lava at the -Y and +X wall feet once the moat is built (EA's moat, not ours).
+
+## Production group: orc pit, slaughter house, lumber mill, siege works, troll cage, tavern (pass 2, 2026-09-30)
+
+Shape previews only (not built, not installed). Review sheet: `_review/production_v2.jpg` (the
+citadel's rts at the top, then EA and ours at rts and close, with the fire points marked); pass 1
+is `_review/production_v1.jpg`. Pieces: [`shapes_production.py`](shapes_production.py) and
+[`shapes_production_big.py`](shapes_production_big.py). Pass 2 after the review of pass 1: no bowl
+perched on a roof (it read as an egg stuck on); fire comes out of grounded stacks, pits and rings;
+one bold mass per building at rts. No green: orange fire, lava and steel only.
+
+| Building | Key new mass | Triangles | Height | Fire |
+|---|---|---|---|---|
+| [orc_pit](orc_pit/README.md) | fourteen spikes rising from inside the crater's rim over the pit, a 48-degree gap where the orcs climb out; coal shelves round the pit's foot; lava seams; war drum, whip post, stakes | 257 -> 4,146 | +19.4 % | 4 forge, plume, 2 embers, smoke |
+| [slaughter_house](slaughter_house/README.md) | a grounded basalt smoke stack with a clawed mouth; a great smoke-rack gantry of carcasses; butcher blocks, bone heaps, a lava runnel; a gibbet off the gable | 832 -> 5,221 | +11.5 % | chimney, plume, embers, 2 brazier |
+| [lumber_mill](lumber_mill/README.md) | a big claw rising from inside the fire pit's ring round the charcoal fire (clear of EA's flame card); a tall saw gantry across the log; a log-pile ramp | 1,204 -> 4,964 | 0 % | furnace, plume, brazier, embers |
+| [siege_works](siege_works/README.md) | a grounded basalt forge stack over the walls, its mouth clawed, furnace mouths feeding a lava runnel; a half-built siege tower on its scaffold; a crane over a catapult | 667 -> 6,485 | +9.8 % | furnace, 3 forge, plume, embers, smoke, 2 brazier |
+| [troll_cage](troll_cage/README.md) | eleven heavy hooked iron claw bars over the pen, chained to a spiked boss, a fire pit under them; steel spikes over the door; lava at the pen's foot | 1,064 -> 3,971 | +7.1 % | forge, plume, embers, smoke, 2 brazier |
+| [tavern](tavern/README.md) | a great grounded basalt chimney stack against the front wall, its mouth clawed; steel spikes along the ridge; a gibbet over the door, fire baskets, lava | 528 -> 2,920 | +16.2 % | chimney, plume, embers, smoke, 2 brazier |
+
+The troll cage's door (`troll_cage_02`) and chains (`troll_cage_module_tag_03`) stay EA's and
+clear. The lumber mill ships as Mordor's own copy (`MBLumMill2_SKN`). EA's orc pit and tavern
+bodies carry loose vertices (8 and 2): `design()` drops them, as the Men forge does.
 
 ## Ownership (`sagekit owners mordor`)
 
