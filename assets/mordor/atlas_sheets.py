@@ -21,7 +21,7 @@ over the rest; MordorSheetRecolour, paint.py). The materials:
     wood    planks, poles, bark, reed mats and lashings: scorched warm brown
     trim    metal that is all edge
     iron    plates, bars, locks and rusted scrap (rust never glows): F2's black iron
-    mud     the orc pit's spawning pool: molten ember sludge, the building's focal point
+    mud     the orc pit's spawning pool: sickly green sludge (Max kept EA's green), the focal point
     rock    ground, earth, gravel, boulders: F2's ash (sand on the Harad sheets)
     stone   dressed stone, slabs and roof slates: F2's basalt
 
@@ -72,9 +72,10 @@ SHEET_RAMPS = {
     "bone": _valued(0.95, [(0, (1, .8, .55)), (.4, (1, .84, .6)), (1, (1, .93, .78))]),      # warm ivory
     "cloth": _valued(0.8, [(0, (1, .2, .14)), (.4, (1, .16, .1)), (.8, (1, .22, .14)), (1, (1, .4, .3))]),
     "flesh": _valued(0.5, [(0, (1, .2, .14)), (.5, (1, .14, .09)), (1, (1, .26, .18))]),
-    # the orc pit's pool (EA's green goo): crusted black-red in the swirl's grooves, molten orange on its crests
-    "mud": [(0, (.04, .008, 0)), (.3, (.30, .05, 0)), (.55, (.78, .26, .02)), (.8, (1.0, .56, .12)),
-            (1, (1.0, .84, .42))],
+    # the orc pit's pool (EA's green goo; Max: "i like it for sludge"): crusted black-green in the swirl's
+    # grooves, sickly Morgul green on its crests (the citadel's witch-light hue, style.MORGUL_WINDOW)
+    "mud": [(0, (.015, .03, .01)), (.3, (.07, .17, .04)), (.55, (.22, .47, .12)), (.8, (.46, .80, .26)),
+            (1, (.72, .98, .50))],
 }
 # the Harad pair's own: sand and ochre, gold and brass, war-paint red, sand ground
 HARAD = {"ramps": {
@@ -113,7 +114,7 @@ SHEETS = {
     }),
     "mborcpit01a.tga": (512, {"rock": [(0, 0, 512, 512)]}),       # the pit's walls and steps
     "mborcpit_mud.tga": (128, {"mud": [(0, 0, 128, 128)]}),
-    "mborcpit_mud_v3.tga": (128, {"mud": [(0, 0, 128, 128)]}),    # EA's green slime: ember sludge too
+    "mborcpit_mud_v3.tga": (128, {"mud": [(0, 0, 128, 128)]}),    # EA's green slime: the same green sludge
     "mbseigework1.tga": (256, {
         "slit": [(196, 88, 236, 150)],                  # the barred hatch: ember behind,
         "glow": [(196, 88, 236, 150)],                  # its bars hot

@@ -36,6 +36,7 @@ class GateWatchers(Building):
     sheet = "MBFortress.tga"
     sheet_normal = "MBFortress_NRM.tga"
     own_textures = {"MBFortress.tga": "MBFortresF.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    facet_islands = 8                       # the unwrap overlapped (0.15%): seams at EA's islands and 8-degree turns
     HOUSE_DRAW = "ModuleTag_Draw_HCGateWatchers"
     views = {
         "rts": ((-34.4, -0.0, 29.3), 205, 50, -38, 50),

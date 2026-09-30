@@ -39,6 +39,7 @@ class FortressLavaMoat(Building):
     own_textures = {"MBFortress.tga": "MBFortresE.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCFortressLavaMoat"
     # EA's sorcery flare (MBFLAVAMEFF, MinasMorgulFX, to z 131.7) and its alpha ground decal (MBFLAVAMALPH):
+    facet_islands = 8                       # the unwrap overlapped (1.0%): seams at EA's islands and 8-degree turns
     # kept in game, left out of bakes and renders
     bake_hidden = ("MBFLAVAMEFF", "MBFLAVAMALPH")
     views = {

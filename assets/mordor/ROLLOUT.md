@@ -70,7 +70,7 @@ Every production sheet the recipes draw has its own paint areas ([`atlas_sheets.
 SHEETS, `MordorSheetRecolour` in [`paint.py`](paint.py)), after Isengard's and the Goblins'. Board:
 `_review/sheets_v2.jpg` (EA's buildings recoloured, no design; v1 was too dark, Max: "some of these
 feel like a step back"). F2's black is for stone and iron only; wood, bone, hide and cloth keep
-EA's values; the orc pit's green pool is ember sludge; the Harad pair stays sand, gold, war-paint
+EA's values; the orc pit's pool is a sickly green sludge (Max kept EA's green); the Harad pair stays sand, gold, war-paint
 red and ivory. MBFortress's paint is bit-identical (the citadel's colour layers hashed on its bake
 before and after). New geometry: tags `bone` (ivory), `warpaint` and `brass` (atlas.py).
 

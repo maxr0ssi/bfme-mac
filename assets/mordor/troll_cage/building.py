@@ -58,6 +58,7 @@ class TrollCage(Building):
     own_textures = {"MBTrollPit.tga": "MBTrollPiH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     parts = ("ModuleTag_Draw",)
     world_space = True                  # the body's bone is moved (-18.5, -2.1, 0.2): design and fire share world axes
+    facet_islands = 8                       # the unwrap overlapped (0.26%): seams at EA's islands and 8-degree turns
     bake_hidden = ("V2", "N_WINDOW", "N_FIRE", "TROLL_MESH", "ORC")
     fire_points = FIRE_POINTS
     views = {
