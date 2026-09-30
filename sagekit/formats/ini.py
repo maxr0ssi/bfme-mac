@@ -369,9 +369,12 @@ def apply_ops(text, ops):
     """Apply [('swaps', base, {ea: (own, own variant)}) | ('lod_off', object, tag) |
     ('field', object, tag, key, value) | ('draw', object, tag, model) |
     ('state', object, tag, [flags], model) | ('model', object, tag, old, new) |
-    ('fire_draw', object, after tag, tag, lines)] in order."""
+    ('fire_draw', object, after tag, tag, lines) | ('fx_systems', ((name, after, lines), ...))] in order."""
     for op in ops:
-        if op[0] == "draw":
+        if op[0] == "fx_systems":                   # particle systems of our own (sagekit/fire_systems.py)
+            from ..fire_systems import add_systems
+            text = add_systems(text, op[1])
+        elif op[0] == "draw":
             text = add_draw(text, *op[1:])
         elif op[0] == "fire_draw":
             text = add_draw_after(text, *op[1:])

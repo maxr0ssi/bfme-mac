@@ -22,7 +22,8 @@ from .formats.w3d import BOX, W3DFile, chunks
 from .taxonomy import states_of
 
 COLOURS = {"chimney": "#ff5a1f", "furnace": "#ff2d2d", "forge": "#ffb000", "hearth": "#ff8c00",
-           "crucible": "#ffe14a", "brazier": "#ff6ec7", "grate": "#c0ff3a", "embers": "#6ae0ff"}
+           "crucible": "#ffe14a", "brazier": "#ff6ec7", "grate": "#c0ff3a", "embers": "#6ae0ff",
+           "pyre": "#ff0080", "smoke": "#b0b0b0", "witchfire": "#7dff3a", "witchflame": "#3aff9a", "plume": "#6a6a6a"}
 AUTO_VIEWS = {"rts": (2.2, 50, -38, 50), "close": (1.3, 24, -30, 45), "ingame": (5.0, 53, -62, 50)}  # blender/render.py's
 EA_FIRE_BONES = ("FIRE", "SMOKE", "EMBER", "GLOW", "CHIMNEY", "FLAME", "TORCH")
 
@@ -108,10 +109,14 @@ def checks(b, ws, r):
                 not stale and sorted(deps) == sorted(["h*" + name.lower(), name.lower() + ".ob"]),
                 "%d stale; %s" % (len(stale), deps))
 
+    from .fire_systems import names as own_names
     known = game_systems(g)
     used = {s for _, _, kind in pts for s in KINDS[kind]}
-    r.check("particle systems defined by the game (%d): %s" % (len(used), ", ".join(sorted(used))),
-            all(s.lower() in known for s in used), ", ".join(s for s in used if s.lower() not in known))
+    ea = {s for s in used if s.lower() not in own_names()}
+    r.check("particle systems defined by the game (%d): %s" % (len(ea), ", ".join(sorted(ea))),
+            all(s.lower() in known for s in ea), ", ".join(s for s in ea if s.lower() not in known))
+    if used - ea:
+        own_checks(g, ws, r, sorted(used - ea), known)
     ops = b.ini_ops(g, ws.variants)
     for d in plan(b, g):
         member = d["file"]
@@ -146,6 +151,26 @@ def checks(b, ws, r):
         r.check("%s: as sagekit/fire.py writes it" % where,
                 [x.strip() for x in lines[found[1][0]:z + 1]] == [x.strip() for x in block(b, d)], "")
         r.info("%s: particle systems per burning state" % where, "%d on %d bones" % (len(expect), len(pts)))
+
+
+def own_checks(g, ws, r, used, known):
+    """Our own particle systems (sagekit/fire_systems.py): none named like EA's, the shipped
+    particle INI EA's with exactly our blocks added after their bases, each defined once."""
+    import re
+
+    from .fire_systems import HEAD_RE, MEMBER, OWN, ops
+    from .formats.ini import apply_ops
+    r.check("our particle systems (%s) not named like any of EA's" % ", ".join(used),
+            not any(s.lower() in known for s in OWN), ", ".join(s for s in OWN if s.lower() in known))
+    path = ws.out(MEMBER)
+    r.check("%s shipped" % MEMBER.split("\\")[-1], os.path.exists(path), path)
+    if not os.path.exists(path):
+        return
+    shipped = open(path, encoding="latin-1", newline="").read()
+    r.check("%s: EA's with our %d systems added, nothing else changed" % (MEMBER.split("\\")[-1], len(OWN)),
+            shipped == apply_ops(g.read(MEMBER).decode("latin-1"), [ops(g)]), "")
+    counts = {n: len(re.findall(HEAD_RE % re.escape(n), shipped, re.I | re.M)) for n in OWN}
+    r.check("each of ours defined once", all(c == 1 for c in counts.values()), str(counts))
 
 
 # ------------------------------------------------------------------------------------ renders

@@ -15,7 +15,8 @@ What comes next: [FACTIONS-PLAN.md](FACTIONS-PLAN.md).
 | Men of the West (and Arnor) | 44 | Installed: citadel, upgrades, expansions, walls, production with level-ups, towers and specials. Not yet checked in game. [`assets/men/ROLLOUT.md`](../assets/men/ROLLOUT.md). |
 | Goblins | 14 | Installed: palette E "Blood, iron and bone", every building. Not yet checked in game. [`assets/goblins/ROLLOUT.md`](../assets/goblins/ROLLOUT.md). |
 | Isengard | 25 | Measured stubs; palette A with silver (Max's pick); the citadel built in colour (three lozenge blades round EA's tower, fire and embers, war-works on the walks); nothing installed. [`assets/isengard/ROLLOUT.md`](../assets/isengard/ROLLOUT.md). |
-| Mordor, Angmar | 0 | Surveyed; plan in [FACTIONS-PLAN.md](FACTIONS-PLAN.md). |
+| Mordor | 25 | Palette F2 (Max's pick); the citadel in pass 7 (spike claws inside the crowns round green witch-fire), built in colour, not installed. [`assets/mordor/ROLLOUT.md`](../assets/mordor/ROLLOUT.md). |
+| Angmar | 0 | Surveyed; plan in [FACTIONS-PLAN.md](FACTIONS-PLAN.md). |
 
 Budget: 512 MB of own textures per faction (`budget_mb` in `sagekit/style.py`; `sagekit budget`).
 An installed faction adds `!!!!!!!!!!!sagekit-<faction>.big` with edited INIs to the game folder,
@@ -64,7 +65,7 @@ building's cloth; `sagekit install` / `revert` put everything in the game and ta
 | One palette | nothing | ramps, materials, paint stack | `style.py`, `paint/` |
 | Player colour | `house_tags` (which atlas tags are cloth) | `house_template` | `house.py`, `housemesh.py`, `blender/house.py` |
 | Night lights | `night_lights(kit)` | `night = NightLook(...)` | `nightlights.py`, `blender/nightlights.py`, `paint/night.py`, `formats/w3dlight.py` |
-| Fire | `fire_points = [(x, y, z, kind)]` | nothing | `fire.py`, `fire_checks.py` |
+| Fire | `fire_points = [(x, y, z, kind)]` | nothing | `fire.py`, `fire_systems.py`, `fire_checks.py` |
 | Lifecycle | `lifecycle = {model: settings}` (rarely) | nothing | `lifecycle.py`, `blender/lifecycle*.py`, `formats/w3dpose.py`, `w3dmesh.py` |
 | Own copies | `own_model`, `own_textures` | `shared_sheets` | `owncopy.py`, `sharedsheets.py`, `ownership.py` |
 | Names | nothing | nothing | `names.py` (`assets/<faction>/NAMES.md`), `validate` |
@@ -99,7 +100,8 @@ record. Each Draw the recipe covers gets a Draw of ours after it: EA's states mi
 order, NONE first, so the engine picks the matching state in both; the rig and its lines where
 the state shows our intact body (healthy, damaged, snow, stonework), Model None elsewhere (really
 damaged, rubble, building site, placement ghost, where EA's own damage fire takes over). Kinds and
-EA's systems (all in `fxparticlesystem.ini`, each on one of EA's own buildings or props):
+EA's systems (in `fxparticlesystem.ini` or `particlesystem.ini`, the two the game loads, each on one of EA's own
+buildings or props):
 
 | Kind | Systems | EA's use |
 |---|---|---|
@@ -111,6 +113,23 @@ EA's systems (all in `fxparticlesystem.ini`, each on one of EA's own buildings o
 | brazier | FireTorch, TorchSmokeBlack | Isengard tavern torches |
 | grate | ForgeCoal, CampfireEmbersSmall | forge, campfire props |
 | embers | CampfireEmbersSmall | campfire props |
+| pyre | FireBuildingLarge, SmokeBuildingLarge | every burning structure's big fire and heavy dark plume |
+| smoke | SmokeChimney | Isengard and Mordor taverns' chimneys (a thin dark column, no fire) |
+| plume | SmokeBuildingLarge | the heavy dark plume alone (the Mordor forge's flue) |
+| witchfire | SagekitWitchFire, SagekitWitchSmoke | ours: furnaceFire in Morgul green, a modest dark plume (the Mordor crowns) |
+| witchflame | SagekitWitchFire | ours: the green fire alone |
+
+EA burns no green fire in place (its green systems are spells, hits and trails), so a kind may
+draw systems of our own (`sagekit/fire_systems.py`): a copy of one of EA's FXParticleSystems, made
+at build time from the player's own `fxparticlesystem.ini` (no EA text in git), renamed `Sagekit*`,
+a few fields and the Color keyframes changed (`EXFire01.tga` is grey: the keyframes alone make
+EA's fire orange). The game reads FX systems from `Data\INI\FXParticleSystem.ini` only
+(`SubsystemLegend*.ini` comments out `FXParticleSystemCustom.ini`), before the objects, so the
+ini step inserts each block into that file after the EA block it copies (the 2.02 patch's note at
+the end asks for nothing to be added there). A building drawing any of them ships the whole set,
+so every faction archive's copy of the file is the same. The checks hold the file to EA's plus
+exactly our blocks, each defined once, no name EA's. New kinds are appended; the existing ones
+never change (installed buildings use them).
 
 The checks hold the rig's bones to the points, its record to the file, each fire Draw to EA's
 states (fire only where our body stands) and the rest of the INI to the other edits, and every

@@ -26,7 +26,9 @@ fire point, FIRE01.., filed in asset.dat as a copy of OBBFoundationX's record.
 Hooks: the pipeline's `fire` step writes the rig (after ship, before ini), Building.ini_ops adds
 the Draw modules (`ini_ops`), Building.cache_ops files the rig (`cache_ops`), the check suite
 runs `checks` (sagekit/fire_checks.py) and the render step `render` (markers over the render: the
-particles themselves only show in game). A recipe without fire_points gets none of it.
+particles themselves only show in game). A recipe without fire_points gets none of it. A kind
+drawing a system of our own (Sagekit*, sagekit/fire_systems.py) adds every one of them to EA's
+particle INI in the same ini step.
 """
 import math
 import os
@@ -39,8 +41,8 @@ from .taxonomy import State, states_of
 
 HLOD_LOD_ARRAY, HLOD_SUB_OBJECT_ARRAY_HEADER = 0x702, 0x703
 
-# kind -> EA's particle systems (all FXParticleSystems in data\ini\fxparticlesystem.ini, each drawn
-# by one of EA's own buildings or props in its healthy state)
+# kind -> particle systems: EA's (in data\ini\fxparticlesystem.ini or particlesystem.ini, each drawn by one
+# of EA's own buildings or props in its healthy state) or, named Sagekit*, our own copies of EA's (fire_systems.py)
 KINDS = {
     "chimney": ("SiegeWorkFire", "SmokeChimney"),       # Isengard siege works' fire; Isengard tavern's chimney
     "furnace": ("furnaceFire", "furnaceSparks"),        # the civilian furnace; Isengard camp's sparks
@@ -50,6 +52,15 @@ KINDS = {
     "brazier": ("FireTorch", "TorchSmokeBlack"),        # Isengard tavern's torches
     "grate": ("ForgeCoal", "CampfireEmbersSmall"),      # hot coals under a grating
     "embers": ("CampfireEmbersSmall",),
+    # smoke (appended 2026-09-30; the kinds above are unchanged: installed buildings use them)
+    "pyre": ("FireBuildingLarge", "SmokeBuildingLarge"),  # EA's burning structures (73 and 115 INIs): big fire,
+                                                          # a heavy dark plume (grey 48, particles 10..20, growing)
+    "smoke": ("SmokeChimney",),                         # a thin dark column only (Isengard and Mordor taverns)
+    # green witch-fire and a heavy plume alone (appended 2026-09-30, the Mordor citadel; the kinds above are
+    # unchanged). Sagekit* systems are our own: copies of EA's, made and shipped by sagekit/fire_systems.py
+    "witchfire": ("SagekitWitchFire", "SagekitWitchSmoke"),  # furnaceFire in Morgul green, a modest dark plume
+    "witchflame": ("SagekitWitchFire",),                # the green fire alone (a second flame in one bowl)
+    "plume": ("SmokeBuildingLarge",),                   # EA's heavy dark plume alone (over a forge's flue)
 }
 NO_FIRE = {State.CONSTRUCTION, State.PLACEMENT, State.EDITOR, State.RUBBLE}
 LIKE = "obbfoundationx.w3d"             # EA's meshless model whose asset.dat record the rig copies
@@ -214,11 +225,21 @@ def block(b, draw):
     return out + ["End"]
 
 
+def own_systems(b):
+    """The systems of our own b's fire draws (sagekit/fire_systems.py)."""
+    from .fire_systems import names
+    return [s for s in systems(b) if s.lower() in names()]
+
+
 def ini_ops(b, install):
-    """{INI archive path: [("fire_draw", object, after tag, tag, lines)]} (sagekit/formats/ini.py)."""
+    """{INI archive path: [("fire_draw", object, after tag, tag, lines)]} (sagekit/formats/ini.py),
+    and when b draws a system of our own, every one of them added to EA's particle INI."""
     out = {}
     for d in plan(b, install):
         out.setdefault(d["file"], []).append(("fire_draw", d["object"], d["after"], d["tag"], tuple(block(b, d))))
+    if out and own_systems(b):
+        from . import fire_systems
+        out.setdefault(fire_systems.MEMBER, []).append(fire_systems.ops(install))
     return out
 
 
@@ -228,11 +249,14 @@ def cache_ops(b):
 
 
 def game_systems(install):
-    """{lower-case name} of every particle system the game's INIs define."""
+    """{lower-case name} of every particle system the game's INIs define: the two particle INIs the
+    game loads (fxparticlesystemcustom.ini is not loaded; sagekit/fire_systems.py LOADED)."""
     import re
+
+    from .fire_systems import LOADED
     out = set()
     for m in install.members("data\\ini"):
-        if m.count("\\") == 2 and m.endswith(("particlesystem.ini", "particlesystemcustom.ini")):
+        if m in LOADED:
             for x in re.finditer(r"^[ \t]*(?:FX)?ParticleSystem[ \t]+(\S+)", install.read(m).decode("latin-1"), re.I | re.M):
                 out.add(x.group(1).lower())
     return out
@@ -256,7 +280,7 @@ def run(step):
     name = rig_name(b)
     if g.has_model(name) or any(c.has_model(rig_file(b)) for c in g.asset_caches().values()):
         raise StepFailed("%s: the fire rig's name %s is one of EA's" % (b.id, name))
-    missing = [s for s in systems(b) if s.lower() not in game_systems(g)]
+    missing = [s for s in systems(b) if s.lower() not in game_systems(g) and s not in own_systems(b)]
     if missing:
         raise StepFailed("%s: particle systems the game does not define: %s" % (b.id, ", ".join(missing)))
     os.makedirs(os.path.dirname(dest), exist_ok=True)
