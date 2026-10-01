@@ -1,12 +1,41 @@
 # Men of the West builder (`GUPorter_SKN`)
 
-Stub: `design.py` ships EA's builder unchanged. The design comes next, with the
-[Dwarven builder](../../dwarves/porter/design.py) as the template; how a recipe works:
-[docs/UNITS.md](../../../docs/UNITS.md).
+A Gondor stone-mason, for Gondor and Arnor alike (both draw `GUPorter_SKN`). EA's man, face, rig and
+animations are kept; the cart, load and tools are new, bound to EA's bones:
+
+- **Cart:** dark timber bed with low sides, iron straps and axle, open ten-spoke wheels with iron
+  tyres, steel hubs and gilt bosses, steel-capped corner posts with small gilt orbs. The shafts and
+  crossbar sit on EA's grip line.
+- **Crest:** a sable gable on the front board with the White Tree and seven stars in a steel frame,
+  facing the man and the RTS camera. It stays under his arms (he reaches into the cart in the work
+  and water animations) and clear of the corner where EA's hammer rides.
+- **Gonfalon:** a swallow-tailed cloth in **player colour** with the White Tree on both faces, on a
+  tall pole at the back corner; a plumb line hangs from the pole.
+- **Load:** dressed white ashlar in a stepped stack, a lintel and cornice, a carved capital, a rope
+  coil, the mason's mallet, a chisel and a steel square. The middle stays open for EA's bucket (it
+  rides there, and slides out to +y when the man dies).
+- **Man:** a dark tool belt with a steel buckle, a pouch, and a chisel in a loop. EA's hammer keeps
+  its vertices and bones but takes a steel head and an ash handle.
 
 ```sh
 python3 -m sagekit unit men/porter --render     # build/assets/men/porter/renders/compare_<state>.png
+python3 -m sagekit unit men/porter --check | --stage | --install | --revert
 ```
+
+1,144 -> 7,784 triangles. One private atlas, `GUCrafts.tga` (2048 x 1024: EA's `GUPorter` sheet
+tiled on the left, 16 Gondor-palette swatches on the right), and `HC_GUCrafts.tga`, EA's
+`HC_GUPorter` mask tiled. The gonfalon samples a clean patch of EA's shirt in the unused top-left
+tile, so the game tints it with the player colour the way it tints his shirt; there the diffuse is
+painted navy, the Men's preview stand-in (`check` asserts the patch is fully inside EA's mask).
+The bucket is EA's, byte for byte.
+
+## Known limits
+
+- Not checked in game: player colour on the gonfalon, wheel rotation.
+- EA's cart side planks took player colour (`HC_GUPorter_Cart`); ours carry it on the gonfalon
+  instead, and the man's shirt keeps EA's.
+- EA's animations themselves press the bucket into the right side board at the end of `diea` and
+  the man's hips and elbows into the shafts in `diea` / `dieb`, as on EA's cart.
 
 ## What EA has
 
