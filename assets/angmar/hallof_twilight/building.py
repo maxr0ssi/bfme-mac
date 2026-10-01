@@ -4,8 +4,9 @@ ground, each leaning a little out, its top cut on a slant and rimed, one great r
 outer face, ice crystals at its foot; on the dais before the shrine (front-right, toward the RTS
 camera) a sorcerers' altar: a broad step of dressed stone, a black stone block with three columns of
 cold runes, a rimed top slab and a crater of ice and black stone shards with the cold fire burning out
-of it ("coldfire"). Pass 1's stones were thin (6.4 by 3.4) and lost at RTS. EA's tower horns are not
-frozen: they belong to the level pieces (TOP_1, V1, V2), each at its own height, not to BASE.
+of it ("coldfire"). Pass 1's stones were thin (6.4 by 3.4) and lost at RTS. EA's horns are frozen on
+the level pieces (TOP_1, V1, V2: each at its own height, not on BASE) by the chained recipes
+hallof_twilight_top, _v1 and _v2 (horns.py).
 Kit: assets/angmar/shapes_army.py.
 
 EA's KBTemple (objects AngmarHallofTwilight; role barracks): body BASE, 784 triangles, painted
@@ -14,7 +15,7 @@ In BASE mesh coordinates: x -59.31..57.20, y -65.15..53.81, z -11.19..43.76.
 Other meshes (EA's, untouched): the level pieces (SubObjectsUpgrade): level 1 shows TOP_1 474 (the
 shrine's roof and its three horns, z 44..79) and ROCKS_1 202; level 2 V1 1499 (hides TOP_1 and
 ROCKS_1); level 3 V2 1753 and RUNEGLOWV2 204 (EXTemple_Runes.tga; hides V1, TOP_1, ROCKS_1); N_WINDOW 4.
-Our design is on BASE, shown at every level; hallof_twilight_v1 (V1) stays EA's.
+Our design is on BASE, shown at every level; the level pieces are the chained recipes' (horns.py).
 Lifecycle models in its Draw module: KBTemple_A, KBTemple_D1, KBTemple_D2, KBTemple_D3.
 House colour: KBHCTemple. EA's own sorcery: AngTempleWhirl / AngTempleMist (and _V2) at FXBONE.
 """

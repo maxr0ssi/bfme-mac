@@ -15,17 +15,17 @@ The coordinator's review of pass 1: the altar was lost at RTS and the stones wer
   step of dressed stone, a black stone block with three columns of cold runes, and a rimed top slab
   with a crater of ice and black stone shards.
 - **Cold fire** burns out of the crater (`coldfire`).
-- **EA's tower horns are not frozen.** They belong to the level pieces, not to `BASE`: `TOP_1` (level
-  1, points at z 78.7), `V1` (level 2, z 83.1) and `V2` (level 3, z 88.2). The horns stand at the
-  same places but rise 4.4 higher at each level, so one casing on `BASE` would sit right on one level
-  only and cut through the horn on the other two. Freezing them needs a recipe per level piece (only
-  `hallof_twilight_v1` exists).
+- **EA's horns are frozen on the level pieces**, not on `BASE`: `TOP_1` (level 1, crown points at
+  z 78.7), `V1` (level 2, +4.32) and `V2` (level 3, +9.43) each stand the crown's horns at the same
+  places, higher at each level, so each piece is a chained recipe of its own:
+  [`hallof_twilight_top`](../hallof_twilight_top), [`hallof_twilight_v1`](../hallof_twilight_v1) and
+  [`hallof_twilight_v2`](../hallof_twilight_v2), sharing [`horns.py`](horns.py) (measurements, the
+  walls group's `freeze`) and [`levels.py`](levels.py) (views, meshes hidden per level).
 
 Pass 1 (superseded): five rune stones 6.4 across and 3.4 deep.
 
 `BASE` shows at every level, so all of it stands clear of every level piece: `TOP_1` and `ROCKS_1`
-(level 1), `V1` (level 2, its own stub [`../hallof_twilight_v1`](../hallof_twilight_v1), left EA's),
-and `V2` and its rune glow (level 3). V1's and V2's great horns spring from the dais's sides, and
+(level 1), `V1` (level 2), and `V2` and its rune glow (level 3). V1's and V2's great horns spring from the dais's sides, and
 their clumps reach in at the front corners and the back. The menhirs' corners keep 1.8 to 3.9 clear
 of them below z 44. The front ramp (the way out) stays clear. The renders and bakes show level 1
 (`bake_hidden`: `V1`, `V2`, `RUNEGLOWV2`, `N_WINDOW`).

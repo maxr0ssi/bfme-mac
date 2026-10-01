@@ -62,7 +62,8 @@ den, Hall of Twilight, forge works, sentry tower, wall hub, fortress).
   The scaffolder and the geometry step take static bodies only, so both need a skinned-target path
   in the framework (or a design on the static level-up meshes) before they get recipes.
 - **Not a building on its own:** `hallof_twilight_v1` is the Hall of Twilight's level-2 piece
-  (V1, shown at level 2, hidden at 3); its level-3 piece V2 (1,753) has no stub.
+  (V1, shown at level 2, hidden at 3); `hallof_twilight_top` (TOP_1, level 1) and
+  `hallof_twilight_v2` (V2, level 3) were added by hand to freeze the horns on every level.
   `fortress_house_of_healing` is the House of Lamentation upgrade (EA's tag
   `ModuleTag_HouseOfHealingDraw`).
 - No effect mesh, door or chain got a stub: the doors (`KBHallDoors_CL`, `KBForgeDoor`,
@@ -168,12 +169,13 @@ that reads at RTS, each its own story, no new spires:
 | [hallof_twilight](hallof_twilight/README.md) | a ring of five broad menhirs, a great rune glowing on each; the altar's crater | 784 -> 2,099 | 0 % | coldfire (the crater) |
 | [catapult](catapult/README.md) | frozen timber hoardings round the top; a gantry over a heap of ice boulders; the freezing pit | 397 -> 4,002 | 0 % | coldflame (the pit) |
 
-- The level pieces stay EA's and clear: the renders and bakes show level 1 (`bake_hidden`
-  `V1`/`V2`). The Hall's design stands on `BASE`, clear of `TOP_1`, `V1` and `V2` at every level, so
-  `hallof_twilight_v1` stays EA's.
-- **Not done: the Hall's tower horns.** They belong to the level pieces (`TOP_1`, `V1`, `V2`), at
-  the same places but 4.4 higher at each level. Freezing them needs a recipe per level piece; one
-  casing on `BASE` would cut through the horn on two of the three levels.
+- The Hall's design stands on `BASE`, clear of `TOP_1`, `V1` and `V2` at every level; its renders and
+  bakes show level 1 (`bake_hidden` `V1`/`V2`).
+- **The Hall's horns** belong to the level pieces (`TOP_1`, `V1`, `V2`: the crown 4.32 and 9.43
+  higher at levels 2 and 3), so each is a chained recipe (`hallof_twilight` -> `_top` -> `_v1` ->
+  `_v2`, `hallof_twilight/horns.py`): the crown's three horns frozen at every level, V1's and V2's
+  great horns too; V2's small dais horns stay EA's (beside the menhirs). Review:
+  `_review/hall_levels_v1.jpg` (EA's | ours at levels 1, 2, 3).
 - The kennel and the catapult stand on the citadel's pads (local -X toward the citadel). Our faces
   are on their outer halves, 125 or more from the citadel's centre, clear of its new faces (the
   bastion clusters reach r 107).
