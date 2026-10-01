@@ -16,7 +16,7 @@ What comes next: [FACTIONS-PLAN.md](FACTIONS-PLAN.md).
 | Goblins | 14 | Installed: palette E "Blood, iron and bone", every building. Not yet checked in game. [`assets/goblins/ROLLOUT.md`](../assets/goblins/ROLLOUT.md). |
 | Isengard | 25 | Measured stubs; palette A with silver (Max's pick); the citadel built in colour (three lozenge blades round EA's tower, fire and embers, war-works on the walks); nothing installed. [`assets/isengard/ROLLOUT.md`](../assets/isengard/ROLLOUT.md). |
 | Mordor | 25 | Palette F2 (Max's pick); the citadel in pass 7 (spike claws inside the crowns round green witch-fire), built in colour, not installed. [`assets/mordor/ROLLOUT.md`](../assets/mordor/ROLLOUT.md). |
-| Angmar | 0 | Surveyed; plan in [FACTIONS-PLAN.md](FACTIONS-PLAN.md). |
+| Angmar | 20 | Measured stubs (forge works and mill missing: skinned bodies); the citadel designed (pass 4: four frozen iron tines of the Witch-king's crown round a cold fire, ice at the feet), built in palette A2 (Max's pick: A with D's wood); nothing installed. [`assets/angmar/ROLLOUT.md`](../assets/angmar/ROLLOUT.md). |
 
 Budget: 512 MB of own textures per faction (`budget_mb` in `sagekit/style.py`; `sagekit budget`).
 An installed faction adds `!!!!!!!!!!!sagekit-<faction>.big` with edited INIs to the game folder,
@@ -118,8 +118,11 @@ buildings or props):
 | plume | SmokeBuildingLarge | the heavy dark plume alone (the Mordor forge's flue) |
 | witchfire | SagekitWitchFire, SagekitWitchSmoke | ours: furnaceFire in Morgul green, a modest dark plume (the Mordor crowns) |
 | witchflame | SagekitWitchFire | ours: the green fire alone |
+| coldfire | SagekitColdFire, SagekitColdSmoke | ours: furnaceFire ice-blue to white, a modest blue-black plume (the Angmar crown) |
+| coldflame | SagekitColdFire | ours: the cold fire alone |
 
-EA burns no green fire in place (its green systems are spells, hits and trails), so a kind may
+EA burns no green or cold blue fire in place (its green and ice systems are spells, hits, arrows
+and mists; the Angmar citadel's blue torch is a flame card, `EXFireTorchSeqBlue`), so a kind may
 draw systems of our own (`sagekit/fire_systems.py`): a copy of one of EA's FXParticleSystems, made
 at build time from the player's own `fxparticlesystem.ini` (no EA text in git), renamed `Sagekit*`,
 a few fields and the Color keyframes changed (`EXFire01.tga` is grey: the keyframes alone make

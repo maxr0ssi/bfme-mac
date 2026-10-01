@@ -39,8 +39,9 @@ def run(b, ws, r):
                 (m["parent_type"], m["parent_bone"]) == (a["parent_type"], a["parent_bone"]),
                 "%s/%s" % (m["parent_type"], m["parent_bone"]))
         r.check("%s keeps its one material" % n, m["mats"] == a["mats"] and m["mat_idx"] == {0}, str(m["mats"]))
-        # EA's own meshes may carry degenerate faces (the Elven gate's door leaves: 6 each); ours must not
-        zero_ok = m["zero_area"] == 0 if n == target else m["zero_area"] <= a["zero_area"]
+        # EA's own meshes may carry degenerate faces (the Elven gate's door leaves: 6 each; the Angmar citadel's
+        # body KBFORTRESS: 1); ours must not add any
+        zero_ok = m["zero_area"] <= a["zero_area"]
         r.check("%s zero-area faces / loose verts" % n, zero_ok and m["loose"] <= (0 if n == target else a["loose"]),
                 "%d / %d" % (m["zero_area"], m["loose"]))
         # EA's own meshes may tile past [0,1] (props, effect cards); ours must not

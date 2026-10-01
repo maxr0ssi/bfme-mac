@@ -55,7 +55,8 @@ MAP_FILE = re.compile(r"(^|\\)(\w*campsandcastles|baraddur|blackgate|mountdoom|e
 WALL = re.compile(r"(Wall(Segment|Gate|PosternGate|Tower|Trebuchet|Catapult|Hub)Small|WallCliffCap|WallHubSmallUpgradeable|"
                   r"^(Elven|Isengard)CastleWall(Segment|Hub|Gate))$")
 FX_SHEET = re.compile(r"^(ex|cu|pg0|fell|s3_|flagpole|dummy|lm_|nbase|wbfoundation|gb_window|gbfire|gbnight|gbvet|"
-                      r"moltenmetal|g_arrow|.u)", re.I)
+                      r"moltenmetal|g_arrow|pfrozenpond|sowolf_ice|.u)", re.I)
+# (PFrozenPond01_env, SoWolf_Ice2: Angmar's Ice Munitions horns on KBFortress, an upgrade's effect meshes)
 UPGRADE_FLAG = re.compile(r"^(FORTRESS_IMPROVEMENT_\d+|UPGRADE_(?!NUMENOR_STONEWORK).*|.*LEVEL\d*|WEAPONSET_\w+)$")
 HC_MODEL = re.compile(r"^[A-Za-z]{2}HC")
 
@@ -230,12 +231,25 @@ def roots(faction):
     return ["data\\ini\\object\\" + d for d in ((s,) if isinstance(s, str) else s)]
 
 
+def local_children(install, ini_dirs, by_obj):
+    """by_obj with each ChildObject's Draw modules inherited from a parent defined in the same INIs
+    too (Install.object_draws resolves only parents defined elsewhere): the build menu's
+    AngmarSentryTower is a ChildObject of AngmarSentryTower_Independent, a variant left out by name,
+    so the tower had no stub. A module the child defines under the same tag stays its own."""
+    for member in install._inis(ini_dirs):
+        for child, parent in install._parsed(member)[1].items():
+            if parent in by_obj and child != parent:
+                own = {d.tag for d in by_obj.get(child, [])}
+                by_obj[child] = [d for d in by_obj[parent] if d.tag not in own] + by_obj.get(child, [])
+    return by_obj
+
+
 def plan(faction, install, own):
     """[unit dict] for the faction's design units, and [(model, why)] for what was left out."""
     from .building import same_body
     from .formats.ini import variation_states
     from .ownership import empty_model
-    by_obj = install.object_draws(roots(faction))   # a ChildObject with the Draw modules it inherits
+    by_obj = local_children(install, roots(faction), install.object_draws(roots(faction)))
     units, skipped, seen = [], [], {}
     for obj, ds in by_obj.items():
         fams = [(d,) + h for d in ds if d.type.lower() != "w3dfloordraw" for h in healthy(d)]

@@ -282,8 +282,8 @@ def geometry_checks(b, ws, m, a, r):
     from ..owncopy import extent
     target = b.target
     r.section("geometry (the stage, before export)")
-    r.check("%s zero-area faces / loose verts" % target, m["zero_area"] == 0 and m["loose"] == 0,
-            "%d / %d" % (m["zero_area"], m["loose"]))
+    r.check("%s zero-area faces / loose verts" % target, m["zero_area"] <= a["zero_area"] and m["loose"] == 0,
+            "%d / %d" % (m["zero_area"], m["loose"]))           # (EA's own degenerate faces stay: KBFORTRESS's 1)
     r.check("%s UVs inside [0,1]" % target, m["uv_out"] == 0, "%d out" % m["uv_out"])
     lim = dict(zip(("bbmin", "bbmax"), extent(b, ws, a["bbmin"], a["bbmax"])))
     r.check("%s triangles <= %d" % (target, b.tri_budget), m["tris"] <= b.tri_budget, "%d -> %d" % (a["tris"], m["tris"]))

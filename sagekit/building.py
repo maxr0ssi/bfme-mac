@@ -90,8 +90,9 @@ class Building:
         own = next((v for k, v in self.own_textures.items() if k.lower() == a.texture.lower()), None)
         diffuse = own or own_texture_name(a.texture) + ".tga"          # (a key in any case: gbfortress1.tga)
         out = {a.texture: diffuse}
-        if a.normal:
-            out[a.normal] = diffuse[:-4] + "_NRM.tga"
+        if a.normal:                    # (an own_textures pin for a normal map EA named off the
+            pin = next((v for k, v in self.own_textures.items() if k.lower() == a.normal.lower()), None)
+            out[a.normal] = pin or diffuse[:-4] + "_NRM.tga"           # pattern: Angmar's KBHall_Normal)
         return out
 
     @property

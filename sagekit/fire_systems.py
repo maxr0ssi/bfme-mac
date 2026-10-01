@@ -1,7 +1,8 @@
 """Particle systems of our own for sagekit's fire (sagekit/fire.py KINDS): copies of EA's own
 FXParticleSystems with a few fields changed, for a fire EA never burns in place (green witch-fire:
 EA's green systems are spells, hits, bursts and trails - CorpseRain, MorgulBladeHit, WitchKingPoison
-- none a steady flame).
+- none a steady flame; Angmar's cold blue-white fire: EA's ice systems are arrows, meteors and
+mists - IceArrowFire, IceMeteorTrail, IceWallMist - none a steady flame either).
 
 How the game loads them (RotWK's Data\\INI\\Default\\SubsystemLegend*.ini): TheFXParticleSystemManager
 reads Data\\INI\\FXParticleSystem.ini only (FXParticleSystemCustom.ini is commented out there), and
@@ -37,6 +38,17 @@ OWN = {
     "SagekitWitchSmoke": ("SmokeChimney", {("System", "Size"): "8 10", ("Update", "SizeRate"): "0.4 0.8"},
                           ("Color1 = R:36 G:36 B:34 0", "ColorScale = -20 20"),
                           "EA's SmokeChimney, twice as broad"),
+    # Angmar's cold fire (appended 2026-10-01, the Angmar citadel's crown; the systems above are
+    # unchanged): EA's furnaceFire burning pale ice-blue, near white as it is born, blue as it rises
+    # (EA's own blue fire on KBFortress is a card, EXFireTorchSeqBlue on MBFDPF, not a particle
+    # system: nothing of EA's to reuse); size, rise and emission as EA's
+    "SagekitColdFire": ("furnaceFire", {}, ("Color1 = R:96 G:116 B:136 0", "Color2 = R:52 G:92 B:140 5",
+                                            "Color3 = R:0 G:0 B:0 15", "ColorScale = -12 -1"),
+                        "EA's furnaceFire, its flames ice-blue to white"),
+    # a modest blue-black plume over the cold fire: SagekitWitchSmoke's size in a cold blue-black
+    "SagekitColdSmoke": ("SmokeChimney", {("System", "Size"): "8 10", ("Update", "SizeRate"): "0.4 0.8"},
+                         ("Color1 = R:30 G:34 B:44 0", "ColorScale = -16 16"),
+                         "EA's SmokeChimney, twice as broad, blue-black"),
 }
 HEAD_RE = r"^[ \t]*(?:FX)?ParticleSystem[ \t]+%s(?=[ \t;/\r\n]|$)"
 

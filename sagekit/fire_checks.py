@@ -23,7 +23,8 @@ from .taxonomy import states_of
 
 COLOURS = {"chimney": "#ff5a1f", "furnace": "#ff2d2d", "forge": "#ffb000", "hearth": "#ff8c00",
            "crucible": "#ffe14a", "brazier": "#ff6ec7", "grate": "#c0ff3a", "embers": "#6ae0ff",
-           "pyre": "#ff0080", "smoke": "#b0b0b0", "witchfire": "#7dff3a", "witchflame": "#3aff9a", "plume": "#6a6a6a"}
+           "pyre": "#ff0080", "smoke": "#b0b0b0", "witchfire": "#7dff3a", "witchflame": "#3aff9a", "plume": "#6a6a6a",
+           "coldfire": "#9fe8ff", "coldflame": "#4fb0ff"}
 AUTO_VIEWS = {"rts": (2.2, 50, -38, 50), "close": (1.3, 24, -30, 45), "ingame": (5.0, 53, -62, 50)}  # blender/render.py's
 EA_FIRE_BONES = ("FIRE", "SMOKE", "EMBER", "GLOW", "CHIMNEY", "FLAME", "TORCH")
 

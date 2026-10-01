@@ -61,6 +61,9 @@ KINDS = {
     "witchfire": ("SagekitWitchFire", "SagekitWitchSmoke"),  # furnaceFire in Morgul green, a modest dark plume
     "witchflame": ("SagekitWitchFire",),                # the green fire alone (a second flame in one bowl)
     "plume": ("SmokeBuildingLarge",),                   # EA's heavy dark plume alone (over a forge's flue)
+    # Angmar's cold fire (appended 2026-10-01, the Angmar citadel; the kinds above are unchanged)
+    "coldfire": ("SagekitColdFire", "SagekitColdSmoke"),  # furnaceFire ice-blue to white, a blue-black plume
+    "coldflame": ("SagekitColdFire",),                  # the cold fire alone (more flames in one hearth)
 }
 NO_FIRE = {State.CONSTRUCTION, State.PLACEMENT, State.EDITOR, State.RUBBLE}
 LIKE = "obbfoundationx.w3d"             # EA's meshless model whose asset.dat record the rig copies
