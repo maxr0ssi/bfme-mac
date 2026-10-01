@@ -31,7 +31,7 @@ import time
 from . import paths
 from .formats.assetcache import AssetCache
 from .formats.ini import apply_ops
-from .formats.textures import compiled_path, sheet_member, tga_to_dds
+from .formats.textures import compiled_path, dds_to_tga24, normal_member, sheet_member, tga_to_dds
 from .formats.w3d import W3DFile, fix, splice_mesh
 from .formats.w3dframes import moved
 from .game import Install
@@ -158,12 +158,14 @@ class Extract(Step):
         if skl:                                 # a skinned model: its skeleton is a file of its own
             members.append((g.model_path(skl[:-4]), os.path.join(self.ws.src, skl)))
         if a.normal:
-            members.append((compiled_path(a.normal, ".tga"), self.ws.atlas_normal))
+            members.append((normal_member(g, a.normal), self.ws.atlas_normal))
         if b.two_sheets:
-            members.append((compiled_path(master.normal, ".tga"), self.ws.master_normal))
+            members.append((normal_member(g, master.normal), self.ws.master_normal))
         for member, dest in members:
             if member.endswith(".tga") and dest.endswith(".dds"):     # a TGA-only sheet: kept as a DDS
                 tga_to_dds(g.read(member), dest)
+            elif member.endswith(".dds") and dest.endswith(".tga"):   # a DDS-only normal map: kept as a TGA
+                dds_to_tga24(g.read(member), dest)
             else:
                 with open(dest, "wb") as fh:
                     fh.write(g.read(member))

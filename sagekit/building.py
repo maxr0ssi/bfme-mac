@@ -251,7 +251,7 @@ class Building:
             for t in W3DFile(install.read(install.model_path(m))).meshes[mesh].textures:
                 low = t.lower()
                 if "_nrm" in low and low != atlas.normal.lower() and low not in {k.lower() for k in out}:
-                    out[t] = own_variant_name(atlas.texture, self.own_diffuse, t)
+                    out[t] = own_variant_name(atlas.texture, self.own_diffuse, t, same_length=True)
         return out
 
     def renames(self):

@@ -44,6 +44,29 @@ def tga_to_dds(data, dds_path):
         return write_dds(png, dds_path, alpha)
 
 
+def normal_member(install, texture):
+    """The archive member a normal map is read from: EA's TGA (normal maps ship uncompressed), else
+    the DDS EA compiled in its place (Angmar's KBHall_Normal exists only as a DDS)."""
+    tga = compiled_path(texture, ".tga")
+    if install.owner(tga):
+        return tga
+    dds = compiled_path(texture, ".dds")
+    return dds if install.owner(dds) else tga
+
+
+def dds_to_tga24(data, tga_path):
+    """EA's DDS normal map (bytes) decoded to the 24-bit uncompressed, bottom-up TGA EA ships its normal
+    maps as (everything downstream reads that; ImageMagick's -orient only sets the flag, so the rows
+    are flipped first)."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        dds = os.path.join(tmp, "n.dds")
+        with open(dds, "wb") as fh:
+            fh.write(data)
+        subprocess.check_call([MAGICK, dds, "-flip", "-orient", "BottomLeft", "-alpha", "off", "-type", "TrueColor",
+                               "-depth", "8", "-compress", "none", tga_path])
+
+
 def dds_info(path):
     with open(path, "rb") as fh:
         d = fh.read(128)
