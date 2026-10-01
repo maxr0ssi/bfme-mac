@@ -53,7 +53,7 @@ class Link:
 
     def __init__(self, b, healthy, offset=(0, 0, 0)):
         self.b, self.ws = b, Workspace(b)
-        self.names = {k.lower(): v for k, v in list(b.texture_names().items()) + list(self.ws.variants.items())}
+        self.names = dict(self.ws.own_names)        # diffuse, normal, state variants, state normals (as derive)
         Vh = healthy.world(b.target, healthy.pose(None)) + offset
         Th = np.array(healthy.w3d.meshes[b.target].tris)
         self.ea_tree, (_, self.ea_normals, _) = tree(Vh, Th), face_frame(Vh, Th)
@@ -317,7 +317,8 @@ class Build(Cutter):
         donated = {}
         if moved:
             tex = sorted(t.lower() for t in self.S.w3d.meshes[moved[0][0]].textures)
-            back = [n for n in ea_in if sorted(t.lower() for t in self.S.w3d.meshes[n].textures) == tex]
+            back = [n for n in ea_in if sorted(t.lower() for t in self.S.w3d.meshes[n].textures) == tex
+                    and WM.fits(self.S.w3d.meshes[n].bytes, self.S.w3d.meshes[moved[0][0]].bytes)]   # one layout
             if back:
                 back = max(back, key=lambda n: len(ea_in[n]))
                 ea_in[back] += moved

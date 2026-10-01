@@ -231,7 +231,8 @@ class Building:
         for m, mesh in self.derived_bodies(install).items():     # damaged models painted from their own sheet
             for t in W3DFile(install.read(install.model_path(m))).meshes[mesh].textures:
                 low = t.lower()
-                if "_nrm" not in low and low != atlas.texture.lower() and low not in {k.lower() for k in out}:
+                if "_nrm" not in low and low not in (atlas.texture.lower(), (atlas.normal or "").lower()) \
+                        and low not in {k.lower() for k in out}:   # (a normal map named off the pattern: KBHall_Normal)
                     out[t] = own_variant_name(atlas.texture, own, t, same_length=True)
                     if sheet_member(install, out[t]):
                         raise ValueError("%s: %s is one of EA's names; pin one in own_textures" % (t, out[t]))

@@ -83,10 +83,9 @@ def build_mesh(template, sources, name, container, verts, tris, skinned, rest=No
     sig = tpl.signature()
     slots = {}
     for key, src in sources.items():
-        source_sig = src.signature()
-        kept = [i for i, t in enumerate(source_sig) if t in sig or t not in (DCG, DIG, SCG)]
-        if [source_sig[i] for i in kept] != sig:
-            raise ValueError("%s: per-vertex layout %s differs from the template's %s" % (key, source_sig, sig))
+        kept = _slots(sig, src.signature())
+        if kept is None:
+            raise ValueError("%s: per-vertex layout %s differs from the template's %s" % (key, src.signature(), sig))
         slots[key] = kept
     values = []                                         # per new vertex: [value per layout slot]
     for key, combo, m, _, over in verts:
@@ -138,6 +137,18 @@ def build_mesh(template, sources, name, container, verts, tris, skinned, rest=No
     if not skinned:
         body += build_aabtree(pos, [ids for ids, _ in tris])
     return chunk_bytes(MESH, body, True)
+
+
+def _slots(sig, source_sig):
+    """The source's per-vertex chunks filling the template's slots in order (extra colour chunks
+    skipped), or None when a required slot is missing or out of order."""
+    kept = [i for i, t in enumerate(source_sig) if t in sig or t not in (DCG, DIG, SCG)]
+    return kept if [source_sig[i] for i in kept] == sig else None
+
+
+def fits(template, source):
+    """Whether build_mesh can fill mesh chunk `template` with vertices of mesh chunk `source`."""
+    return _slots(Source(template).signature(), Source(source).signature()) is not None
 
 
 def _inside_pass(template, a):

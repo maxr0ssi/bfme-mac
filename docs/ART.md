@@ -16,7 +16,7 @@ What comes next: [FACTIONS-PLAN.md](FACTIONS-PLAN.md).
 | Goblins | 14 | Installed: palette E "Blood, iron and bone", every building. Not yet checked in game. [`assets/goblins/ROLLOUT.md`](../assets/goblins/ROLLOUT.md). |
 | Isengard | 25 | Measured stubs; palette A with silver (Max's pick); the citadel built in colour (three lozenge blades round EA's tower, fire and embers, war-works on the walks); nothing installed. [`assets/isengard/ROLLOUT.md`](../assets/isengard/ROLLOUT.md). |
 | Mordor | 25 | Palette F2 (Max's pick); the citadel in pass 7 (spike claws inside the crowns round green witch-fire), built in colour, not installed. [`assets/mordor/ROLLOUT.md`](../assets/mordor/ROLLOUT.md). |
-| Angmar | 20 | Measured stubs (forge works and mill missing: skinned bodies); the citadel designed (pass 4: four frozen iron tines of the Witch-king's crown round a cold fire, ice at the feet), built in palette A2 (Max's pick: A with D's wood); nothing installed. [`assets/angmar/ROLLOUT.md`](../assets/angmar/ROLLOUT.md). |
+| Angmar | 22 | Measured stubs (forge works and mill missing: skinned bodies); the citadel designed (pass 4: four frozen iron tines of the Witch-king's crown round a cold fire, ice at the feet), built in palette A2 (Max's pick: A with D's wood); nothing installed. [`assets/angmar/ROLLOUT.md`](../assets/angmar/ROLLOUT.md). |
 
 Budget: 512 MB of own textures per faction (`budget_mb` in `sagekit/style.py`; `sagekit budget`).
 An installed faction adds `!!!!!!!!!!!sagekit-<faction>.big` with edited INIs to the game folder,

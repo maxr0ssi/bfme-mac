@@ -101,7 +101,8 @@ def check_model(b, ws, r, m, e):
             bad.append("%s: rigid without a collision tree" % n)
     r.check("%s: skins one bone per vertex on EA's body bones, boxed at rest; rigid meshes with collision trees" % name,
             not bad, "; ".join(bad) or "%d bones" % len(ea_bones))
-    mine = {k.lower() for x in chain(b) for k in list(x.texture_names().values()) + list(Workspace(x).variants.values())}
+    mine = {k.lower() for x in chain(b) for k in list(x.texture_names().values()) + list(Workspace(x).variants.values())
+            + list(Workspace(x).normal_variants.values())}         # our normal map under a state's name
     tex = [n for n, p in pieces.items() if p["mode"].startswith("ours") and
            not all(t.lower() in mine for t in wn.meshes[n].textures)]
     r.check("%s: our pieces painted from our sheets" % name, not tex, str({n: wn.meshes[n].textures for n in tex}))

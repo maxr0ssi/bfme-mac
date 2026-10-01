@@ -266,6 +266,12 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `tools/colab/offload.ipynb` — a faction's full-quality Blender builds on a Colab A100 from a zip with
   the code, the extracted sources and a game snapshot, finished on the Mac (ship, shared, ini, cache,
   checks on the real game): `docs/OFFLOAD.md`.
+- `tools/lifecycle_audit.py <faction>[/<building>] ... [--only-problems]` — after a build, whether
+  each construction, damaged, really damaged, rubble and collapse model the game draws carries our
+  body or stays EA's, and why (a sheet we have no variant of, the per-frame checks, no fit, an
+  error), plus stale lifecycle renders, built models missing from `out/`, check failures, and fire
+  rigs burning in a construction, rubble or placement state or over a body not our intact one.
+  Reads `build/assets/` only (no Blender, no game).
 - `tools/w3d_fixup.py <original.w3d> <exported.w3d>` — repairs what the OpenSAGE Blender add-on drops or
   changes on re-export (materials and texture references, mesh version 5.0, surface types, pivot
   fixups, and it generates the AABTREE collision trees BFME2 requires). Details in `docs/MODDING.md` §g.
