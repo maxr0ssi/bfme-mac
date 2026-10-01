@@ -62,5 +62,5 @@ def banners(kit):
     return out
 
 
-def build(kit):
-    return lip_spikes(kit) + tower_spikes(kit) + banners(kit)
+def build(kit, spikes=True):
+    return lip_spikes(kit) + (tower_spikes(kit) if spikes else []) + banners(kit)

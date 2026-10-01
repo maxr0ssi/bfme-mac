@@ -76,7 +76,10 @@ def minus_y(kit):
     return out
 
 
-def plus_y(kit):
+PIPE = [V((-0.3, 63.8, 57.0)), V((-8.5, 63.8, 57.0)), V((-8.5, 63.8, 51.5)), V((-9.5, 60.0, 51.5))]   # stack -> bellows house
+
+
+def plus_y(kit, pipe=PIPE):
     out = kit.shield_rack(polar(67.5, 65.8, WALK), -tangent(67.5), -radial(67.5), 5.6, 2, 4.4)
     c = polar(78.0, 61.0, WALK)
     out += kit.hearth(c, tangent(78.0), -radial(78.0), w=5.0, d=3.4, h=2.6, hood=4.2)
@@ -86,7 +89,8 @@ def plus_y(kit):
     out += kit.bellows(c + tangent(78.0) * 4.2 + radial(78.0) * 0.5, -tangent(78.0), 1.0)
     out += kit.ingots(c - radial(78.0) * 5.8 - tangent(78.0) * 1.2, tangent(78.0), 3, 0.9)
     out += kit.runnel([V((1.5, 60.4, WALK + 0.2))] + arc(84.5, 80.0, 60.5, WALK + 0.2, 1), 0.7)
-    out += kit.pipe([V((-0.3, 63.8, 57.0)), V((-8.5, 63.8, 57.0)), V((-8.5, 63.8, 51.5)), V((-9.5, 60.0, 51.5))], 0.5)
+    if pipe:
+        out += kit.pipe(pipe, 0.5)
     out += kit.brazier(polar(86.0, 56.2, WALK), 1.5, 3.4)
     out += kit.post_lantern(polar(95.5, 55.2, WALK), 4.5)
     return out
@@ -160,5 +164,5 @@ def trims(kit):
     return out
 
 
-def build(kit):
-    return stacks(kit) + minus_y(kit) + plus_y(kit) + front(kit) + isen(kit) + siege(kit) + trims(kit)
+def build(kit, stacks_on=True, pipe=PIPE):
+    return (stacks(kit) if stacks_on else []) + minus_y(kit) + plus_y(kit, pipe) + front(kit) + isen(kit) + siege(kit) + trims(kit)

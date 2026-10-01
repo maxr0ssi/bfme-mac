@@ -36,9 +36,9 @@ B3 = ((-17.5, 40.5), 0.0, 8.5, 5.0, 24.0, 84.0, (-1.2, 0.8), 1.12)
 CHIMNEY = ((-60.6, 60.6), 135.0, 4.4, 3.0, 0.0, 108.0)
 
 
-def blades(kit):
+def blades(kit, chimney=True, pair=True):
     out = []
-    for c, axis, L, W, z0, z1, lean, flare in (BL, BR):
+    for c, axis, L, W, z0, z1, lean, flare in ((BL, BR) if pair else ()):   # tweaks.py: D and D2 drop the pair
         out += kit.blade_tower(c, axis, L, W, z0, z1, lean=lean, flare=flare, fins=3, slits=(0.42, 0.52, 0.62, 0.72),
                                profile=BROAD, fin_reach=1.3, slit_w=1.1)
     c, axis, L, W, z0, z1, lean, flare = B3
@@ -46,8 +46,9 @@ def blades(kit):
     foot = kit.lozenge(c, axis, L * flare, W * flare, z0)          # the corbel it springs from
     out.append(loft([[V((c[0] + L * 0.4, c[1], z0 - 3.2))] * 4, foot], ["stoneA"], cap0=("stoneA", False),
                     cap1=("stoneA", False)))
-    c, axis, L, W, z0, z1 = CHIMNEY
-    out += kit.needle_stack(c, axis, L, W, z0, z1, collar=0.62)
+    if chimney:                                     # the great chimney (tweaks.py: the options drop it)
+        c, axis, L, W, z0, z1 = CHIMNEY
+        out += kit.needle_stack(c, axis, L, W, z0, z1, collar=0.62)
     return out
 
 
@@ -180,5 +181,6 @@ def bellows_house(kit):
     return out
 
 
-def build(kit):
-    return blades(kit) + hand(kit) + big_hands(kit) + molten_fall(kit) + crane(kit) + slots(kit) + bellows_house(kit)
+def build(kit, chimney=True, pair=True):
+    return (blades(kit, chimney, pair) + hand(kit) + (big_hands(kit) if pair else []) + molten_fall(kit) + crane(kit)
+            + slots(kit) + bellows_house(kit))

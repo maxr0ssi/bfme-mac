@@ -38,7 +38,7 @@ from sagekit.blender.geometry import Z, loft, prism_uz
 from .shapes_industry import _tn, _v, quench_trough
 
 
-def smelter_stack(kit, c, r, z0, z1, rot=52.0, jib=None, crown=None):
+def smelter_stack(kit, c, r, z0, z1, rot=52.0, jib=None, crown=None, rivets=True):
     """A heavy smelter stack on c, square in plan with a corner at `rot` degrees, r the shaft's
     half-diagonal, from z0 (inside what it rises out of) to its mouth at z1:
 
@@ -51,7 +51,8 @@ def smelter_stack(kit, c, r, z0, z1, rot=52.0, jib=None, crown=None):
         jib     (angle, reach, drop): a charging jib out of the collar, a chain down to a skip of
                 glowing ore
 
-    The citadel's pieces are not touched (shapes_spire.needle_stack is not this)."""
+    rivets=False: the plates, bands and collar without rivet heads (a smaller stack seen from afar,
+    about 1,400 triangles less). shapes_spire.needle_stack is not this."""
     c = _v(c)
     a = math.radians(rot)
     sq = lambda s, z: kit.square(c, r * s, z, a)                                  # noqa: E731
@@ -75,9 +76,10 @@ def smelter_stack(kit, c, r, z0, z1, rot=52.0, jib=None, crown=None):
         t = V((-dm.y, dm.x, 0))
         m = V((c.x, c.y, 0)) + dm * hw
         for za, zb in courses:
-            out += kit.plate(m, t, dm, -hw + 0.7, hw - 0.7, za, zb, d=0.0, th=0.35, pitch=2.6, rivet=0.26)
-        out += kit.rivets(m, t, dm, [(u * hw, zc) for u in (-0.6, -0.2, 0.2, 0.6)], (1.14 - 1.0) * hw * 1.0 + 0.0, 0.34)
-        out += kit.rivets(m, t, dm, [(u * hw, z) for u in (-0.55, 0.0, 0.55) for z in bands], 0.05 * hw, 0.24)
+            out += kit.plate(m, t, dm, -hw + 0.7, hw - 0.7, za, zb, d=0.0, th=0.35, pitch=2.6, rivet=0.26 if rivets else 0)
+        if rivets:
+            out += kit.rivets(m, t, dm, [(u * hw, zc) for u in (-0.6, -0.2, 0.2, 0.6)], (1.14 - 1.0) * hw * 1.0 + 0.0, 0.34)
+            out += kit.rivets(m, t, dm, [(u * hw, z) for u in (-0.55, 0.0, 0.55) for z in bands], 0.05 * hw, 0.24)
         out.append(prism_uz(m, t, dm, [(-1.0, zs + 1.0), (1.0, zs + 1.0), (1.0, zs + 3.4), (0.0, zs + 5.0), (-1.0, zs + 3.4)],
                             -0.4, 0.3, ["ember"] * 5, "ember", "ember"))              # a pointed tap-hole
         cr = V((math.cos(a + math.pi / 2 * k), math.sin(a + math.pi / 2 * k), 0))

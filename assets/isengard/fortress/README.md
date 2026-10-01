@@ -69,6 +69,19 @@ Max on build 2: "whatever you put on either side of that triangle, so have 2".
   fire records its point instead: `Fortress.fire_points`, 20 (x, y, z, kind) points (chimney,
   furnace, hearth, crucible, brazier, grate) for the real-fire job (particle systems on bones).
 
+### Tweak options (shape previews, 2026-09-30)
+
+After pass 4 took the needle stacks off the other buildings, the citadel's three (the great chimney
+up the foundry point between the pair, the two side stacks) are its weakest pieces. `tweaks.py`
+holds three options, `ISENGARD_CITADEL=A|B|C python3 -m sagekit preview isengard/fortress`
+(unset: the installed design, unchanged). A: all three out, smelting hearths where the side stacks
+stood, a crucible on the -Y walk (14,149 triangles). B: A with one heavy smelter stack on the +Y
+walk (14,701). C: A with Orthanc's horns, the wall hubs' crown A, on the three corner towers in
+place of their spikes (14,713). 20 fire points each. Sheet: `_review/citadel_tweaks_v1.jpg`.
+Max on v1: "get rid of the stupid tower", the tall pair. D: C without the pair and its Hands
+(12,203, 20 fire); D2: D with the hubs' horned crown and a fire-pot on EA's tower point, peak z 109
+(13,285, 21 fire). Sheet: `_review/citadel_tweaks_v2.jpg`.
+
 ## Kept clear
 
 - The courtyard: the upgrades stand there (the wizard's tower `IBFWTower` at the centre to
