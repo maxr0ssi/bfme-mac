@@ -1,9 +1,13 @@
 """A Lórien craftsman: curved birch cart, silver fittings, gold leaves and real building supplies.
 
 Retains the original elf's anatomy, face, hair and rig; all cart parts follow their original bones.
+python3 -m sagekit unit elves/porter --render (docs/UNITS.md).
 """
 import math
-from .unit import Mesh
+
+from assets.elves.style import PALETTE
+from sagekit.units import Unit, View
+from sagekit.units.paint import magick, ramp_bytes
 
 BIRCH, WOOD, SILVER, GOLD, CLOTH, LEATHER, STONE, PAPER, BRIGHT, SLATE = range(10)
 
@@ -110,8 +114,85 @@ def supplies(m):
     m.box((1.6,-3.2,7.45),(4.8,-2.96,7.62),GOLD)
 
 
-def design(w,sk):
-    meshes={n:Mesh(w.meshes[n],sk,keep=n=="ELF") for n in ("CART_MESH","CARTSUPPLIES","ELF")}
-    cart(meshes["CART_MESH"])
-    supplies(meshes["CARTSUPPLIES"])
-    return meshes
+SWATCHES = [("wood",.65),("wood",.47),("trim",.64),("gold",.67),
+            ("cloth",.55),("wood",.22),("stone",.65),("stone",.86),
+            ("trim",.84),("tiles",.4),("gold",.83),("stone",.5),
+            ("wood",.32),("crystal",.68),("stone",.74),("cloth",.3)]
+
+
+def colour(material,value):
+    return ramp_bytes(PALETTE.ramps[material],value)
+
+
+class Porter(Unit):
+    """EA's Elf on the shared Gondor porter rig and animations (GUPorter_SKL)."""
+    model, skeleton = "EUPorter_SKN", "GUPorter_SKL"
+    anims = ("idla", "idlb", "runa", "wlka", "fira", "diea", "dieb")
+    expected = {"euporter_skn": "aa03bb943f1c2de458b2adac765b71ef237fc0086bd22bb5cfae24c11fba869b",
+                "guporter_skl": "cb8a6fa38469fd95ac1c791843a75c013fdec5684503b4711b0485a4eee5e9ec"}
+    textures = {"euworker.tga": "eucrafts.tga", "guporter_cart.tga": "eucrafts.tga",
+                "guporter_build.tga": "eucrafts.tga"}
+    house = {"EUCrafts.tga": "HC_EUCrafts.tga"}
+    mask = ("HC_EUWorker.tga", "HC_EUCrafts.tga")
+    archive = "!!!!!!!!!!!!sagekit-elf-builder.big"
+    same_bones = ("CART_MESH", "CARTSUPPLIES")
+    smooth = ("ELF",)
+    # These legacy opaque meshes ignore texture alpha in game. Blender otherwise
+    # premultiplies the stored diffuse colours, turning most of EUWorker black.
+    opaque = True
+    views = {"portrait": View("idla", 0, target=(8, 0, 11), distance=76, elevation=22, size=(1200, 1100)),
+             **{k: View(a, f, target=(8, 0, 11), distance=84, size=(1100, 950))
+                for k, (a, f) in {"rts": ("idla", 0), "run": ("runa", 8), "walk": ("wlka", 8),
+                                  "water": ("fira", 38), "idle": ("idlb", 30)}.items()},
+             "death": View("diea", 45, size=(1100, 950), fit=True),
+             "fall": View("dieb", 10, size=(1100, 950), fit=True)}
+    labels = ("ORIGINAL ELVEN BUILDER", "ELVEN MASTER CRAFTSMAN - REVIEW")
+    label_colour = "#17251dcc"
+
+    def design(self, w, sk):
+        meshes={n:self.mesh(w,sk,n,keep=n=="ELF") for n in ("CART_MESH","CARTSUPPLIES","ELF")}
+        cart(meshes["CART_MESH"])
+        supplies(meshes["CARTSUPPLIES"])
+        return meshes
+
+    def check(self, b, original, new, sk):
+        for n in ("BUCKET","HAMMER"):
+            assert original.meshes[n].bytes == new.meshes[n].bytes,n
+
+    def paint(self, b):
+        src, work = b.src, b.work
+        # Preserve the original skin/hair and painted clothing detail; change only cloth regions.
+        magick(src/"euworker.dds","-alpha","off","-depth","8","rgb:"+str(work/"body.rgb"))
+        body = bytearray((work/"body.rgb").read_bytes())
+        for y in range(256):
+            for x in range(256):
+                i = (y*256+x)*3
+                old = body[i:i+3]
+                lum = sum(old)/765
+                if x < 125 and y < 110:
+                    body[i:i+3] = colour("stone", .18+lum*.88)
+                elif x < 126 and y >= 115:
+                    body[i:i+3] = colour("cloth", .18+lum*.85)
+        (work/"body.ppm").write_bytes(b"P6\n256 256\n255\n"+body)
+        # Sample painted wood grain instead of flat plastic colours; the existing palette supplies hue.
+        magick(src/"guporter_cart.dds","-alpha","off","-crop","205x22+25+25","+repage",
+               "-resize","256x256!","-depth","8","rgb:"+str(work/"grain.rgb"))
+        grain = (work/"grain.rgb").read_bytes()
+        pixels = bytearray()
+        for y in range(1024):
+            for x in range(1024):
+                tag = (y//256)*4+x//256
+                mat,mid = SWATCHES[tag]
+                u,v = x%256,y%256
+                i = (v*256+u)*3
+                lum = sum(grain[i:i+3])/765
+                edge = min(u,v,255-u,255-v)
+                value = mid+(lum-.45)*(1.65 if mat=="wood" else .42)
+                if mat in ("trim","gold"):
+                    value += .10*math.sin(u*math.pi/128)
+                value += .10 if edge<4 else -.06 if edge<8 else 0
+                pixels.extend(colour(mat,value))
+        (work/"materials.ppm").write_bytes(b"P6\n1024 1024\n255\n"+pixels)
+        magick("-size","1024x1024","tile:"+str(work/"body.ppm"),work/"materials.ppm",
+               "+append",work/"eucrafts.png")
+        return work/"eucrafts.png"

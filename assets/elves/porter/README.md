@@ -6,11 +6,9 @@ leaf ribs, dressed stones, tied timber, a joiner's chest and rolled plans. The w
 a building goes up (`EUWorker_SKN`) is not part of this recipe.
 
 ```sh
-python3 -B -m assets.elves.porter.unit --render
-python3 -B -m assets.elves.porter.unit --check
-python3 -B -m assets.elves.porter.install --check
-python3 -B -m assets.elves.porter.install
-python3 -B -m assets.elves.porter.install --revert
+python3 -m sagekit unit elves/porter --render       # build, check, posed before/after renders
+python3 -m sagekit unit elves/porter --stage        # the archive into _install/, nothing installed
+python3 -m sagekit unit elves/porter --install | --revert
 ```
 
 Outputs are in `build/assets/elves/porter/`: before/after images in `renders/`, gallery `review.html`.
@@ -26,8 +24,9 @@ Outputs are in `build/assets/elves/porter/`: before/after images in `renders/`, 
 - **House colour**: `HC_EUCrafts.tga` repeats EA's mask exactly in the character region, neutral
   for the new props. The installer appends its mapping to the house-colour INI and keeps every
   other block.
-- The mesh primitives and motion decoder are the [Dwarven builder](../../dwarves/porter/README.md)'s,
-  reused without changing Dwarven files.
+- `design.py` is the recipe ([docs/UNITS.md](../../../docs/UNITS.md)); the mesh primitives, checks,
+  renders and installer are the shared unit framework's (`sagekit/units/`). It rebuilds the
+  installed archive byte for byte.
 
 ## Status
 
@@ -39,6 +38,5 @@ fidget, walk, run, water and both deaths, with every decoded frame checked finit
 ## Known limits
 
 - Not checked in game: wheel rotation, effects, player colour.
-- Revert order: undo the Dwarven builder's house-colour repair first (its archive has the higher
-  priority), then this builder, then the Elven buildings. A revert refuses if a later install
-  changed the shared cache.
+- `--revert` puts this unit's asset.dat records back as EA's and leaves every other record, so it
+  works in any order with the Dwarven builder and the faction packs.
