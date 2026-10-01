@@ -10,17 +10,20 @@ mist, the blue torch cards), the gate (+X, |y| < 25), the crown's tines (r < 45)
     braziers    four sorcerers' braziers on the walk (r 59), the cold fire in each ("coldflame")
     gibbets     an iron gibbet off each -Y wall tower's outer face, a cage hanging over the foot
     gate        icicles off the gate's lintel like a frozen portcullis' teeth
-    banners     two heavy banners from the curtain's lip (the middle of the -Y and +Y faces, between
-                the wall towers, clear of EA's night windows): the cloth in the player's colour (the
-                house model), the iron frame ours
+    banners     two heavy banners from the curtain's lip, diagonally opposite (between the -Y face's
+                wall tower and the SE bastion, and between the +Y face's and the NW bastion), clear of
+                EA's night windows and of a battle tower on every pad: the cloth in the player's
+                colour (the house model), the iron frame ours
 """
 from mathutils import Vector as V
 
 WALK = 51.85
 BRAZIERS = [-62.0, -118.0, 62.0, 152.0]
 GIBBETS = [(-76.8, 60.0), (-103.2, 60.0)]
-# (degrees, width, length): between the wall towers, where the curtain has no night window
-BANNERS = [(-90.0, 13.0, 30.0), (90.0, 13.0, 30.0)]
+# (degrees, width, length): where the curtain has no night window and no battle tower stands on any pad
+# (pass 4 hung them at -90 and 90, where a tower on the S or N pad runs its wing into the curtain): one
+# between the -Y face's wall tower and the SE bastion, facing the RTS camera, the other opposite it
+BANNERS = [(-63.5, 13.0, 30.0), (115.5, 13.0, 30.0)]
 LIP_Z, LIP_R = 56.6, 69.4
 
 

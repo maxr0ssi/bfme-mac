@@ -8,6 +8,54 @@ cooled a touch; `ANGMAR_PALETTE` builds another, [`../style.py`](../style.py)). 
 is kept whole. EA's facts are in [`building.py`](building.py), [`crown.py`](crown.py) and
 [`walls.py`](walls.py).
 
+## Pass 5: clear of the upgrades
+
+Max on pass 4: "pass 4 is great". The add-ons group found EA's own upgrade models crossing it, so
+pass 5 moves our pieces out of their way and keeps the look. Measured on EA's models in the
+citadel's coordinates, every model each upgrade draws (healthy, the build-up rising out of the
+ground, damaged, rubble), the battle tower on all seven pads of `bases\fortress_angmar`:
+
+- **The House of Lamentation** (over the gate): its drum's back stands at r 39.2 on the gate's
+  axis (z 90..104, and the build-up raises it through every height below), where pass 4's +X tine
+  had its frozen point (r 41..44). The crown's ring is drawn in by 7 (the tines rise at r 31 and
+  flare to their points at r 35); the tines themselves are unchanged. The +X tine clears the drum
+  by 1.7.
+- **The sanctum** (rises in the middle of the well, r <= 20.3 to z 175): pass 4's cairn stood
+  where its shaft goes and the cold fire would have burned inside it. The middle is now left open:
+  the tines rise from a ring cairn of black stone and ice (r 23..40), a heap round each tine's
+  root and a taller cairn on each diagonal with a crater in its top, the cold fire burning in each
+  crater (r 29, z 51.5, the height of pass 4's fire). Built, the sanctum stands in the middle of
+  the crown, 5.6 clear of the ring.
+- **The Spikes** (26 clumps at r 80..108) and **a battle tower on each pad** (a corner pad's tower
+  stands over the bastion's point): pass 4's great clusters at the bastions' points stood inside
+  the corner towers, its corner clusters and fissures among the clumps. The two great clusters now
+  stand on the clear ground each side of the gate's ramp (r 106, to z 30), a smaller one beside
+  the SE one; seven small clusters sit in the gaps between the clumps; the fissures run beside the
+  ramp from the wall foot out toward the great clusters (pass 4's along the -Y foot is gone: a
+  tower on the S pad and the clumps fill it).
+- **The banners** hung at -90 and 90, where a tower on the S or N pad runs its wing into the
+  curtain. They hang now between the -Y face's wall tower and the SE bastion (-63.5, facing the RTS
+  camera) and opposite it (115.5), clear of the night windows; the icicle rows there gave way.
+
+The sanctum and the cairn: hiding the cairn and its fire while the sanctum stands was the other
+way. EA does hide and show sub-objects by upgrade on this building (`SubObjectsUpgrade`:
+`ShowSubObjects = IceWall` on the Ice Walls, `HideSubObjects` of every improvement on
+`Upgrade_StructureLevel1`), and draws particles only in an upgrade's state (`ModuleTag_DrawHoLFX`,
+`FORTRESS_IMPROVEMENT_8`). But our pieces are part of EA's body mesh (and of every damaged model cut
+from it), so the cairn would need a mesh of its own in each lifecycle model, and our fire Draw
+would need every one of EA's states doubled with `UPGRADE_IVORY_TOWER`: framework work and a
+fragile pairing of states. Clearing the ground keeps one model that works with and without the
+sanctum.
+
+Clash check (`build/assets/angmar/_review/citadel_v5.jpg`, counted in the citadel's new faces): none
+crosses any
+model of the House, the sanctum, the Spikes or the battle tower on any pad (pass 4: 191, 112 and
+232 rubble, 496 and 575 rubble, and the towers 16..107 on S, N, NE, SE), the build-ups included;
+no fire point inside any of them.
+
+13,584 triangles (EA 4,652; budget 15,000). Footprint and height unchanged. 8 fire points, 10
+particle systems (pass 4: 9 and 10).
+
 ## Pass 4: four frozen tines
 
 Max on pass 3 (citadel_palettes_v1): the eight tines with EA's horns read busy at RTS - "reduce a
@@ -59,14 +107,16 @@ it and the clusters stand on the ground beyond it), the Ice Munitions horns and 
 bastions, the Banners upgrade's blue torch cards, the arrow bones, the gate and the doorway. The
 renders leave the upgrade meshes out (`bake_hidden`).
 
-13,440 triangles (EA 4,652; budget 15,000). Footprint and height unchanged.
+Pass 4: 13,440 triangles. Footprint and height unchanged.
 
-Reviews: `build/assets/angmar/_review/citadel_v1..v3.jpg` (shape passes),
+Reviews: `build/assets/angmar/_review/citadel_v1..v3.jpg` (shape passes), `citadel_v5.jpg` (pass 4
+and pass 5 with each upgrade in place, and the plans),
 `citadel_palettes_v1.jpg` (pass 3: EA, then A2 and A, full builds), `citadel_v4.jpg` (EA, pass 3
 and pass 4 in A2, and the crown close).
 
 ## Status
 
-- [x] healthy body designed (pass 4, for Max's review)
+- [x] healthy body designed (pass 4, Max: "pass 4 is great")
+- [x] pass 5: clear of the House, the sanctum, the Spikes and the battle towers (for Max's review)
 - [x] palette picked: A2 (A with D's wood, cooled a touch)
 - [ ] checked in game (the cold fire's size and colour are seen only in game)

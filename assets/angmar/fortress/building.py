@@ -1,18 +1,22 @@
-"""The Angmar citadel (AngmarFortressCitadel, AngmarFortress), pass 4 "four frozen tines": EA's
-body kept whole and made Carn Dum's. Out of the courtyard well rises the Witch-king's crown in
-iron: four forged tines on the building's axes to z 120, each with a raised spine, steel edges,
-barbs, riveted bands above the walk and a rune groove glowing cold blue, their points frozen -
-cased in ice under a ragged frost line, rime toward the points, crystals growing out, icicles off
-the barbs; EA's bastion windows look out between them; a cairn of black stone and ice in the
-heart with the cold fire burning out of its crater (crown.py). Ice-crystal clusters grow from the
-wall feet (a great one against each bastion's point, smaller ones in the corners and on the
-parapet), icicles hang under a rime crust along the curtain's lip, cold glow wells out of fissures
-along the -Y and gate-side feet (walls.py); sorcerers' braziers of cold fire on the walk, iron
-gibbets off the -Y wall towers, icicles off the gate's lintel, two banners in the player's colour
-(yard.py). Pass 3 had eight tines (four tall, four short): too busy with EA's horns at RTS (Max:
-"reduce a few horns but keep some ... just 4 more detailed ones?", "ice cold tips, like frozen
-style").
-Kit: assets/angmar/shapes*.py. Reviews: build/assets/angmar/_review/citadel_v1..v4.jpg.
+"""The Angmar citadel (AngmarFortressCitadel, AngmarFortress), pass 5 "four frozen tines, clear of
+the upgrades": EA's body kept whole and made Carn Dum's. Out of the courtyard well rises the
+Witch-king's crown in iron: four forged tines on the building's axes to z 120, each with a raised
+spine, steel edges, barbs, riveted bands above the walk and a rune groove glowing cold blue, their
+points frozen - cased in ice under a ragged frost line, rime toward the points, crystals growing
+out, icicles off the barbs; EA's bastion windows look out between them; they rise from a ring cairn
+of black stone and ice round the middle of the well, the cold fire burning in a crater on each
+diagonal between them (crown.py). Ice-crystal clusters grow from the ground beyond the walls (a
+great one on each side of the gate's ramp, smaller ones in the gaps between the upgrades) and on
+the parapet, icicles hang under a rime crust along the curtain's lip, cold glow wells out of
+fissures beside the ramp (walls.py); sorcerers' braziers of cold fire on the walk, iron gibbets off
+the -Y wall towers, icicles off the gate's lintel, two banners in the player's colour (yard.py).
+Pass 3 had eight tines (four tall, four short): too busy with EA's horns at RTS (Max: "reduce a few
+horns but keep some ... just 4 more detailed ones?", "ice cold tips, like frozen style"). Pass 4
+(Max: "pass 4 is great") crossed EA's own upgrade models: the House of Lamentation's drum met the +X
+tine's frozen point, the sanctum stood in the heart's cairn with the cold fire inside it, the
+Spikes' clumps stood among the wall-foot ice, a battle tower on the S or N pad crossed the banners.
+Pass 5 keeps the look and clears them all (crown.py and walls.py name what each keeps clear of).
+Kit: assets/angmar/shapes*.py. Reviews: build/assets/angmar/_review/citadel_v1..v5.jpg.
 
 EA's KBFortress (objects AngmarFortressCitadel, AngmarFortress; role fortress): body KBFORTRESS,
 4652 triangles, painted from KBFortress.tga + KBFortress_NRM.tga (DXT1).
@@ -60,13 +64,15 @@ from ..style import AngmarStyle
 
 # Where real fire goes (the game's particle systems on bones of KBFortress_FX): (x, y, z, kind) in
 # KBFORTRESS mesh coordinates, collected from the design (design() prints FIRE_POINTS into
-# work/logs/*geometry.log); run again after moving a fire. 9 points, 10 particle systems in each state
-# that shows our body. All cold: "coldfire" (our SagekitColdFire, EA's furnaceFire ice-blue to white,
-# and SagekitColdSmoke, a modest blue-black plume; sagekit/fire_systems.py) out of the cairn's crater,
-# four more "coldflame"s round it, and one in each sorcerer's brazier on the walk.
+# work/logs/*geometry.log); run again after moving a fire. 8 points, 10 particle systems in each state
+# that shows our body (as pass 4's 9 points). All cold: "coldfire" (our SagekitColdFire, EA's furnaceFire
+# ice-blue to white, and SagekitColdSmoke, a modest blue-black plume; sagekit/fire_systems.py) out of the
+# NE and SW craters of the ring cairn, "coldflame" (the fire alone) out of the SE and NW ones and in each
+# sorcerer's brazier on the walk. The craters stand at r 29, outside the sanctum (r <= 20.3) when it is
+# built in the middle of the well.
 FIRE_POINTS = [
-    (0.0, 0.0, 51.9, 'coldfire'), (2.3, 2.3, 50.9, 'coldflame'), (-2.3, 2.3, 50.9, 'coldflame'),
-    (-2.3, -2.3, 50.9, 'coldflame'), (2.3, -2.3, 50.9, 'coldflame'),                  # the crown's heart
+    (20.5, 20.5, 51.5, 'coldfire'), (-20.5, 20.5, 51.5, 'coldflame'), (-20.5, -20.5, 51.5, 'coldfire'),
+    (20.5, -20.5, 51.5, 'coldflame'),                                                  # the ring's craters
     (27.7, -52.1, 57.1, 'coldflame'), (-27.7, -52.1, 57.1, 'coldflame'), (27.7, 52.1, 57.1, 'coldflame'),
     (-52.1, 27.7, 57.1, 'coldflame'),                                                  # the braziers
 ]
