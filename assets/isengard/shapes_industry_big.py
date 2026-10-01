@@ -62,8 +62,8 @@ def pyramid_kiln(kit, c, r, h, rot=0.0, vents=True, throat_fire=True):
                 ["stoneA", "trim", "stoneA", "trim", "iron", "iron", "ember"], cap0=("stoneA", False), cap1=("ember", True))]
     for f in (0.34, 0.6):                                        # iron bands round the pyramid
         s = 1.0 + (0.36 - 1.0) * (f * h - h * 0.12) / (top - h * 0.12)
-        out.append(loft([sq(s - 0.02, h * f - 0.7), sq(s + 0.06, h * f - 0.5), sq(s + 0.06, h * f + 0.5),
-                         sq(s - 0.02, h * f + 0.7)], ["iron"] * 3, cap0=("iron", False), cap1=("iron", False)))
+        out.append(loft([sq(s - 0.08, h * f - 0.7), sq(s + 0.06, h * f - 0.5), sq(s + 0.06, h * f + 0.5),
+                         sq(s - 0.08, h * f + 0.7)], ["iron"] * 3, cap0=("iron", False), cap1=("iron", False)))
     for k in range(4):                                           # a blade out of each corner, past the throat
         ang = math.radians(rot) + math.pi / 4 + math.pi / 2 * k
         d = V((math.cos(ang), math.sin(ang), 0))
