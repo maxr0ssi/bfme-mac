@@ -183,8 +183,9 @@ class AngmarStyle(Style):
     atlas = AngmarAtlas()
     ini_dir = 'data\\ini\\object\\evilfaction\\structures\\angmar\\'
     sheet_dir = 'art\\compiledtextures\\kb\\'
-    sheet_skip = Style.sheet_skip + ("nrm_ice", "normal", "_height")    # KBFortressNRM_Ice, KBHall_Normal,
-                                                                        # KBMillNormal, KBFortress_Height
+    sheet_skip = Style.sheet_skip + ("nrm_ice", "normal", "_height",    # KBFortressNRM_Ice, KBHall_Normal,
+                                     "dummy.", "low.", "med.")          # KBMillNormal, KBFortress_Height; EA's
+                                                                        # placeholders (LOD labels, KBDen's dummy)
     master_variants = {'damaged': 'KBFortress_D1.tga', 'snow': 'KBFortress_snow.tga'}
     house_template = 'KBHCBtlTwr'   # copied for buildings EA gave no house-colour model (the walls, expansions)
     # the palette options tool (sagekit/palettes.py): the choices, their notes, where they are shown
