@@ -7,6 +7,11 @@ citadel's broad blade now (6.2 x 4.2, two fins a face, the White Hand in a point
 its outer face) with fire grates in its saddle; a greater Hand shield on the chain; the half-built
 siege tower stands outside the -Y edge, over the awning.
 
+Pass 4 (2026-09-30, "the furnace towers look a lil stupid", Max): the tridents, their chain and
+shield and the four needles out of the post heads went. Two low forge plinths flank the mouth
+instead (silver coping, spikes, two fire grates each, the Hand in a slot between); the half-built
+siege tower is the yard's one tall new mass.
+
     tridents   a blade tower between two leaning horns on a stone saddle, either side of the
                yard's mouth (+X, where the engines roll out), ember slits, a chain slung between
                them with the Hand on a shield, a brazier at each one's inner foot
@@ -29,16 +34,15 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 FIRE_POINTS = [
-    (49.4, -40.1, 1.2, 'furnace'), (49.4, -23.9, 1.2, 'furnace'), (40.0, -28.0, 5.6, 'brazier'),
-    (49.4, 23.9, 1.2, 'furnace'), (49.4, 40.1, 1.2, 'furnace'), (40.0, 28.0, 5.6, 'brazier'),
+    (49.4, -39.1, 1.3, 'furnace'), (49.4, -24.9, 1.3, 'furnace'), (40.0, -28.0, 5.6, 'brazier'),
+    (49.4, 24.9, 1.3, 'furnace'), (49.4, 39.1, 1.3, 'furnace'), (40.0, 28.0, 5.6, 'brazier'),
     (14.0, 33.0, 3.9, 'hearth'), (20.6, 29.7, 3.3, 'crucible')
 ]
 
-PYLONS = [(47.0, -32.0), (47.0, 32.0)]          # the tridents' centres; their horns along y
+PYLONS = [(47.0, -32.0), (47.0, 32.0)]          # the forge plinths' centres, along y
+PLINTH = (11.8, 2.1, 7.5)                       # half length (y), half width (x), height
 SIEGE_TOWER = ((-14.0, -46.4), (1.0, 0.0), 7.0, 54.0)  # outside the awning's -Y edge, over it: foot, t, width, height
 RAM = ((12.0, -20.0), (1.0, 0.0), 24.0, 9.0)
-# iron needles out of the middle and +X posts' heads (the -X heads carry EA's fire): centre, foot z
-NEEDLES = [((0.6, -41.5), 46.0), ((0.7, 39.6), 44.0), ((43.9, -40.4), 52.0), ((44.4, 37.9), 50.0)]
 POSTS = [(-45.0, -42.5), (-45.0, 40.5), (0.0, -42.0), (0.0, 40.5), (42.0, -42.0), (42.0, 40.5)]
 LADDER = ((-18.0, 48.5), 40.0)
 LOGS = ((-34.0, -46.3), 13.0, 1.3)
@@ -80,55 +84,35 @@ class SiegeWorks(Building):
         out += B.siege_tower(kit, V((sx, sy, 0.0)), t, w, h, built=0.78)
         (rx, ry), t, length, h = RAM
         out += B.ram(kit, V((rx, ry, 0.0)), t, length, h)
-        for (nx, ny), z0 in NEEDLES:
-            out += I.blade_post(kit, V((nx, ny, 0.0)), 72.5 - z0, w=0.9, z0=z0)
-            for k in range(4):                             # knife fins round each needle's foot
-                d = ((1, 0), (0, 1), (-1, 0), (0, -1))[k]
-                out += I.fin(kit, V((nx, ny, 0.0)), d, 0.6, [(0.5, z0), (2.6, z0 + 1.0), (1.0, z0 + 9.0), (0.5, z0 + 8.0)],
-                             0.45, tag="iron")
         return out
 
     @staticmethod
     def _pylons(kit, V):
-        """Two trident towers flanking the mouth (a blade tower between two leaning horns on a
-        stone saddle), a chain slung between their collars, a brazier at each one's inner foot."""
-        from .. import shapes_industry as I
+        """Two forge plinths flanking the mouth (pass 4: the tridents on them went): a low battered
+        stone block along the mouth's sides, a silver coping with iron spikes, two fire grates in
+        its front, the White Hand in a pointed-arch slot between them; a brazier at each one's
+        inner foot."""
         from .. import shapes_industry_big as B
         out = []
-        collars = []
         for x, y in PYLONS:
-            out += SiegeWorks._trident(kit, V, B, x, y)
-            collars.append(V((x - 0.75, y - (2.2 if y > 0 else -2.2), 52.0)))          # the inner edge at z 52
+            out += SiegeWorks._plinth(kit, V, B, x, y)
             out += kit.brazier(V((x - 7.0, y - (4.0 if y > 0 else -4.0), 0.0)), 1.9, 5.5)
-        low = V((48.0, 0.0, 46.0))                   # high over the mouth: the engines roll out under it
-        out += kit.chain(collars[0], low, link=2.2, w=0.6, th=0.25)
-        out += kit.chain(low, collars[1], link=2.2, w=0.6, th=0.25)
-        out += kit.shield(V((48.0, 0.0, 0.0)), V((0, 1, 0)), V((1, 0, 0)), 0.0, 33.0, 11.0, d=0.2)
         return out
 
     @staticmethod
-    def _trident(kit, V, B, x, y):
-        """A trident at the mouth, the citadel's blade in the middle: a broad lozenge blade tower
-        (two fins a face, the Hand between them, silver edges, ember slits, a needle) to z 72.5 between two
-        leaning horn blades on a stone saddle; the White Hand in a pointed-arch slot on its outer
-        face (mirrored about the mouth's axis)."""
-        from ..shapes_spire import BROAD
-        L, W, h = 6.2, 4.2, 72.5
-        out = kit.blade_tower((x, y), 90.0, L, W, 0.0, h, flare=1.2, fins=2, slits=(0.42, 0.54, 0.66), profile=BROAD,
-                              fin_reach=1.3, slit_w=1.1)
-        side = 1 if y > 0 else -1
-        p, t, n = B.blade_face((x, y), 90.0, L, W, 0.0, h, (0.0, 0.0), 35.0, side)
-        out += B.hand_slot(kit, p, t, n, 26.0, 3.8, 17.0)
-        for e in (-1, 1):                                   # the horns, leaning out along the axis
-            c = V((x, y + e * L * 1.9, 0))
-            out += kit.blade_tower((c.x, c.y), 90.0, L * 0.55, W * 0.62, 0.0, h * 0.68, lean=(0.0, e * 2.4), flare=1.3,
-                                   fins=1, spurs=False, slits=(0.5,), profile=BROAD, slit_w=0.8)
+    def _plinth(kit, V, B, x, y):
         from sagekit.blender.geometry import loft
-        ring = lambda z: [V((x - W * 0.5, y - L * 1.9, z)), V((x + W * 0.5, y - L * 1.9, z)),    # noqa: E731
-                          V((x + W * 0.5, y + L * 1.9, z)), V((x - W * 0.5, y + L * 1.9, z))]
-        out.append(loft([ring(-0.3), ring(h * 0.16)], ["stoneA"], cap0=("stoneA", False), cap1=("trim", True)))
-        for e in (-1, 1):                                   # fire grates in the saddle's front, either side of the blade
-            out += kit.fire_grate(V((x + W * 0.5, y + e * L * 1.3, 0.0)), V((0, 1, 0)), V((1, 0, 0)), w=3.2, h=3.4, d=2.4)
+        Lh, W, h = PLINTH
+        ring = lambda z, gx, gy: [V((x - W - gx, y - Lh - gy, z)), V((x + W + gx, y - Lh - gy, z)),     # noqa: E731
+                                  V((x + W + gx, y + Lh + gy, z)), V((x - W - gx, y + Lh + gy, z))]
+        out = [loft([ring(-0.3, 0.9, 0.9), ring(h - 1.0, 0.0, 0.0), ring(h - 1.0, 0.4, 0.4), ring(h, 0.4, 0.4),
+                     ring(h, -0.4, -0.4), ring(h + 0.8, -0.8, -0.8)], ["stoneA", "trim", "trim", "trim", "iron"],
+                    cap0=("stoneA", False), cap1=("iron", True))]
+        a, t, n = V((x + W + 0.4, y, 0)), V((0, 1, 0)), V((1, 0, 0))
+        out += kit.spike_row(V((x, y, 0)), t, n, -Lh + 1.0, Lh - 1.0, h + 0.8, 3.2, 7, d=0.0, lean=0.0, r=0.42)
+        for e in (-1, 1):                                   # fire grates in its front, either side of the Hand
+            out += kit.fire_grate(V((x + W, y + e * Lh * 0.6, 0.0)), t, n, w=3.4, h=3.6, d=2.4)
+        out += B.hand_slot(kit, a, t, n, 0.6, 3.6, h - 2.2, d0=-0.6, d1=0.6)
         return out
 
     @staticmethod

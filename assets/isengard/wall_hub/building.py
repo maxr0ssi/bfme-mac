@@ -17,9 +17,26 @@ Segments run into any face (the middle 16.6 of it, to model z 59.24): nothing ne
 face there but the slits (0.2 proud); everything else is on the roof and the parapet's corners.
 The mesh hangs on a bone at z 25.47 (model z = mesh z + 25.47); the design is in mesh coordinates.
 """
+import os
+
 from sagekit.building import Building
 
 from ..style import IsengardStyle
+
+# The crown (shapes_walls.hub): "A", Orthanc's horned top (Max's pick of the hubs_v1 options, 2026-09-30;
+# "pair" is the old blade pair, "B" and "C" the other options); ISENGARD_HUB_CROWN overrides it for a preview.
+HUB_CROWN = "A"
+BONE_Z = 25.47                      # the mesh hangs on a bone this high: fire points are in model space
+HUB_FIRE = {"pair": [], "A": [(0.0, 0.0, 39.8, "brazier")], "B": [(0.0, 0.0, 37.1, "grate")],
+            "C": [(0.0, 0.0, 45.0, "hearth")]}         # mesh coordinates, from the design's fire log
+
+
+def crown():
+    return os.environ.get("ISENGARD_HUB_CROWN", HUB_CROWN)
+
+
+def fire_points():
+    return [(x, y, round(z + BONE_Z, 1), k) for x, y, z, k in HUB_FIRE[crown()]]
 
 
 class WallHub(Building):
@@ -31,6 +48,7 @@ class WallHub(Building):
     own_textures = {"IBFortress.tga": "IBFortresD.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCWallHub"
     house_tags = ()                 # no banners: hubs repeat along every wall
+    fire_points = fire_points()
     max_z_growth = 0.35             # the blade crown to model 84 (+35 %), as the citadel's (Max's OK for walls' hubs)
     views = {
         "rts": ((0.0, -0.0, 40.0), 225, 50, -38, 50),
@@ -40,7 +58,8 @@ class WallHub(Building):
 
     def design(self, kit):
         from ..shapes_walls import hub
-        return hub(kit)
+        from ..shapes_industry import logged
+        return logged(kit, lambda k: hub(k, crown()))
 
     def emphasis(self, c, n):
         if c.z > 30:

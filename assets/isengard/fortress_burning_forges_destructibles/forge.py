@@ -10,7 +10,7 @@ its hub drum at y 9..15), the forge worker at B_URUKALIGN (-50.8, 12.8, 63.4), t
 (r < 21.8 about the origin, its piers to r 28.8 on the diagonals) and the excavations' drum
 (r < 54.2, z < 20.8).
 
-    stack     EA's round stack carried on as the citadel's needle chimney to z 138, its fire
+    stack     EA's round stack banded, its own fire in its mouth (pass 4: the needle chimney went)
     beacon    a faceted fire-pot on the frame's roof, pointed merlons along the roof's edges
     forge     a hearth, an anvil with glowing work and a bellows on the platform's -Y half
     chute     molten metal running down EA's chute into a glowing pool
@@ -27,12 +27,21 @@ ROOF = ([(-52.0, -7.0), (-34.0, -7.0), (-34.0, 7.0), (-52.0, 7.0)], 112.4)
 
 
 def stack(kit):
-    """EA's round stack carried on as the citadel's needle chimney: a lozenge flange over its rim
-    (z 84), the shaft past the frame's roof (112.4) to a crown of blades round a glowing throat at
-    z 138. (A pair of blades on the block's -X corners, tried first, stood beside the citadel's own
-    pair and read as a bundle of needles; one tall stack reads as the forge.)"""
+    """EA's round stack, its own fire (pass 4, 2026-09-30: the needle chimney carried on out of it to
+    z 138 went): two riveted iron bands and a silver lip round its rim at z 85.3, iron spikes leaning
+    out of the lip, the fire in its mouth."""
     (cx, cy), r, top = STACK
-    return kit.needle_stack((cx, cy), 0.0, 5.6, 5.0, top - 1.3, 138.0, collar=0.3)
+    out = kit.hoop((cx, cy), top - 1.0, r + 0.1, h=1.6, th=0.6, inner=0.15, k=12, rivets=3, tag="iron", closed=True)
+    out += kit.hoop((cx, cy), top - 9.0, r + 0.1, h=1.2, th=0.5, inner=0.15, k=12, rivets=3, tag="iron", closed=True)
+    out += kit.hoop((cx, cy), top + 0.1, r + 0.35, h=0.5, th=0.35, inner=0.1, k=12, rivets=False, tag="trim", closed=True)
+    import math
+    for i in range(6):
+        a = 2 * math.pi * (i + 0.5) / 6
+        d = V((math.cos(a), math.sin(a), 0))
+        p = V((cx, cy, top - 0.6)) + d * (r + 0.5)
+        out.append(kit.beam(p, p + (d * 0.5 + Z).normalized() * 3.2, 0.3, "iron", 0.0))
+    kit.fire(V((cx, cy, top - 0.5)), "chimney")
+    return out
 
 
 def beacon(kit):

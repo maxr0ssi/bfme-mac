@@ -6,6 +6,21 @@ knife fins round the foot) and given the citadel's blade cluster on its roof
 ([`shapes_walls.py`](../shapes_walls.py) `hub`, shared with
 [fortress_wall_hub](../fortress_wall_hub/README.md)).
 
+## Crown options (hubs_v1, 2026-09-30)
+
+Max on destack_v1: the body is fine, the blades on top look off. Three crowns for both hubs
+(`shapes_walls.hub(kit, crown)`; `HUB_CROWN` in [building.py](building.py) picks; Max picked **A**; `ISENGARD_HUB_CROWN=A` previews one): **A** Orthanc's horned top (24 short silver-edged black
+horns, a fire-pot in the middle, fire: brazier), **B** five pointed merlons a face with the Hand on
+shields and a fire grate, **C** a stepped faceted cap with Hand arches, corner fins and a fire
+well. All stay under the segments' needles (model 69-74). Sheet: `_review/hubs_v1.jpg`.
+
+## Pass 4 (shape preview, 2026-09-30): no stack
+
+Max: "our furnace towers on everything look a lil stupid ... super low quality that tower". The
+needle stack between the blades went; the walls keep their blade pairs (the citadel's family,
+crenellation) and no stacks. 258 -> 2,830 triangles, height +31.1 % (the blades), footprint
+unchanged, 9/9 preview checks. Sheet: `build/assets/isengard/_review/destack_v1.jpg`.
+
 ## Pass 3 (shape preview): the citadel's cluster
 
 Pass 1 was still EA's drum with a small crown of six horns ("Isengard is pointy").
@@ -34,5 +49,6 @@ footprint unchanged, 9/9 preview checks. Sheet: `build/assets/isengard/_review/w
 
 ## Status
 
-- [x] healthy body designed (pass 3, shape preview)
-- [ ] reviewed, built in colour, installed
+- [x] pass 3 built in colour and installed (2026-09-29)
+- [x] pass 4 designed (shape preview, 2026-09-30)
+- [ ] pass 4 reviewed by Max, built in colour, installed

@@ -1,6 +1,6 @@
-"""Isengard mine launcher (IsengardMineLauncherExpansion): EA's launcher kept whole; the citadel's pair
-of blades flanking its tower to z 89 with the Hands, merlons and fins on the front, ramp jaws,
-orcfire mines, a brazier and a firebox (launcher.py).
+"""Isengard mine launcher (IsengardMineLauncherExpansion): EA's launcher kept whole; the White Hand in
+a pointed arch on each side of its tower (pass 4, 2026-09-30: pass 3's blade pair flanking it went),
+merlons and fins on the front, ramp jaws, orcfire mines, a brazier and a firebox (launcher.py).
 
 EA's IBFMLaunch (objects IsengardMineLauncherExpansion; role catapult_tower): body IBFMLAUNCH,
 1094 triangles, painted from IBFortress.tga + IBFortress_NRM.tga (DXT5, cut-out alpha: our

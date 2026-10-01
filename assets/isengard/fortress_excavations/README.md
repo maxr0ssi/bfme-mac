@@ -9,10 +9,10 @@ animated) stay EA's.
 ## What changed (`pits.py`)
 
 - **The pits of Isengard**: fire and smoke out of all three shafts (`fire_points`, 3, chimney).
-- **The flue** (pass 3): the south shaft made the pit's furnace flue, the citadel's needle
-  chimney out of its mound (flange on the rim at z 21, a glowing throat at z 50, its corners
-  turned 45 degrees clear of the chute's skip), a ring of leaning iron stakes round it. It stops
-  under EA's A-frame, whose pulley swings over the shaft no lower than z 58.8.
+- **The south shaft** (pass 4, 2026-09-30, Max: "our furnace towers on everything look a lil
+  stupid"): pass 3's needle flue out of it (to z 50) went. A riveted iron kerb on its rim (z 23.6)
+  round a glowing grate of bars across the mouth, fire and smoke out of the shaft itself (z 22), a
+  ring of leaning iron stakes round it. Nothing new rises toward the A-frame's pulley any more.
 - **Terrace spikes**: iron spikes along the upper terrace (r 41.5) in four arcs, leaning in.
 - **North-east floor**: a loaded ore cart, a slag heap with embers, a log stack; lanterns on posts.
 
@@ -28,8 +28,9 @@ animated) stay EA's.
 
 ## Status
 
-Designed, shape preview only (not built, not installed). Pass 3: 875 -> 2,012 triangles, height
-and footprint unchanged, 9/9 preview checks. Review sheet: `build/assets/isengard/_review/addons_v3.jpg` (pass 3; `addons.jpg` is pass 1).
+Pass 3 built and installed (2026-09-29). Pass 4 designed, shape preview only: 875 -> 2,068
+triangles (pass 3: 2,012), height and footprint unchanged, fire 3 -> 3, 9/9 preview checks.
+Sheet: `build/assets/isengard/_review/destack_v1.jpg`. Pass 3: `_review/addons_v3.jpg`.
 
 ## Open
 

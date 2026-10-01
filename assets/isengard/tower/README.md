@@ -14,10 +14,11 @@ Pass 1 gave it fire, glowing windows and a banner, but at the RTS view it read a
   free above it, just outside the crown's flared corners; a deep fin a face, silver edges, ember
   slits, a collar. The White Hand in a pointed-arch slot on the field (+X) face of the two field
   blades.
-- **A needle stack out of the crown**, between EA's four inner horns, from the crown's floor
-  (z 113) to its throat at z 162 and its blade crown to z 166: lozenge section, fins up its
-  edges, an ember collar. Its throat is the tower's chimney fire.
-- **Fire** (`fire_points`, five): the stack's chimney and four braziers on the crown's floor
+- **A beacon in the crown** (pass 4, 2026-09-30, Max: "our furnace towers on everything look a lil
+  stupid"): pass 3's needle stack out of the crown (to z 166) went. A faceted iron fire-pot on
+  EA's low pyramid between the four inner horns; its fire and smoke are the tower's chimney fire.
+  EA's horns are the crown's top again.
+- **Fire** (`fire_points`, five): the beacon's chimney and four braziers on the crown's floor
   between the horns, the crown lit from within. Pass 1's bracket braziers on the shaft's corners
   gave way to the blades.
 - **Embers**: EA's pointed windows glow (ember panels in the upper two window rows, leaning back
@@ -28,9 +29,9 @@ Pass 1 gave it fire, glowing windows and a banner, but at the RTS view it read a
 - Tried and dropped: the blades with three layered fins a face and three rows of slits (a bundle
   of silver ladders at the RTS view).
 
-848 -> 4,752 triangles, height 130.5 -> 166.3 (+27.4 %, `max_z_growth` 0.35 as the citadel's),
-footprint unchanged, 9/9 preview checks. Views: `top` (the crown) and `field` (from +X, low).
-Sheet: `build/assets/isengard/_review/walls_v3.jpg`.
+Pass 4: 848 -> 4,628 triangles (pass 3: 4,752), height unchanged (pass 3: +27.4 %;
+`max_z_growth` back to the default), footprint unchanged, 9/9 preview checks. Views: `top` (the
+crown) and `field` (from +X, low). Sheet: `build/assets/isengard/_review/destack_v1.jpg`. Pass 3: `_review/walls_v3.jpg`.
 
 ## Kept clear
 
@@ -40,5 +41,6 @@ Sheet: `build/assets/isengard/_review/walls_v3.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 3, shape preview)
-- [ ] reviewed, built in colour, installed
+- [x] pass 3 built in colour and installed (2026-09-29)
+- [x] pass 4 designed (shape preview, 2026-09-30)
+- [ ] pass 4 reviewed by Max, built in colour, installed

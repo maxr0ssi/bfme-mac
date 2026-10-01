@@ -8,13 +8,9 @@ bones B_FX1..3 ((28.0, -28.5), (36.7, 0.2), (28.8, 28.9), z 19.6).
 Kept clear: EA's pointed doorway in the tower's +X face (z 48..58.5), the Uruk's spot (r 5), the
 launch paths. Pointed merlons along the front walls' cornice and knife fins up their corners, a White Hand in a pointed arch and ember slits on each of the tower's sides, knife
 fins up its corners, iron jaws flanking each ramp's lip, and on the crew's platform a pyramid of
-orcfire mines, a brazier and a firebox (real fire). Pass 3: the citadel's pair, two blades flanking
-the tower to needles at z 89, the Hands on their outer faces."""
-import math
-
+orcfire mines, a brazier and a firebox (real fire). Pass 3's blade pair flanking the tower went in
+pass 4 (2026-09-30); the Hands are back on the tower's own sides."""
 from mathutils import Vector as V
-
-from sagekit.blender.geometry import Z
 
 from .. import shapes_addons as A
 
@@ -22,19 +18,15 @@ X, Y = V((1, 0, 0)), V((0, 1, 0))
 LIPS = [(28.0, -28.5, 19.6), (36.7, 0.2, 19.2), (28.8, 28.9, 19.7)]
 
 
-# the pair: two blades flanking EA's back tower (its sides at |y| 7.7..9.7) from the foot to needles at
-# z 89 over its spikes (74.7); the +Y one stands on the crew platform's back corner, clear of the
-# Uruk (r 5 round (-16.3, 13.9)) and the mines
-BR = ((-30.8, -16.6), 0.0, 6.8, 4.0, 0.0, 89.0, (0.0, 3.4), 1.1)
-BL = ((-30.8, 16.6), 0.0, 6.8, 4.0, 0.0, 89.0, (0.0, -3.4), 1.1)
+HAND = (40.5, 6.0, 15.0)                        # the side arches: foot z, width, height
 
 
 def tower(kit):
-    out = A.blade_pair(kit, (BR, BL), fins=3, fin_reach=1.3, spurs=False, slits=(0.4, 0.55, 0.7), slit_w=1.1)
-    for b in (BR, BL):
-        out += A.foot_spurs(kit, b, which=(0,), length=3.0)
-    out += A.blade_hand(kit, BR, 3, 44.0, 15.0, 5.6)
-    out += A.blade_hand(kit, BL, 0, 44.0, 15.0, 5.6)
+    """Pass 4 (2026-09-30): pass 3's blade pair went. EA's tower keeps its own spikes; the White Hand
+    in a pointed arch on each of its sides, knife fins up its front corners."""
+    out = []
+    for y, n in ((-6.8, -Y), (6.8, Y)):              # the Hand on each side, proud of its ribs (y +-6.4..8.4)
+        out += A.hand_arch(kit, V((-26.3, y, 0)), X, n, 0.0, HAND[0], HAND[1], HAND[2], d0=-0.5, d1=2.0)
     for (x, y), d in (((-19.0, -7.6), (0.5, -0.87)), ((-19.0, 7.6), (0.5, 0.87))):     # the tower's front corners
         out += kit.blade(V((x, y, 0)) - V((d[0], d[1], 0)) * 0.6, V((d[0], d[1], 0)), 44.0, 62.5, 1.2, 0.5, w=0.9,
                          tip=3.0, back=1.2)

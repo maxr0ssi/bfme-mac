@@ -6,6 +6,24 @@ from the Isengard kit and [`shapes_industry.py`](../shapes_industry.py) and [`sh
 frame hangs on a bone moved (20.3, -0.3, 0.7). EA's body is kept whole, the awning with the
 painted Hand included.
 
+## Pass 4: destacked (2026-09-30)
+
+Max after Mordor: "our furnace towers on everything look a lil stupid" and "super low quality
+that tower". The rollout's needle stacks and stamped blade pairs read as bolted-on clones. Each
+building now gets its own work instead (new pieces in [`shapes_trades.py`](../shapes_trades.py)),
+smaller and fewer, its fire in its own forges, grates, braziers and pits.
+
+- **Out**: the two tridents at the mouth, their chain and Hand shield, the four needles out of
+  the post heads.
+- **In**: two low forge plinths flanking the mouth (a battered stone block, a silver coping with
+  iron spikes, two fire grates in its front, the Hand in a pointed-arch slot between them). The
+  half-built siege tower is the yard's one tall new mass; the ram, the forge and the ladder stay.
+- **Fire** 8 -> 8: the grates and braziers as before (the grates moved with the plinths).
+
+932 -> 4,026 triangles (pass 3: 7,602), height +0 % (pass 3: +18.3 %), footprint
+unchanged, 9/9 preview checks. Sheet: `build/assets/isengard/_review/destack_v1.jpg` (installed
+pass 3 against pass 4 at the RTS view).
+
 ## Pass 3: up to the citadel
 
 Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
@@ -51,5 +69,6 @@ checks. Pass 1 is `_review/production_v1.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 3, shape preview)
-- [ ] reviewed by Max, built in colour, installed
+- [x] pass 3 built in colour and installed (2026-09-29)
+- [x] pass 4 designed (shape preview, 2026-09-30)
+- [ ] pass 4 reviewed by Max, built in colour, installed

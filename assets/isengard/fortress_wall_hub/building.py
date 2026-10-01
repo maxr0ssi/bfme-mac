@@ -14,6 +14,7 @@ No fire and no banners (the gate and the towers carry them). The mesh hangs on a
 from sagekit.building import Building
 
 from ..style import IsengardStyle
+from ..wall_hub.building import crown, fire_points
 
 
 class FortressWallHub(Building):
@@ -25,6 +26,7 @@ class FortressWallHub(Building):
     own_textures = {"IBFortress.tga": "IBFortresB.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCFortressWallHub"
     house_tags = ()                 # no banners: the hub's crown is the free hubs'
+    fire_points = fire_points()     # the free hubs' crown and fire (wall_hub/building.py HUB_CROWN)
     max_z_growth = 0.35             # the hub's blade cluster to model 84 (+35 %), as the citadel's
     views = {
         "rts": ((-9.0, -0.0, 40.0), 245, 50, -38, 50),
@@ -35,7 +37,8 @@ class FortressWallHub(Building):
 
     def design(self, kit):
         from ..shapes_walls import FWHUB_STUB, hub, stub
-        return hub(kit) + stub(kit, **FWHUB_STUB)
+        from ..shapes_industry import logged
+        return logged(kit, lambda k: hub(k, crown()) + stub(k, **FWHUB_STUB))
 
     def emphasis(self, c, n):
         if c.z > 12:

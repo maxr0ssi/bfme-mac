@@ -3,6 +3,12 @@
 Model `IBFWHub`, mesh `IBFBALTOW01` (the wall hub's hexagon plus a wall stub toward the citadel,
 x -42.2..-18.94; on a bone at z 25.47), own texture `IBFortresB.tga`. Palette A.
 
+## Pass 4 (shape preview, 2026-09-30): no stack
+
+The wall hub's needle stack went from `hub` (see [wall_hub](../wall_hub/README.md)); the blade
+pair stays. 476 -> 3,754 triangles, height +31.1 %, footprint unchanged, 9/9 preview checks.
+Sheet: `build/assets/isengard/_review/destack_v1.jpg`.
+
 ## Pass 3 (shape preview)
 
 - The hexagon takes the wall hub's blade cluster whole ([`shapes_walls.py`](../shapes_walls.py)
@@ -24,5 +30,6 @@ x -42.2..-18.94; on a bone at z 25.47), own texture `IBFortresB.tga`. Palette A.
 
 ## Status
 
-- [x] healthy body designed (pass 3, shape preview)
-- [ ] reviewed, built in colour, installed
+- [x] pass 3 built in colour and installed (2026-09-29)
+- [x] pass 4 designed (shape preview, 2026-09-30)
+- [ ] pass 4 reviewed by Max, built in colour, installed

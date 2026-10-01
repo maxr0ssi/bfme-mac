@@ -6,16 +6,15 @@ the rocks, tusks and stakes round its rim, the great ribcage.
 
 ## What changed (`kennel.py`)
 
-- **The pair** (pass 3, the citadel's blades): two blade pylons on the den's back rim at r 49,
-  mirrored about its back axis (141 degrees, away from the way out to the rally point), broad
-  faces to the RTS camera, to needles at z 44: layered fins, spurs, silver edges, ember slits,
-  the White Hand in a pointed-arch slot on each; chains from each to the Hand standard's head on
-  the axis between them, a tall brazier at each one's foot.
+- **Pass 4** (2026-09-30, Max: "our furnace towers on everything look a lil stupid"): pass 3's
+  blade pair on the back rim went. Where each stood, at the palisade's ends: a heap of gnawed bones
+  (`shapes_trades.bone_heap`, grey, not bleached), a chain stake with spiked collars lying in the
+  dirt (`tether`), and the tall brazier at its foot as before.
 
 - An iron-banded palisade of sharpened stakes along the back rim.
 - Warg posts: iron-capped stakes with a collar ring and a chain trailing into the den.
 - Three clusters of iron-tipped stakes on the rim.
-- The White Hand on an Uruk shield raised on a post, on the back axis between the blades.
+- The White Hand on an Uruk shield raised on a post, on the back axis.
 - A fire pit under an iron grate and two tall braziers by the way out to the rally point
   (`fire_points`, 5: grate and four braziers).
 
@@ -26,10 +25,10 @@ the rocks, tusks and stakes round its rim, the great ribcage.
 
 ## Status
 
-Designed, shape preview only (not built, not installed). Pass 3: 3,013 -> 6,841 triangles, height
-33.1 -> 44.3 (+34.1 %), footprint unchanged, 9/9 preview checks. `max_z_growth = 0.35`, as the citadel's: needs Max's OK like the citadel's had; at the default
-0.20 the blades stop at z 39.
-Review sheet: `build/assets/isengard/_review/addons_v3.jpg` (pass 3; `addons.jpg` is pass 1).
+Pass 3 built and installed (2026-09-29). Pass 4 designed, shape preview only: 3,013 -> 6,921
+triangles (pass 3: 6,841), height unchanged (pass 3: +34.1 %; `max_z_growth` back to the default),
+footprint unchanged, fire 5 -> 5, 9/9 preview checks. Sheet: `build/assets/isengard/_review/destack_v1.jpg`.
+Pass 3: `_review/addons_v3.jpg`.
 
 ## Open
 
