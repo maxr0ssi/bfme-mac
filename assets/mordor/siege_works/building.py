@@ -62,6 +62,7 @@ class SiegeWorks(Building):
     own_textures = {"MBSeigeWork2.tga": "MBSeigeWorkH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     bake_hidden = ("V2", "N_WINDOW", "N_FIRE")
     fire_points = FIRE_POINTS
+    lifecycle = {"MBSeigeWork_A": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
     views = {
         "rts": ((-22.0, 1.2, 25.9), 378, 50, -38, 50),
         "close": ((-22.0, 1.2, 25.9), 223, 24, -30, 45),

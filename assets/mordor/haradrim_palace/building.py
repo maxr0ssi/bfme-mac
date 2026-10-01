@@ -47,6 +47,7 @@ class HaradrimPalace(Building):
     facet_islands = 8                       # the unwrap overlapped (0.24%): seams at EA's islands and 8-degree turns
     bake_hidden = ("FIRE", "V1", "V2A", "BANNER_HARAD01", "MUHARALNCR", "LANCE")
     own_textures = {"MBHrdPlc.tga": "MBHrdPlH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    lifecycle = {"MBHrdPlc_A": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
     views = {
         "rts": ((-0.0, -1.9, 21.7), 258, 50, -38, 50),
         "close": ((-0.0, -1.9, 21.7), 152, 24, -30, 45),

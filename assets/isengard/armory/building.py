@@ -59,6 +59,7 @@ class Armory(Building):
     sheet_normal = "IBArmory_NRM.tga"
     own_textures = {"IBArmory.tga": "IBArmorH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     fire_points = FIRE_POINTS
+    lifecycle = {"IBArmory_A": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
     views = {
         "rts": ((8.0, 4.0, 24.0), 330, 50, -38, 50),
         "close": ((12.0, 8.0, 20.0), 190, 26, -32, 45),

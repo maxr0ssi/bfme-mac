@@ -60,6 +60,8 @@ class WallGate(Building):
     HOUSE_DRAW = "ModuleTag_Draw_HCWallGate"
     house_tags = ()
     fire_points = _fire_points()
+    # EA's gate rises through the ground; it stands whole on it at frame 466
+    lifecycle = {"KBAngwGN_A": {"match": 466}}
     views = {
         "rts": ((0.0, 0.0, 64.6), 418, 50, -38, 50),
         "close": ((0.0, 0.0, 64.6), 247, 24, -30, 45),

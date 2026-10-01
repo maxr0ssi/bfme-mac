@@ -74,6 +74,7 @@ class LumberMill(Building):
     sheet_normal = "MBLumberMill_NRM.tga"
     own_textures = {"MBLumberMill.tga": "MBLumberMilX.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     fire_points = FIRE_POINTS
+    lifecycle = {"MBLumMill_A": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
     views = {
         "rts": ((-6.9, 0.4, 20.6), 381, 50, -38, 50),
         "close": ((0.0, 0.0, 18.0), 225, 24, -30, 45),
