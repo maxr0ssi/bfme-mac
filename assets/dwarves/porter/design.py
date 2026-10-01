@@ -2,10 +2,14 @@
 
 All coordinates are the original model's rest space. Every new part follows an existing bone;
 the living anatomy stays on its original rig. Only the selectable DUPorter_SKN is replaced.
+python3 -m sagekit unit dwarves/porter --render (docs/UNITS.md).
 """
 import math
+import random
 
-from .unit import Mesh
+from assets.dwarves.style import PALETTE
+from sagekit.units import Unit, View
+from sagekit.units.paint import crop_rgb, magick
 
 WOOD, OAK, IRON, BRONZE, LEATHER, BLUE, STONE, PAPER, ROPE, HAIR, GOLD, STEEL = range(12)
 
@@ -127,11 +131,81 @@ def tools(m):
     m.box((21.5,-7.5,4.58),(23.35,-7.0,6.62),BRONZE,b)
 
 
-def design(w,sk):
-    result={n:Mesh(w.meshes[n],sk,keep=n in ("DWARF","POUCHES"))
-            for n in ("CART_MESH","CARTSUPPLIES","HAMMER","DWARF","POUCHES")}
-    cart(result["CART_MESH"])
-    supplies(result["CARTSUPPLIES"])
-    outfit(result["DWARF"])
-    tools(result["HAMMER"])
-    return result
+# Each swatch comes from the established faction palette. Grain is painted into the texture;
+# previews use the original game's material, without Blender-only metallic shading.
+SWATCHES = [("wood", .34), ("wood", .47), ("iron", .55), ("bronze", .51),
+            ("wood", .25), ("cloth", .48), ("stone", .63), ("stone", .88),
+            ("wood", .77), ("rock", .22), ("bronze", .85), ("iron", .9),
+            ("wood", .22), ("cloth", .35), ("stone", .42), ("inlay", .6)]
+# Preserve the game's painted grain and carved metal. Crops are in the source's 256px grid.
+CROPS = [("guporter_cart",(25,25,230,47)),("guporter_cart",(28,180,57,250)),
+         ("guporter_cart",(3,3,240,19)),("duporter",(2,34,92,51)),
+         ("duporter",(168,175,246,197)),("duporter",(35,184,140,246)),
+         ("dbfortress1",(36,199,202,254))]
+
+
+class Porter(Unit):
+    model, skeleton = "DUPorter_SKN", "DUPorter_SKL"
+    anims = ("idla", "runa", "wrka", "wrkb", "wrkc", "fira", "diea", "dieb")
+    expected = {"duporter_skn": "af7b8eeb0ab43b7447e3238208474fef4bc583aac005bae99b740858e212e62b",
+                "duporter_skl": "5aa137518f7cb16365c7e845a8d28b94db290992648b5a9c9f6a80a3c0ba7948"}
+    textures = {"duporter.tga": "ducrafts.tga", "guporter_cart.tga": "ducrafts_cart.tga",
+                "guporter_build.tga": "ducrafts_build.tga"}
+    house = {"ducrafts.tga": "hc_ducrafts.tga", "ducrafts_cart.tga": "hc_ducrafts.tga",
+             "ducrafts_build.tga": "hc_ducrafts.tga"}
+    mask = ("hc_duporter.tga", "hc_ducrafts.tga")
+    sources = ("DBFortress1.tga",)
+    archive = "!!!!!!!!!!!!sagekit-dwarf-builder.big"
+    smooth = ("DWARF", "HELM", "POUCHES")
+    views = {"portrait": View("idla", 0, distance=66, elevation=22, size=(1200, 1050)),
+             "rts": View("idla", 0), "run": View("runa", 8),
+             "work": View("wrkb", 23, target=(14, 0, 8), distance=105),
+             "water": View("fira", 38), "death": View("diea", 45, target=(8, 0, 5), distance=80)}
+    labels = ("CURRENT HD BUILDER", "EREBOR MASTER BUILDER - DESIGN PREVIEW")
+
+    def design(self, w, sk):
+        result={n:self.mesh(w,sk,n,keep=n in ("DWARF","POUCHES"))
+                for n in ("CART_MESH","CARTSUPPLIES","HAMMER","DWARF","POUCHES")}
+        cart(result["CART_MESH"])
+        supplies(result["CARTSUPPLIES"])
+        outfit(result["DWARF"])
+        tools(result["HAMMER"])
+        return result
+
+    def check(self, b, original, new, sk):
+        for n in ("BUCKET", "HELM"):
+            assert new.meshes[n].bytes == original.meshes[n].bytes, n
+
+    def paint(self, b):
+        samples=[crop_rgb(b.src/(source+".dds"),box,b.work/("grain_%d.rgb"%i))
+                 for i,(source,box) in enumerate(CROPS)]
+        which=[0,1,6,3,4,5,6,6,1,4,3,6,4,5,6,3]
+        rng, pixels = random.Random(73), bytearray()
+        for y in range(1024):
+            for x in range(1024):
+                tag = (y//256)*4 + x//256
+                material, mid = SWATCHES[tag]
+                ramp = PALETTE.ramps[material]
+                u,v=x%256,y%256
+                data=samples[which[tag]]; offset=(v*256+u)*3
+                lum=sum(data[offset:offset+3])/765
+                edge=min(u,v,255-u,255-v)/255
+                value = max(0, min(1, mid + (lum-.45)*.9 + rng.uniform(-.025,.025)
+                                   + (.12 if edge<.018 else -.09 if edge<.03 else 0)))
+                for (a, ca), (c, cb) in zip(ramp,ramp[1:]):
+                    if a <= value <= c:
+                        t = (value-a)/(c-a)
+                        rgb=[aa*(1-t)+bb*t for aa,bb in zip(ca,cb)]
+                        if material=="wood":
+                            gray=sum(rgb)/3
+                            rgb=[q*.42+gray*.58 for q in rgb]
+                        pixels.extend(round(255*q) for q in rgb)
+                        break
+        ppm = b.work / "materials.ppm"
+        ppm.write_bytes(b"P6\n1024 1024\n255\n" + pixels)
+        atlas = b.work / "craftsman.png"
+        # EA's character UV islands tile outside 0..1. Repeat the original four times each way,
+        # then transform UVs affinely; modulo per vertex would stretch triangles across the seams.
+        magick("-size", "1024x1024", "tile:"+str(b.src/"duporter.dds"),
+               "(",ppm,"-resize","1024x1024!",")","+append",atlas)
+        return atlas
