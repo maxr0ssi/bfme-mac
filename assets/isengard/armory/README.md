@@ -4,6 +4,25 @@ Model `IBArmory_SKN`, mesh `IBARMORY`, own texture `IBArmorH.tga` (DXT5, EA's cu
 kept). Palette A; new pieces from the Isengard kit and [`shapes_industry.py`](../shapes_industry.py) and [`shapes_industry_big.py`](../shapes_industry_big.py).
 EA's body is kept whole; the treadwheel and grindstone meshes stay EA's.
 
+## Pass 4: destacked (2026-09-30)
+
+Max after Mordor: "our furnace towers on everything look a lil stupid" and "super low quality
+that tower". The rollout's needle stacks and stamped blade pairs read as bolted-on clones. Each
+building now gets its own work instead (new pieces in [`shapes_trades.py`](../shapes_trades.py)),
+smaller and fewer, its fire in its own forges, grates, braziers and pits.
+
+- **Out**: the pair and the needle stack through the hall's roof.
+- **In**: a grinding wheel in the +X gable's yard (a stone disc with silver rims on an iron axle
+  between A-frames, a crank, a trough of water, a blade on the rest, sparks), a firebox in the
+  gable's mouth (the hall's own fire), a shield rack facing the camera, a rack of seven pikes
+  under the -Y eaves. The banner moved to (34.5, 41.5).
+- **Fire** 6 -> 7: the chimney became the hall's firebox (furnace); the wheel's sparks (embers)
+  are new.
+
+468 -> 4,149 triangles (pass 3: 5,183), height +13.2 % (pass 3: +19.4 %), footprint
+unchanged, 9/9 preview checks. Sheet: `build/assets/isengard/_review/destack_v1.jpg` (installed
+pass 3 against pass 4 at the RTS view).
+
 ## Pass 3: up to the citadel
 
 Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
@@ -49,5 +68,6 @@ docstring has IBARMORY's facts.
 
 ## Status
 
-- [x] healthy body designed (pass 3, shape preview)
-- [ ] reviewed by Max, built in colour, installed
+- [x] pass 3 built in colour and installed (2026-09-29)
+- [x] pass 4 designed (shape preview, 2026-09-30)
+- [ ] pass 4 reviewed by Max, built in colour, installed

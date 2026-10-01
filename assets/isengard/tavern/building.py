@@ -12,6 +12,10 @@ either side of the dorsal crest in the RTS view (z 28 to 77.5, the White Hand in
 slots, chains to the crest's tall fin); the two stacks became one great chimney behind the crest
 on the view's axis.
 
+Pass 4 (2026-09-30, "the furnace towers look a lil stupid", Max): the chimney, the pair and its
+chains went. Crude orc hides pegged with iron on the -Y slope the camera sees, and a cook-fire with
+a spit at the -X end (the chimney's fire).
+
 Player-built: slot 6 of IsengardPorterCommandSet builds it (Command_ConstructIsengardTavern), so
 it is a building like the others, not a captured map building.
 
@@ -30,17 +34,16 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 FIRE_POINTS = [
-    (-12.5, 5.4, 65.9, 'chimney')
+    (-38.5, -9.0, 1.0, 'hearth')
 ]
 
 RIDGE = ((-28.0, -2.0, 58.5), (22.0, -2.0, 58.0))
 FINS = [6.0, 9.5, 13.0, 17.5, 13.0, 9.5, 6.0]         # the dorsal crest's fins, tops above the ridge
 APEXES = [(25.0, -2.0, 56.0), (-30.5, -2.0, 57.0)]
-STACKS = [((-12.5, 5.4), 52.0, 4.2, 3.0, 40.0, 68.0)]          # the great chimney behind the crest, on the view's axis
-# two blades out of the roof slopes either side of the ridge's middle (-3, -2) in the RTS view, -+ 22 along it
-PAIR = [(-16.6, -19.3), (10.6, 15.3)]
-PAIR_SIZE = (5.2, 3.2, 28.0, 77.5)
-PAIR_HAND = (52.0, 3.2, 12.0)
+# pass 4 (2026-09-30): the chimney and the pair went; crude orc hides pegged on the -Y slope
+# (EA's roof there: z 56 at y -4 falling to 38.6 at y -16), a cook-fire at the -X end
+HIDES = [((-18.0, -4.6, 55.6), 12.5, 17.0, 0.3), ((-3.0, -4.2, 56.2), 11.0, 18.5, 1.9), ((11.5, -4.8, 55.3), 12.0, 16.0, 3.1)]
+COOK = ((-38.5, -9.0), (0.0, 1.0))
 HAND = (27.5, -2.0, 34.0)                         # the shield's foot on the +X gable
 
 
@@ -65,7 +68,6 @@ class Tavern(Building):
     def _pieces(self, kit):
         from mathutils import Vector as V
 
-        from .. import shapes_industry as I
         from .. import shapes_industry_big as B
         p, q = RIDGE
         out = B.ridge_fins(kit, V(p), V(q), FINS, w=1.4)
@@ -75,12 +77,12 @@ class Tavern(Building):
                 b = V((x, y - s * 7.5, z + 15.0))
                 out.append(kit.beam(a, b, 0.9, "iron", 0.0))
                 out.append(kit.beam(a + V((0.6, 0, 0)), b + V((0.6, 0, 0)) - (b - a) * 0.3, 0.35, "trim", 0.0))
-        for c, axis, L, W, z0, z1 in STACKS:
-            out += B.spire_stack(kit, c, axis, L, W, z0, z1, collar=0.55, slits=(0.55,))
-        L, W, z0, z1 = PAIR_SIZE                      # the pair (the citadel's) out of the roof either side of the crest
-        out += B.blades_at(kit, PAIR, L, W, z0, z1, lean=1.4, hand=PAIR_HAND, fins=2, slits=(0.35, 0.5, 0.65))
-        for x, y in PAIR:                             # chains from each blade to the crest's tall middle fin
-            out += kit.chain(V((x * 0.85 - 0.45, y * 0.85 - 0.3, 66.0)), V((-3.0, -2.0, 69.0)), link=1.8, w=0.5)
+        from .. import shapes_trades as T
+        down = V((0.0, -0.568, -0.823))               # down the -Y slope (EA's roof, probed)
+        for (x0, y0, z0), w, length, seed in HIDES:   # crude hides pegged on the slope the camera sees
+            out += T.roof_hide(kit, V((x0, y0, z0)), (1, 0, 0), down, w, length, seed=seed)
+        (fx, fy), t = COOK
+        out += T.spit_fire(kit, V((fx, fy, 0.0)), t, 2.8)
         x, y, z = HAND
         out += kit.shield(V((x, y, 0)), V((0, 1, 0)), V((1, 0, 0)), 0.0, z, 15.0, d=0.0)
         for s in (-1, 1):                             # hung on chains from the apex

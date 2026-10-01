@@ -4,6 +4,24 @@ Model `IBUrukPit_SKN`, mesh `IBURUKPIT_NEW`, own texture `iburukpiH.tga`. Palett
 from the Isengard kit and [`shapes_industry.py`](../shapes_industry.py) and [`shapes_industry_big.py`](../shapes_industry_big.py). EA's mound is kept whole:
 both lobes, the pit's octagonal mouth, the ramp, ladders and decks, the cave mouth.
 
+## Pass 4: destacked (2026-09-30)
+
+Max after Mordor: "our furnace towers on everything look a lil stupid" and "super low quality
+that tower". The rollout's needle stacks and stamped blade pairs read as bolted-on clones. Each
+building now gets its own work instead (new pieces in [`shapes_trades.py`](../shapes_trades.py)),
+smaller and fewer, its fire in its own forges, grates, braziers and pits.
+
+- **Out**: the pair and both needle stacks.
+- **In**: the birthing mud on the free ground at the -X-Y front (`mud_pool`: wet black mud in a
+  soot kerb, slick puddles) under an iron gantry (`pit_gantry`: A-frames, a winch, a chain to a
+  great hook in the mud), broadside to the camera, a brazier either side. The birthing-frame over
+  the pit stays the one tall new mass. A corner brazier moved to (-42, -17).
+- **Fire** 8 -> 8: two chimneys -> the mud's two braziers.
+
+1,087 -> 4,476 triangles (pass 3: 6,099), height +18.5 % (the birthing-frame), footprint
+unchanged, 9/9 preview checks. Sheet: `build/assets/isengard/_review/destack_v1.jpg` (installed
+pass 3 against pass 4 at the RTS view).
+
 ## Pass 3: up to the citadel
 
 Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
@@ -46,5 +64,6 @@ checks. Pass 1 is `_review/production_v1.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 3, shape preview)
-- [ ] reviewed by Max, built in colour, installed
+- [x] pass 3 built in colour and installed (2026-09-29)
+- [x] pass 4 designed (shape preview, 2026-09-30)
+- [ ] pass 4 reviewed by Max, built in colour, installed

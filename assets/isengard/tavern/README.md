@@ -8,6 +8,23 @@ kept whole: the long steep roof, the crossed logs at the gables, the log buttres
 Player-built: slot 6 of `IsengardPorterCommandSet` (`Command_ConstructIsengardTavern`), so a
 building like the others, not a captured map building.
 
+## Pass 4: destacked (2026-09-30)
+
+Max after Mordor: "our furnace towers on everything look a lil stupid" and "super low quality
+that tower". The rollout's needle stacks and stamped blade pairs read as bolted-on clones. Each
+building now gets its own work instead (new pieces in [`shapes_trades.py`](../shapes_trades.py)),
+smaller and fewer, its fire in its own forges, grates, braziers and pits.
+
+- **Out**: the great chimney, the pair and the chains to the crest.
+- **In**: three crude orc hides pegged with iron on the -Y slope the camera sees (`roof_hide`,
+  placed on EA's roof as probed: z 56 at y -4 to 38.6 at y -16), a cook-fire with a spit and a
+  haunch at the -X end (`spit_fire`). The crest, the crossed blades and the Hand shield stay.
+- **Fire** 1 -> 1: the chimney -> the cook-fire (hearth).
+
+1,848 -> 2,875 triangles (pass 3: 4,656), height +17.0 % (the crest; pass 3: +19.4 %), footprint
+unchanged, 9/9 preview checks. Sheet: `build/assets/isengard/_review/destack_v1.jpg` (installed
+pass 3 against pass 4 at the RTS view).
+
 ## Pass 3: up to the citadel
 
 Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
@@ -54,6 +71,7 @@ building site) keep EA's colours for now.
 
 ## Status
 
-- [x] healthy body designed (pass 3, shape preview)
 - [x] pipeline reads its TGA sheets
-- [ ] reviewed by Max, built in colour, installed
+- [x] pass 3 built in colour and installed (2026-09-29)
+- [x] pass 4 designed (shape preview, 2026-09-30)
+- [ ] pass 4 reviewed by Max, built in colour, installed

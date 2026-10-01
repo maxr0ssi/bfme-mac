@@ -6,6 +6,25 @@ draw EA's; the Goblins' copy is `WBLumMill_SKN` on `MBLumberMilH.tga`). Palette 
 kept whole: the lean-to shed and its log stacks, the stumps, the great log on its sawhorses,
 the fire pit (`FIRE01` stays EA's).
 
+## Pass 4: destacked (2026-09-30)
+
+Max after Mordor: "our furnace towers on everything look a lil stupid" and "super low quality
+that tower". The rollout's needle stacks and stamped blade pairs read as bolted-on clones. Each
+building now gets its own work instead (new pieces in [`shapes_trades.py`](../shapes_trades.py)),
+smaller and fewer, its fire in its own forges, grates, braziers and pits.
+
+- **Out**: both spire stacks, the second kiln, the blade crane (a blade tower as its mast).
+- **In**: a felled giant of Fangorn across the front yard (`fangorn_trunk`: root plate, broken
+  limbs, iron dogs, a chain), the great frame saw standing in its trunk (`trunk_saw`), its limbs
+  burning on a slash pyre beside it; one charcoal kiln, its own throat alight; an iron gantry over
+  the crib of felled Fangorn, a trunk slung from it. The kiln's bands now sink into its faces (a
+  sliver of sky showed their backs once the stacks were gone).
+- **Fire** 5 -> 5: two kiln chimneys -> the kiln's throat and the slash pyre (hearth).
+
+1,204 -> 3,893 triangles (pass 3: 4,784), height +10.8 % (pass 3: +18.8 %), footprint
+unchanged, 9/9 preview checks. Sheet: `build/assets/isengard/_review/destack_v1.jpg` (installed
+pass 3 against pass 4 at the RTS view).
+
 ## Pass 3: up to the citadel
 
 Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
@@ -47,5 +66,6 @@ checks. Pass 1 is `_review/production_v1.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 3, shape preview)
-- [ ] reviewed by Max, built in colour, installed
+- [x] pass 3 built in colour and installed (2026-09-29)
+- [x] pass 4 designed (shape preview, 2026-09-30)
+- [ ] pass 4 reviewed by Max, built in colour, installed

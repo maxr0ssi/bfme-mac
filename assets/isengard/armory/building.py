@@ -13,6 +13,12 @@ gable in the RTS view (the citadel's pair, to the height limit z 54.4), the Whit
 pointed-arch slot on each one's outer face; the hall's ridge lowered to z 44 so they stand over
 it.
 
+Pass 4 (2026-09-30, "the furnace towers look a lil stupid", Max): the pair and the needle stack
+went. The armoury's own work instead: a grinding wheel in the gable's yard (a stone disc with
+silver rims, iron A-frames, a crank, a trough, a blade on the rest, sparks), a firebox in the +X
+gable's mouth (the stack's fire, now the hall's own), a shield rack facing the camera, a rack of
+pikes under the -Y eaves; the banner moved to (34.5, 41.5).
+
 EA's facts (IBARMORY on an identity bone; work/measure.json is the treadwheel's, stale):
 x -27.5..40.0, y -39.1..50.1, z -1.6..45.3 (468 triangles). The deck x -25..0, y -20..40 at
 z 25, its fence along x -25 to z 45, a cluster of spikes at (-3, 20..40) to z 44; the shed
@@ -26,22 +32,22 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 FIRE_POINTS = [
-    (6.0, 29.0, 45.8, 'chimney'), (25.5, 15.0, 4.7, 'hearth'), (29.5, 22.9, 4.0, 'crucible'),
-    (37.5, 45.0, 4.7, 'brazier'), (37.5, 26.0, 4.7, 'brazier'), (-8.0, -6.0, 29.7, 'brazier')
+    (33.2, 34.0, 5.0, 'embers'), (21.9, 35.0, 1.3, 'furnace'), (25.5, 15.0, 4.7, 'hearth'),
+    (29.5, 22.9, 4.0, 'crucible'), (37.5, 45.0, 4.7, 'brazier'), (37.5, 26.0, 4.7, 'brazier'),
+    (-8.0, -6.0, 29.7, 'brazier')
 ]
 
 HALL = (-2.0, 23.5, 21.5, 48.5, 17.0, 44.0)      # x0, x1, y0, y1, eaves z, ridge z: the iron hall over the shed
 SHED_TOP = 25.0
 FORGE = ((25.5, 15.0, 0.0), (0.0, -1.0))         # hearth foot, t: the forge faces +X
-STACK = ((6.0, 29.0), 0.0, 3.6, 2.4, 24.0, 47.5)         # up through the hall's -Y slope
 STANDS = [((35.5, -12.0, 0.0), (-0.62, -0.79)), ((35.5, -2.0, 0.0), (-0.62, -0.79)), ((35.5, 8.0, 0.0), (-0.62, -0.79))]
-BANNER = ((34.3, 32.5, 0.0), (-0.62, -0.79))
+BANNER = ((34.5, 41.5, 0.0), (-0.62, -0.79))
 BRAZIERS = [(37.5, 45.0), (37.5, 26.0), (-8.0, -6.0, 25.0)]
-# the pair (the citadel's): two blade towers either side of the hall's +X gable in the RTS view,
-# to the height limit (z 54.7), the Hand in a slot on each one's outer face
-PAIR = [(17.5, 27.9), (28.5, 42.1)]           # the gable's middle (23, 35) -+ 9 along the view
-PAIR_SIZE = (4.4, 2.7, 0.0, 54.4)
-PAIR_HAND = (30.0, 3.2, 13.0)
+# pass 4 (2026-09-30): the pair and the needle stack went; the armoury's own work instead
+WHEEL = ((30.5, 30.5), (0.62, 0.79), 4.0)      # a grinding wheel, its face to the RTS camera
+HALL_FIRE = ((21.6, 35.0), 5.0, 3.6)           # a firebox in the +X gable's mouth: centre, width, height
+SHIELDS = ((27.0, 43.5), (0.62, 0.79), (0.79, -0.62), 7.0)   # a shield rack facing the camera
+PIKES = ((9.0, 19.6), 2.0, 16.0, 10.0)         # a pike rack under the -Y eaves: (x, y), x from, x to, height
 
 
 class Armory(Building):
@@ -67,12 +73,16 @@ class Armory(Building):
         from mathutils import Vector as V
 
         from .. import shapes_industry as I
-        from .. import shapes_industry_big as B
+        from .. import shapes_trades as T
         out = self._roof(kit, V, I)
-        L, W, z0, z1 = PAIR_SIZE
-        out += B.blades_at(kit, PAIR, L, W, z0, z1, lean=1.0, hand=PAIR_HAND, slits=(0.3, 0.45, 0.6, 0.75))
-        c, axis, L, W, z0, z1 = STACK
-        out += kit.needle_stack(c, axis, L, W, z0, z1, collar=0.45)
+        (gx, gy), t, r = WHEEL                          # the grinding wheel in the gable's yard
+        out += T.grind_wheel(kit, V((gx, gy, 0.0)), t, r)
+        (fx, fy), w, h = HALL_FIRE                      # the hall's own fire: a firebox in the +X gable's mouth
+        out += kit.fire_grate(V((fx, fy, 0.0)), V((0, 1, 0)), V((1, 0, 0)), w=w, h=h, d=3.0)
+        (sx, sy), t, n, w = SHIELDS
+        out += kit.shield_rack(V((sx, sy, 0.0)), V(t + (0,)), V(n + (0,)), w, 3, 4.6)
+        (px, py), u0, u1, h = PIKES                     # pikes racked under the hall's -Y eaves
+        out += kit.pike_rack(V((0, py, 0)), V((1, 0, 0)), V((0, -1, 0)), (u0 + u1) / 2, 0.0, u1 - u0, h, d=1.0, pikes=7)
         (fx, fy, fz), t = FORGE
         out += I.forge_bay(kit, V((fx, fy, fz)), t, 1.8)
         for c, t in STANDS:

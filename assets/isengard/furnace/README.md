@@ -5,6 +5,26 @@ Model `MBFurnace_SKN` (Mordor's name, drawn by Isengard only), mesh `FURNACE`, o
 [`shapes_industry.py`](../shapes_industry.py) and [`shapes_industry_big.py`](../shapes_industry_big.py). `world_space`: the mesh hangs on a bone moved
 (3.5, -0.2, 0.3), so design and fire points share world axes. EA's body is kept whole.
 
+## Pass 4: destacked (2026-09-30)
+
+Max after Mordor: "our furnace towers on everything look a lil stupid" and "super low quality
+that tower". The rollout's needle stacks and stamped blade pairs read as bolted-on clones. Each
+building now gets its own work instead (new pieces in [`shapes_trades.py`](../shapes_trades.py)),
+smaller and fewer, its fire in its own forges, grates, braziers and pits.
+
+- **Out**: the pair and its chains, the needle stack out of the crater, the crater's crown blades.
+- **In**: one heavy smelter stack (`shapes_trades.smelter_stack`, the furnace is the building whose
+  story a stack is): out of the crater from z 48 to its mouth at z 110, square and turned to a
+  corner, two stepped courses of black stone flaring into the mound, an iron shaft in riveted
+  plates between riveted bands, a heavy riveted collar on corner brackets, a flared mouth with a
+  silver lip round a deep glowing throat, short blades at the rim's corners, a charging jib with
+  an ore skip on its chain toward the camera.
+- **Fire** 9 -> 9: the chimney now in the smelter's mouth; the rest unchanged.
+
+1,141 -> 6,415 triangles (pass 3: 6,073), height +8.4 % (pass 3: +19.2 %), footprint
+unchanged, 9/9 preview checks. Sheet: `build/assets/isengard/_review/destack_v1.jpg` (installed
+pass 3 against pass 4 at the RTS view).
+
 ## Pass 3: up to the citadel
 
 Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
@@ -56,5 +76,6 @@ checks. Pass 1 is `_review/production_v1.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 3, shape preview)
-- [ ] reviewed by Max, built in colour, installed
+- [x] pass 3 built in colour and installed (2026-09-29)
+- [x] pass 4 designed (shape preview, 2026-09-30)
+- [ ] pass 4 reviewed by Max, built in colour, installed

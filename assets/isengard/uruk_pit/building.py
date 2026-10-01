@@ -13,6 +13,11 @@ RTS view (to z 77.5, the White Hand in pointed-arch slots), and the birthing-fra
 four knife ribs on a square turned to the view, bound by four iron bars (pass 2's six ribs and
 ring read round); the chimneys behind.
 
+Pass 4 (2026-09-30, "the furnace towers look a lil stupid", Max): the pair and both needle stacks
+went. The birthing mud instead, on the free ground at the -X-Y front: a pool of wet black mud in a
+soot kerb under an iron gantry (a winch, a chain to a great hook in the mud), braziers either side
+(the stacks' fire); a corner brazier moved to (-42, -17).
+
 EA's facts (IBURUKPIT_NEW on an identity bone): x -48.9..72.8, y -41.5..53.1, z -0.5..64.9 (1087
 triangles). The pit's mouth at (-2, 3), r ~10, its rim at z 42..46 (the Uruk-hai and the hook
 HOOK animate in it, z 0..17); the ramp from (-5, 30) to (35, 0) at z 40..54; the cave mouth in
@@ -26,23 +31,23 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 FIRE_POINTS = [
-    (-2.0, 3.0, 40.0, 'grate'), (-24.0, 4.0, 60.6, 'chimney'), (-4.0, 26.0, 61.0, 'chimney'),
+    (-2.0, 3.0, 40.0, 'grate'), (-40.5, -28.5, 4.5, 'brazier'), (-20.5, -36.5, 4.5, 'brazier'),
     (-18.9, -10.8, 1.5, 'furnace'), (-4.0, -22.3, 1.5, 'furnace'), (28.0, 27.0, 1.0, 'embers'),
-    (-30.0, -24.0, 5.1, 'brazier'), (17.0, -38.0, 5.1, 'brazier')
+    (-42.0, -17.0, 5.1, 'brazier'), (17.0, -38.0, 5.1, 'brazier')
 ]
 
 PIT = (-2.0, 3.0, 44.0)                          # the mouth's centre and rim height
-# two blades either side of the pit along the view, mirrored about it; the chimneys behind them
-PAIR = [(-13.6, -11.0), (9.6, 17.0)]
-PAIR_SIZE = (6.0, 3.6, (12.0, 24.0), 77.5)
-PAIR_HAND = (52.0, 3.4, 14.0)
-STACKS = [((-24.0, 4.0), 38.0, 3.6, 2.6, 20.0, 64.0), ((-4.0, 26.0), 38.0, 3.6, 2.6, 24.0, 64.0)]
+# pass 4 (2026-09-30): the pair and the two needle stacks went; the birthing mud and its gantry on
+# the free ground at the -X-Y front instead, braziers either side
+MUD = ((-31.5, -30.5), 6.3)
+MUD_GANTRY = ((0.62, 0.79), 15.0, 19.0)        # t (the view's horizontal: broadside to the camera), span, height
+MUD_BRAZIERS = [(-40.5, -28.5), (-20.5, -36.5)]
 MOUTHS = [((-19.0, -10.5, 0.0), (1.0, 0.25)), ((-4.0, -22.0, 0.0), (1.0, -0.1))]   # furnace mouths: foot, t
 BIRTH = ((28.0, 27.0, 0.0), 5.0)
 LOBE = (48.0, -15.0)                             # the +X lobe's centre: a fan of fins on its +X flank
 FINS = [(330.0, 9.0, 24.0, 12.0, 44.0), (0.0, 10.0, 21.0, 12.0, 50.0), (30.0, 9.0, 24.0, 12.0, 44.0)]
 BANNER = ((-40.0, -6.0, 0.0), (-0.62, -0.79))
-BRAZIERS = [(-30.0, -24.0), (17.0, -38.0)]
+BRAZIERS = [(-42.0, -17.0), (17.0, -38.0)]
 
 
 class UrukPit(Building):
@@ -73,10 +78,13 @@ class UrukPit(Building):
         out = kit.hoop((px, py), pz - 0.6, 10.5, h=1.8, th=0.7, inner=1.4, k=12, rivets=3, tag="iron", closed=True)
         out += B.birth_spire(kit, V((px, py, 0)), 10.5, pz, 70.0, 12.5, 56.0, w=2.0)
         kit.fire(V((px, py, pz - 4.0)), "grate")
-        L, W, z0, z1 = PAIR_SIZE                       # the pair (the citadel's) either side of the pit in the view
-        out += B.blades_at(kit, PAIR, L, W, z0, z1, lean=1.2, hand=PAIR_HAND, fins=2, slits=(0.4, 0.55, 0.7))
-        for c, axis, L, W, z0, z1 in STACKS:
-            out += kit.needle_stack(c, axis, L, W, z0, z1, collar=0.6)
+        from .. import shapes_trades as T
+        (mx, my), r = MUD                              # the birthing mud at the front, its gantry over it
+        out += T.mud_pool(kit, V((mx, my, 0.0)), r, seed=0.9)
+        t, span, h = MUD_GANTRY
+        out += T.pit_gantry(kit, V((mx, my, 0.0)), t, span, h, drop=h * 0.62, hook=3.4)
+        for x, y in MUD_BRAZIERS:
+            out += kit.brazier(V((x, y, 0.0)), 1.5, 4.4)
         for c, t in MOUTHS:
             n = V((t[1], -t[0], 0))                   # facing -Y, out of the lobe
             out += kit.fire_grate(V(c), V((t[0], t[1], 0)), n, w=5.0, h=4.2, d=4.0)

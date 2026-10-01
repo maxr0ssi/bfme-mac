@@ -15,6 +15,13 @@ to z 128.5, the White Hand in a pointed-arch slot on each one's outer face, chai
 the great chimney, now a slimmer needle stack out of the crater (z 44 to 116, its crown of
 blades); the crater's crown down to three blades.
 
+Pass 4 (2026-09-30, "the furnace towers look a lil stupid ... super low quality that tower", Max):
+the pair, its chains, the needle stack and the crater's crown blades went. One heavy smelter stack
+rises out of the crater instead (shapes_trades.smelter_stack, z 48 to its mouth at 110): stepped
+stone courses flaring into the mound, a square iron shaft in riveted plates between riveted bands,
+a heavy riveted collar on corner brackets, a flared mouth round a glowing throat, short blades at
+the rim's corners, a charging jib with an ore skip toward the camera.
+
 EA's facts (world axes, `world_space`: FURNACE hangs on a bone moved (3.5, -0.2, 0.3)):
 x -31.9..68.1, y -46.7..29.8, z -6.4..106.8 (1141 triangles). The mound centred about (2, -2),
 its crater at (2.5, -4) sunk to z 46 between the horns (z 90..107); the chute on legs from the
@@ -29,22 +36,18 @@ from ..style import IsengardStyle
 
 # the fire the design lights (x, y, z, kind), world axes; from the geometry log's FIRE_POINTS
 FIRE_POINTS = [
-    (2.5, -4.0, 110.4, 'chimney'), (15.0, 8.0, 42.0, 'furnace'), (50.0, 24.0, 7.2, 'hearth'),
+    (2.5, -4.0, 109.2, 'chimney'), (15.0, 8.0, 42.0, 'furnace'), (50.0, 24.0, 7.2, 'hearth'),
     (57.0, 20.5, 6.5, 'crucible'), (64.0, 24.0, 8.6, 'brazier'), (64.0, -43.0, 8.6, 'brazier'),
     (20.0, -42.0, 8.6, 'brazier'), (57.0, 5.0, 15.0, 'crucible'), (52.0, 7.4, 22.3, 'crucible')
 ]
 
 CRATER = (2.5, -4.0)
-SPIRE = ((2.5, -4.0), 52.0, 5.0, 3.4, 44.0, 116.0)           # the great chimney out of the crater
-# the pair (the citadel's): two blades out of the mound's top either side of the crater along the
-# view, mirrored about it, the left one's foot above the level-up hut (V2, to z 84.6)
-PAIR = ((-2.2, -0.3), 10.5, 6.4, 3.6, (86.0, 76.0), 128.5)
-HAND = (95.0, 3.8, 14.0)
+SMELTER = ((2.5, -4.0), 10.5, 48.0, 110.0)          # the smelter stack out of the crater: centre, half-diagonal, z0, mouth
+JIB = (-38.0, 9.0, 8.0)                                # its charging jib toward the camera: angle, reach, drop
 # buttresses on the mound's +Y flank (the right-hand silhouette in the RTS view): angle about the
 # crater, back (in the rock), foot and point radii, the point's height
 BUTTRESSES = [(45.0, 13.0, 33.0, 20.0, 74.0), (75.0, 13.0, 29.5, 20.0, 80.0), (105.0, 12.0, 28.5, 18.0, 74.0),
               (135.0, 11.0, 30.0, 16.0, 66.0), (-15.0, 19.0, 36.0, 26.0, 32.0)]   # the last under V2's deck (z 34)
-CROWN = [(330.0, 11.0, 80.0), (0.0, 12.4, 80.0), (150.0, 11.5, 88.0)]      # the crater's rim: angle, radius, z
 FORGE = ((50.0, 24.0, 3.0), (-1.0, 0.0))                     # hearth foot, t (the forge faces -Y)
 BANNER = ((30.0, -40.0, 3.0), (-0.62, -0.79))                 # the cloth faces the RTS camera
 BRAZIERS = [(64.0, 24.0), (64.0, -43.0), (20.0, -42.0)]
@@ -75,18 +78,10 @@ class Furnace(Building):
 
         from .. import shapes_industry as I
         from .. import shapes_industry_big as B
-        out = []
-        c, axis, L, W, z0, z1 = SPIRE
-        out += B.spire_stack(kit, c, axis, L, W, z0, z1, collar=0.62, crown=9.0)
-        m, half, L, W, z0, z1 = PAIR
-        solids, tops = B.blade_pair(kit, m, half, L, W, z0, z1, lean=1.2, hand=HAND, fins=1, fin_reach=1.1,
-                                     slits=(0.3, 0.45, 0.6))
-        out += solids
-        for x, y in tops:                                    # chains from each blade to the great chimney's throat
-            out += kit.chain(V((x + (m[0] - x) * 0.25, y + (m[1] - y) * 0.25, 112.0)), V((2.5, -4.0, 106.0)), link=1.8,
-                             w=0.5)
+        from .. import shapes_trades as T
+        (cx, cy), r, z0, z1 = SMELTER
+        out = T.smelter_stack(kit, V((cx, cy, 0.0)), r, z0, z1, rot=B.VIEW, jib=JIB)
         out += self._buttresses(kit, V, I)
-        out += self._crown(kit, V)
         out += self._tap(kit, V)
         (fx, fy, fz), t = FORGE
         out += I.forge_bay(kit, V((fx, fy, fz)), t, 1.6)
@@ -133,18 +128,6 @@ class Furnace(Building):
         for ang, rb, rf, rt, zt in BUTTRESSES:
             d = (math.cos(math.radians(ang)), math.sin(math.radians(ang)))
             out += I.layered_fin(kit, V((CRATER[0], CRATER[1], 0)), d, rb, rf, rt, zt, w=2.6)
-        return out
-
-    @staticmethod
-    def _crown(kit, V):
-        """Iron blades round the crater's rim, leaning out: the smelter's crown against the sky."""
-        import math
-        out = []
-        for i, (ang, r, z) in enumerate(CROWN):
-            d = V((math.cos(math.radians(ang)), math.sin(math.radians(ang)), 0))
-            h = 16.0 if i % 2 == 0 else 11.0
-            out += kit.blade(V((CRATER[0], CRATER[1], 0)) + d * (r - 1.0), d, z - 6.0, z + h * 0.6, 1.5, 4.5, w=1.1,
-                             tip=h * 0.4, back=2.5, tag="iron", edge="trim")
         return out
 
     @staticmethod

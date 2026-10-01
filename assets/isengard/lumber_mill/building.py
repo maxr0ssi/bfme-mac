@@ -7,6 +7,12 @@ Pass 3 (the citadel's recipe, 2026-09-29): Fangorn's end, stacked: the pair of c
 great blade-spire stack out of each (to z 47.5, crowns of blades, ember slits, glowing mouths),
 mirrored either side of the banner: the citadel's pair.
 
+Pass 4 (2026-09-30, "the furnace towers look a lil stupid", Max): both spire stacks, the second
+kiln and the blade crane went. The mill's own work instead: a felled giant of Fangorn across the
+front yard (root plate, broken limbs, iron dogs, a chain) with the great frame saw in its trunk, its
+limbs burning on a slash pyre beside it; one charcoal kiln, its own throat alight; an iron gantry
+over the crib of felled Fangorn with a trunk slung from it.
+
     kilns      a pair of steep square charcoal kilns on the +X-Y front, a corner to the camera,
                iron bands, a blade out of each corner, pointed ember vents, glowing throats
     crane      a lozenge iron mast to z 55 on the +X side, a laced jib over the logs, a trunk
@@ -42,15 +48,17 @@ from sagekit.building import Building
 from ..style import IsengardStyle
 
 FIRE_POINTS = [
-    (27.0, -43.0, 44.0, 'chimney'), (41.0, -21.0, 44.0, 'chimney'), (49.0, -36.0, 1.7, 'brazier'),
+    (41.0, -21.0, 14.4, 'chimney'), (12.0, -31.0, -2.0, 'hearth'), (49.0, -36.0, 1.7, 'brazier'),
     (-2.0, -40.0, 1.7, 'brazier'), (20.0, 33.0, 2.0, 'hearth')
 ]
 
 FLOOR = -3.0
 BEAM = ((-24.0, -29.0, 40.0), (-22.0, 53.0, 40.0))      # the shed's front beam, its ends at the top
-KILNS = [((27.0, -43.0), 10.0, 17.0), ((41.0, -21.0), 10.0, 17.0)]    # a pair on the +X-Y front, the banner between
-SAW = ((14.0, -43.0), (1.0, 0.0), 20.0, 19.0)
-CRANE = ((45.5, 0.0, FLOOR), (41.0, 33.0, 45.0), 58.0, 10.0)   # mast foot, jib head, mast height, drop
+KILNS = [((41.0, -21.0), 10.0, 20.0)]           # the charcoal kiln right of the banner
+GIANT = ((8.0, -48.5, FLOOR + 2.6), (28.0, -32.5, FLOOR + 2.0), 2.6)   # root plate, sawn end, radius
+SAW = ((19.5, -39.3), 19.0)                     # the frame saw over the giant: foot centre, height
+PYRE = ((12.0, -31.0), 3.4)                     # its limbs burning beside it
+HOIST = ((41.5, 34.0), (1.0, 0.0), 18.0, 24.0, 9.0)          # gantry centre, t, span, height, drop
 LOGS = ((42.5, 34.0), (1.0, 0.0), 16.0, 2.2, 5)               # a crib of felled Fangorn under the crane's jib
 BANNER = ((38.0, -35.0), (-0.62, -0.79))
 BRAZIERS = [(49.0, -36.0), (-2.0, -40.0)]
@@ -81,16 +89,21 @@ class LumberMill(Building):
 
         from .. import shapes_industry as I
         from .. import shapes_industry_big as B
+        from .. import shapes_trades as T
         (p, q) = BEAM
-        out = I.roof_crest(kit, V(p), V(q), 11, 11.0, w=0.45, d=2.2)
-        for (kx, ky), r, h in KILNS:                    # the pair: a kiln at the foot, a great stack out of it
-            out += B.pyramid_kiln(kit, V((kx, ky, FLOOR)), r, h, rot=-83.0, throat_fire=False)
-            out += B.spire_stack(kit, (kx, ky), B.VIEW, 4.4, 3.1, FLOOR + h * 0.3, 47.5, collar=0.62, crown=7.5,
-                                 slits=(0.32, 0.56))
-        (sx, sy), t, length, h = SAW
-        out += kit.saw_frame(V((sx, sy, FLOOR)), V(t), length, h)
-        foot, head, h, drop = CRANE
-        out += B.blade_crane(kit, V(foot), V(head), h, drop=drop)
+        p0, q0, r = GIANT                                # a felled giant of Fangorn across the front yard
+        out = T.fangorn_trunk(kit, V(p0), V(q0), r, seed=0.7)
+        out += I.roof_crest(kit, V(p), V(q), 11, 11.0, w=0.45, d=2.2)
+        for (kx, ky), r, h in KILNS:                    # the charcoal kilns, their own throats alight
+            out += B.pyramid_kiln(kit, V((kx, ky, FLOOR)), r, h, rot=-83.0)
+        (sx, sy), h = SAW                               # the great saw in the giant's trunk
+        p, q, r = GIANT
+        d = (V(q) - V(p)).normalized()
+        out += T.trunk_saw(kit, V((sx, sy, FLOOR)), (d.x, d.y), FLOOR + 2 * r, h, w=r + 1.6)
+        (yx, yy), r = PYRE
+        out += T.slash_pyre(kit, V((yx, yy, FLOOR)), r, seed=1.3)
+        (gx, gy), t, span, h, drop = HOIST              # an iron gantry over the crib, a trunk slung from it
+        out += T.pit_gantry(kit, V((gx, gy, FLOOR)), t, span, h, drop=drop, log=(13.0, 1.5))
         (lx, ly), t, length, r, layers = LOGS
         out += B.log_crib(kit, V((lx, ly, FLOOR)), t, length, r, layers)
         (bx, by), t = BANNER

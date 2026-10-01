@@ -6,6 +6,24 @@ and model (`IBWARGPIT_DRC`, [warg_pit_02](../warg_pit_02/README.md)) and stays E
 new pieces from the Isengard kit and [`shapes_industry.py`](../shapes_industry.py) and [`shapes_industry_big.py`](../shapes_industry_big.py). EA's pit is
 kept whole: the palisade ring, the bones, the kennel hut and its walled run.
 
+## Pass 4: destacked (2026-09-30)
+
+Max after Mordor: "our furnace towers on everything look a lil stupid" and "super low quality
+that tower". The rollout's needle stacks and stamped blade pairs read as bolted-on clones. Each
+building now gets its own work instead (new pieces in [`shapes_trades.py`](../shapes_trades.py)),
+smaller and fewer, its fire in its own forges, grates, braziers and pits.
+
+- **Out**: the pair, the needle chimney behind the pit, the gatehouse's two blade towers.
+- **In**: heavy gate posts carrying the lintel (a battered stone foot, an iron shaft with riveted
+  bands past the lintel, a fire basket on each); gnawed bones heaped against the palisade
+  (`bone_heap`: long bones, a ribcage, skulls, grey, not the Goblins' bleached bone); chain stakes
+  with spiked collars lying in the dirt (`tether`). The yard's middle stays clear for the wargs.
+- **Fire** 3 -> 4: the chimney -> the two gate baskets (brazier).
+
+3,224 -> 7,561 triangles (pass 3: 7,114), height +1.6 % (pass 3: +19.7 %), footprint
+unchanged, 9/9 preview checks. Sheet: `build/assets/isengard/_review/destack_v1.jpg` (installed
+pass 3 against pass 4 at the RTS view).
+
 ## Pass 3: up to the citadel
 
 Pass 2 read modest beside the citadel. Pass 3 applies its recipe: the pair, needle stacks,
@@ -46,5 +64,6 @@ checks. Pass 1 is `_review/production_v1.jpg`.
 
 ## Status
 
-- [x] healthy body designed (pass 3, shape preview)
-- [ ] reviewed by Max, built in colour, installed
+- [x] pass 3 built in colour and installed (2026-09-29)
+- [x] pass 4 designed (shape preview, 2026-09-30)
+- [ ] pass 4 reviewed by Max, built in colour, installed
