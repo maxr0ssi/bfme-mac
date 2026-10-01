@@ -15,6 +15,8 @@
     palettes <faction> [--only A,B]    EA's citadel recoloured with each palette option (sagekit/palettes.py)
     measure <faction/building>         EA's body measured into work/measure.json (sagekit/measure.py)
     install <faction> | revert <faction>   put everything built into the game / take it out
+    unit <faction>/<unit> [--render|--check|--stage|--install|--revert]   a unit (builder) recipe
+                                       (sagekit/units/, docs/UNITS.md); unit list | unit selfcheck
     offload pack <faction> [--only b1,b2] | run [--builds N] | results | unpack <zip> [--print-only]
                                        full-quality builds on another machine (sagekit/offload.py)
 """
@@ -56,6 +58,14 @@ def cmd_validate(a):
         except (ValueError, ImportError, AttributeError) as e:
             bad += 1
             print("FAIL %s: %s" % (bid, e))
+    from . import units                         # unit recipes (sagekit/units/): load and name rules
+    for uid in units.ids():
+        try:
+            units.load(uid)
+            print("ok   %s (unit)" % uid)
+        except (ValueError, ImportError, AttributeError) as e:
+            bad += 1
+            print("FAIL %s: %s" % (uid, e))
     bad += cmd_budget(a)
     return 1 if bad else 0
 
@@ -261,6 +271,11 @@ def cmd_revert(a):
     revert_faction(a.faction)
 
 
+def cmd_unit(a):
+    from .units.cli import main as unit
+    return unit(a.args)
+
+
 def cmd_offload(a):
     from .offload import main as offload
     return offload(a)
@@ -273,6 +288,10 @@ def _style(faction):
 
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["unit"]:                    # its own options (sagekit/units/cli.py)
+        from .units.cli import main as unit
+        return unit(argv[1:]) or 0
     ap = argparse.ArgumentParser(prog="python3 -m sagekit", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list")
@@ -320,6 +339,9 @@ def main(argv=None):
             modes = p.add_mutually_exclusive_group()
             modes.add_argument("--check",action="store_true",help="stage and verify without installing")
             modes.add_argument("--revert",action="store_true",help="restore the last scoped installation")
+    p = sub.add_parser("unit", help="a unit recipe: build, render, stage, install, revert (sagekit/units/cli.py)",
+                       add_help=False)
+    p.add_argument("args", nargs=argparse.REMAINDER)
     p = sub.add_parser("offload", help="builds on another machine (docs/OFFLOAD.md)")
     p.add_argument("action", choices=["pack", "run", "results", "unpack"])
     p.add_argument("target", nargs="?", help="pack: the faction; unpack: the results zip")

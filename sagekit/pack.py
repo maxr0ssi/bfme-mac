@@ -33,7 +33,7 @@ A key is ["asset", name] (every asset record of that name), ["objects", model] (
 object records) or ["object", model, OBJECT]; its hash covers those records' bytes in cache order.
 
 `build` (sagekit/packbuild.py; scripts/make-release.sh --buildings) reads the staged installation (`sagekit install
-<faction> --check`, and `python3 -m assets.<faction>.porter.install --check` for a builder), EA's
+<faction> --check`, and `python3 -m sagekit unit <faction>/porter --stage` for a builder), EA's
 files and this Mac's asset.dat.orig files. `install` (scripts/install.sh --buildings) works on any
 prefix: every chosen pack in one transaction, a scoped receipt and backups in
 <prefix>/bfme-mac-buildings/; `revert` restores exactly what it changed. A pack whose game does not
@@ -178,7 +178,7 @@ def mismatches(m, caches, g, dirs, seen):
     for a in m["archives"]:
         if (dirs["rotwk"]/a["name"]).exists():
             out.append("%s is already in the RotWK folder (a sagekit install or a copied pack: python3 -m "
-                       "sagekit revert %s, or the builder's --revert, or remove the file)" % (a["name"], m["faction"]))
+                       "sagekit revert %s, or python3 -m sagekit unit <faction>/porter --revert, or remove the file)" % (a["name"], m["faction"]))
     for name, (want, archive) in sorted(m["sources"].items()):
         if name not in seen:
             try:

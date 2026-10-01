@@ -151,6 +151,7 @@ system to the game's INIs; `renders/fire/compare_<view>.png` marks the points ov
 | Checks | `blender/checks.py`, `checks_suite.py`, `checks_lifecycle.py`, `alpha.py`, `nightlights.py` |
 | New factions | `scaffold.py` + `scaffold_write.py` (`sagekit new`), `measure.py` + `blender/measure.py` (`sagekit measure`) |
 | Player colour, install | `house.py`, `housemesh.py`, `blender/house.py`, `install.py` |
+| Units (builders) | `units/` (recipe, mesh, build, paint, render, install, records, cli), `blender/unit_pose.py`: [UNITS.md](UNITS.md) |
 
 ## A faction's folder
 

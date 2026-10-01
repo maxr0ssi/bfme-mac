@@ -57,17 +57,23 @@ only.
 
 | Unit set | State | Where |
 |---|---|---|
-| Dwarven builder | installed, not checked in game | [assets/dwarves/porter/](../assets/dwarves/porter/) |
-| Elven builder | installed, not checked in game | [assets/elves/porter/](../assets/elves/porter/) |
+| Unit framework | built: recipe, checks, posed renders, install and revert in any order | `sagekit/units/`, [UNITS.md](UNITS.md) |
+| Dwarven builder | installed, not checked in game; ported, rebuilds byte for byte | [assets/dwarves/porter/](../assets/dwarves/porter/) |
+| Elven builder | installed, not checked in game; ported, rebuilds byte for byte | [assets/elves/porter/](../assets/elves/porter/) |
+| Men builder (Gondor and Arnor, `GUPorter_SKN`) | stub: EA's, rendered | [assets/men/porter/](../assets/men/porter/) |
+| Goblin builder (`WUPorter_SKN` as `WUBuilder_SKN`) | stub: EA's, rendered | [assets/goblins/porter/](../assets/goblins/porter/) |
+| Isengard builder (`WUPorter_SKN` as `IUBuilder_SKN`) | stub: EA's, rendered | [assets/isengard/porter/](../assets/isengard/porter/) |
+| Mordor builder (`WUPorter_SKN` as `MUBuilder_SKN`) | stub: EA's, rendered | [assets/mordor/porter/](../assets/mordor/porter/) |
 | Dwarven, Elven and Men troops | staged, not installed | `assets/<faction>/troops/README.md` |
 | Heroes | not started | |
 
 Units differ from buildings: skinned bodies whose animations (idle, run, hammer, death) must keep
-working, and player colour on the unit itself. The builders run as standalone scripts outside the
-building pipeline. Next: a `Unit` recipe in sagekit next to `Building`, reusing what the builders
-proved (source hashes, bone bindings, animation-pose previews) plus the building pipeline's paint,
-house colour, own names and install; construction workers (`DUWorker_SKN` and each faction's
-equivalent) come with it. Then one builder per faction, designed with its citadel pilot.
+working, and player colour on the unit itself. A unit recipe (`Unit` in `sagekit/units/`, next to
+`Building`) reuses what the first two builders proved: source hashes, pieces bound to bones,
+animation-pose renders, a private atlas and mask, its own archive and records. Isengard, Mordor,
+the Goblins and Angmar share EA's orc porter, so each of the three ships its own copy and repoints
+its own object; Angmar keeps EA's. Construction workers (`DUWorker_SKN` and each faction's
+equivalent) come later.
 
 ## Per faction, the loop
 

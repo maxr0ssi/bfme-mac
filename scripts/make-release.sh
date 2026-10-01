@@ -11,7 +11,7 @@
 # --buildings also packs the finished buildings (every faction above by default, with its builder
 # where it has one) as build/release/bfme-mac-buildings-<faction>-<version>.tar.gz, the files
 # install.sh --buildings installs: `python3 -m sagekit install <faction> --check` stages the current
-# build (a builder is staged by `python3 -m assets.<faction>.porter.install --check`; the pack refuses
+# build (a builder is staged by `python3 -m sagekit unit <faction>/porter --stage`; the pack refuses
 # one that is not the reviewed build), then `python3 -m sagekit.pack build` turns every archive
 # member into a delta against the EA files it was made from, checks the inserted bytes hold no run of
 # EA's, and adds the asset.dat edits (sagekit/pack.py, sagekit/packbuild.py). No EA file is in a pack. The fixes file lists the packs in BUILDINGS (faction, file, SHA-256, bytes);

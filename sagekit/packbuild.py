@@ -1,6 +1,5 @@
 """Building packs, the release side of sagekit/pack.py: each archive member as a delta against the EA
 files the build made it from (sagekit/delta.py), checked to insert no long run of EA's bytes."""
-import importlib
 import json
 import os
 import shutil
@@ -114,7 +113,7 @@ def ref(g, name):
 # ---------------------------------------------------------------------- build (release side)
 def parts(faction):
     """[(staged archive, {game: [op]}, {INI member: our lines}, {member: {dirs}})]: the faction's
-    buildings, then its builder when assets/<faction>/porter/install.py has release()."""
+    buildings, then each of its unit recipes that ships an archive (sagekit/units/install.py release())."""
     stage = Path(paths.BUILD)/faction/"_install"
     archive, ops_file = stage/archive_name(faction), stage/"cache-ops.json"
     if not (archive.exists() and ops_file.exists()):
@@ -123,14 +122,13 @@ def parts(faction):
     if sha(archive.read_bytes()) != staged["archive_sha256"]:
         raise SystemExit("%s: the staged archive and cache-ops.json differ; stage again" % faction)
     out = [(archive, {g: [tuple(op) for op in o] for g, o in staged["caches"].items()}, {}, extracted(faction))]
-    try:
-        porter = importlib.import_module("assets.%s.porter.install" % faction)
-    except ImportError:
-        return out
-    if hasattr(porter, "release"):
-        archive, ops, appended, dirs = porter.release()
-        if not Path(archive).exists():
-            raise SystemExit("%s: the builder is not staged: python3 -m assets.%s.porter.install --check" % (faction, faction))
+    from .units import ids, load
+    from .units.install import release
+    for uid in ids(faction):                    # its units (the builder), staged: sagekit unit <id> --stage
+        u = load(uid)
+        if not u.archive or not u.privates():
+            continue                            # a stub ships nothing
+        archive, ops, appended, dirs = release(u)
         names = [norm(e.name) for e in bigtool.read_index(str(archive))[0]]
         out.append((Path(archive), ops, appended, {n: set(map(str, dirs)) for n in names}))
     return out

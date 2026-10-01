@@ -225,10 +225,14 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `revert` restores it. The installer is standard library only.
 - `python3 -m sagekit.delta` (`sagekit/delta.py`) — the packs' copy/insert delta format and the check
   for EA runs in the inserted bytes; run alone, its self-checks.
-- `assets/<faction>/porter/` — the faction's builder (Dwarves, Elves; installed):
-  `python3 -m assets.<faction>.porter.unit --render` builds and previews it,
-  `python3 -m assets.<faction>.porter.install [--check|--revert]` installs it; its `release()` is
-  what the faction's building pack ships.
+- `python3 -m sagekit unit <faction>/<unit> [--render|--check|--stage|--install|--revert]`
+  (`sagekit/units/`, `sagekit/blender/unit_pose.py`) — unit recipes, `assets/<faction>/porter/design.py`
+  (Dwarves and Elves installed; Men, Goblins, Isengard, Mordor stubs): builds the redesigned builder on
+  EA's rig, checks it, renders EA's and ours in EA's animation poses, stages, installs and reverts it
+  in any order with other units (a shared house-colour INI; asset.dat records put back one by one);
+  `install.release()` is what the faction's building pack ships. `unit list`, `unit selfcheck`.
+  How a recipe works: `docs/UNITS.md`. The Dwarven porter's `unit.py` and `preview.py` are the
+  troop scripts' imports of the shared mesh primitives and motion decoder.
 - `assets/<faction>/troops/` — troop redesigns (Dwarves, Elves, Men; staged, not installed):
   `build.py`, `preview.py`, `audit.py`; each folder's README has the commands.
 - `python3 -m sagekit list|validate|inventory|budget|build` — builds new art for a building from
