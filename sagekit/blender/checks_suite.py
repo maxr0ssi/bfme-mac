@@ -17,7 +17,9 @@ def run(b, ws, r):
     _checks.WORLD = b.world_space
     O, N = snapshot(ws.source_model, ws.src), snapshot(shipped, ws.src)
     from ..sharedsheets import checks as shared_checks, renamed      # EA's, shared sheets as we ship them
-    WO, WN = W3DFile(renamed(ws, open(ws.source_model, "rb").read())), W3DFile(shipped)
+    from ..capture import dress_meshes, without                    # a capturable building's dress: its own checks
+    N["meshes"] = {k: v for k, v in N["meshes"].items() if k not in dress_meshes(b)}
+    WO, WN = W3DFile(renamed(ws, open(ws.source_model, "rb").read())), W3DFile(without(b, open(shipped, "rb").read()))
     from ..nightlights import names_of, night_meshes                 # rebuilt by the night-lights standard:
     night = night_meshes(names_of(ws), WO.data)                     # checked in blender/nightlights.py
     meshes = sorted(n for n in O["meshes"] if n not in night)
@@ -200,6 +202,8 @@ def run(b, ws, r):
     night_checks(b, ws, r)              # night lights on our surface, the faction's texture only
     from ..fire import checks as fire_checks
     fire_checks(b, ws, r)               # the fire rig, its Draw modules, EA's particle systems
+    from .capture import checks as capture_checks
+    capture_checks(b, ws, r)            # the capture dress: hidden meshes, their bone, the INI modules
     from .checks_lifecycle import run as lifecycle_checks
     lifecycle_checks(b, ws, r)          # construction / really damaged / rubble models
     return r.summary()

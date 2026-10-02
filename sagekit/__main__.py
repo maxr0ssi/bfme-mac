@@ -10,13 +10,16 @@
     house <faction>                    add the buildings' cloth to the house-colour models (player colour)
     names <faction> [--write]          every model and texture name the faction ships (assets/<faction>/NAMES.md)
     owners <faction> [--refresh]       what the faction draws that other factions draw too (sagekit/ownership.py)
-    new <faction> [--write]            one stub recipe per design unit of EA's (sagekit/scaffold.py)
+    new <faction> [--write] [--only N] one stub recipe per design unit of EA's (sagekit/scaffold.py)
     board <faction>                    EA's buildings as they are, one labelled grid (sagekit/board.py)
     palettes <faction> [--only A,B]    EA's citadel recoloured with each palette option (sagekit/palettes.py)
     measure <faction/building>         EA's body measured into work/measure.json (sagekit/measure.py)
+    capture <faction/building> [--version v1] [--no-render]   the capture dress review sheet (sagekit/capture.py)
     install <faction> | revert <faction>   put everything built into the game / take it out
     unit <faction>/<unit> [--render|--check|--stage|--install|--revert]   a unit (builder) recipe
                                        (sagekit/units/, docs/UNITS.md); unit list | unit selfcheck
+    icons <faction> [--map|--render|--stage|--install|--revert]   HUD portraits and buttons of our
+                                       buildings (sagekit/icons/, docs/ICONS.md)
     offload pack <faction> [--only b1,b2] | run [--builds N] | results | unpack <zip> [--print-only]
                                        full-quality builds on another machine (sagekit/offload.py)
 """
@@ -241,7 +244,7 @@ def cmd_owners(a):
 
 def cmd_new(a):
     from .scaffold import run
-    return run(a.faction, a.write)
+    return run(a.faction, a.write, a.only)
 
 
 def cmd_board(a):
@@ -262,6 +265,11 @@ def cmd_measure(a):
     r = subprocess.run([paths.blender_python(), "-m", "sagekit.blender.measure", a.building], cwd=paths.REPO,
                        env=dict(os.environ, PYTHONPATH=paths.REPO))
     return r.returncode
+
+
+def cmd_capture(a):
+    from .capture import review
+    review(registry.load(a.building), a.version, render=not a.no_render)
 
 
 def cmd_install(a):
@@ -303,6 +311,9 @@ def main(argv=None):
     if argv[:1] == ["unit"]:                    # its own options (sagekit/units/cli.py)
         from .units.cli import main as unit
         return unit(argv[1:]) or 0
+    if argv[:1] == ["icons"]:                   # its own options (sagekit/icons/cli.py)
+        from .icons.cli import main as icons
+        return icons(argv[1:]) or 0
     ap = argparse.ArgumentParser(prog="python3 -m sagekit", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list")
@@ -338,11 +349,16 @@ def main(argv=None):
     p = sub.add_parser("new")
     p.add_argument("faction")
     p.add_argument("--write", action="store_true", help="write the stubs (never over an existing recipe)")
+    p.add_argument("--only", help="comma-separated stub names to write (default: every one)")
     sub.add_parser("measure").add_argument("building")
     sub.add_parser("board", help="EA's buildings as they are (sagekit/board.py)").add_argument("faction")
     p = sub.add_parser("palettes", help="the palette options on EA's citadel (sagekit/palettes.py)")
     p.add_argument("faction")
     p.add_argument("--only", help="comma-separated palette keys (default: every one in the style)")
+    p = sub.add_parser("capture", help="the capture dress review sheet (sagekit/capture.py)")
+    p.add_argument("building")
+    p.add_argument("--version", default="v1")
+    p.add_argument("--no-render", action="store_true", help="the sheet again from the last renders")
     for name in ("install", "revert"):
         p = sub.add_parser(name)
         p.add_argument("faction")

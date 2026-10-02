@@ -35,6 +35,8 @@ def job_geometry(b, stage=None, cloth=None):
     if ws.house:                            # cloth goes to the house-colour model (the player's colour)
         print("house colour:", take_faces(obj, solids, b.house_tags, cloth, b.world_space), "faces ->",
               ws.house["model"])
+    from .capture import take_cloth         # a capturable building's dress cloth (sagekit/capture.py)
+    take_cloth(b, obj, solids, ws)
     added, stats = add_solids(obj, solids, b.style.atlas, b.world_space)
     bb1 = scene.bbox(obj.data, obj.matrix_world if b.world_space else None)
     print("TRIS before", before)
@@ -94,8 +96,16 @@ def job_paint(b):
 
 def job_export(b):
     ws = workspace.Workspace(b)
+    from .capture import split              # a capturable building's dress: meshes of their own
+    split(b)
     scene.export_w3d(ws.export_model, b.target)
     scene.save(ws.stage("export"))
+
+
+def job_capture_render(b, out, house="", res="1200x860", spp="48"):
+    """The capture dress review renders (sagekit/blender/capture.py)."""
+    from .capture import render_review
+    render_review(b, out, house, res, spp)
 
 
 def job_render(b, w3d, prefix, views="rts,close", res="1600x1100", spp="64", frame=None, **textures):
@@ -149,3 +159,9 @@ def job_night_render(b, w3d, prefix, views="rts,close", res="1400x960", spp="48"
     texmap = ws.texture_map()
     texmap.update({k.lower(): v for k, v in textures.items()})
     render_night(b, w3d, prefix, views.split(","), tuple(int(x) for x in res.split("x")), int(spp), ws.src, frame, texmap)
+
+
+def job_icons(b, spec):
+    """HUD icon renders: every model and shot the spec (JSON) lists (sagekit/blender/icon.py)."""
+    from .icon import run
+    run(spec)

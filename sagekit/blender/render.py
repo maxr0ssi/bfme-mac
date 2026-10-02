@@ -235,7 +235,8 @@ def render_views(building, w3d_path, w3d, texmap, prefix, views, res, samples, s
     if house:
         add_house_colour(*house)
     from ..nightlights import day_hidden
-    rig(res, samples, day_hidden(building, w3d.data))
+    from ..capture import dress_meshes                  # the capture dress shows only once captured
+    rig(res, samples, set(day_hidden(building, w3d.data)) | set(dress_meshes(building)))
     for name, mesh in w3d.meshes.items():
         obj = bpy.data.objects.get(name)
         if obj is not None and not obj.hide_render and mesh.textures and all(t.lower() in texmap for t in mesh.textures):

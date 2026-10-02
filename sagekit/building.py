@@ -360,6 +360,9 @@ class Building:
         own = [("model", self.shipped_name(m).lower() + ".w3d", m.lower() + ".w3d") for m in [self.source] + list(derived)
                if self.shipped_name(m).lower() != m.lower()]
         from .fire import cache_ops as fire                      # the fire rig (a model of our own)
+        if getattr(self, "capture", False):                     # a capturable building's dress
+            from .capture import cache_ops as capture
+            own += capture(self, Workspace(self))
         return own + fire(self) + ops + [("patch", self.model_file)] + [("patch", self.shipped_name(m).lower() + ".w3d") for m in derived]
 
     def ini_ops(self, install, variants):
@@ -386,6 +389,11 @@ class Building:
         from .fire import ini_ops as fire                   # our fire's Draw modules, EA's untouched
         for member, ops in fire(self, install).items():
             out.setdefault(member, []).extend(ops)
+        if getattr(self, "capture", False):                 # a capturable building's dress modules
+            from .capture import ini_ops as capture
+            from .workspace import Workspace
+            for member, ops in capture(self, install, Workspace(self)).items():
+                out.setdefault(member, []).extend(ops)
         return out
 
     # ------------------------------------------------------------------ lifecycle (from the game)

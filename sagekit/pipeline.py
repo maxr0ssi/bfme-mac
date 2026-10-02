@@ -331,6 +331,8 @@ class Ship(Step):
     name = "ship"
 
     def run(self):
+        from . import capture                   # a capturable building's dress: a model of its own
+        capture.write_house(self.b, self.p.install, self.ws)
         files = [(self.b.own_diffuse, ".dds")] + ([(self.b.own_normal, ".tga")] if self.b.own_normal else [])
         files += [(v, ".dds") for v in self.ws.variants.values()]
         files += [(v, ".tga") for v in self.ws.normal_variants.values()]

@@ -363,6 +363,27 @@ def add_draw_after(text, obj, after, tag, block):
     raise ValueError("no Draw module %s in object %s" % (after, obj))
 
 
+def add_behavior(text, obj, tag, block):
+    """Module `tag` - block: its lines from `Behavior = ...` to its `End`, unindented - inserted
+    before the End that closes object `obj` (its last unindented `End`), indented one tab
+    (sagekit/capture.py). Idempotent: an object with a module `tag` already is left as it is."""
+    lines = text.splitlines(keepends=True)
+    start = next((i for i, raw in enumerate(lines) if not raw[:1].isspace() and OBJECT_RE.match(strip(raw))
+                  and OBJECT_RE.match(strip(raw)).group(2) == obj), None)
+    if start is None:
+        raise ValueError("no object %s" % obj)
+    stop = next((i for i in range(start + 1, len(lines)) if not lines[i][:1].isspace()
+                 and OBJECT_RE.match(strip(lines[i]))), len(lines))
+    if any(re.match(r"^Behavior\s*=\s*\S+\s+%s\s*$" % re.escape(tag), strip(x), re.I) for x in lines[start:stop]):
+        return text
+    end = next((i for i in range(stop - 1, start, -1) if not lines[i][:1].isspace() and strip(lines[i]).lower() == "end"), None)
+    if end is None:
+        raise ValueError("no End closing object %s" % obj)
+    nl = "\r\n" if lines[end].endswith("\r\n") else "\n"
+    lines[end:end] = [nl] + ["\t" + x + nl for x in block]
+    return "".join(lines)
+
+
 def _object_lines(text):
     """The lines up to the next top-level Object / ChildObject / ObjectReskin."""
     for raw in text.splitlines():
@@ -375,7 +396,8 @@ def apply_ops(text, ops):
     """Apply [('swaps', base, {ea: (own, own variant)}) | ('lod_off', object, tag) |
     ('field', object, tag, key, value) | ('draw', object, tag, model) |
     ('state', object, tag, [flags], model) | ('model', object, tag, old, new) |
-    ('fire_draw', object, after tag, tag, lines) | ('fx_systems', ((name, after, lines), ...))] in order."""
+    ('fire_draw', object, after tag, tag, lines) | ('fx_systems', ((name, after, lines), ...)) |
+    ('behavior', object, tag, lines)] in order."""
     for op in ops:
         if op[0] == "fx_systems":                   # particle systems of our own (sagekit/fire_systems.py)
             from ..fire_systems import add_systems
@@ -384,6 +406,8 @@ def apply_ops(text, ops):
             text = add_draw(text, *op[1:])
         elif op[0] == "fire_draw":
             text = add_draw_after(text, *op[1:])
+        elif op[0] == "behavior":                   # an object's module of our own (sagekit/capture.py)
+            text = add_behavior(text, *op[1:])
         elif op[0] == "model":
             text = set_model(text, *op[1:])
         elif op[0] == "state":
