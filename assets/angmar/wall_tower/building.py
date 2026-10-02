@@ -57,7 +57,9 @@ class WallTower(Building):
     sheet_normal = "KBFortressB_NRM.tga"
     own_textures = {"KBFortressB.tga": "KBFortressG.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     # EA's build-up is a remodel: cut, our shell kept scraps and 3% open backs (sagekit/lifecycle.py `fill`)
-    lifecycle = {"KBArrwWal_A": {"fill": True}}
+    lifecycle = {"KBArrwWal_A": {"fill": True},
+                 "KBArwWal_A": {"skip": "never seen: awaiting construction, its animation (KBArwWal_ASKL.KBArrwWal_A) is "
+                                        "not in EA's files, so the tower stands at rest, wholly under the ground (z -120..-8)"}}
     HOUSE_DRAW = "ModuleTag_Draw_HCWallTower"
     house_tags = ()
     fire_points = _fire_points()

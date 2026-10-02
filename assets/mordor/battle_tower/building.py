@@ -33,6 +33,9 @@ class BattleTower(Building):
     sheet = "DolGolGate.tga"
     sheet_normal = "DolGolGate_NRM.tga"
     own_textures = {"DolGolGate.tga": "DolGolGatH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    lifecycle = {"MBSentry_D3": {"skip": "the collapse cuts our tower's plates and spikes open: 16.8-23.2% past "
+                                         "EA's (filled or cut), over the checks' 10%; EA's collapse stays until "
+                                         "the cut caps what it opens"}}
     views = {
         "rts": ((0.0, 0.0, 61.3), 287, 50, -38, 50),
         "close": ((0.0, 0.0, 105.0), 120, 24, -30, 45),        # the crown

@@ -81,6 +81,8 @@ class Stable(Building):
     sheet = "GBStable.tga"
     sheet_normal = "GBStable_NRM.tga"
     own_textures = {"GBStable.tga": "GBStablH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    # cut along EA's build-up pieces, our walls kept slivers and 2.9% open backs (sagekit/lifecycle.py `fill`)
+    lifecycle = {"GBStable_A": {"fill": True}}
     world_space = True
     bake_hidden = NOT_BAKED
     views = {

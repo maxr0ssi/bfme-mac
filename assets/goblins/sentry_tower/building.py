@@ -38,6 +38,8 @@ class SentryTower(Building):
     sheet = "WBTower.tga"
     sheet_normal = "WBTower_NRM.tga"
     own_textures = {"WBTower.tga": "WBToweH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    lifecycle = {"WBTower_R": {"skip": "the ruin a separate object (SentryTowerHole) leaves on the ground once the tower is "
+                                      "gone: rubble of its own, no piece on the healthy body"}}
     facet_islands = 8                       # the Goblin kit's unwrap overlaps a little: seams at EA's islands and 8-degree turns
     views = {
         "rts": ((6.0, -0.3, 66.0), 339, 50, -38, 50),

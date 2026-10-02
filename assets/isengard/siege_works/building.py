@@ -56,6 +56,18 @@ class SiegeWorks(Building):
     sheet = "IBSeigeWork.tga"
     sheet_normal = "IBSeigeWork_NRM.tga"
     own_textures = {"IBSeigeWork.tga": "IBSeigeWorH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    lifecycle = dict.fromkeys(("IBSeigeW_DRC", "IBSeigeW_DRCA", "IBSeigeW_DROA", "IBSeigeW_DSOP", "IBSeigeWork_DrA"), {
+        "skip": "the mouth's doors and wheels: a Draw of their own (ModuleTag_02) painted from the walls' sheet "
+                "(IBSeigeWall), which stays EA's; never on the healthy body"})
+    # EA's damaged models drop and sag the awning: cut along them, our frame kept scraps (10-16% open
+    # backs); filled, what remains are thin seams across the tarp the RTS renders do not show as holes
+    lifecycle.update({
+        "IBSeigeW_D1": {"fill": True, "backs": (0.05, "thin seams across the tarp where EA's pieces part, "
+                                                     "4.4% past EA's; no hole in the RTS renders")},
+        "IBSeigeW_D2": {"fill": True, "backs": (0.12, "the collapse's last frames, the cut posts' ends: 11.2% "
+                                                     "past EA's; no hole in the RTS renders")},
+        "IBSeigeW_D3": {"fill": True, "backs": (0.12, "mid-collapse, the tarp and posts' cut ends: 11.5% past "
+                                                     "EA's; no hole in the RTS renders")}})
     world_space = True                   # IBSEIGEFRAME's bone is moved (20.3, -0.3, 0.7): design and fire share world axes
     fire_points = FIRE_POINTS
     views = {

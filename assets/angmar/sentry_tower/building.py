@@ -45,6 +45,9 @@ class SentryTower(Building):
     sheet = "KBBtlTwr.tga"
     sheet_normal = "KBBtlTwr_Nrm.tga"
     own_textures = {"KBBtlTwr.tga": "KBBtlTwH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    lifecycle = {"KBBtlTwr_D3": {"backs": (0.13, "the collapse's first frames: the cut blades' and spikes' "
+                                              "inner faces, 12.2% past EA's; the RTS renders show no hole and "
+                                              "every piece is under the ground at its end")}}
     views = {
         "rts": ((-1.5, 0.6, 64.2), 336, 50, -38, 50),
         "close": ((0.0, 0.0, 100.0), 130, 42, -38, 45),          # the crown

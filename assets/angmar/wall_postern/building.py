@@ -36,6 +36,8 @@ class WallPostern(Building):
     sheet = "KBFortressB.tga"
     sheet_normal = "KBFortressB_NRM.tga"
     own_textures = {"KBFortressB.tga": "KBFortressF.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    lifecycle = {"KBPostGateN_A": {"skip": "never seen: the INI's build animation (KBPostGateN_A.KBPostGateN_A) is not in EA's "
+                                          "files, so the model stands at rest, wholly under the ground (z -86..-33)"}}
     HOUSE_DRAW = "ModuleTag_Draw_HCWallPostern"
     house_tags = ()
     views = {

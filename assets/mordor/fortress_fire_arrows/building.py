@@ -43,7 +43,10 @@ class FortressFireArrows(Building):
     sheet_normal = "MBFortress_NRM.tga"
     own_textures = {"MBFortress.tga": "MBFortresB.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     # EA remodelled the really damaged pieces: cut, 13% open backs (sagekit/lifecycle.py `fill`)
-    lifecycle = {"MBFFArrows_D2": {"fill": True}}
+    lifecycle = {"MBFFArrows_D2": {"fill": True},
+                 "MBFFArrows_D3": {"skip": "the collapse cuts our pod's blades open: 16.2-20.9% past EA's "
+                                           "(filled or cut), over the checks' 10%; EA's collapse stays until "
+                                           "the cut caps what it opens"}}
     parts = ("ModuleTag_DrawFireArrows",)
     views = {
         "rts": ((42.1, -0.0, 76.0), 120, 50, -38, 50),       # EA's view, drawn back to show the whole pod

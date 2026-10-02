@@ -42,6 +42,8 @@ class StableLevel2(LevelMesh):
     target = "V1"
     base = chain("stable", 2)
     own_textures = level_textures("S", 2)
+    # cut along EA's build-up pieces, our walls kept slivers and 2.9% open backs (sagekit/lifecycle.py `fill`)
+    lifecycle = {"GBStable_A": {"fill": True}}
     bake_hidden = tuple(n for n in NOT_BAKED if n != "V1")
     footprint_margin = 0.3                       # merlon capstones on the walls' outer top edge (EA's foot sets the box)
     views = {

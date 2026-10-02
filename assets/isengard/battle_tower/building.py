@@ -35,6 +35,11 @@ class BattleTower(Building):
     sheet = "IBBtlTwr.tga"
     sheet_normal = "IBBtlTwr_NRM.tga"
     own_textures = {"IBBtlTwr.tga": "IBBtlTwH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    # EA's really damaged tower drops a few shards, its body bent: cut and bent along it, slivers and
+    # 2.9% open backs; filled on our own (unbent) faces, 2.8%, seams no RTS render shows
+    lifecycle = {"IBBtlTwr_D2": {"fill": True, "bend": False,
+                                 "backs": (0.03, "thin seams between the tower's plates where EA's shards part, "
+                                                 "2.8% past EA's; no hole in the RTS renders")}}
     views = {
         "rts": ((8.1, 0.2, 63.8), 292, 50, -38, 50),
         "close": ((10.0, 0.0, 100.0), 175, 24, -30, 45),

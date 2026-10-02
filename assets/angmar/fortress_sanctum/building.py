@@ -63,6 +63,10 @@ class FortressSanctum(Building):
     sheet_normal = "KBFortressB_NRM.tga"
     own_textures = {"KBFortressB.tga": "KBFortressP.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     facet_islands = 8                       # the unwrap overlapped (0.06%): seams at EA's islands and 8-degree turns
+    # EA builds the sanctum up from pieces painted from the fortress's sheet (KBFortressX, laid out
+    # otherwise): named here, they carry our faces on our own sheet (sagekit/lifecycle.py `sheets`)
+    lifecycle = {"KBFSanctum_A": {"body": ["KBFSANCTUMA_%02d" % i for i in (1, 2, 3, 5, 6, 7, 8, 9)],
+                                  "sheets": {"KBFortressX.tga": "KBFortressP.tga"}}}
     parts = ("ModuleTag_SanctumDraw",)
     views = {
         "rts": ((0.0, -0.0, 87.7), 405, 50, -38, 50),

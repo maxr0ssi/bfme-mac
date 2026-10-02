@@ -31,6 +31,8 @@ class Statue(Building):
     sheet = "GUHeroStat.tga"
     sheet_normal = "GUHeroStat_NRM.tga"
     own_textures = {"GUHeroStat.tga": "GUHeroStaH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    # cut along EA's build-up pieces, the figure kept slivers and 2.9% open backs (sagekit/lifecycle.py `fill`)
+    lifecycle = {"GPHealstue_A": {"fill": True}}
     # the figure is an organic body: unwrapped whole, its cloak's folds flip over one another in our
     # layout (0.24 % of texels twice); seamed at EA's own island borders and turns over 20 degrees
     facet_islands = 20

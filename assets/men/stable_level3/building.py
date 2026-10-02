@@ -36,6 +36,8 @@ class StableLevel3(LevelMesh):
     base = chain("stable", 3)
     level = 3
     own_textures = level_textures("S", 3)
+    # cut along EA's build-up pieces, our walls kept slivers and 2.9% open backs (sagekit/lifecycle.py `fill`)
+    lifecycle = {"GBStable_A": {"fill": True}}
     bake_hidden = tuple(n for n in NOT_BAKED if n not in ("V1", "V2", "V2FLAG"))
     footprint_margin = 0.8                       # the bartizans corbel out of the storey's west chamfers (V2's box edge)
     views = {

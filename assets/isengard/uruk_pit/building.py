@@ -58,6 +58,10 @@ class UrukPit(Building):
     facet_islands = 8                       # the unwrap overlapped a little: seams at EA's islands and 8-degree turns
     sheet_normal = "iburukpit_nrm.tga"
     own_textures = {"iburukpit.tga": "iburukpiH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    # EA remodelled the really damaged pit (cut: 8.5% open backs, slivers); one post foot of ours rides
+    # EA's dent 0.6 below the healthy floor, under the ground
+    lifecycle = {"IBUrukPit_D2": {"fill": True, "deep": (0.7, "one post foot at (-3, -19) rides EA's dent to "
+                                                              "z -1.1, under the ground; EA's lowest -0.5")}}
     fire_points = FIRE_POINTS
     views = {
         "rts": ((12.0, 5.8, 32.2), 368, 50, -38, 50),

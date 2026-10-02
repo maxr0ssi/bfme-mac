@@ -43,6 +43,12 @@ class MumakilPen(Building):
     bake_hidden = ("V1", "V2", "BANNERS")
     max_z_growth = 0.25                 # the tusk arch's crown fire over the open end to z 86 (+23 %)
     own_textures = {"MBMumkPen.tga": "MBMumkPeH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    lifecycle = dict.fromkeys(("MBMumkpen_DRA", "MBMumkpen_DROCD", "MBMumkpenDOP", "MBMumkpenDSCL"), {
+        "skip": "the pen's gate: a separate piece in a Draw of its own (ModuleTag_02) that EA opens, closes and "
+                "drops; never on the healthy body"})
+    lifecycle["MBMumkPen_D3"] = {"skip": "the collapse cuts our stockade and tusk arch open: 17.6-26.3% past EA's "
+                                         "(filled or cut), over the checks' 10%; EA's collapse stays until the "
+                                         "cut caps what it opens"}
     views = {
         "rts": ((-4.1, 0.4, 31.8), 351, 50, -38, 50),
         "close": ((-4.1, 0.4, 31.8), 208, 24, -30, 45),

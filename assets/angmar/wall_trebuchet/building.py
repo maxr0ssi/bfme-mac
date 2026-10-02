@@ -63,7 +63,10 @@ class WallTrebuchet(Building):
     sheet_normal = "KBFortressB_NRM.tga"
     own_textures = {"KBFortressB.tga": "KBFortressJ.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     # EA's build-up is a remodel: cut, 3.6% open backs (sagekit/lifecycle.py `fill`)
-    lifecycle = {"KBTrSlgWl_A": {"fill": True}}
+    lifecycle = {"KBTrSlgWl_A": {"fill": True},
+                 "KBTrSlgWl_D3": {"skip": "the collapse cuts our pilasters and parapet open: 17.7-23.4% past "
+                                          "EA's (filled or cut), over the checks' 10%; EA's collapse stays "
+                                          "until the cut caps what it opens"}}
     HOUSE_DRAW = "ModuleTag_Draw_HCWallTrebuchet"
     bake_hidden = ("ICEWALL",)        # the Ice Walls shell: shown in game with its upgrade, out of the bakes
     house_tags = ()

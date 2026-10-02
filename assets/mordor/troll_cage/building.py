@@ -57,7 +57,10 @@ class TrollCage(Building):
     sheet_normal = "MBTrollPit_NRM.tga"
     own_textures = {"MBTrollPit.tga": "MBTrollPiH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     # EA remodelled the damaged cage: cut, 16-19% open backs (sagekit/lifecycle.py `fill`)
-    lifecycle = {"MBTrollPit_D1": {"fill": True}, "MBTrollPit_D2": {"fill": True}}
+    lifecycle = {"MBTrollPit_D1": {"fill": True}, "MBTrollPit_D2": {"fill": True},
+                 # the rubble too (cut: 14.7%); filled, 10.3% past EA's mid-collapse, no hole in the RTS renders
+                 "MBTrollPit_D3": {"fill": True, "backs": (0.11, "mid-collapse, the stakes' cut ends: 10.3% "
+                                                                "past EA's; no hole in the RTS renders")}}
     parts = ("ModuleTag_Draw",)
     world_space = True                  # the body's bone is moved (-18.5, -2.1, 0.2): design and fire share world axes
     facet_islands = 8                       # the unwrap overlapped (0.26%): seams at EA's islands and 8-degree turns

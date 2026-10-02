@@ -64,6 +64,9 @@ class SiegeWorks(Building):
     fire_points = FIRE_POINTS
     lifecycle = {"MBSeigeWork_A": {"fill": True},     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
                  "MBSeigeW_D2": {"fill": True}}       # and its really damaged pieces: cut, 10.3% open backs
+    # EA's damaged body is its healthy one dented (667 triangles, box within 0.8): cut along it, EA's
+    # dented walls joined ours as break faces and 7% open backs; it carries our body whole instead
+    also_derived = ("MBSeigeW_D1",)
     views = {
         "rts": ((-22.0, 1.2, 25.9), 378, 50, -38, 50),
         "close": ((-22.0, 1.2, 25.9), 223, 24, -30, 45),

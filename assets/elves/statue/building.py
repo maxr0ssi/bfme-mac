@@ -71,6 +71,8 @@ class Statue(Building):
     sheet = "ebstatueholder.tga"                 # lower case, as the model names it
     sheet_normal = "ebstatueholder_nrm.tga"
     own_textures = {"ebstatueholder.tga": "ebstatueholdeH.tga"}   # free in EA's files and every recipe
+    # cut along EA's build-up pieces, our faces kept slivers and 6-8% open backs (sagekit/lifecycle.py `fill`)
+    lifecycle = {"EBStatue_A": {"fill": True}}
     tri_budget = 6000
     views = {
         "rts": ((-0.3, -1.6, 40.0), 190, 50, -38, 50),

@@ -55,6 +55,9 @@ class Catapult(Building):
     sheet = "KBFortressB.tga"
     sheet_normal = "KBFortressB_NRM.tga"
     own_textures = {"KBFortressB.tga": "KBFortressL.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    lifecycle = {"KBTrlSgTw_D3": {"backs": (0.11, "the collapse's first frames: slivers of the pilasters' "
+                                               "insides, 10.6% past EA's; the RTS renders show no hole and "
+                                               "every piece is under the ground at its end")}}
     HOUSE_DRAW = "ModuleTag_Draw_HCCatapult"
     fire_points = FIRE_POINTS
     views = {

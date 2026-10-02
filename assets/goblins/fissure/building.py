@@ -57,6 +57,8 @@ class Fissure(Building):
     sheet = "WBStone.tga"
     sheet_normal = "WBStone_NRM.tga"
     own_textures = {"WBStone.tga": "WBStonH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    lifecycle = {"WBFissure_R": {"skip": "the ruin a separate object (WildFissureHole) leaves on the ground once the fissure is "
+                                        "gone: rubble of its own, no piece on the healthy body"}}
     facet_islands = 8                       # the unwrap overlapped (3.4%): seams at EA's islands and 8-degree turns
     bake_hidden = ("N_WINDOW", "N_FIRE")
     views = {

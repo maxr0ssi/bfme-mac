@@ -58,6 +58,11 @@ class StoneMaker(Building):
     sheet = "GBstoneMk1.tga"
     sheet_normal = None
     own_textures = {"GBstoneMk1.tga": "GBstoneMkH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    # EA's damaged, really damaged and rubble bodies are new meshes (GBSTONEMK_NEW and its pieces) painted
+    # from GBstoneMk1D with a normal map; our sheet has none, and the tool cannot put a body without one
+    # into EA's normal-mapped state meshes, so those states stay EA's
+    _why = "EA's state bodies are normal-mapped new meshes; our sheet has no normal map"
+    lifecycle = {"GBStoneMK_D1": {"skip": _why}, "GBStoneMK_D2": {"skip": _why}, "GBStoneMK_D3": {"skip": _why}}
     footprint_margin = 0.8              # the south buttresses' feet stand 0.72 past EA's fins (collision is the INI's)
     views = {
         "rts": ((17.6, -0.1, 38.7), 319, 50, -38, 50),
