@@ -1,7 +1,8 @@
 """The fixed vocabulary every asset uses: factions, lifecycle states, texture tiers and names, and
 the memory budget. A building folder that breaks these rules fails `python3 -m sagekit validate`.
 
-    assets/<faction>/                 faction id from FACTIONS
+    assets/<faction>/                 faction id from OWNERS: a FACTION, or `neutral` (the capturable
+                                      inns, outposts, signal fires and lairs nobody owns at the start)
         style.py                      one Style subclass: palette, materials, shapes, paint layers
         atlas.py                      the faction's shared source texture sheet(s) (Atlas subclasses)
         <building>/                   snake_case building id
@@ -14,6 +15,11 @@ import re
 from .formats.textures import dxt1_size, full_chain
 
 FACTIONS = ("men", "elves", "dwarves", "isengard", "mordor", "goblins", "angmar")
+# who a recipe folder belongs to: the seven playable factions, and `neutral`, a pseudo-faction for EA's
+# capturable buildings (data\ini\object\neutral, sheets in art\compiledtextures\nb). It never
+# counts as a faction for the seven (sagekit/ownership.py owner_of): their checks are as before.
+NEUTRAL = "neutral"
+OWNERS = FACTIONS + (NEUTRAL,)
 ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 MB = 1 << 20
 
@@ -124,5 +130,5 @@ def own_variant_name(atlas_texture, own_texture, variant_texture, same_length=Fa
 def check_id(kind, value):
     if not ID_RE.match(value):
         raise ValueError("%s id %r: lower-case snake_case only" % (kind, value))
-    if kind == "faction" and value not in FACTIONS:
-        raise ValueError("faction %r: one of %s" % (value, ", ".join(FACTIONS)))
+    if kind == "faction" and value not in OWNERS:
+        raise ValueError("faction %r: one of %s" % (value, ", ".join(OWNERS)))

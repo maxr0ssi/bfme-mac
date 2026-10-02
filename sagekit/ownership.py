@@ -27,7 +27,7 @@ import re
 
 from . import paths
 from .formats.ini import parse_draws, parse_objects
-from .taxonomy import FACTIONS
+from .taxonomy import FACTIONS, NEUTRAL
 
 VERSION = 5                         # 5: WeatherTexture counts as drawn (a bib's snow sheet)
 CACHE = os.path.join(paths.BUILD, "_ownership.json")
@@ -64,6 +64,15 @@ def faction_of(group):
     """The playable faction a group's drawing counts for, or None."""
     g = FOLLOWS.get(group, CULTURES.get(group.split("/", 1)[1]) if group.startswith("civilian/") else group)
     return g if g in FACTIONS else None
+
+
+def owner_of(group, asking):
+    """Who a group's drawing counts for, as owner `asking` sees it: the playable faction, or for
+    the neutral pseudo-faction's own questions also `neutral` (data\\ini\\object\\neutral). The
+    seven factions never see `neutral` as another owner: their answers are what they were before
+    the neutral recipes existed, and a neutral recipe must still leave every faction's art alone."""
+    f = faction_of(group)
+    return f or (NEUTRAL if asking == NEUTRAL and group == NEUTRAL else None)
 
 
 def key(texture):
@@ -185,7 +194,7 @@ class Ownership:
         """Other playable factions drawing `model` ({faction: {objects}})."""
         out = {}
         for g, objs in self.model_groups(model).items():
-            f = faction_of(g)
+            f = owner_of(g, faction)
             if f and f != faction:
                 out.setdefault(f, set()).update(objs)
         return out
@@ -194,7 +203,7 @@ class Ownership:
         """Other playable factions drawing `texture` ({faction: {models}})."""
         out = {}
         for g, models in self.sheet_groups(texture).items():
-            f = faction_of(g)
+            f = owner_of(g, faction)
             if f and f != faction:
                 out.setdefault(f, set()).update(models)
         return out
@@ -314,15 +323,17 @@ def recipe_problems(b, own=None, install=None):
     without a pinned `own_textures` name or a `style.shared_sheets` copy. [] when it is safe. Only
     the models the recipe ships count: those its covered Draw modules show in its own states
     (not another build variation's, GBFARTOWB beside GBFARTOWA, nor the models another faction's
-    Draw shows beside the source, Blue Mountains' bb_tower03), and none without meshes."""
+    Draw shows beside the source, Blue Mountains' bb_tower03), none without meshes, and none the
+    recipe's lifecycle skips (nothing of ours ships for it)."""
     from .game import Install
     own = own or load()
     install = install or Install()
     out = []
     ships = {m.lower() for m in [b.source] + b.drawn_models(install)}
+    from .lifecycle import settings
     for m in own.body_draw_models(b.source):
-        if m not in ships or empty_model(own, m, install):
-            continue
+        if m not in ships or empty_model(own, m, install) or settings(b, m).get("skip"):
+            continue                    # (a lifecycle skip stays EA's: the Inn's generic rubble pile)
         others = own.other_model(m, b.faction)
         if others and b.shipped_name(m).lower() == m.lower():
             out.append("%s is drawn by %s too: ship an own copy (own_model)" % (
@@ -345,7 +356,7 @@ def report(faction, install=None):
     install = install or Install()
     own = load(install)
     lines = ["# %s: what other factions draw too" % faction, ""]
-    mine = sorted({m for o in own.objects.values() if faction_of(o["group"]) == faction
+    mine = sorted({m for o in own.objects.values() if owner_of(o["group"], faction) == faction
                    for _, ms in o["draws"] for m in ms}, key=str.lower)
     shared = [(m, own.other_model(m, faction)) for m in mine]
     shared = [(m, o) for m, o in shared if o]

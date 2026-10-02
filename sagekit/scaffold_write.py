@@ -10,9 +10,10 @@ from . import paths
 from .formats.w3dframes import apply
 from .scaffold import plan
 
-PREFIX = {"elves": "EB", "dwarves": "DB", "men": "GB", "isengard": "IB", "mordor": "MB", "goblins": "WB", "angmar": "KB"}
+PREFIX = {"elves": "EB", "dwarves": "DB", "men": "GB", "isengard": "IB", "mordor": "MB", "goblins": "WB", "angmar": "KB",
+          "neutral": "NB"}
 STYLE_CLASS = {"elves": "ElvenStyle", "dwarves": "DwarvenStyle", "men": "MenStyle", "isengard": "IsengardStyle",
-               "mordor": "MordorStyle", "goblins": "GoblinStyle", "angmar": "AngmarStyle"}
+               "mordor": "MordorStyle", "goblins": "GoblinStyle", "angmar": "AngmarStyle", "neutral": "NeutralStyle"}
 AUTO_VIEWS = {"rts": (2.2, 50, -38, 50), "close": (1.3, 24, -30, 45), "ingame": (5.0, 53, -62, 50)}   # render.py's
 
 
@@ -218,7 +219,7 @@ def readme(u, faction):
 
 
 # ------------------------------------------------------------------------------------ the command
-def execute(faction, write):
+def execute(faction, write, only=None):
     from .game import Install
     from .ownership import load
     from .registry import building_ids, load as load_building
@@ -252,7 +253,7 @@ def execute(faction, write):
             (os.path.exists(os.path.join(folder, "building.py")) and "%s/%s" % (faction, u["name"]))
         print("%-30s %-16s %-16s %6d  %-18s %s%s" % (u["name"], u["source"], u["target"], len(u["mesh"].tris), u["nearest"] or "-",
                                                      ", ".join(flags), "   (exists: %s - left alone)" % exists if exists else ""))
-        if write and not exists:
+        if write and not exists and (not only or u["name"] in only.split(",")):
             os.makedirs(folder, exist_ok=True)
             open(os.path.join(folder, "__init__.py"), "a").close()
             with open(os.path.join(folder, "building.py"), "w") as fh:

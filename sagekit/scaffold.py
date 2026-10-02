@@ -29,12 +29,18 @@ from .formats.textures import compiled_path
 from .formats.w3d import W3DFile
 from .formats.w3dframes import IDENTITY, apply, mesh_frames
 
+NEUTRAL_FILES = ("inn", "outpost", "signalfire", "shipwright", "ruinedtower", "cavetrolllair", "warglair",
+                 "moriagoblinlair", "spiderlair", "barrowwightlair", "firedrakelair", "hilltrolllair", "snowtrolllair",
+                 "direwolflair")
 STRUCTURES = {"men": "goodfaction\\structures\\men", "elves": "goodfaction\\structures\\elven",
               "dwarves": "goodfaction\\structures\\dwarven", "isengard": "evilfaction\\structures\\isengard",
               "mordor": ("evilfaction\\structures\\mordor", "evilfaction\\structures\\evilmen\\haradrimpalace.ini",
                          "evilfaction\\structures\\evilmen\\mumakilpen.ini"),
-              "goblins": "evilfaction\\structures\\wild", "angmar": "evilfaction\\structures\\angmar"}
-# (Mordor builds the Haradrim palace and the mumakil pen, whose INIs are in BFME1's evilmen folder)
+              "goblins": "evilfaction\\structures\\wild", "angmar": "evilfaction\\structures\\angmar",
+              "neutral": tuple("neutral\\%s.ini" % f for f in NEUTRAL_FILES)}
+# (Mordor builds the Haradrim palace and the mumakil pen, whose INIs are in BFME1's evilmen folder;
+# the neutral pseudo-faction is EA's capturable buildings and creep lairs, file by file: the folder
+# also holds the creeps themselves, hobbit pits and test objects)
 MIN_TRIS, SECOND_TRIS, TILT = 100, 1000, 5.0
 MIN_WALL_TRIS = 50          # wall pieces are low (Gondor's hub OBJECT03 has 94 triangles)
 VARIATION_SUFFIX = {"BUILD_VARIATION_ONE": "", "BUILD_VARIATION_TWO": "_b", "BUILD_VARIATION_THREE": "_c"}
@@ -361,6 +367,6 @@ def _name(u, by_src):
     return stem if u["main"] else stem + "_" + tag_stem(u["tag"])
 
 
-def run(faction, write=False):
+def run(faction, write=False, only=None):
     from .scaffold_write import execute
-    return execute(faction, write)
+    return execute(faction, write, only)
