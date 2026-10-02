@@ -14,7 +14,8 @@ from ..game import Install
 from ..lifecycle import view_frames
 from ..owncopy import prepare
 from ..workspace import Workspace
-from .lifecycle_cut import CUT, Cutter, face_frame, nearest, tree
+from .lifecycle_cut import CUT, Cutter, clamped_barycentric, face_frame, nearest, tree
+from .skinning import blend, follow
 
 IDENTITY = P.IDENTITY
 
@@ -36,15 +37,24 @@ class Model:
         return self.skel.pose(self.anim if frame is not None else None, frame or 0)
 
     def vertex_bones(self, name):
+        """The bone each vertex is stored in the space of (a skin's first; a rigid mesh's HLOD bone)."""
         m = self.w3d.meshes[name]
         return (P.influences(m.bytes) if m.skinned else None) or [self.bones.get(name, 0)] * len(m.verts)
 
-    def world(self, name, pose, verts=None):
-        """(N, 3) world positions of a mesh's vertices (or of `verts` in its space) under a pose."""
+    def follow_bones(self, name):
+        """The bone each vertex follows most: a two-bone vertex's heavier one (skinning.py)."""
+        return follow(self.w3d.meshes[name], self.vertex_bones(name))
+
+    def primary_world(self, name, pose, verts=None):
+        """(N, 3) world positions of a mesh's vertices (or of `verts` in its space) on those bones."""
         m = self.w3d.meshes[name]
         mats = np.array([pose[0][b] for b in self.vertex_bones(name)]).reshape(-1, 3, 4)
         V = np.array(m.verts if verts is None else verts, float)
         return np.einsum("nij,nj->ni", mats[:, :, :3], V) + mats[:, :, 3]
+
+    def world(self, name, pose, verts=None):
+        """primary_world with two-bone vertices blended as EA blends them (skinning.py)."""
+        return blend(self.w3d.meshes[name], pose, self.primary_world(name, pose, verts), verts is not None)
 
 
 class Link:
@@ -179,6 +189,7 @@ class Build(Cutter):
             dot = (fn * L.ea_normals[np.maximum(idx, 0)]).sum(1)
             self.link_of[n] = L
             self.all_info[n] = dict(V=V, T=T, area=area, bones=self.S.vertex_bones(n), skinned=m.skinned,
+                                    follow=self.S.follow_bones(n),      # (bones: each vertex's space; ea_mesh)
                                     bone=self.S.bones.get(n, 0), surf=(d <= self.s["surface"]) & (dot >= 0.5))
         if not self.all_info:
             raise ValueError("no piece of %s lies on EA's healthy body" % self.e["model"])
@@ -199,7 +210,7 @@ class Build(Cutter):
             inf = self.info[n]
             tri = inf["T"][f]
             k = int(np.argmin(np.linalg.norm(inf["V"][tri] - loc[i], axis=1)))
-            out.append((n, inf["bones"][tri[k]] if inf["skinned"] else inf["bone"]))
+            out.append((n, inf["follow"][tri[k]] if inf["skinned"] else inf["bone"]))
         return out
 
     # ------------------------------------------------------------------ assembly
@@ -435,7 +446,7 @@ class Build(Cutter):
             for k, v in enumerate(inf["T"][g]):
                 w = clamped_barycentric(G[k], A, B, C)
                 combo = [(int(T[idx[0]][j]), float(w[j])) for j in range(3) if w[j] > 1e-9]
-                bone = inf["bones"][v] if inf["skinned"] else inf["bone"]
+                bone = inf["follow"][v] if inf["skinned"] else inf["bone"]
                 corners.append((combo, P.point(inv, G[k]), P.direction(inv, n), bone))
             out.append((p, g, corners))
         return out
@@ -565,19 +576,6 @@ def run(b, ws):
         print("LIFECYCLE", r["model"], r["summary"], flush=True)
     with open(ws.path("work", "lifecycle.json"), "w") as fh:
         json.dump({"models": report}, fh, indent=1, default=lambda x: x.item() if hasattr(x, "item") else str(x))
-
-
-def clamped_barycentric(p, a, b, c):
-    """Barycentric weights of p's projection onto triangle abc, clamped into the triangle."""
-    v0, v1, v2 = b - a, c - a, p - a
-    d00, d01, d11, d20, d21 = v0 @ v0, v0 @ v1, v1 @ v1, v2 @ v0, v2 @ v1
-    den = d00 * d11 - d01 * d01
-    if abs(den) < 1e-12:
-        return np.array([1.0, 0.0, 0.0])
-    v = (d11 * d20 - d01 * d21) / den
-    w = (d00 * d21 - d01 * d20) / den
-    bc = np.clip(np.array([1 - v - w, v, w]), 0, None)
-    return bc / bc.sum()
 
 
 def check_match_offset():

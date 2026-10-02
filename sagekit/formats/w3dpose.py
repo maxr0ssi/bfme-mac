@@ -2,7 +2,8 @@
 
 The lifecycle models (construction, really damaged, rubble) move their pieces on bones: rigid
 meshes hang on the bone the HLOD names, skinned ones name a bone per vertex (VERTEX_INFLUENCES)
-and store each vertex in that bone's rest space. A pose is WW3D's HTreeClass::Anim_Update:
+and store each vertex in that bone's rest space; a two-bone vertex also has a second bone, its
+position in that bone's space (VERTICES_2) and the two weights, and is blended (skin()). A pose is WW3D's HTreeClass::Anim_Update:
 
     world[p] = world[parent] @ base[p] @ T(animated translation) @ R(animated rotation)
 
@@ -24,6 +25,8 @@ import struct
 
 from .w3d import (ANIMATION, ANIMATION_HEADER, COMPRESSED_ANIMATION, COMPRESSED_ANIMATION_HEADER, HIERARCHY,
                   HIERARCHY_HEADER, HLOD, HLOD_HEADER, HLOD_SUB_OBJECT, PIVOTS, VERTEX_INFLUENCES, _cstr, chunks)
+
+VERTICES_2 = 0xC00                  # a two-bone skin's positions in the second bone's space
 
 ANIMATION_CHANNEL, BIT_CHANNEL = 0x202, 0x203
 COMPRESSED_CHANNEL, COMPRESSED_BIT_CHANNEL = 0x282, 0x283
@@ -229,23 +232,44 @@ def hlod(data):
 
 
 def influences(mesh_bytes):
-    """[primary bone per vertex] of a skinned mesh chunk, or None."""
+    """[first bone per vertex] of a skinned mesh chunk (the bone whose space the vertex is stored
+    in; skin() has the second bone and the weights), or None."""
+    rows = skin(mesh_bytes)
+    return [r[0] for r in rows[0]] if rows else None
+
+
+def skin(mesh_bytes):
+    """([(bone, second bone, weight, second weight)] per vertex, weights in percent, and
+    [position in the second bone's space] (VERTICES_2, None without it)) of a skinned mesh chunk,
+    or None. EA blends a vertex with a second weight: weight x its first bone's transform of its
+    position + second weight x its second bone's transform of the second position."""
+    rows = second = None
     for t, o, s, _ in chunks(mesh_bytes, 8, len(mesh_bytes)):
         if t == VERTEX_INFLUENCES:
-            return [struct.unpack_from("<H", mesh_bytes, o + 8 + 8 * i)[0] for i in range(s // 8)]
-    return None
+            rows = [struct.unpack_from("<4H", mesh_bytes, o + 8 + 8 * i) for i in range(s // 8)]
+        elif t == VERTICES_2:
+            second = [struct.unpack_from("<3f", mesh_bytes, o + 8 + 12 * i) for i in range(s // 12)]
+    return (rows, second) if rows is not None else None
 
 
-def mesh_frames(mesh, bones, skel, pose):
-    """[(world matrix, visible)] per vertex of a Mesh (sagekit.formats.w3d) under a pose from
-    skel.pose(): its HLOD bone for a rigid mesh, each vertex's bone for a skinned one."""
+def mesh_points(mesh, bones, pose):
+    """[world position, or None where the pose hides it] per vertex of a Mesh (sagekit.formats.w3d)
+    under a pose from skel.pose(): its HLOD bone for a rigid mesh; a skin's vertices on their
+    bones, two-bone vertices blended as EA blends them."""
     world, vis = pose
-    infl = influences(mesh.bytes) if mesh.skinned else None
-    if infl is None:
-        b = bones.get(mesh.name, 0)
-        return [(world[b], vis[b])] * len(mesh.verts)
     own = vis[bones.get(mesh.name, 0)]
-    return [(world[i], own) for i in infl]
+    sk = skin(mesh.bytes) if mesh.skinned else None
+    if sk is None:
+        b = bones.get(mesh.name, 0)
+        return [point(world[b], v) if vis[b] else None for v in mesh.verts]
+    out = []
+    for v, (b, b2, w, w2), v2 in zip(mesh.verts, sk[0], sk[1] or [None] * len(mesh.verts)):
+        p = point(world[b], v)
+        if w2 and v2 is not None:
+            q = point(world[b2], v2)
+            p = tuple((w * x + w2 * y) / 100 for x, y in zip(p, q))
+        out.append(p if own else None)
+    return out
 
 
 def set_hlod_bones(data, bones):

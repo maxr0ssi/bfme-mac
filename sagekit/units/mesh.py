@@ -1,7 +1,8 @@
 """New rigid pieces on an EA mesh, each bound to one of EA's bones, written by sagekit's mesh writer.
 
 A Mesh starts empty (EA's mesh is replaced by the pieces) or, keep=True, with EA's vertices and
-triangles exactly (positions, bones, triangles; only the UVs move into the atlas' left half). Pieces
+triangles exactly (positions, bones and skin weights, triangles; only the UVs move into the atlas'
+left half). Pieces
 are faces, bevelled boxes and tubes in the model's rest space; each vertex is stored in its bone's
 rest space, so the piece follows that bone in every animation.
 

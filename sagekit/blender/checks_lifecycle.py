@@ -1,7 +1,8 @@
 """Checks for the lifecycle models (sagekit/lifecycle.py), against EA's own model of each state and at
 the frames the player sees it: EA's skeleton, animations and HLOD kept (a host piece's bone aside),
-valid one-bone skins, nothing of ours deeper in the ground or wider than EA's pieces go, and no
-more of our faces showing their back to the sky than EA's model does (open holes where we cut).
+valid skins (one bone per vertex, or EA's own weights where EA's vertex is kept), nothing of ours
+deeper in the ground or wider than EA's pieces go, and no more of our faces showing their back to
+the sky than EA's model does (open holes where we cut).
 What of ours stands where our healthy body stands (bones in place) is held to that body, the healthy
 checks' standard, not to EA's pieces: EA trims its build-ups and damaged bodies at the ground where
 the healthy body both keep goes below it (a construction model ends as that whole body)."""
@@ -87,10 +88,13 @@ def check_model(b, ws, r, m, e):
     r.check("%s: EA's other meshes byte-identical" % name,
             all(wn.meshes[n].bytes == we.meshes[n].bytes for n in others), ", ".join(others))
 
-    # vertex influences valid
-    ea_bones = set()
+    # vertex influences valid; EA's skinned vertices carried into a piece keep EA's weights
+    ea_bones, ea_skin = set(), {}
     for n in pieces:
         ea_bones |= set(EA.vertex_bones(n))
+        for key, value in _skin_rows(we.meshes[n]):
+            ea_skin.setdefault(key, set()).add(value)
+    ea_rows = {v[0] for vs in ea_skin.values() for v in vs}
     bad = []
     for n in pieces:
         mesh = wn.meshes[n]
@@ -100,7 +104,8 @@ def check_model(b, ws, r, m, e):
             infl = _influences(mesh.bytes)
             if len(infl) != len(mesh.verts):
                 bad.append("%s: %d influences for %d vertices" % (n, len(infl), len(mesh.verts)))
-            wrong = {x[0] for x in infl if x[0] >= len(NEW.skel.pivots) or x[0] not in ea_bones or x[1:] != (0, 100, 0)}
+            wrong = {x[0] for x in infl if x[0] >= len(NEW.skel.pivots) or x[0] not in ea_bones
+                     or x[1:] != (0, 100, 0) and x not in ea_rows}
             if wrong:
                 bad.append("%s: bones %s" % (n, sorted(wrong)))
             rest = NEW.world(n, NEW.pose(None))                 # EA files a skin's box at rest
@@ -109,8 +114,19 @@ def check_model(b, ws, r, m, e):
                 bad.append("%s: header box not the skin's rest box" % n)
         elif not any(t == AABTREE for t, _, _, _ in chunks(mesh.bytes, 8, len(mesh.bytes))):
             bad.append("%s: rigid without a collision tree" % n)
-    r.check("%s: skins one bone per vertex on EA's body bones, boxed at rest; rigid meshes with collision trees" % name,
-            not bad, "; ".join(bad) or "%d bones" % len(ea_bones))
+    r.check("%s: skins on EA's body bones (one per vertex, or EA's weights), boxed at rest; rigid meshes with "
+            "collision trees" % name, not bad, "; ".join(bad) or "%d bones" % len(ea_bones))
+    changed, kept = [], 0
+    for n, p in pieces.items():                         # EA's own faces: its vertices, EA's skin weights
+        if p["mode"].startswith("EA break faces") and wn.meshes[n].skinned:
+            for key, got in _skin_rows(wn.meshes[n]):
+                want = ea_skin.get(key, ())
+                kept += bool(want)
+                if want and not any(got[0] == w[0] and (w[1] is None or got[1] is None or got[1:] == w[1:])
+                                    for w in want):
+                    changed.append("%s %s: %s" % (n, key[0], got[0]))
+    r.check("%s: EA's skinned vertices in its break-face pieces keep EA's weights and second-bone data" % name,
+            not changed, "; ".join(changed[:5]) or "%d vertices" % kept)
     mine = {k.lower() for x in chain(b) for k in list(x.texture_names().values()) + list(Workspace(x).variants.values())
             + list(Workspace(x).normal_variants.values())}         # our normal map under a state's name
     tex = [n for n, p in pieces.items() if p["mode"].startswith("ours") and
@@ -174,6 +190,18 @@ def _header_at(mesh_bytes):
     return next(o + 8 for t, o, _, _ in chunks(mesh_bytes, 8, len(mesh_bytes)) if t == 0x1F)
 
 
+def _skin_rows(mesh):
+    """[((bone, position), (influence row, second position bytes, second normal bytes))] per vertex
+    of a skinned Mesh (second-bone values None without those chunks); [] for a rigid one."""
+    if not mesh.skinned:
+        return []
+    raw = {t: mesh.bytes[o + 8:o + 8 + s] for t, o, s, _ in chunks(mesh.bytes, 8, len(mesh.bytes))}
+    rows = _influences(mesh.bytes)
+    v2, n2 = raw.get(0xC00), raw.get(0xC01)
+    return [((r[0], tuple(v)), (r, v2 and v2[12 * i:12 * i + 12], n2 and n2[12 * i:12 * i + 12]))
+            for i, (r, v) in enumerate(zip(rows, mesh.verts))]
+
+
 def _influences(mesh_bytes):
     for t, o, s, _ in chunks(mesh_bytes, 8, len(mesh_bytes)):
         if t == 0x0E:
@@ -194,14 +222,14 @@ def frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind, own=None):
     ground, why_deep = allowance(s, "deep", GROUND_TOL)
     pe, pn, pm = EA.pose(f), NEW.pose(f), EA.pose(match)
     moving = {k for k in range(len(pe[0])) if max(abs(x - y) for x, y in zip(pe[0][k], pm[0][k])) > 0.05}
-    standing = not moving & {bn for n in pieces for bn in EA.vertex_bones(n)}
+    standing = not moving & {bn for n in pieces for bn in EA.follow_bones(n)}
 
     def by_bone(model, pose, names, skip=None):
         lo, hi = {}, {}
         for n in names:
             V = model.world(n, pose)
             keep = np.ones(len(V), bool) if skip is None else nearest(skip, V)[2] > GROUND_TOL
-            for v, bone in zip(V[keep], np.asarray(model.vertex_bones(n))[keep]):
+            for v, bone in zip(V[keep], np.asarray(model.follow_bones(n))[keep]):
                 lo[bone], hi[bone] = min(lo.get(bone, 1e9), v[2]), max(hi.get(bone, -1e9), v[2])
         return lo, hi
     (low_e, top_e), (low_n, _) = by_bone(EA, pe, pieces), by_bone(NEW, pn, ours, own and own["bvh"])

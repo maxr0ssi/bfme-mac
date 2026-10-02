@@ -25,6 +25,19 @@ def nearest(bvh, pts):
     return loc, idx, dist
 
 
+def clamped_barycentric(p, a, b, c):
+    """Barycentric weights of p's projection onto triangle abc, clamped into the triangle."""
+    v0, v1, v2 = b - a, c - a, p - a
+    d00, d01, d11, d20, d21 = v0 @ v0, v0 @ v1, v1 @ v1, v2 @ v0, v2 @ v1
+    den = d00 * d11 - d01 * d01
+    if abs(den) < 1e-12:
+        return np.array([1.0, 0.0, 0.0])
+    v = (d11 * d20 - d01 * d21) / den
+    w = (d00 * d21 - d01 * d20) / den
+    bc = np.clip(np.array([1 - v - w, v, w]), 0, None)
+    return bc / bc.sum()
+
+
 def face_frame(V, T):
     a, b, c = V[T[:, 0]], V[T[:, 1]], V[T[:, 2]]
     n = np.cross(b - a, c - a)
@@ -252,7 +265,7 @@ class Cutter:
                     [A + e1 * q[0] + e2 * q[1] for q in poly]      # EA's (bent) surface, or our own
                 mid = A + e1 * np.mean([q[0] for q in poly]) + e2 * np.mean([q[1] for q in poly])
                 vb = inf["T"][g][int(np.argmin(np.linalg.norm(G - mid, axis=1)))]
-                cls = (piece, inf["bones"][vb] if inf["skinned"] else inf["bone"])
+                cls = (piece, inf["follow"][vb] if inf["skinned"] else inf["bone"])
                 share[cls] = share.get(cls, 0.0) + polygon_area(poly)
                 mine += [(f, np.array([bc[0], bc[i], bc[i + 1]]), cls, np.array([on_g[0], on_g[i], on_g[i + 1]]))
                          for i in range(1, len(bc) - 1)]
@@ -279,7 +292,7 @@ class Cutter:
         top = {}
         for n, inf in self.info.items():
             V = self.S.world(n, last)
-            for v, b in enumerate(inf["bones"] if inf["skinned"] else [inf["bone"]] * len(V)):
+            for v, b in enumerate(inf["follow"] if inf["skinned"] else [inf["bone"]] * len(V)):
                 top[(n, b)] = max(top.get((n, b), -1e9), V[v, 2])
         sunk = {k for k, z in top.items() if z < 0}
         Vo, To, W = self.ours["V"], self.ours["T"], self.ours["W"]

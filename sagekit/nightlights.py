@@ -290,8 +290,7 @@ def posed(data, pose, found):
     for n, mesh in W3DFile(data).meshes.items():
         if n in found:
             continue
-        at = P.mesh_frames(mesh, bones, None, pose)
-        pts = [P.point(M, v) if shown else None for (M, shown), v in zip(at, mesh.verts)]
+        pts = P.mesh_points(mesh, bones, pose)
         surface += [tuple(pts[i] for i in t) for t in mesh.tris if all(pts[i] for i in t)]
     return frames, surface
 

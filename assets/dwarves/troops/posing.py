@@ -68,7 +68,7 @@ class Model(BaseModel):
             self.secondary[name]=(second,inf)
 
     def world(self,name,pose,verts=None):
-        primary=super().world(name,pose,verts)
+        primary=self.primary_world(name,pose,verts)  # (the base blends too: one blend only)
         if name not in self.secondary:return primary
         if verts is not None:raise ValueError('Custom vertices require their own secondary coordinates')
         second,inf=self.secondary[name]

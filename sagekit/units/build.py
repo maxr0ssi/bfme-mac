@@ -12,7 +12,7 @@ import math
 from ..formats import w3dmesh as WM
 from ..formats import w3dpose as P
 from ..formats.textures import compiled_path, write_dds
-from ..formats.w3d import MESH, W3DFile, rename_model
+from ..formats.w3d import MESH, VERTEX_INFLUENCES, W3DFile, chunks, rename_model
 from ..game import Install
 from . import paint as PT
 
@@ -114,8 +114,11 @@ def check(u, b):
             bones = P.influences(m.bytes)
             assert len(bones) == len(m.verts) and all(0 <= x < len(sk.pivots) for x in bones), name
             ea = P.influences(old.bytes) if old.skinned else [P.hlod(original.data)[2].get(name, 0)] * len(old.verts)
+            rows = P.skin(m.bytes)[0]
+            assert all(r[2] + r[3] == 100 and r[1] < len(sk.pivots) for r in rows), "%s: skin weights" % name
             if name in kept:
                 assert bones[:len(ea)] == ea, "%s: EA's bone assignments changed" % name
+                skin_kept(name, old, m)
             if name in u.same_bones:
                 assert set(bones) == set(ea or ()), "%s: bone set differs from EA's" % name
     for a in u.anims:
@@ -130,7 +133,20 @@ def check(u, b):
               "new_triangles": sum(len(m.tris) for m in new.meshes.values()),
               "model_sha256": sha(new.data)}
     (b.work / "checks.json").write_text(json.dumps(report, indent=2))
-    print("PASS %s: skeleton, HLOD and EA's unchanged meshes; kept bodies on EA's vertices and bones; "
+    print("PASS %s: skeleton, HLOD and EA's unchanged meshes; kept bodies on EA's vertices, bones and skin weights; "
           "mesh, UV and bone indices; animation hierarchies%s. %d -> %d triangles." % (
               u.id, "; the house mask" if u.mask else "", report["source_triangles"], report["new_triangles"]))
     return report
+
+
+def skin_kept(name, old, new):
+    """A kept body's skin weights are EA's byte for byte: EA's VERTEX_INFLUENCES rows (bone, second
+    bone, weights) lead ours, and so do its second-bone positions and normals where it blends."""
+    def raw(mesh, t):
+        return next((mesh.bytes[o + 8:o + 8 + s] for u, o, s, _ in chunks(mesh.bytes, 8, len(mesh.bytes)) if u == t), None)
+    sk = P.skin(old.bytes)
+    two = bool(sk) and any(r[3] for r in sk[0])
+    for t in (VERTEX_INFLUENCES, WM.VERTICES_2, WM.NORMALS_2):
+        want, got = raw(old, t), raw(new, t)
+        if want is not None and (t == VERTEX_INFLUENCES or two or got is not None):
+            assert (got or b"")[:len(want)] == want, "%s: EA's skin weights (chunk 0x%x) changed" % (name, t)

@@ -225,7 +225,8 @@ def unmapped(links, install, entry, names):
 
 def self_check():
     """Game-free check of the framework's state-texture rules (run by `sagekit validate`), on the
-    shapes of EA's state models the audit of 2026-10-01 found: [] when they hold."""
+    shapes of EA's state models the audit of 2026-10-01 found, and of the mesh writer carrying EA's
+    two-bone skin weights: [] when they hold."""
     from types import SimpleNamespace as M
     from .building import state_body, state_sheet
     from .taxonomy import own_variant_name
@@ -266,7 +267,8 @@ def self_check():
         got = own_variant_name(sheet, own, t, same_length=True)
         if got != want or len(got) != len(t):
             fails.append("own_variant_name(%s, %s, %s): %s, not %s as long as EA's" % (sheet, own, t, got, want))
-    return fails
+    from .formats.w3dmesh import check_skin         # EA's skin weights survive a rebuilt piece
+    return fails + ["skin weights: " + f for f in check_skin()]
 
 
 # ------------------------------------------------------------------------------------ the step

@@ -26,8 +26,8 @@ python3 -m sagekit unit men/porter --check | --stage | --install | --revert [--d
 | `views`, `labels`, `smooth`, `opaque` | the render poses (`View(anim, frame, ...)`), titles, shading |
 
 `design(w, sk)` returns `{MESH NAME: Mesh}`; meshes it leaves out stay EA's byte for byte.
-`self.mesh(w, sk, name, keep=True)` starts from EA's mesh (its vertices, bones and triangles
-exactly; only the UVs move into the atlas), `keep=False` replaces it. `Mesh.face / box / tube`
+`self.mesh(w, sk, name, keep=True)` starts from EA's mesh (its vertices, bones, skin weights and
+triangles exactly; only the UVs move into the atlas), `keep=False` replaces it. `Mesh.face / box / tube`
 add pieces in the model's rest space, each on a bone (`bone="CART"`, default the recipe's `bone`).
 A rigid EA mesh (one HLOD bone, like the orc cart) takes pieces on that bone only; `skin=True`
 makes it a skin. `paint(b)` writes the atlas and returns its path: 2048 x 1024, EA's character
@@ -40,7 +40,8 @@ recipe checks. A stub (`design` returns `{}`) renders EA's unit against itself a
 - **Build** (`build.py`): EA's model, skeleton, animations, sheets and mask into `src/` with their
   hashes (`sources.json`), our model and atlas DDS (one per private name) and the house mask (EA's
   tiled exactly under the body, transparent white under the swatches) into `work/`.
-- **Checks:** hierarchy and every non-mesh chunk EA's; kept bodies on EA's vertices and bones;
+- **Checks:** hierarchy and every non-mesh chunk EA's; kept bodies on EA's vertices and bones, their
+  skin weights EA's byte for byte (two-bone vertices: both bones, weights, second-bone data);
   finite geometry, valid indices, UVs in the atlas, only private sheets on rebuilt meshes; bone
   indices in the skeleton; animation hierarchies; the mask; then the recipe's own.
 - **Renders** (`render.py`, `sagekit/blender/unit_pose.py`): one Blender process poses EA's model
