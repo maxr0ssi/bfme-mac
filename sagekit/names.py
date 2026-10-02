@@ -83,7 +83,8 @@ def recipe_texture_stems():
 
 def check_free(b, ea_stems):
     """Refuse an own texture name EA's files already use: the game would load EA's file for it."""
-    for ea, own in b.texture_names().items():
+    ws = Workspace(b)                           # and the state variants its build records hold
+    for ea, own in list(b.texture_names().items()) + list(ws.variants.items()) + list(ws.normal_variants.items()):
         if own[:-4].lower() in ea_stems:
             raise ValueError("own texture %s (for %s) is a name EA's archives or caches use - pick another" % (own, ea))
 

@@ -40,6 +40,10 @@ def cmd_validate(a):
     for f in self_check():                      # the ownership scan's rules, no game needed
         bad += 1
         print("FAIL ownership: %s" % f)
+    from .lifecycle import self_check as lifecycle_check
+    for f in lifecycle_check():                 # the state-texture rules (Building.state_textures), no game needed
+        bad += 1
+        print("FAIL lifecycle: %s" % f)
     game = _game_checks()
     for bid in registry.building_ids():
         try:
@@ -54,6 +58,11 @@ def cmd_validate(a):
                 if new.lower() in names:
                     raise ValueError("%s is also %s's texture" % (new, names[new.lower()]))
                 names[new.lower()] = bid
+            from .workspace import Workspace    # state variants (build records): no other recipe's
+            ws = Workspace(b)
+            for old, new in list(ws.variants.items()) + list(ws.normal_variants.items()):
+                if names.setdefault(new.lower(), bid) != bid:
+                    raise ValueError("%s (for %s) is also %s's texture" % (new, old, names[new.lower()]))
             print("ok   %s" % bid)
         except (ValueError, ImportError, AttributeError) as e:
             bad += 1

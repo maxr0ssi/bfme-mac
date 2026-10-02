@@ -198,6 +198,16 @@ build/assets/<faction>/<building>/
   model, which is drawn before the upgrade too (the anvil's banner hung in the air).
 - A derived body keeps no EA sheet: a state drawn with a normal map of its own (the Elven
   barracks' `NBElvnBarx_D_NRM`) gets a copy of ours under a name of the same length.
+- Neither does a lifecycle model: EA paints many damaged, really damaged and rubble models from
+  damage sheets and normal maps of their own (`KBHall_D2`: `KBHall_D` with `KBHall_NRM`; Angmar's
+  towers on `KBFortressB` from `KBFortressX_D1`; Mordor's siege works from `MBSeigeWork2D`). The
+  extract step (`Building.state_textures`) reads every state model's body meshes (our target's
+  name, or one texture already ours, followed until nothing new turns up; one sheet per mesh) and
+  gives each such sheet a variant of ours and each normal map a copy of ours, named as long as
+  EA's and checked free (`validate`). Another building's healthy sheet laid out otherwise
+  (`KBFortressX` on the Angmar sanctum's construction) is no state copy and stays EA's. Until
+  2026-10-01 only derived bodies' sheets were read, and 42 Angmar, Mordor and Isengard states
+  showed EA's model. The checks fail a state model whose body sheets have no variant of ours.
 - A faction's objects are those of `Style.ini_dirs()`: `ini_dir` (a folder, a file or a list)
   plus the structure folder of each group that reuses its models one for one (`ownership.FOLLOWS`:
   Arnor for the Men), so swaps, own-model repoints, house draws and hidden banners reach Arnor too.
@@ -216,6 +226,16 @@ build/assets/<faction>/<building>/
   left EA's model in place (the Goblins showed EA's art while building, 2026-09-29). A recipe's
   `lifecycle = {"<model>": {"fill": True}}` rides every face of ours on its nearest piece and holds
   what stands where our healthy body stands to that body.
+- Every lifecycle model's checks hold what stands where our healthy body stands (its bones in
+  place) to that body (since 2026-10-01, not only `fill`'s): EA trims its build-ups and damaged
+  bodies at the ground while the healthy body both keep goes below it (Angmar's citadel at -0.7,
+  its Hall of Twilight at -1), and the depth check left those states to EA. A frame where only the
+  tip of a build-up is out of the ground holds its open backs over at least a tenth of our model's
+  area (`SLIVER`): one grazing face on 20 units² of the catapult's top read as 49%. `fill` may be
+  set on a damaged state too, where EA remodelled its pieces (Mordor's barricade D2).
+- A chain's hosts may be painted from different sheets (the Men's level meshes on GBVet beside
+  the body): EA's break faces they held move to a piece of their own sheet and vertex layout, or
+  else join our host, sheet by sheet (`GBBarracks_D2` and four more raised before).
 
 ## Known limits
 

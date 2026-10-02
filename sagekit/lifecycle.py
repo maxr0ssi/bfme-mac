@@ -53,12 +53,16 @@ Recipe settings, Building.lifecycle = {model name or "*": {setting: value}}:
     force       ship the model even when the per-frame checks (depth, spread, open backs) fail it;
                 by default such a model is left to EA and the report says why
     views       frames shown by the renders and checks: fractions of the animation, or "rest"
-    fill        construction only: EA's model is a remodel of its healthy body, not a cut of it (the
-                Goblins' _A models: offset faces, trimmed underground, a narrower footprint), so the
-                finished frame must still be our whole body. Nothing of ours is cut: a face of ours
-                no state face covers whole, or a solid anchored where the state has no surface,
-                rides its nearest state piece whole; and the checks hold what stands where our
-                healthy body stands to that body (the healthy checks' standard), not to EA's remodel
+    fill        EA's model is a remodel of its healthy body, not a cut of it (the Goblins' _A models:
+                offset faces, trimmed underground, a narrower footprint), so the finished frame must
+                still be our whole body. Nothing of ours is cut: a face of ours no state face covers
+                whole, or a solid anchored where the state has no surface, rides its nearest state
+                piece whole. Also for a damaged state whose pieces EA remodelled (Mordor's barricade
+                D2 and fire-arrow tower D2: our shell would keep only scraps where EA's surface
+                strays, and holes show): the pieces still move and fall as EA's do. (The checks of every construction model hold
+                what stands where our healthy body stands to that body, the healthy checks'
+                standard, not to EA's pieces: EA trims its build-ups at the ground, Angmar's
+                citadel and Hall of Twilight among them, where the healthy body goes below it.)
 """
 import json
 import os
@@ -168,6 +172,68 @@ def view_frames(entry, frames):
     if views is None:
         views = ["rest"] if not a else [0.35, 0.7, 1.0] if a["mode"] == "MANUAL" else [0.0, 0.4, 1.0]
     return [None if v == "rest" else int(round(v * (frames - 1))) if isinstance(v, float) else int(v) for v in views]
+
+
+def unmapped(links, install, entry, names):
+    """[EA texture] of an EA state model's body meshes (Building.state_body, every link's) that the
+    build records map to none of ours (`names`: Workspace.own_names, every link's, lower case), so
+    the step must leave those meshes to EA: [] once the extract step's Building.variants and
+    normal_variants hold them all. A diffuse that is no state copy of the sheet (state_sheet) is
+    meant to stay EA's and is not counted."""
+    from .building import state_body, state_sheet
+    meshes = W3DFile(install.read(install.model_path(entry["model"]))).meshes
+    s = entry["settings"]
+    out = []
+    for b in links:
+        healthy = set(W3DFile(install.read(install.model_path(b.source))).meshes) - {x.target for x in links}
+        for t in state_body(meshes, b.target, healthy, names, s["body"], s["keep"]):
+            if t.lower() in names or t in out:
+                continue
+            if "_nrm" in t.lower() or state_sheet(install, b.sheet_atlas.texture, t):
+                out.append(t)
+    return out
+
+
+def self_check():
+    """Game-free check of the framework's state-texture rules (run by `sagekit validate`), on the
+    shapes of EA's state models the audit of 2026-10-01 found: [] when they hold."""
+    from types import SimpleNamespace as M
+    from .building import state_body, state_sheet
+    from .taxonomy import own_variant_name
+    fails = []
+
+    def mesh(*textures):
+        return M(tris=[(0, 1, 2)], textures=list(textures))
+    cases = [   # (meshes, target, EA's other healthy meshes, ours, expected)
+        ({"ARROWTOWER": mesh("KBFortressXD1_NRM.tga", "KBFortressX_D1.tga")}, "ARROWTOWER", set(),
+         {"kbfortressb.tga", "kbfortressb_nrm.tga"}, ["KBFortressXD1_NRM.tga", "KBFortressX_D1.tga"]),
+        ({"DP9": mesh("KBFortressX_D1.tga", "KBFortressX_NRM.tga")}, "KBFKENNEL", set(),
+         {"kbfortressx.tga", "kbfortressx_nrm.tga"}, ["KBFortressX_D1.tga", "KBFortressX_NRM.tga"]),
+        ({"N_WINDOW": mesh("WBCave.tga", "WBCave_NRM.tga"),
+          "V2": mesh("MBTrollPit_D.tga", "MBTrollPit_NRM.tga"),
+          "SIEGEWORKS1": mesh("MBSeigeWork1D.tga", "MBSeigeWork1_NRM.tga"),
+          "GBSTABLE_05": mesh("GBStable.tga", "GBStableHorses.tga", "RUFrmHors04.tga")}, "MBTROLLPIT", {"V2"},
+         {"mbtrollpit.tga", "mbtrollpit_nrm.tga", "gbstable.tga"}, []),
+    ]
+    for meshes, target, others, mine, want in cases:
+        got = state_body(meshes, target, others, mine)
+        if got != want:
+            fails.append("state_body(%s): %s, not %s" % (list(meshes), got, want))
+    archives = M(owner=lambda member: member)               # every sheet exists
+    for sheet, t, want in (("KBFortressB.tga", "KBFortressX_D1.tga", True),
+                           ("MBSeigeWork2.tga", "MBSeigeWork2D.tga", True),
+                           ("KBFortressB.tga", "KBFortressX.tga", False)):
+        if state_sheet(archives, sheet, t) != want:
+            fails.append("state_sheet(%s, %s) is not %s" % (sheet, t, want))
+    for sheet, own, t, want in (("KBHall.tga", "KBHalH.tga", "KBHall_NRM.tga", "KBHalH_NRM.tga"),
+                                ("KBFortressB.tga", "KBFortressH.tga", "KBFortressX_D1.tga", "KBFortressH_D1.tga"),
+                                ("MBSeigeWork2.tga", "MBSeigeWorkH.tga", "MBSeigeWork2D.tga", "MBSeigeWorkHD.tga"),
+                                ("KBFortressB.tga", "KBFortressH.tga", "KBFortressXD1_NRM.tga",
+                                 "KBFortressHDH_NRM.tga")):
+        got = own_variant_name(sheet, own, t, same_length=True)
+        if got != want or len(got) != len(t):
+            fails.append("own_variant_name(%s, %s, %s): %s, not %s as long as EA's" % (sheet, own, t, got, want))
+    return fails
 
 
 # ------------------------------------------------------------------------------------ the step

@@ -15,6 +15,37 @@ from .taxonomy import State, Tier, own_texture_name, own_variant_name
 
 
 
+def state_body(meshes, target, others, mine, body=None, keep=()):
+    """[texture] of the meshes of one EA state model that are our body there, as the lifecycle step
+    picks them (sagekit/blender/lifecycle.py Build.body): `body` when the recipe names them, else
+    the meshes painted from one sheet (a body's: one diffuse, perhaps a normal map), not EA's other
+    healthy meshes (`others`, by name) or `keep`, that carry our target's name or one texture of
+    ours (`mine`, lower case). Debris and rock (WBCave), banners, a second body's sheet
+    (MBSeigeWork1D) and meshes of several sheets (the Men's stable horses) give nothing."""
+    keep = {n.upper() for n in keep}
+    out = []
+    for n, m in meshes.items():
+        if body:
+            if n.upper() not in {x.upper() for x in body}:
+                continue
+        elif n in keep or n in others or not m.tris or len([t for t in m.textures if "_nrm" not in t.lower()]) != 1 \
+                or n != target and not any(t.lower() in mine for t in m.textures):
+            continue
+        out += [t for t in m.textures if t not in out]
+    return out
+
+
+def state_sheet(install, sheet, texture):
+    """Whether EA's `texture` is a state copy of `sheet` (laid out like it, so our variant can carry
+    its painting over: Painter.variant): named as a state (_D, _D1, _Snow, _U: KBFortressX_D1 for
+    KBFortressB) or after the sheet (MBSeigeWork2D), and in EA's archives. Another building's healthy
+    sheet (KBFortressX, laid out otherwise, on the sanctum's construction) is not."""
+    from .formats.textures import sheet_member
+    from .taxonomy import variant_class
+    stem = sheet[:-4].lower() if sheet.lower().endswith(".tga") else sheet.lower()
+    return bool(variant_class(texture) or texture.lower().startswith(stem)) and bool(sheet_member(install, texture))
+
+
 def same_body(a, b, tol=0.5, frames=None, tris=True):
     """Whether a state's body is the healthy body, give or take dents: the same triangle count and
     the same bounding box (EA's lightly damaged bodies move a few vertices by up to ~2 units; its
@@ -212,7 +243,24 @@ class Building:
 
     def variants(self, install):
         """{EA variant texture: our variant} for every state that swaps the body's sheet for
-        another (damaged, snow, stonework): e.g. {"DBFortress1_D.tga": "DBFortressH_D.tga"}."""
+        another (damaged, snow, stonework): e.g. {"DBFortress1_D.tga": "DBFortressH_D.tga"}; and
+        for every sheet a state model paints our body from (state_textures: the derived bodies',
+        the lifecycle step's pieces'), named as long as EA's (W3D patches names in place)."""
+        from .formats.textures import sheet_member
+        atlas, own = self.sheet_atlas, self.own_diffuse
+        out = self.swap_variants(install)
+        for t, _ in self.state_textures(install, out):
+            if "_nrm" in t.lower():
+                continue
+            out[t] = own_variant_name(atlas.texture, own, t, same_length=True)
+            taken = [k for k, v in out.items() if v.lower() == out[t].lower() and k != t]
+            if sheet_member(install, out[t]) or taken:
+                raise ValueError("%s: %s is one of EA's names%s; pin one in own_textures" % (
+                    t, out[t], " and ours for %s" % taken if taken else ""))
+        return out
+
+    def swap_variants(self, install):
+        """{EA variant texture: our variant} for the INI's state swaps of the body's sheet."""
         from .formats.textures import sheet_member
         atlas, own = self.sheet_atlas, self.own_diffuse
         out = {}
@@ -227,33 +275,63 @@ class Building:
                         if not sheet_member(install, new):
                             continue                        # EA's typos (DBFortress_Snow): the swap shows nothing
                         out[new] = own_variant_name(atlas.texture, own, new)
-        from .formats.w3d import W3DFile
-        for m, mesh in self.derived_bodies(install).items():     # damaged models painted from their own sheet
-            for t in W3DFile(install.read(install.model_path(m))).meshes[mesh].textures:
-                low = t.lower()
-                if "_nrm" not in low and low not in (atlas.texture.lower(), (atlas.normal or "").lower()) \
-                        and low not in {k.lower() for k in out}:   # (a normal map named off the pattern: KBHall_Normal)
-                    out[t] = own_variant_name(atlas.texture, own, t, same_length=True)
-                    if sheet_member(install, out[t]):
-                        raise ValueError("%s: %s is one of EA's names; pin one in own_textures" % (t, out[t]))
         return out
 
     def normal_variants(self, install):
-        """{EA state normal map: ours}: a derived body whose state is painted with a normal map of
-        its own (NBElvnBarx_D1 draws NBElvnBarx_D_NRM) must read ours, laid out for our UVs, not
-        EA's. Ours ships again under a name as long as EA's (W3D patches names in place), e.g.
-        nbelvnbarH_D_NRM.tga, a copy of nbelvnbarH_NRM.tga."""
-        atlas = self.sheet_atlas
+        """{EA state normal map: ours}: a state model whose body is painted with a normal map of
+        its own (NBElvnBarx_D1 draws NBElvnBarx_D_NRM, KBHall_D2 KBHall_NRM) must read ours, laid
+        out for our UVs, not EA's. Ours ships again under a name as long as EA's (W3D patches names
+        in place), e.g. nbelvnbarH_D_NRM.tga, a copy of nbelvnbarH_NRM.tga."""
         if not self.own_normal:
             return {}
-        from .formats.w3d import W3DFile
+        from .formats.textures import sheet_member
         out = {}
-        for m, mesh in self.derived_bodies(install).items():
-            for t in W3DFile(install.read(install.model_path(m))).meshes[mesh].textures:
-                low = t.lower()
-                if "_nrm" in low and low != atlas.normal.lower() and low not in {k.lower() for k in out}:
-                    out[t] = own_variant_name(atlas.texture, self.own_diffuse, t, same_length=True)
+        for t, lifecycle in self.state_textures(install, self.swap_variants(install)):
+            if "_nrm" not in t.lower():
+                continue
+            out[t] = own_variant_name(self.sheet_atlas.texture, self.own_diffuse, t, same_length=True)
+            if lifecycle and sheet_member(install, out[t]):     # (the derived bodies' were never checked:
+                raise ValueError("%s: %s is one of EA's names; pin one in own_textures" % (t, out[t]))  # kept as built)
         return out
+
+    def state_textures(self, install, swaps=()):
+        """[(EA texture, from a lifecycle model)] our body is painted with in a state model that is
+        none of ours yet (not our sheet, its normal map or a state swap of it, `swaps`), in the
+        order found: first those of the derived bodies (painted from a state sheet of their own:
+        DBArchRnge_D1), then those of the lifecycle step's EA state models (sagekit/lifecycle.py),
+        which EA paints from damage sheets and normal maps of their own (KBHall_D2: KBHall_D with
+        KBHall_NRM; KBArwTow_D1: KBFortressX_D1 on a KBFortressB body). There a mesh is our body
+        when the recipe names it (`body`), or it carries our target's name or one texture already
+        ours (state_body), followed until nothing new turns up; the lifecycle step then takes the
+        pieces painted from ours alone that lie on EA's healthy body."""
+        from .formats.w3d import W3DFile
+        atlas = self.sheet_atlas
+        mine = {atlas.texture.lower(), (atlas.normal or "").lower()} | {k.lower() for k in swaps} \
+            | {k.lower() for k in self.texture_names()}
+        out = []
+
+        def add(t, lifecycle):
+            if t.lower() in mine or lifecycle and "_nrm" not in t.lower() \
+                    and not state_sheet(install, atlas.texture, t):
+                return                                  # (a lifecycle mesh's diffuse: a state copy of our sheet)
+            mine.add(t.lower())
+            out.append((t, lifecycle))
+        for m, mesh in self.derived_bodies(install).items():     # damaged models painted from their own sheet
+            for t in W3DFile(install.read(install.model_path(m))).meshes[mesh].textures:
+                add(t, False)                           # (a normal map named off the pattern: KBHall_Normal)
+        from .lifecycle import plan
+        entries = [e for e in plan(self, install, self.derived_models(install))
+                   if not e["derived"] and not e["settings"]["skip"]]
+        healthy = set(W3DFile(install.read(install.model_path(self.source))).meshes) - {self.target}
+        models = [(e, W3DFile(install.read(install.model_path(e["model"]))).meshes) for e in entries]
+        while True:                     # a texture found makes more meshes ours: KBArwTow_D1's body
+            n = len(out)                # (our target's name) gives KBFortressX_D1, D3's pieces then
+            for e, meshes in models:
+                s = e["settings"]
+                for t in state_body(meshes, self.target, healthy, mine, s["body"], s["keep"]):
+                    add(t, True)
+            if len(out) == n:
+                return out
 
     def renames(self):
         """w3d fix-up renames: (mesh, old, new)."""

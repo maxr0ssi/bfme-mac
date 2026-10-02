@@ -2,8 +2,9 @@
 the frames the player sees it: EA's skeleton, animations and HLOD kept (a host piece's bone aside),
 valid one-bone skins, nothing of ours deeper in the ground or wider than EA's pieces go, and no
 more of our faces showing their back to the sky than EA's model does (open holes where we cut).
-A construction model built with `fill` (sagekit/lifecycle.py) is our whole healthy body at its
-finished frame: what of ours stands where that body stands is held to it, not to EA's remodel."""
+What of ours stands where our healthy body stands (bones in place) is held to that body, the healthy
+checks' standard, not to EA's pieces: EA trims its build-ups and damaged bodies at the ground where
+the healthy body both keep goes below it (a construction model ends as that whole body)."""
 import json
 import os
 import struct
@@ -27,6 +28,7 @@ GROUND_TOL = 0.5            # units our faces may go below EA's deepest vertex o
 SPREAD_TOL = 1.0            # units our model may reach past EA's (plus the recipe's footprint margin)
 BACK_TOL = {True: 0.02, False: 0.10}    # area share of our faces showing their back to the RTS camera
                                         # beyond EA's: standing / pieces moving or crumpled (rubble)
+SLIVER = 0.10                           # ... held over at least this part of our model's area (frame_checks)
 
 
 def run(b, ws, r):
@@ -36,11 +38,19 @@ def run(b, ws, r):
     plan = {e["model"]: e for e in json.load(open(ws.path("work", "lifecycle_plan.json")))}
     report = json.load(open(p))["models"]
     r.section("lifecycle models (construction / really damaged / rubble)")
+    from ..lifecycle import unmapped
+    g, links = Install(), chain(b)
+    names = {k for x in links for k in Workspace(x).own_names}
     for m in report:
+        e = plan[m["model"]]
+        if not e["derived"] and not e["settings"]["skip"]:     # every sheet our body is painted from there
+            miss = unmapped(links, g, e, names)                  # has a variant of ours (Building.variants)
+            r.check("%s: our body's state sheets all ours" % m["model"], not miss,
+                    "none of ours for %s: extract again" % miss if miss else "")
         if not m["built"]:
             r.info(m["model"], m["summary"])
             continue
-        check_model(b, ws, r, m, plan[m["model"]])
+        check_model(b, ws, r, m, e)
 
 
 def check_model(b, ws, r, m, e):
@@ -116,13 +126,11 @@ def check_model(b, ws, r, m, e):
         r.check("%s: asset cache record matches the file" % name, not st, "%d stale" % len(st))
 
     ours = [n for n, p in pieces.items() if p["mode"].startswith("ours")]
-    own = None
-    if e["settings"].get("fill") and m["kind"] == "construction":
-        g = Install()
-        data = g.read(g.model_path(b.source))
-        skl = W3DFile(data).skeleton()
-        healthy = Model(data, g.read(g.model_path(skl[:-4])) if skl else None)
-        own = reference([Link(x, healthy, e["settings"]["match_offset"]) for x in chain(b)])
+    g = Install()                           # what stands where our healthy body stands: held to it
+    data = g.read(g.model_path(b.source))
+    skl = W3DFile(data).skeleton()
+    healthy = Model(data, g.read(g.model_path(skl[:-4])) if skl else None)
+    own = reference([Link(x, healthy, e["settings"]["match_offset"]) for x in chain(b)])
     for f in m["views"]:
         frame_checks(b, r, name, f, EA, NEW, list(pieces), ours, m["match"], m["kind"], own)
 
@@ -154,7 +162,7 @@ class Collect:
 def gate(b, name, kind, match, views, ea_data, new_data, skel, anim, pieces, ours, own=None):
     """The per-frame checks run on a freshly built model: ([failure] (empty: it may ship), the
     largest share of our area showing its back to the sky past EA's, at any frame). own: our
-    healthy body (reference()), for a construction model built with `fill`."""
+    healthy body (reference())."""
     EA, NEW = Model(ea_data, skel, anim), Model(new_data, skel, anim)
     r = Collect()
     for f in views:
@@ -177,8 +185,8 @@ def frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind, own=None):
     """At one frame the player sees. What stands where it stood (every bone at its match pose) is
     held to the healthy building's limits; pieces in flight or lying about carry our bigger body
     with them, so their depth and spread are reported, and only their open backs are held to a
-    looser limit. Bones EA sinks out of sight are not looked at. With `own` (our healthy body, a
-    `fill` construction) a vertex of ours lying on that body is where it stands finished and is
+    looser limit. Bones EA sinks out of sight are not looked at. With `own` (our healthy body) a
+    vertex of ours lying on that body is where it stands finished and is
     not held to EA's depth, and the footprint may reach as far as that body does."""
     at = "rest" if f is None else "frame %d" % f
     pe, pn, pm = EA.pose(f), NEW.pose(f), EA.pose(match)
@@ -212,12 +220,17 @@ def frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind, own=None):
         r.check("%s @ %s: footprint within EA's (+%.1f)" % (name, at, tol), over <= tol, text)
     else:
         r.info("%s @ %s: spread past EA's by %.1f" % (name, at, over), text)
-    se, sn = back_seen(EA, pe, pieces, pieces), back_seen(NEW, pn, list(NEW.w3d.meshes), ours)
+    se = back_seen(EA, pe, pieces, pieces)
+    seen, total, whole = back_seen(NEW, pn, list(NEW.w3d.meshes), ours, parts=True)
+    sn = seen / max(total, 1e-9)
     slack = BACK_TOL[standing and kind != "rubble"]
     if hasattr(r, "worst"):
         r.worst = max(r.worst, sn - se)
+    held = seen / max(total, SLIVER * whole, 1e-9)      # a build-up's tip out of the ground is no building
     r.check("%s @ %s: our faces' backs open to the sky at most %d%% more than EA's" % (name, at, 100 * slack),
-            sn <= se + slack, "%.2f%% of our area (EA's body: %.2f%%)" % (100 * sn, 100 * se))
+            held <= se + slack, "%.2f%% of our area (EA's body: %.2f%%)%s" % (
+                100 * sn, 100 * se, "; %.2f%% of a tenth of it, %.0f of %.0f units² above the ground" % (
+                    100 * held, total, whole) if held < sn else ""))
 
 
 def covered(bvh, p, d):
@@ -227,10 +240,13 @@ def covered(bvh, p, d):
     return hit[0] is not None and hit[1].dot(d) > 0.05
 
 
-def back_seen(model, pose, scene, measured, dirs=[d for d in sky_dirs(64) if d.z >= 0.5]):
+def back_seen(model, pose, scene, measured, dirs=[d for d in sky_dirs(64) if d.z >= 0.5], parts=False):
     """Area share of the `measured` meshes' triangles whose back is visible from some direction the
     RTS camera looks from (30 degrees above the horizon and up; the rest of `scene` may block the
-    view), at a pose; hidden meshes and faces under the ground do not count."""
+    view), at a pose; hidden meshes and faces under the ground do not count. parts: (area seen,
+    area above the ground, all the measured area) instead, for frame_checks to hold the tip of a
+    build-up rising out of the ground as part of the whole building, not as a building (a sliver
+    of 20 units² showing one back face would be 50%: SLIVER)."""
     verts, polys, which = [], [], []
     off = 0
     for n in scene:
@@ -243,10 +259,10 @@ def back_seen(model, pose, scene, measured, dirs=[d for d in sky_dirs(64) if d.z
         which += [n in measured] * len(mesh.tris)
         off += len(V)
     if not polys:
-        return 0.0
+        return (0.0, 0.0, 0.0) if parts else 0.0
     bvh = BVHTree.FromPolygons(verts, polys, all_triangles=True)
     V = np.array(verts)
-    seen = total = 0.0
+    seen = total = whole = 0.0
     for t, mine in zip(polys, which):
         if not mine:
             continue
@@ -255,6 +271,7 @@ def back_seen(model, pose, scene, measured, dirs=[d for d in sky_dirs(64) if d.z
         area = np.linalg.norm(n) / 2
         if area < 1e-6:
             continue
+        whole += area
         n = Vector(n / (2 * area))
         cen = Vector((a + b_ + c) / 3)
         if cen.z < 0.0:
@@ -266,4 +283,4 @@ def back_seen(model, pose, scene, measured, dirs=[d for d in sky_dirs(64) if d.z
                 if DEBUG is not None:
                     DEBUG.append((tuple(cen), area, tuple(n), tuple(d)))
                 break
-    return seen / max(total, 1e-9)
+    return (seen, total, whole) if parts else seen / max(total, 1e-9)

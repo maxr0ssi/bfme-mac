@@ -74,7 +74,7 @@ class Build(Cutter):
         self.b, self.ws, self.e, self.s = b, ws, entry, dict(entry["settings"])
         if self.s["bend"] is None:
             self.s["bend"] = entry["kind"] != "construction"
-        self.fill = bool(self.s.get("fill")) and entry["kind"] == "construction"     # sagekit/lifecycle.py
+        self.fill = bool(self.s.get("fill"))         # sagekit/lifecycle.py
         src = ws.path("src")
         a = entry["animation"]
         self.S = Model(os.path.join(src, entry["model"].lower() + ".w3d"),
@@ -282,7 +282,7 @@ class Build(Cutter):
                              out, os.path.join(src, e["skeleton"]) if e["skeleton"] else None,
                              os.path.join(src, a["file"]) if a else None, list(plan),
                              [n for n, p in plan.items() if p["mode"].startswith("ours")],
-                             own=reference(self.links) if self.fill else None)
+                             own=reference(self.links))
         return dict(solid=solid, out=out, bones=bones, plan=plan, failed=failed, worst=worst, faces=faces, kept=kept)
 
     def assemble(self, pieces, own):
@@ -315,19 +315,22 @@ class Build(Cutter):
             ours_in[host] += [x for n in broken for x in own[n]]
             skins.add(host)
         donated = {}
-        if moved:
-            tex = sorted(t.lower() for t in self.S.w3d.meshes[moved[0][0]].textures)
-            back = [n for n in ea_in if sorted(t.lower() for t in self.S.w3d.meshes[n].textures) == tex
-                    and WM.fits(self.S.w3d.meshes[n].bytes, self.S.w3d.meshes[moved[0][0]].bytes)]   # one layout
+        groups = {}                                 # a chain's hosts may be painted from different sheets
+        for p, g in moved:                          # (the Men's level meshes on GBVet beside the body)
+            groups.setdefault(tuple(sorted(t.lower() for t in self.S.w3d.meshes[p].textures)), []).append((p, g))
+        for tex, faces in groups.items():
+            srcs = list(dict.fromkeys(p for p, _ in faces))
+            back = [n for n in ea_in if sorted(t.lower() for t in self.S.w3d.meshes[n].textures) == list(tex)
+                    and all(WM.fits(self.S.w3d.meshes[n].bytes, self.S.w3d.meshes[p].bytes) for p in srcs)]
             if back:
                 back = max(back, key=lambda n: len(ea_in[n]))
-                ea_in[back] += moved
+                ea_in[back] += faces
                 skins.add(back)
             else:                                   # no piece of EA's texture left to hold them: they
-                for p, g in moved:                  # join our host, on our sheet (donor_uv)
+                for p, g in faces:                  # join our host, on our sheet (donor_uv)
                     host = next(n for n in skins if self.link_of[n] is self.link_of[p])
                     donated.setdefault(host, []).append((p, g))
-                self.stats["donated"] = len(moved)
+                self.stats["donated"] = self.stats.get("donated", 0) + len(faces)
         vis = self.S.anim.vis if self.S.anim else {}
         for n in pieces:
             if n not in ours_in and own[n] and any(b in vis for b in set(info[n]["bones"]) | {info[n]["bone"]}):
