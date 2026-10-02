@@ -56,6 +56,8 @@ class WallTower(Building):
     sheet = "KBFortressB.tga"
     sheet_normal = "KBFortressB_NRM.tga"
     own_textures = {"KBFortressB.tga": "KBFortressG.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    # EA's build-up is a remodel: cut, our shell kept scraps and 3% open backs (sagekit/lifecycle.py `fill`)
+    lifecycle = {"KBArrwWal_A": {"fill": True}}
     HOUSE_DRAW = "ModuleTag_Draw_HCWallTower"
     house_tags = ()
     fire_points = _fire_points()

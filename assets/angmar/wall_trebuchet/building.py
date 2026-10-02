@@ -62,6 +62,8 @@ class WallTrebuchet(Building):
     sheet = "KBFortressB.tga"
     sheet_normal = "KBFortressB_NRM.tga"
     own_textures = {"KBFortressB.tga": "KBFortressJ.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    # EA's build-up is a remodel: cut, 3.6% open backs (sagekit/lifecycle.py `fill`)
+    lifecycle = {"KBTrSlgWl_A": {"fill": True}}
     HOUSE_DRAW = "ModuleTag_Draw_HCWallTrebuchet"
     bake_hidden = ("ICEWALL",)        # the Ice Walls shell: shown in game with its upgrade, out of the bakes
     house_tags = ()

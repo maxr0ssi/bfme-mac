@@ -53,6 +53,8 @@ class BattleTower(Building):
     sheet = "KBFortressB.tga"
     sheet_normal = "KBFortressB_NRM.tga"
     own_textures = {"KBFortressB.tga": "KBFortressH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    # EA remodelled the really damaged tower: cut, 23% open backs (sagekit/lifecycle.py `fill`)
+    lifecycle = {"KBArwTow_D2": {"fill": True}}
     HOUSE_DRAW = "ModuleTag_Draw_HCBattleTower"
     views = {
         "rts": ((-12.2, -0.2, 63.6), 317, 50, -38, 50),

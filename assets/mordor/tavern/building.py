@@ -54,6 +54,8 @@ class Tavern(Building):
     sheet = "MBTavern.tga"
     sheet_normal = "MBTavern_NRM.tga"
     own_textures = {"MBTavern.tga": "MBTaverH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    # EA's build-up is a remodel: cut, our shell kept scraps and 6% open backs (sagekit/lifecycle.py `fill`)
+    lifecycle = {"MBTavern_ASKN": {"fill": True}}
     bake_hidden = ("MUCORSAIR", "FXGLOWCARDS", "FXFIRE02", "V1")
     fire_points = FIRE_POINTS
     views = {

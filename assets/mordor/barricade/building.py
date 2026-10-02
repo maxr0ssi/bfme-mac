@@ -35,6 +35,8 @@ class Barricade(Building):
     sheet = "MBBarcade.tga"
     sheet_normal = "MBBarcade_NRM.tga"
     own_textures = {"MBBarcade.tga": "MBBarcadH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
+    # EA remodelled the really damaged pieces: cut, 3.4% open backs (sagekit/lifecycle.py `fill`)
+    lifecycle = {"MBBarcade_D2": {"fill": True}}
     HOUSE_DRAW = "ModuleTag_Draw_HCBarricade"
     views = {
         "rts": ((1.2, -0.0, 39.3), 311, 50, -38, 50),
