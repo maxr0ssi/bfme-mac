@@ -7,12 +7,13 @@
 # (dinput8.dll; gamepatch.ini with the diagnostic counters off; t_misc.exe, which checks a user's
 # exe against every patch site before install), LICENSE, NOTICE, patches/COPYING.LIB, a SOURCES.md naming the Wine source and patch series (LGPL:
 # the corresponding source is this repo at the recorded commit), and SHA256SUMS.
-#   scripts/make-release.sh [--buildings [dwarves,elves,men,goblins,isengard,mordor,angmar]]
-# --buildings also packs the finished buildings (every faction above by default, with its builder
-# where it has one) as build/release/bfme-mac-buildings-<faction>-<version>.tar.gz, the files
+#   scripts/make-release.sh [--buildings [dwarves,elves,men,goblins,isengard,mordor,angmar,neutral]]
+# --buildings also packs the finished buildings (every faction above by default but neutral, the
+# capturable inns and lairs, which joins once it has been checked in game; with its builder where it has one) as build/release/bfme-mac-buildings-<faction>-<version>.tar.gz, the files
 # install.sh --buildings installs: `python3 -m sagekit install <faction> --check` stages the current
 # build (a builder is staged by `python3 -m sagekit unit <faction>/porter --stage`; the pack refuses
-# one that is not the reviewed build), then `python3 -m sagekit.pack build` turns every archive
+# one that is not the reviewed build; its HUD icons, `!!!!!!!!!!!!!!sagekit-icons-<faction>.big`, come from
+# the last `python3 -m sagekit icons <faction>` run whose page checks passed), then `python3 -m sagekit.pack build` turns every archive
 # member into a delta against the EA files it was made from, checks the inserted bytes hold no run of
 # EA's, and adds the asset.dat edits (sagekit/pack.py, sagekit/packbuild.py). No EA file is in a pack. The fixes file lists the packs in BUILDINGS (faction, file, SHA-256, bytes);
 # build/release/SHA256SUMS-<version> covers every file to publish.

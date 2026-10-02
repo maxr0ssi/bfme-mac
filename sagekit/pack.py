@@ -5,7 +5,8 @@
         pack.json       how to rebuild each archive from the player's game, and the asset.dat edits
 
 The installer rebuilds `!!!!!!!!!!!sagekit-<faction>.big` (and the faction's builder,
-`!!!!!!!!!!!!sagekit-<unit>-builder.big`) from the player's own EA files plus members.bin, checks
+`!!!!!!!!!!!!sagekit-<unit>-builder.big`, and its HUD icon pages, `!!!!!!!!!!!!!!sagekit-icons-<faction>.big`,
+sagekit/icons/install.py) from the player's own EA files plus members.bin, checks
 every member and archive by SHA-256, and installs it as `sagekit install` would.
 
 pack.json:

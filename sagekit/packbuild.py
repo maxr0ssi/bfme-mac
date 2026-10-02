@@ -113,7 +113,8 @@ def ref(g, name):
 # ---------------------------------------------------------------------- build (release side)
 def parts(faction):
     """[(staged archive, {game: [op]}, {INI member: our lines}, {member: {dirs}})]: the faction's
-    buildings, then each of its unit recipes that ships an archive (sagekit/units/install.py release())."""
+    buildings, then each of its unit recipes that ships an archive (sagekit/units/install.py release()),
+    then its HUD icon pages (sagekit/icons/install.py release())."""
     stage = Path(paths.BUILD)/faction/"_install"
     archive, ops_file = stage/archive_name(faction), stage/"cache-ops.json"
     if not (archive.exists() and ops_file.exists()):
@@ -131,6 +132,10 @@ def parts(faction):
         archive, ops, appended, dirs = release(u)
         names = [norm(e.name) for e in bigtool.read_index(str(archive))[0]]
         out.append((Path(archive), ops, appended, {n: set(map(str, dirs)) for n in names}))
+    from .icons.install import release as icons     # its HUD icons (sagekit/icons/), when it has a run
+    part = icons(faction)
+    if part:
+        out.append(part)
     return out
 
 

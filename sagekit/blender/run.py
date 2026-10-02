@@ -2,7 +2,8 @@
 
     Blender -b [scene.blend] --python sagekit/blender/run.py -- <job> <faction/building> [key=value ...]
 
-Jobs (sagekit/blender/jobs.py): geometry, bake, paint, export, render, checks.
+Jobs (sagekit/blender/jobs.py): geometry, bake, paint, export, render, checks. A faction-wide job
+(icons) takes "-" for the building.
 """
 import os
 import sys
@@ -23,7 +24,7 @@ def main():
     if fn is None:
         raise SystemExit("unknown job %s" % job)
     scene.plain_placeholders()      # stages saved by older runs still carry COLOR_GRID placeholders
-    fn(registry.load(building_id), **opts)
+    fn(registry.load(building_id) if building_id != "-" else None, **opts)
     print("JOB OK", job, flush=True)
 
 
