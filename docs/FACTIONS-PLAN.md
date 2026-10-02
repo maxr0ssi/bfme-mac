@@ -15,7 +15,9 @@ read-only survey of the game (2026-09-25).
 | Mordor | 14 | 19 | 65 | 29 | no player walls; Barad-dur pieces up to 14k triangles; 25 stubs (the Haradrim palace and mumakil pen from `structures\evilmen`), palette options ([ROLLOUT](../assets/mordor/ROLLOUT.md)) |
 | Angmar | 20 | 21 | 87 | 0 | ice effect meshes; three master sheets; 20 measured stubs (the forge works and mill have skinned bodies: none yet), palette options ([ROLLOUT](../assets/angmar/ROLLOUT.md)) |
 
-80 design units in all. Rohan is not a faction in RotWK; its art is map-placed civilian buildings
+80 design units in all. The capturable neutral buildings (the Inn, Outpost, signal fire,
+shipwright) and the creep lairs are a pseudo-faction of their own, `neutral`: the Inn is the pilot,
+with a capture dress per faction ([assets/neutral/ROLLOUT.md](../assets/neutral/ROLLOUT.md)). Rohan is not a faction in RotWK; its art is map-placed civilian buildings
 only.
 
 ## Tools

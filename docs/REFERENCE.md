@@ -233,6 +233,19 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `install.release()` is what the faction's building pack ships. `unit list`, `unit selfcheck`.
   How a recipe works: `docs/UNITS.md`. The Dwarven porter's `unit.py` and `preview.py` are the
   troop scripts' imports of the shared mesh primitives and motion decoder.
+- `python3 -m assets.cah.<class>.build`, `python3 -m sagekit.units.cah --stage|--install|--revert
+  [--dry-run]` (`sagekit/units/cah.py`, `assets/cah/`) — the cah pack: more Create-a-Hero choices
+  (serious and fun parts appended to the creation screen's rows). Each class folder builds its model
+  copies, sheets and INI fragment with the kit (`assets/cah/kit/`: `geom.py`, `ornament.py`,
+  `paint.py`, `models.py`, `ini.py`); the pack composes every class into one
+  `!!!!!!!!!!!sagekit-cah.big`. `python3 -m assets.cah.kit.survey [--markdown]` maps EA's subclasses;
+  `python3 -m assets.cah.kit.render <class>` renders the overview (`sagekit/blender/cah_pose.py`).
+  How: `docs/CAH.md`.
+- `python3 -m sagekit icons <faction> [--map|--render|--stage|--install|--revert]` (`sagekit/icons/`,
+  `sagekit/blender/icon.py`, `sagekit/paint/icons.py`) — EA's building portraits and buttons repainted
+  from our buildings, framed per `assets/<faction>/icons.py`, graded to EA's sepia and sky look,
+  composed into copies of EA's pages and checked; one shared `!!!!!!!!!!!!!!sagekit-icons.big` for
+  every faction. Review sheet: `build/assets/<faction>/_review/icons_v1.jpg`. How: `docs/ICONS.md`.
 - `assets/<faction>/troops/` — troop redesigns (Dwarves, Elves, Men; staged, not installed):
   `build.py`, `preview.py`, `audit.py`; each folder's README has the commands.
 - `python3 -m sagekit list|validate|inventory|budget|build` — builds new art for a building from
@@ -254,6 +267,11 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `sagekit/blender/preview.py`) — a shape preview in 10-20 s: the pipeline's geometry job into `preview/`,
   EA's model and ours in EEVEE with new faces in their atlas tag's palette colour, `preview/compare_<view>.png`,
   and the checks that need no bake (budget, footprint, height, winding, sky-facing backs, closed solids).
+- `python3 -m sagekit capture <faction>/<building> [--version v1]` (`sagekit/capture.py`,
+  `sagekit/blender/capture.py`) — the capture dress review of a capturable neutral building (the Inn):
+  EA's model and ours neutral, then ours as each faction holds it, its dress shown and its cloth in a
+  sample player colour: `build/assets/<faction>/_review/<building>_<version>.jpg`. One Blender.
+  `new neutral --write --only inn` writes one stub of a faction's survey.
 - `python3 -m sagekit board <faction>` (`sagekit/board.py`, `sagekit/blender/board.py`) — the style
   board: EA's buildings of the faction as the game draws them, one labelled grid by role, level-up
   meshes in a last row: `build/assets/<faction>/_board/<faction>_board.jpg`. Works before any recipe

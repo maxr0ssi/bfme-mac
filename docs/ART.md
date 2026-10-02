@@ -17,6 +17,7 @@ What comes next: [FACTIONS-PLAN.md](FACTIONS-PLAN.md).
 | Isengard | 25 | Measured stubs; palette A with silver (Max's pick); the citadel built in colour (three lozenge blades round EA's tower, fire and embers, war-works on the walks); nothing installed. [`assets/isengard/ROLLOUT.md`](../assets/isengard/ROLLOUT.md). |
 | Mordor | 25 | Palette F2 (Max's pick); the citadel in pass 7 (spike claws inside the crowns round green witch-fire), built in colour, not installed. [`assets/mordor/ROLLOUT.md`](../assets/mordor/ROLLOUT.md). |
 | Angmar | 22 | Measured stubs (forge works and mill missing: skinned bodies); the citadel designed (pass 4: four frozen iron tines of the Witch-king's crown round a cold fire, ice at the feet), built in palette A2 (Max's pick: A with D's wood); nothing installed. [`assets/angmar/ROLLOUT.md`](../assets/angmar/ROLLOUT.md). |
+| Neutral (capturable) | 11 | A pseudo-faction for EA's capturable buildings and creep lairs (`neutral` in `sagekit/taxonomy.py`): "Wilderland", EA's colours graded. Inn, signal fire, outpost and shipwright built with a capture dress per faction; ruined tower and the six lairs base design only; nothing installed. [`assets/neutral/ROLLOUT.md`](../assets/neutral/ROLLOUT.md). |
 
 Budget: 512 MB of own textures per faction (`budget_mb` in `sagekit/style.py`; `sagekit budget`).
 An installed faction adds `!!!!!!!!!!!sagekit-<faction>.big` with edited INIs to the game folder,
@@ -70,6 +71,7 @@ building's cloth; `sagekit install` / `revert` put everything in the game and ta
 | Own copies | `own_model`, `own_textures` | `shared_sheets` | `owncopy.py`, `sharedsheets.py`, `ownership.py` |
 | Names | nothing | nothing | `names.py` (`assets/<faction>/NAMES.md`), `validate` |
 | Cut-out alpha | nothing | nothing | `alpha.py`, `blender/alpha.py` |
+| Capture dress | `Capturable`: `body(kit)`, `dress(kit)` | the factions' ramps (`DRESS_RAMPS`) | `capture.py`, `blender/capture.py` |
 
 ## Fire: the game's own particles
 
@@ -139,6 +141,22 @@ states (fire only where our body stands) and the rest of the INI to the other ed
 system to the game's INIs; `renders/fire/compare_<view>.png` marks the points over the render
 (Blender cannot draw the particles). A `base` recipe shown per upgrade level declares none.
 
+## Capture: a neutral building in its holder's look
+
+A neutral building (the Inn) starts owned by the neutral player and changes hands with the capture
+flag it is linked to (`LINKED_TO_FLAG`). The new owner's faction upgrade (`Upgrade_DwarfFaction`...,
+born with every player, `playertemplate.ini` InitialUpgrades) then reaches the building's upgrade
+modules, as EA's own per-faction command sets on the Inn show. A `Capturable` recipe's dress per
+faction becomes two meshes written with the W3D hidden flag (EA's own use: the pathing planes, the
+Lorien archer's helmet): `CAP_<P>` in the body (one bake, one paint, one sheet with it) and its cloth
+`HC_CAP_<P>` in a house-colour model of our own. One `SubObjectsUpgrade` per faction (the Men's on
+Arnor's upgrade too) shows its dress and hides every other's; the engine applies it to every Draw
+module of the object and again after every model swap (`Drawable::showSubObject`,
+`W3DModelDraw::updateSubObjects`, EA's Generals source). The dress hangs on the body's bone, which
+no other sub-object hangs below: hiding a sub-object also hides those on bones below its own. The
+damaged body (derived) carries the dress; construction and ruins do not. The checks hold the hidden
+flags, the bone, the textures, one layout without overlap and the INI modules.
+
 ## Where the code is
 
 | Area | Modules (under `sagekit/`) |
@@ -155,6 +173,7 @@ system to the game's INIs; `renders/fire/compare_<view>.png` marks the points ov
 | New factions | `scaffold.py` + `scaffold_write.py` (`sagekit new`), `measure.py` + `blender/measure.py` (`sagekit measure`) |
 | Player colour, install | `house.py`, `housemesh.py`, `blender/house.py`, `install.py` |
 | Units (builders) | `units/` (recipe, mesh, build, paint, render, install, records, cli), `blender/unit_pose.py`: [UNITS.md](UNITS.md) |
+| HUD icons | `icons/` (mapped, render, pages, pixels, sheet, install, cli), `blender/icon.py`, `paint/icons.py`: [ICONS.md](ICONS.md) |
 
 ## A faction's folder
 
