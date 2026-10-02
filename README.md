@@ -23,8 +23,8 @@ I used to play this over LAN with my brothers. You still can, with friends on a 
 
 ## New buildings
 
-I'm also redrawing the buildings, one faction at a time. Dwarves, Elves, Men and Goblins are
-done; Isengard is next. They're optional in the installer: add `--buildings`.
+I've also redrawn the buildings of every faction: Dwarves, Elves, Men, Goblins, Isengard, Mordor
+and Angmar, each with its own builder. They're optional in the installer: add `--buildings`.
 
 ![A Dwarven base in game](https://github.com/maxr0ssi/bfme-mac/releases/download/media/ingame-dwarves.jpg)
 

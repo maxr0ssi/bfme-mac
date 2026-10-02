@@ -7,7 +7,7 @@
 # (dinput8.dll; gamepatch.ini with the diagnostic counters off; t_misc.exe, which checks a user's
 # exe against every patch site before install), LICENSE, NOTICE, patches/COPYING.LIB, a SOURCES.md naming the Wine source and patch series (LGPL:
 # the corresponding source is this repo at the recorded commit), and SHA256SUMS.
-#   scripts/make-release.sh [--buildings [dwarves,elves,men,goblins]]
+#   scripts/make-release.sh [--buildings [dwarves,elves,men,goblins,isengard,mordor,angmar]]
 # --buildings also packs the finished buildings (every faction above by default, with its builder
 # where it has one) as build/release/bfme-mac-buildings-<faction>-<version>.tar.gz, the files
 # install.sh --buildings installs: `python3 -m sagekit install <faction> --check` stages the current
@@ -25,7 +25,7 @@ cd "$BFME_ROOT"
 BUILDINGS=""
 while (( $# )); do
   case "$1" in
-    --buildings) if [[ $# -gt 1 && "$2" != -* ]]; then BUILDINGS="${2//,/ }"; shift; else BUILDINGS="dwarves elves men goblins"; fi ;;
+    --buildings) if [[ $# -gt 1 && "$2" != -* ]]; then BUILDINGS="${2//,/ }"; shift; else BUILDINGS="dwarves elves men goblins isengard mordor angmar"; fi ;;
     -h|--help) usage ;;
     *) usage 2 ;;
   esac

@@ -22,8 +22,8 @@
 #   --group-pack      also build and install the group pack (MULTIPLAYER.md); everyone you play
 #                     with needs the same one
 #   --buildings [list]  also install the new buildings from the release (RotWK): every finished
-#                     faction (dwarves,elves,men,goblins: Arnor uses Men's; Dwarves and Elves bring
-#                     their builder) or a comma list. Without this flag the installer asks
+#                     faction (dwarves,elves,men,goblins,isengard,mordor,angmar: Arnor uses Men's;
+#                     each brings its builder) or a comma list. Without this flag the installer asks
 #                     (default no). Everyone in a LAN game must choose
 #                     the same. The packs hold none of EA's files: each is checked against your game
 #                     and rebuilt from it (sagekit/pack.py); a faction whose EA files differ is skipped
@@ -152,7 +152,7 @@ if [[ -z "$BUILDINGS" && -s "$REL/BUILDINGS" ]] && [[ -n "$SRC_ROTWK" || -d "$PF
   if [[ -n "$installed_buildings" ]]; then
     BUILDINGS=$installed_buildings   # installed before: updated to this release's packs
   elif [[ -t 0 ]]; then
-    typeset -A label=(dwarves Dwarves elves Elves men "Men (and Arnor)" goblins Goblins)
+    typeset -A label=(dwarves Dwarves elves Elves men "Men (and Arnor)" goblins Goblins isengard Isengard mordor Mordor angmar Angmar)
     names=(); for f in $(cut -d' ' -f1 "$REL/BUILDINGS"); do names+=("${label[$f]:-$f}"); done
     echo "New buildings for ${(j:, :)names} ($(awk '{s += $4} END {printf "%d", s / 1048576}' "$REL/BUILDINGS") MB download)."
     read "ans?Install them? Everyone in a LAN game must choose the same (they change INI files; mismatched INIs desync) [y/N] "
