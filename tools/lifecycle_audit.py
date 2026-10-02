@@ -45,8 +45,8 @@ def classify(m):
         return "OURS", s.split(",")[0]
     if m.get("derived"):
         return "DERIVED", ""
-    if s.startswith("skipped") or "skip" in s.lower() and "left to EA" not in s:
-        return "SKIP", s
+    if s.startswith("left to EA by the recipe (skip)"):     # sagekit/blender/lifecycle.py run()
+        return "SKIP", s.split(": ", 1)[-1][:110]
     if s.startswith("no body pieces"):
         tex = sorted({t for w in m.get("warnings", []) if "has no variant" in w
                       for t in re.findall(r"'([^']+)'", w.split("texture", 1)[1].split("has no")[0])})

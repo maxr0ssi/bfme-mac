@@ -189,6 +189,9 @@ def frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind, own=None):
     vertex of ours lying on that body is where it stands finished and is
     not held to EA's depth, and the footprint may reach as far as that body does."""
     at = "rest" if f is None else "frame %d" % f
+    from ..lifecycle import allowance, settings
+    s = settings(b, name)
+    ground, why_deep = allowance(s, "deep", GROUND_TOL)
     pe, pn, pm = EA.pose(f), NEW.pose(f), EA.pose(match)
     moving = {k for k in range(len(pe[0])) if max(abs(x - y) for x, y in zip(pe[0][k], pm[0][k])) > 0.05}
     standing = not moving & {bn for n in pieces for bn in EA.vertex_bones(n)}
@@ -203,9 +206,9 @@ def frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind, own=None):
         return lo, hi
     (low_e, top_e), (low_n, _) = by_bone(EA, pe, pieces), by_bone(NEW, pn, ours, own and own["bvh"])
     deep = {EA.skel.names[k]: round(z, 1) for k, z in low_n.items()
-            if z < min(0.0, low_e.get(k, 0.0)) - GROUND_TOL and top_e.get(k, 1.0) > 0}
+            if z < min(0.0, low_e.get(k, 0.0)) - ground and top_e.get(k, 1.0) > 0}
     fixed = {k: v for k, v in deep.items() if EA.skel.index(k) not in moving}
-    r.check("%s @ %s: nothing of ours deeper in the ground than EA's (bones in place)" % (name, at), not fixed,
+    r.check("%s @ %s: nothing of ours deeper in the ground than EA's (bones in place)%s" % (name, at, why_deep), not fixed,
             str(fixed) if fixed else "lowest %.1f (EA %.1f)" % (min(low_n.values(), default=0), min(low_e.values(), default=0)))
     if len(deep) > len(fixed):
         r.info("%s @ %s: pieces in flight below EA's" % (name, at), str({k: v for k, v in deep.items() if k not in fixed}))
@@ -223,11 +226,11 @@ def frame_checks(b, r, name, f, EA, NEW, pieces, ours, match, kind, own=None):
     se = back_seen(EA, pe, pieces, pieces)
     seen, total, whole = back_seen(NEW, pn, list(NEW.w3d.meshes), ours, parts=True)
     sn = seen / max(total, 1e-9)
-    slack = BACK_TOL[standing and kind != "rubble"]
+    slack, why = allowance(s, "backs", BACK_TOL[standing and kind != "rubble"])
     if hasattr(r, "worst"):
         r.worst = max(r.worst, sn - se)
     held = seen / max(total, SLIVER * whole, 1e-9)      # a build-up's tip out of the ground is no building
-    r.check("%s @ %s: our faces' backs open to the sky at most %d%% more than EA's" % (name, at, 100 * slack),
+    r.check("%s @ %s: our faces' backs open to the sky at most %d%% more than EA's%s" % (name, at, 100 * slack, why),
             held <= se + slack, "%.2f%% of our area (EA's body: %.2f%%)%s" % (
                 100 * sn, 100 * se, "; %.2f%% of a tenth of it, %.0f of %.0f units² above the ground" % (
                     100 * held, total, whole) if held < sn else ""))

@@ -53,6 +53,15 @@ Recipe settings, Building.lifecycle = {model name or "*": {setting: value}}:
     force       ship the model even when the per-frame checks (depth, spread, open backs) fail it;
                 by default such a model is left to EA and the report says why
     views       frames shown by the renders and checks: fractions of the animation, or "rest"
+    backs       (share, reason): our faces' backs may open to the sky this much past EA's (0.04: 4%
+                of our area), at every frame, instead of the checks' standard (2% standing, 10%
+                moving); only where the renders show no hole the RTS camera sees. Nothing else is
+                loosened, and the reason goes into every check line it touches (allowance())
+    deep        (units, reason): how far our faces may go below EA's deepest on a bone (0.5)
+    sheets      {EA texture: ours}: a state whose pieces (`body`) EA paints from another building's
+                healthy sheet, laid out otherwise (the Angmar sanctum's build-up on the fortress's
+                KBFortressX): no state copy of ours can carry its painting, but our faces keep our
+                UVs, so that sheet's name in our pieces becomes our own diffuse's (same length)
     fill        EA's model is a remodel of its healthy body, not a cut of it (the Goblins' _A models:
                 offset faces, trimmed underground, a narrower footprint), so the finished frame must
                 still be our whole body. Nothing of ours is cut: a face of ours no state face covers
@@ -89,6 +98,26 @@ def settings(b, model):
     out.update(own.get("*", {}))
     out.update(next((v for k, v in own.items() if k.lower() == model.lower()), {}))
     return out
+
+
+def allowance(s, key, standard):
+    """(limit, " (the recipe's allowance: why)") of a `backs` / `deep` setting, else (standard, "")."""
+    a = s.get(key)
+    return (max(standard, float(a[0])), " (the recipe's allowance: %s)" % a[1]) if a else (standard, "")
+
+
+def check_settings(b):
+    """ValueError for a lifecycle allowance without a number and a reason, or a `sheets` entry that
+    is not one of our own textures as long as EA's (sagekit validate)."""
+    for model, s in (getattr(b, "lifecycle", {}) or {}).items():
+        for ea, ours in (s.get("sheets") or {}).items():
+            if ours not in b.texture_names().values() or len(ea) != len(ours):
+                raise ValueError("lifecycle %s sheets: %s -> %s is none of our own textures as long" % (model, ea, ours))
+        for key in ("backs", "deep"):
+            a = s.get(key)
+            if a is not None and not (isinstance(a, (tuple, list)) and len(a) == 2 and
+                                      isinstance(a[0], (int, float)) and isinstance(a[1], str) and a[1].strip()):
+                raise ValueError("lifecycle %s %s: (number, reason), not %r" % (model, key, a))
 
 
 def plan(b, install, derived=()):
@@ -219,6 +248,10 @@ def self_check():
         got = state_body(meshes, target, others, mine)
         if got != want:
             fails.append("state_body(%s): %s, not %s" % (list(meshes), got, want))
+    for s, want in (({}, (0.02, "")), ({"backs": (0.05, "why")}, (0.05, " (the recipe's allowance: why)")),
+                    ({"backs": (0.01, "why")}, (0.02, " (the recipe's allowance: why)"))):
+        if allowance(s, "backs", 0.02) != want:                 # an allowance only ever loosens
+            fails.append("allowance(%s): %s, not %s" % (s, allowance(s, "backs", 0.02), want))
     archives = M(owner=lambda member: member)               # every sheet exists
     for sheet, t, want in (("KBFortressB.tga", "KBFortressX_D1.tga", True),
                            ("MBSeigeWork2.tga", "MBSeigeWork2D.tga", True),

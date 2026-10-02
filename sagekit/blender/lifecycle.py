@@ -51,9 +51,9 @@ class Link:
     """One recipe's body in the model: a chained recipe (`base`) redesigns another mesh of the same
     model, so a lifecycle model carries every link's body, each on its own texture."""
 
-    def __init__(self, b, healthy, offset=(0, 0, 0)):
-        self.b, self.ws = b, Workspace(b)
-        self.names = dict(self.ws.own_names)        # diffuse, normal, state variants, state normals (as derive)
+    def __init__(self, b, healthy, offset=(0, 0, 0), sheets=None):
+        self.b, self.ws = b, Workspace(b)           # names: diffuse, normal, state variants and normals (as
+        self.names = dict(self.ws.own_names, **{k.lower(): v for k, v in (sheets or {}).items()})   # derive), `sheets`
         Vh = healthy.world(b.target, healthy.pose(None)) + offset
         Th = np.array(healthy.w3d.meshes[b.target].tris)
         self.ea_tree, (_, self.ea_normals, _) = tree(Vh, Th), face_frame(Vh, Th)
@@ -83,8 +83,8 @@ class Build(Cutter):
         offset = np.asarray(self.s.get("match_offset", (0, 0, 0)), float)
         if offset.shape != (3,) or not np.isfinite(offset).all():
             raise ValueError("match_offset must contain three finite coordinates")
-        if np.any(offset):
-            links = [Link(L.b, healthy, offset) for L in links]
+        if np.any(offset) or self.s.get("sheets"):
+            links = [Link(L.b, healthy, offset, self.s.get("sheets")) for L in links]
         self.H, self.links = healthy, links
         self.warnings = []
         self.names = {k: v for L in links for k, v in L.names.items()}         # EA's names, any link's

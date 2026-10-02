@@ -233,6 +233,16 @@ build/assets/<faction>/<building>/
   tip of a build-up is out of the ground holds its open backs over at least a tenth of our model's
   area (`SLIVER`): one grazing face on 20 units² of the catapult's top read as 49%. `fill` may be
   set on a damaged state too, where EA remodelled its pieces (Mordor's barricade D2).
+- The audit of 2026-10-01 (`tools/lifecycle_audit.py`, 39 states still EA's): build-ups cut along
+  EA's pieces kept slivers of our faces (the statues, the Men's stable), so they `fill`; EA's lightly
+  damaged bodies that are its healthy one dented (Mordor's siege works D1, Angmar's battle tower D1)
+  carry our body whole (`also_derived`); a build-up EA paints from another building's healthy sheet
+  (the Angmar sanctum on `KBFortressX`) names its pieces (`body`) and takes our own sheet there
+  (`sheets`); a body without a normal map of ours that a state draws normal-mapped (the Men's stone
+  maker D1..D3) cannot go in, so those states are `skip`s. Where the renders show no
+  hole the RTS camera sees, a recipe may allow one model more open backs (`backs`) or depth (`deep`),
+  each with its reason, which every check line it touches prints. Doors, ruins and models sunk out
+  of sight are `skip`s with a reason; the audit reports them as SKIP.
 - A chain's hosts may be painted from different sheets (the Men's level meshes on GBVet beside
   the body): EA's break faces they held move to a piece of their own sheet and vertex layout, or
   else join our host, sheet by sheet (`GBBarracks_D2` and four more raised before).
@@ -242,8 +252,9 @@ build/assets/<faction>/<building>/
 - Night lights exist only where EA's model has night meshes; lanterns elsewhere stay dark.
 - Fire is checked in files and marker renders only; how it reads (size, smoke, cost of many
   systems on one building) is checked in game.
-- A few Elven lifecycle states stay EA's where our design fails the sky check (listed in each
-  recipe's `work/lifecycle.json` and README).
+- Four rubble collapses stay EA's (Angmar's wall trebuchet, Mordor's battle tower, fire-arrow
+  tower and mumakil pen): the cut opens our solids 16-26% past EA's open backs, filled or not. Each
+  recipe's `skip` says so; caps where the cut opens a solid would let them ship.
 - The lifecycle choice uses open backs as its only quality signal; thin shards need a human look.
 - Renders approximate the game's lighting; the in-game look is checked in play.
 - Open bug (2026-09-28): own-copy models (the Men citadel, the Elven barracks and mallorn) render

@@ -52,6 +52,8 @@ def cmd_validate(a):
                 game[0](b)
             from .fire import points as fire_points
             fire_points(b)                      # (x, y, z, kind) with a kind sagekit/fire.py knows
+            from .lifecycle import check_settings
+            check_settings(b)                   # lifecycle allowances carry a number and a reason
             for old, new in b.texture_names().items():
                 if len(old) != len(new):
                     raise ValueError("%s -> %s: own texture names must keep the original's length" % (old, new))
