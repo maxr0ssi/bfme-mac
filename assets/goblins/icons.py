@@ -7,7 +7,8 @@ TOP = ((0, 1), (0, 1), (0.45, 1))
 FLAT = dict(elev=35, ground=True, fill=1.0)      # a low building's button: from above, on its ground
 
 ICONS = {
-    "BPWAbandonedMineShaft": Portrait("mine_shaft", azim=-60, elev=25, fill=1.0, at=(0.5, 0.5)),
+    "BPWAbandonedMineShaft": Portrait("mine_shaft", azim=-60, elev=30, fill=1.0, at=(0.5, 0.52),
+                                      frame=("WBPITMETAL", "WBPITA")),      # the pit, not the goblins about it
     "BPWCave": Portrait("cave", azim=-60, elev=20, fill=0.86),
     "BPWFissure": Portrait("fissure", azim=-60, elev=25, fill=0.86),
     "BPWFortress": Portrait("fortress", azim=-60, elev=15, fill=0.86),

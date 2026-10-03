@@ -73,14 +73,46 @@ def points(names):
     return np.concatenate(out)
 
 
-TALL, TALL_FILL = 1.4, 0.95         # a portrait whose framed part stands 1.4 times its width
-FADE = (1.15, 2.6)                  # the ground fades from 1.15 to 2.6 times the meshes' reach
+TALL = 1.4                          # a portrait whose silhouette stands 1.4 times its width is a tower
+BODY, FOOT, TIP = 0.84, 0.92, -0.04 # a tower's body as tall as 0.84 of the frame, its foot 0.92 down, as
+                                    # EA's; its spire's tip may run into the burnt edge, just past the top
+SPIRE = 0.3                         # a spire: the rows at a tower's top thinner than 0.3 of its widest
+FADE = (1.15, 2.6)                  # the ground fades from 1.15 to 2.6 times the building's reach
+STAND, BASE = 0.05, 0.25            # of the height: what stands above the ground; the foot of the walls
+
+
+def silhouette(pts):
+    """A portrait's building as it rises from the ground: the vertices higher than STAND of its
+    height (bibs, decals, rubble and the bottom steps lie flat and leave the frame to the ground),
+    those of the lowest quarter also dropped to the ground, where its walls meet it."""
+    z0, h = float(pts[:, 2].min()), float(np.ptp(pts[:, 2]))
+    up = pts[pts[:, 2] > z0 + STAND * h]
+    if len(up) < 8:
+        return pts
+    foot = up[up[:, 2] < z0 + BASE * h].copy()
+    foot[:, 2] = z0
+    return np.concatenate([up, foot])
+
+
+def tower_body(p):
+    """Which of a tower's projected points are its body: those below the run of rows at its top
+    thinner than SPIRE of its widest row (the spire)."""
+    y0, h = p[:, 1].min(), max(float(np.ptp(p[:, 1])), 1e-9)
+    rows = np.minimum(((p[:, 1] - y0) / h * 40).astype(int), 39)
+    width = np.zeros(40)
+    for r in np.unique(rows):
+        width[r] = np.ptp(p[rows == r, 0])
+    return rows <= np.nonzero(width >= SPIRE * width.max())[0].max()
 
 
 def frame(shot, pts):
-    """A camera framing the focus part of `pts` as the shot says (a tall portrait at TALL_FILL);
-    also the framed part's centre and how far the meshes reach from it on the ground."""
+    """A camera framing the focus part of `pts` as the shot says: a portrait by its silhouette, a
+    tower (tall, framed whole) as EA's: its body BODY tall, its foot at FOOT; also the framed part's
+    centre and how far the building reaches from it on the ground."""
     pts = pts[pts[:, 2] >= -0.5]                # what stands above the ground (no buried upgrade levels)
+    portrait = shot.get("kind") == "portrait"
+    if portrait:
+        pts = silhouette(pts)
     lo, hi = pts.min(0), pts.max(0)
     f = np.array(shot["focus"], np.float32)
     flo, fhi = lo + (hi - lo) * f[:, 0], lo + (hi - lo) * f[:, 1]
@@ -106,15 +138,24 @@ def frame(shot, pts):
     fill, at = shot["fill"], shot["at"]
     probe = project(10.0 * float(np.ptp(sel, 0).max()) + 1.0)
     span = np.ptp(probe, 0)
-    if shot.get("kind") == "portrait" and span[1] > TALL * span[0]:
-        fill, at = max(fill, TALL_FILL), (at[0], 0.5)  # a tower fills EA's circle top to bottom
+    whole = not shot["frame"] and np.all(f == [[0, 1], [0, 1], [0, 1]])
+    tall = portrait and whole and span[1] > TALL * span[0]     # a part the table picks keeps its fill
+    body = tower_body(probe) if tall else None
+
+    def over(p):
+        """Too big: the larger side past `fill`; a tower's body past BODY or its spire past TIP."""
+        if not tall:
+            return np.ptp(p, 0).max() > fill
+        b, foot = p[body], p[:, 1].min()
+        return max(b[:, 1].max() - foot, np.ptp(b[:, 0])) > BODY or p[:, 1].max() - foot > FOOT - TIP
+
     near, far = 0.0, 1.0
-    while project(far) is None or np.ptp(project(far), 0).max() > fill:
+    while project(far) is None or over(project(far)):
         far *= 2
     for _ in range(40):
         mid = (near + far) / 2
         p = project(mid)
-        if p is None or np.ptp(p, 0).max() > fill:
+        if p is None or over(p):
             near = mid
         else:
             far = mid
@@ -124,7 +165,7 @@ def frame(shot, pts):
     cam.data.sensor_fit = "HORIZONTAL"
     cam.data.sensor_width = 36.0
     cam.data.shift_x = float(c[0] - at[0])
-    cam.data.shift_y = float(c[1] - (1.0 - at[1]))
+    cam.data.shift_y = float(p[:, 1].min() - (1.0 - FOOT) if tall else c[1] - (1.0 - at[1]))
     cam.data.clip_start = 0.1
     reach = max(float(np.max(np.hypot(pts[:, 0] - centre[0], pts[:, 1] - centre[1]))),
                 0.6 * float(np.ptp(pts[:, 2])))       # a tower stands on ground, not a dot of it
