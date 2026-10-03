@@ -234,7 +234,7 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   How a recipe works: `docs/UNITS.md`. The Dwarven porter's `unit.py` and `preview.py` are the
   troop scripts' imports of the shared mesh primitives and motion decoder.
 - `python3 -m assets.cah.<class>.build`, `python3 -m sagekit.units.cah --stage|--install|--revert
-  [--dry-run]` (`sagekit/units/cah.py`, `assets/cah/`) — the cah pack: more Create-a-Hero choices
+  [--dry-run] [--classes a,b]` (`sagekit/units/cah.py`, `assets/cah/`) — the cah pack: more Create-a-Hero choices
   (serious and fun parts appended to the creation screen's rows). Each class folder builds its model
   copies, sheets and INI fragment with the kit (`assets/cah/kit/`: `geom.py`, `ornament.py`,
   `paint.py`, `models.py`, `ini.py`); the pack composes every class into one

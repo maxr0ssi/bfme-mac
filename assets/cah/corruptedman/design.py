@@ -47,7 +47,7 @@ _MAN = {"weapon": ["SWRD_05"], "shoulder": "SLDR_02", "tweak": {}}
 E.register(sys.modules[__name__], {m: _MAN for m in SKELETONS})
 BOTH = [0, 1]
 H, SH, SD, W = "CreateAHero_Helmet", "CreateAHero_ShoulderPlates", "CreateAHero_Shield", "CreateAHero_Weapon"
-PARTS = E.parts("CMEN", [
+PARTS = E.parts([
     ("SKCMN_HLMT_HAR", H, helms.helm_harad, "Helm of the Haradrim", "A brass spire over a crimson turban and a mail veil.", "serious", None, BOTH),
     ("SKCMN_HLMT_EAS", H, helms.helm_easterling, "Easterling Lamellar Helm", "Black lacquer laced in gold, behind a gold mask.", "serious", None, BOTH),
     ("SKCMN_HLMT_MOR", H, helms.helm_mordor, "Helm of the Dark Tower", "Black iron under a crown of hooked spikes; the Eye on the brow.", "serious", None, BOTH),

@@ -106,7 +106,7 @@ ENTRIES = [   # (sub-object, group, design, name, description, sheet, remap) in 
     ("SKHWCG_FPAN", "CreateAHero_Weapon", lambda m: F.frying_pan(m, A), "Frying Pan", "Fights as a sword of the West.",
      "fun", None),
 ]
-PARTS = C.name_parts(C.wrapped(sys.modules[__name__], ENTRIES), "HWCG", (46, 47))
+PARTS = C.name_parts(C.wrapped(sys.modules[__name__], ENTRIES), (46, 47))
 budget = C.budget_fn({n: C.CLOAK for n in ("SKHWCG_SPTREE", "SKHWCG_FPINK", "SKHWCG_FRAINB")})
 
 # the overview (python3 -m assets.cah.kit.render men_cg)

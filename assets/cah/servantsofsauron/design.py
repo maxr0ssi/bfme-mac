@@ -59,7 +59,7 @@ E.register(sys.modules[__name__], {"chss_or_u_skn": dict(_ORC, shield_like="chss
                                    "chss_uk_u_skn": _URUK, "chss_uk_c_skn": _URUK})
 BOTH, URUK = [OR, UK], [UK]
 H, SH, SD, W = "CreateAHero_Helmet", "CreateAHero_ShoulderPlates", "CreateAHero_Shield", "CreateAHero_Weapon"
-PARTS = E.parts("SOS", [
+PARTS = E.parts([
     ("SKSOS_HLMT_MOR", H, helms.helm_mordor, "Helm of the Dark Tower", "Black iron under a crown of hooked spikes; the Eye on the brow.", "serious", None, BOTH),
     ("SKSOS_HLMT_ISE", H, helms.helm_isengard, "Helm of the White Hand", "An uruk's black-iron kettle, edged in silver.", "serious", None, BOTH),
     ("SKSOS_HLMT_ANG", H, helms.helm_angmar, "Iron Crown of Angmar", "Tall tines, their tips frozen to rime.", "serious", None, BOTH),

@@ -43,7 +43,6 @@ CATALOGUE = [
     ("CARROT", WP, F.bow_carrot, "Carrot Bow", "A very large carrot. Fights as EA's elven bows.", "fun", None, "bow"),
     ("CANDY", WP, F.bow_candy, "Candy Cane Bow", "Peppermint. Fights as EA's elven bows.", "fun", None, "bow"),
 ]
-GROUP_UP = {HLM: "CHH", SH: "CHSP", SD: "CHS"}
 BONES = {HLM: {"B_HEAD", "BAT_HEAD"},
          SH: {"BAT_SPINE2", "BAT_RIBS", "BAT_UARML", "BAT_UARMR"},
          SD: {"BAT_FARML", "BAT_SPINE1", "BAT_RIBS", "B_WAIST"},
@@ -59,8 +58,9 @@ def budget(name, group, kind):
 
 
 def named(spec):
-    """The kit's PARTS for a folder: sub-objects SK<STEM>_<code>, upgrades per its stem, weapons
+    """The kit's PARTS for a folder: sub-objects SK<STEM>_<code>, the rows' shared upgrades, weapons
     on its own flags; each design wrapped to place itself in the model being built."""
+    from ..kit.ini import row_upgrade
     from ..kit.models import folder
     space = Space(folder(spec)[1])
     count, flags, out = {}, iter(spec.FLAGS), []
@@ -69,7 +69,7 @@ def named(spec):
             up = "Upgrade_SKH_CHW%02d" % next(flags)
         else:
             count[group] = count.get(group, 0) + 1
-            up = "Upgrade_SKH_%s_%s%02d" % (spec.STEM, GROUP_UP[group], count[group])
+            up = row_upgrade(group, count[group])
         out.append(("SK%s_%s" % (spec.STEM, code), group, wrap(fn, space, reg), name, desc, sheet, remap, up))
     return out
 

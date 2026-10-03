@@ -94,7 +94,7 @@ ENTRIES = [   # (sub-object, group, design, name, description, sheet, remap) in 
     ("SKWZ_FLOLLY", "CreateAHero_Weapon", lambda m: Z.staff_lolly(m, A), "Giant Lollipop", "Fights as a wizard's staff.",
      "fun", None),
 ]
-PARTS = C.name_parts(C.wrapped(sys.modules[__name__], ENTRIES), "WZ", (50, 51))
+PARTS = C.name_parts(C.wrapped(sys.modules[__name__], ENTRIES), (50, 51))
 budget = C.budget_fn({n: C.CLOAK for n in ("SKWZ_SPCLOAK", "SKWZ_SPSTARS", "SKWZ_FGLITTER", "SKWZ_FPINK")})
 
 # the overview (python3 -m assets.cah.kit.render wizard)

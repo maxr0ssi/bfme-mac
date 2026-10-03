@@ -8,6 +8,7 @@ the row's RemoveUpgradeUpgrade; every entry is APPENDED to its row (saved heroes
     python3 -m assets.cah.dwarf.build           # EA sources, both sheets, the models, the INI, checks
     python3 -m sagekit.units.cah --stage | --install | --revert [--dry-run]
 """
+from ..kit.ini import row_upgrade
 from . import fun, serious
 
 NAME, CLASS_FILE = "dwarf", "dwarf"
@@ -59,13 +60,11 @@ def _parts():
     """[(sub-object, group, design, name, description, sheet, remap, upgrade)] in APPEND order."""
     out = [(k, g, d, n, t, "serious", None) for k, (g, d, n, t) in serious.SERIOUS.items()]
     out += [(k, g, d, n, t, sheet, remap) for k, (g, d, n, t, sheet, remap) in fun.FUN.items()]
-    count = {"CreateAHero_Helmet": 7, "CreateAHero_ShoulderPlates": 7, "CreateAHero_Shield": 1, "CreateAHero_Weapon": 43}
-    pattern = {"CreateAHero_Helmet": "Upgrade_SKH_DWARF_CHH%02d", "CreateAHero_ShoulderPlates": "Upgrade_SKH_DWARF_CHSP%02d",
-               "CreateAHero_Shield": "Upgrade_SKH_DWARF_CHS%02d", "CreateAHero_Weapon": "Upgrade_SKH_CHW%02d"}
-    named = []
-    for k, g, d, n, t, sheet, remap in out:
-        named.append((k, g, d, n, t, sheet, remap, pattern[g] % count[g]))
-        count[g] += 1
+    count, weapons, named = {}, iter(WEAPON_SETS), []
+    for k, g, d, n, t, sheet, remap in out:                         # rows: shared upgrades; weapons: our flags
+        count[g] = count.get(g, 0) + 1
+        up = "Upgrade_SKH_CHW%02d" % next(weapons) if g == "CreateAHero_Weapon" else row_upgrade(g, count[g])
+        named.append((k, g, d, n, t, sheet, remap, up))
     return named
 
 

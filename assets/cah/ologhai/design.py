@@ -67,7 +67,7 @@ E.register(sys.modules[__name__], {      # trolls without EA's shield carry one 
     "chtl_st_u_skn": _ST, "chtl_st_c_skn": _ST, "chtl_ht_u_skn": dict(_ST, shield_like="chtl_st_u_skn"), "chtl_ht_c_skn": _ST})
 ALL = [0, 1, 2]
 H, SH, SD, W = "CreateAHero_Helmet", "CreateAHero_ShoulderPlates", "CreateAHero_Shield", "CreateAHero_Weapon"
-PARTS = E.parts("OLOG", [
+PARTS = E.parts([
     ("SKOLG_HLMT_MOR", H, helms.helm_mordor, "Helm of the Dark Tower", "Black iron under a crown of hooked spikes; the Eye on the brow.", "serious", None, ALL),
     ("SKOLG_HLMT_ANG", H, helms.helm_angmar, "Iron Crown of Angmar", "Tall tines, their tips frozen to rime.", "serious", None, ALL),
     ("SKOLG_FUN_FLOWR", H, fun.flower_crown, "Flower Crown", "Picked fresh this morning.", "fun", None, ALL),

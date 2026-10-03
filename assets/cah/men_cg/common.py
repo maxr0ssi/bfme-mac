@@ -1,7 +1,6 @@
 """What the Men of the West's two folders (men_cg, men_sm) and the Wizards share: budgets, the
 abstract bones the designs ride (named per model by BONE_MAP), part naming and the head seat."""
 
-GROUPS = {"CreateAHero_Helmet": "CHH", "CreateAHero_ShoulderPlates": "CHSP", "CreateAHero_Shield": "CHS"}
 # vertex caps per sub-object in game (_U, and _M mounted) / on the creation screen (_C): docs/CAH.md
 BUDGET = {"CreateAHero_Helmet": (650, 950), "CreateAHero_ShoulderPlates": (700, 1100), "CreateAHero_Shield": (600, 900),
           "CreateAHero_Weapon": (540, 700)}
@@ -16,18 +15,17 @@ def bones(per_skeleton):
     return out
 
 
-def name_parts(entries, stem, weapons):
+def name_parts(entries, weapons):
     """PARTS in append order from [(sub-object, group, design, name, description, sheet, remap)]:
-    upgrades Upgrade_SKH_<stem>_<CHH|CHSP|CHS><nn> from 01, weapons Upgrade_SKH_CHW<nn> on the
-    class's weapon-set numbers `weapons` (docs/CAH.md: Men + Wizards 46-51)."""
+    the rows' shared upgrades (kit/ini.py row_upgrade: Upgrade_SKH_<CHH|CHSP|CHS><nn> from 01),
+    weapons Upgrade_SKH_CHW<nn> on the class's weapon-set numbers `weapons` (docs/CAH.md: Men +
+    Wizards 46-51)."""
+    from ..kit.ini import row_upgrade
     count, out, w = {}, [], iter(weapons)
     for e in entries:
         g = e[1]
-        if g == "CreateAHero_Weapon":
-            up = "Upgrade_SKH_CHW%02d" % next(w)
-        else:
-            count[g] = count.get(g, 0) + 1
-            up = "Upgrade_SKH_%s_%s%02d" % (stem, GROUPS[g], count[g])
+        count[g] = count.get(g, 0) + 1
+        up = "Upgrade_SKH_CHW%02d" % next(w) if g == "CreateAHero_Weapon" else row_upgrade(g, count[g])
         out.append(tuple(e) + (up,))
     return out
 

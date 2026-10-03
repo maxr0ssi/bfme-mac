@@ -15,6 +15,15 @@ screen's rows, for every class. The Dwarf (`assets/cah/dwarf`) is the first clas
   ever **appended**. The lint fails if any of EA's lists stops being a prefix of ours.
 - Other limits: 3 colours with a free picker, 8 class slots, 5 subclasses per class, 64 weapon-set
   flags (EA uses 40).
+- **1152 upgrades in all.** The engine's upgrade mask is 1152 bits (exe 0x444db3); each Upgrade
+  takes the next bit unchecked (0x66fcb7), and past bit 1151 `Object::removeUpgrade` (0x691438)
+  overwrites its stack frame: EA's 1027 plus our first 161 crashed the game (2026-10-03). The lint
+  counts EA's, every other archive of ours (they add none) and the pack's, prints the headroom and
+  fails over 1152 (`sagekit/upgrades.py`, also in `python3 -m sagekit validate`).
+- **Upgrades are shared by row and position.** An upgrade is only a name; each class shows its own
+  sub-object for it. Every class's first appended helmet is `Upgrade_SKH_CHH01`, and so on (`CHSP`
+  shoulders, `CHS` shields). Weapons stay one each, as each sets its own weapon-set flag. 21 + 22 =
+  43 upgrades, headroom 82; a new class adds only weapons and entries past the longest row.
 
 ## Layout
 
@@ -34,6 +43,7 @@ python3 -m assets.cah.<class>.build [--skip-paint] # sources, sheets, models, IN
 python3 -m assets.cah.kit.render <class>           # build/assets/cah/<class>/renders/overview.png (one Blender)
 python3 -m sagekit.units.cah --stage               # compose all classes, lint, pack, asset.dat round trip
 python3 -m sagekit.units.cah --install [--dry-run] # one archive, records, shared house-colour INI
+python3 -m sagekit.units.cah --stage --classes dwarf   # only these classes (comma list), to test one at a time
 python3 -m sagekit.units.cah --revert  [--dry-run]
 ```
 
@@ -75,7 +85,7 @@ reorder or remove an entry once a build has shipped: append only.
 
 | Thing | Rule | Example |
 |---|---|---|
-| Upgrades | `Upgrade_SKH_<STEM>_<CHH|CHSP|CHBOD|CHG|CHS|CHB><nn>` per subclass stem (table), `nn` from 01 | `Upgrade_SKH_ARFE_CHH01` |
+| Upgrades | `Upgrade_SKH_<CHH|CHSP|CHS><nn>`, shared: our `nn`-th entry of that row in every class (`kit/ini.py` `row_upgrade`) | `Upgrade_SKH_CHH01` |
 | Weapon upgrades | `Upgrade_SKH_CHW<nn>`, `nn` = its own flag `WEAPONSET_CREATE_A_HERO_WS_<nn>` | `Upgrade_SKH_CHW52` |
 | Weapon-set flags | Dwarf 43-45 (used). **Men + Wizards 46-51, Archers 52-57, Orc/Uruk/Corrupted Man/Olog-hai 58-64** | |
 | Sub-objects (≤ 15 chars) | `SK<STEM>_<PART>`, globally unique | `SKARFE_HOODPK` |
@@ -83,7 +93,7 @@ reorder or remove an entry once a build has shipped: append only.
 | Sheets (≤ the template's texture name) | `SKCAH_<FAM>GEAR.tga`, `SKCAH_<FAM>FUN.tga`; masks `HC_` + sheet | `SKCAH_ARGEAR.tga` |
 | INI module tags | made by the kit (`SKH_Show_<sub-object>`, `SKH_Remove_<upgrade>`, `SKH_Weapon_<upgrade>`) | |
 
-The Dwarf keeps its first names (`Upgrade_SKH_DWARF_…`, `SKH_*` sub-objects). `<FAM>` is the
+The Dwarf keeps its first sub-object names (`SKH_*`); its upgrades moved to the shared names. `<FAM>` is the
 model family (`HW`, `AR`, `WZ`, `SS`, `CM`, `TL`). If two groups share a family, agree on one
 sheet pair or use the subclass stem. The lint refuses duplicate upgrades, module tags, sub-objects
 shown by two upgrades, models or textures shipped twice, and more than 64 weapon-set flags.
@@ -120,7 +130,7 @@ Alpha marks what takes a colour; G is EA's tunic channel, R its second cloth, B 
   `lotr.str` of ours would replace a non-English player's strings); every entry clears its row's
   group and shows a sub-object our models carry; each weapon's set exists. Broken copies (inserted
   entry, missing label, no group clear, part missing from a model, missing weapon set, models not
-  ours) must each fail.
+  ours, over 1152 upgrades) must each fail.
 - **Pack (`--stage`):** no member another archive serves first; nothing filed twice; asset.dat
   staged and reverted on copies gives back today's records byte for byte.
 
@@ -181,4 +191,4 @@ of the naming rules.
   - The 7 subclasses span 6 skeletons, so `assets/cah/evil/` has no `design.py`: it measures each
     model from EA's own parts and fits every part to it, drawn in the model's own rest space
     (`OWN_SPACE` in `kit/models.py`).
-  - Shared upgrades use class stems: `Upgrade_SKH_SOS_…`, `_CMEN_…`, `_OLOG_…`.
+  - Their parts take the shared row upgrades like every class.

@@ -101,7 +101,7 @@ ENTRIES = [   # (sub-object, group, design, name, description, sheet, remap) in 
     ("SKHWSM_FLEG", "CreateAHero_Weapon", lambda m: F.turkey_leg(m, A), "Turkey Leg", "Fights as a sword of the West.",
      "fun", None),
 ]
-PARTS = C.name_parts(C.wrapped(sys.modules[__name__], ENTRIES), "HWSM", (48, 49))
+PARTS = C.name_parts(C.wrapped(sys.modules[__name__], ENTRIES), (48, 49))
 budget = C.budget_fn({n: C.CLOAK for n in ("SKHWSM_SPCLOAK", "SKHWSM_FPINK", "SKHWSM_FRAINB")})
 
 # the overview (python3 -m assets.cah.kit.render men_sm)

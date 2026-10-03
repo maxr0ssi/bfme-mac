@@ -4,15 +4,17 @@ A class build makes a FRAGMENT (fragment()): its text for each shared file, its 
 subclass's rows, its model renames. The pack composes all fragments onto EA's files in class order
 (compose()), so classes build independently and still compose; the lint runs on the composition.
 
-  createaheroupgrades.inc               an Upgrade per part (GroupOrder = its list slot; weapons none, as EA's)
-  createaherosystemappearancebling.inc  a CreateAHeroBling per non-weapon part
+  createaheroupgrades.inc               an Upgrade per row position, SHARED by every class (Upgrade_SKH_CHH01 is
+                                        each class's first appended helmet; the engine holds 1152 upgrades,
+                                        sagekit/upgrades.py); per weapon its own (GroupOrder none, as EA's)
+  createaherosystemappearancebling.inc  a CreateAHeroBling per non-weapon upgrade
   createaherosystemweapons.inc          a CreateAHeroBling per weapon
   createaherosystem<class>.inc          each upgrade APPENDED to its row in its subclasses
   object/createahero/createaheroweaponupgrades.inc
                                         a SubObjectsUpgrade per part; per weapon a WeaponSet on its own
                                         free flag (WEAPONSET_CREATE_A_HERO_WS_nn = its upgrade number)
   object/createahero/createaheroremoveupgradeupgrades.inc
-                                        a RemoveUpgradeUpgrade per part (clears its row's group)
+                                        a RemoveUpgradeUpgrade per upgrade (clears its row's group)
   object/createahero/createaheromodels.inc
                                         each of EA's models a class edits -> its own copy (CH* -> SK*)
 No strings: every entry shows EA's row label (LABELS); house-colour lines go through the shared
@@ -22,7 +24,7 @@ import difflib
 import re
 from pathlib import Path
 
-from sagekit import paths
+from sagekit import paths, upgrades as U
 from sagekit.formats.big import Archive
 from sagekit.game import Install
 
@@ -147,15 +149,35 @@ def ea_weaponsets(text, flag):
 
 
 # ------------------------------------------------------------------ one class's fragment
+ROW = {"CreateAHero_Helmet": "CHH", "CreateAHero_ShoulderPlates": "CHSP", "CreateAHero_Shield": "CHS"}
+ROW_NAME = {"CreateAHero_Helmet": "helmet", "CreateAHero_ShoulderPlates": "shoulder", "CreateAHero_Shield": "shield"}
+
+
+def row_upgrade(group, n):
+    """The upgrade of our n-th (from 1) appended entry in a non-weapon row, SHARED by every class:
+    each class's object shows its own sub-object for it (the engine holds 1152 upgrades in all,
+    sagekit/upgrades.py). Weapons stay per class: each sets its own weapon-set flag."""
+    return "Upgrade_SKH_%s%02d" % (ROW[group], n)
+
+
 def ws_flag(up):
     return "WEAPONSET_CREATE_A_HERO_WS_%s" % up[-2:]
 
 
+def first_slot(ea, group):
+    """GroupOrder of our first entry in a row: past every EA list of that row in every class (a
+    shared upgrade has one GroupOrder; EA's own shared ones do not match every list's index)."""
+    ups = upgrades(ea["upgrades"])
+    return max(len(r.get(group, [])) for c in CLASSES for r in lists(ea["class_" + c], ups).values())
+
+
 def fragment(spec, ea):
     """spec: the class module (assets/cah/<class>/design.py). Its PARTS are
-    (sub-object, group, design, name, description, sheet, remap, upgrade[, subclass indices])."""
-    rows = lists(ea["class_" + spec.CLASS_FILE], upgrades(ea["upgrades"]))
-    count, adds, text = {}, {}, {k: "" for k in ("upgrades", "bling", "weapons", "wupg", "remove")}
+    (sub-object, group, design, name, description, sheet, remap, upgrade[, subclass indices]).
+    upgrades: {upgrade: {file key: text}}, the same text in every class that shares the upgrade;
+    append: the class's own SubObjectsUpgrade and weapon modules."""
+    count, adds, shared, wupg = {}, {}, {}, ""
+    slots = {g: first_slot(ea, g) for g in ROW}
     like = getattr(spec, "WEAPON_LIKE", None)
     sets_of = lambda name: [([], spec.WEAPON_LINES)] if getattr(spec, "WEAPON_LINES", None) else \
         ea_weaponsets(ea["wupg"], like[name] if isinstance(like, dict) else like)
@@ -166,28 +188,34 @@ def fragment(spec, ea):
         count[group] = count.get(group, 0) + 1
         for s in subs:
             adds.setdefault(s, {}).setdefault(group, []).append(up)
-        slot = max(len(r.get(group, [])) for r in rows.values()) + count[group] - 1
-        text["upgrades"] += ("Upgrade %s\t\t; sagekit cah: %s" % (up, title) + NL + "  Type              = OBJECT" + NL +
-                             "  GroupName\t\t\t= %s" % group + NL +
-                             ("" if group == "CreateAHero_Weapon" else "  GroupOrder\t\t= %d" % slot + NL) + "End" + NL + NL)
+        weapon = group == "CreateAHero_Weapon"
+        if not weapon and up != row_upgrade(group, count[group]):
+            raise SystemExit("%s: %s is our %s %d, so its upgrade is %s" % (spec.NAME, name, ROW_NAME[group], count[group],
+                                                                            row_upgrade(group, count[group])))
+        note = title if weapon else "every class's %s %d" % (ROW_NAME[group], count[group])
         label, desc = LABELS[group]
-        text["weapons" if group == "CreateAHero_Weapon" else "bling"] += (
-            "CreateAHeroBling // sagekit cah: %s" % title + NL + "\tNameTag\t\t\t = %s" % label + NL +
-            "\tDescriptionTag\t = %s" % desc + NL + "\tGroupName\t\t = %s" % group + NL +
-            "\tBlingUpgradeName = %s" % up + NL + "End" + NL + NL)
-        if group == "CreateAHero_Weapon":
+        shared[up] = {
+            "upgrades": ("Upgrade %s\t\t; sagekit cah: %s" % (up, note) + NL + "  Type              = OBJECT" + NL +
+                         "  GroupName\t\t\t= %s" % group + NL +
+                         ("" if weapon else "  GroupOrder\t\t= %d" % (slots[group] + count[group] - 1) + NL) +
+                         "End" + NL + NL),
+            "weapons" if weapon else "bling": (
+                "CreateAHeroBling // sagekit cah: %s" % note + NL + "\tNameTag\t\t\t = %s" % label + NL +
+                "\tDescriptionTag\t = %s" % desc + NL + "\tGroupName\t\t = %s" % group + NL +
+                "\tBlingUpgradeName = %s" % up + NL + "End" + NL + NL),
+            "remove": (NL + "Behavior = RemoveUpgradeUpgrade SKH_Remove_%s\t; sagekit cah" % up + NL +
+                       "  TriggeredBy\t\t\t= %s" % up + NL + "  UpgradeGroupsToRemove\t= %s" % group + NL + "End" + NL)}
+        if weapon:
             for extra, lines in sets_of(name):
-                text["wupg"] += ("WeaponSet\t\t; sagekit cah: %s fights as %s" % (title, spec.WEAPON_NOTE) + NL +
-                                 "\tConditions\t\t  =\t%s" % " ".join([ws_flag(up)] + extra) + NL + NL.join(lines) + NL + "End" + NL)
-            text["wupg"] += ("Behavior = WeaponSetUpgrade SKH_Weapon_%s" % up + NL + "\tTriggeredBy\t\t= %s" % up + NL +
-                             "\tWeaponCondition\t= %s" % ws_flag(up) + NL + "End" + NL)
-        text["wupg"] += ("Behavior = SubObjectsUpgrade SKH_Show_%s\t; sagekit cah" % name + NL + "\tTriggeredBy\t\t\t   = %s" % up + NL +
-                         "\tShowSubObjects\t\t   = %s" % " ".join([name] + also.get(name, [])) + NL + "\tHideSubObjectsOnRemove = Yes" + NL +
-                         "\tFadeTimeInSeconds      = 0.0" + NL + "End" + NL)
-        text["remove"] += (NL + "Behavior = RemoveUpgradeUpgrade SKH_Remove_%s\t; sagekit cah" % up + NL +
-                           "  TriggeredBy\t\t\t= %s" % up + NL + "  UpgradeGroupsToRemove\t= %s" % group + NL + "End" + NL)
-    return dict(name=spec.NAME, class_file=spec.CLASS_FILE, append=text, lists={str(k): v for k, v in adds.items()},
-                models=dict(spec.MODELS), parts=[p[0] for p in spec.PARTS])
+                wupg += ("WeaponSet\t\t; sagekit cah: %s fights as %s" % (title, spec.WEAPON_NOTE) + NL +
+                         "\tConditions\t\t  =\t%s" % " ".join([ws_flag(up)] + extra) + NL + NL.join(lines) + NL + "End" + NL)
+            wupg += ("Behavior = WeaponSetUpgrade SKH_Weapon_%s" % up + NL + "\tTriggeredBy\t\t= %s" % up + NL +
+                     "\tWeaponCondition\t= %s" % ws_flag(up) + NL + "End" + NL)
+        wupg += ("Behavior = SubObjectsUpgrade SKH_Show_%s\t; sagekit cah" % name + NL + "\tTriggeredBy\t\t\t   = %s" % up + NL +
+                 "\tShowSubObjects\t\t   = %s" % " ".join([name] + also.get(name, [])) + NL + "\tHideSubObjectsOnRemove = Yes" + NL +
+                 "\tFadeTimeInSeconds      = 0.0" + NL + "End" + NL)
+    return dict(name=spec.NAME, class_file=spec.CLASS_FILE, upgrades=shared, append={"wupg": wupg},
+                lists={str(k): v for k, v in adds.items()}, models=dict(spec.MODELS), parts=[p[0] for p in spec.PARTS])
 
 
 def _append_rows(text, adds, ups):
@@ -218,12 +246,26 @@ def _append_rows(text, adds, ups):
 
 
 def compose(ea, fragments):
-    """EA's files with every fragment applied, in the given (class) order."""
+    """EA's files with every fragment applied, in the given (class) order. A shared upgrade's
+    Upgrade, bling and RemoveUpgradeUpgrade go in once, with the first class that uses it."""
     f = dict(ea)
     ups = upgrades(ea["upgrades"])
+    seen = {}
     for frag in fragments:
-        for k, t in frag["append"].items():
-            f[k] = f[k].rstrip() + NL + HEAD + t
+        if "upgrades" not in frag:
+            raise SystemExit("%s: an old fragment; rebuild it (python3 -m assets.cah.%s.build)" % (frag["name"], frag["name"]))
+        add = {k: "" for k in ("upgrades", "bling", "weapons", "remove")}
+        for up, texts in frag["upgrades"].items():
+            if up in seen:
+                if seen[up][1] != texts:
+                    raise SystemExit("%s and %s define %s differently" % (seen[up][0], frag["name"], up))
+                continue
+            seen[up] = (frag["name"], texts)
+            for k, t in texts.items():
+                add[k] += t
+        for k, t in dict(add, **frag["append"]).items():
+            if t:
+                f[k] = f[k].rstrip() + NL + HEAD + t
         key = "class_" + frag["class_file"]
         f[key] = _append_rows(f[key], frag["lists"], ups)
         for old, new in frag["models"].items():
@@ -309,10 +351,22 @@ def append_only(ea, ours):
     return errs
 
 
+def upgrade_limit():
+    """ours -> (total, problems, line): EA's upgrades, every other archive of ours in the game folder
+    and the composition's against the engine's LIMIT (sagekit/upgrades.py)."""
+    from assets.cah.pack.design import ARCHIVE
+    ea, others = U.ea_names(), U.installed_ours(skip=(ARCHIVE,))
+    return lambda ours: U.tally(dict(others, cah=U.names(ours["upgrades"])), ea)
+
+
 def check(ea, ours, models, ours_models, fragments):
     """The lint on EA's data and on ours, then broken copies that must each fail."""
     known = labels()
     report = {"ea_lint": lint(ea, {}, known), "ours_lint": lint(ours, models, known, ours_models) + append_only(ea, ours)}
+    limit = upgrade_limit()
+    total, over, report["upgrades"] = limit(ours)
+    print(report["upgrades"])
+    report["ours_lint"] += over
     ups = upgrades(ours["upgrades"])
     frag = fragments[0]
     first = {}
@@ -346,6 +400,9 @@ def check(ea, ours, models, ours_models, fragments):
     b = dict(ours)
     b["models"] = ea["models"]
     broken["models_not_ours"] = lint(b, models, known, ours_models)
+    b = dict(ours)
+    b["upgrades"] += "".join("Upgrade Upgrade_SKH_Spare%04d" % i + NL + "End" + NL for i in range(U.LIMIT - total + 1))
+    broken["over_upgrade_limit"] = limit(b)[1]
     report["broken"] = {k: v[:1] for k, v in broken.items()}
     if report["ea_lint"] or report["ours_lint"] or not all(broken.values()):
         raise SystemExit("INI lint failed: %s" % ({k: v for k, v in report.items() if k != "broken" and v} or

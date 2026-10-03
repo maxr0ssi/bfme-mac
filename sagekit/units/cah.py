@@ -5,6 +5,7 @@ ONE archive, composing their INI fragments onto EA's files in class-name order.
     python3 -m assets.cah.<class>.build                # each class: build and check
     python3 -m sagekit.units.cah --stage               # compose, lint, the archive into _install/
     python3 -m sagekit.units.cah --install [--dry-run]
+    ... --stage | --install --classes dwarf,men_cg     # only those classes (test one class at a time)
     python3 -m sagekit.units.cah --revert  [--dry-run]
 
     RotWK/!!!!!!!!!!!sagekit-cah.big      every class's models (SK* copies of EA's CH* models with the
@@ -39,10 +40,17 @@ UID = "cah/pack"
 TEXTURE_LIKE = {"sheet": "chdw_dw_of3d_hlmt_06.tga", "mask": "hc_chdw_tm_03.tga"}   # asset.dat records to copy
 
 
-def recipe():
+def recipe(classes=None):
+    """The pack, its build folder and its class specs: every class, or only the names in `classes`."""
     from assets.cah.pack import design
     u = load(UID)
-    return u, Folder(u), design.classes()
+    specs = design.classes()
+    if classes:
+        unknown = set(classes) - {s.NAME for s in specs}
+        if unknown:
+            raise SystemExit("cah: no class %s (classes: %s)" % (", ".join(sorted(unknown)), ", ".join(s.NAME for s in specs)))
+        specs = [s for s in specs if s.NAME in classes]
+    return u, Folder(u), specs
 
 
 def class_dir(spec):
@@ -166,10 +174,10 @@ def _commit(b, updates, expected, units):
             shared_receipt().write_text(json.dumps(dict(sha256=sha(updates[shared]), units=units)) + "\n")
 
 
-def install(dry=False):
+def install(dry=False, classes=None):
     if game_running():
         raise SystemExit("Close the game before installing.")
-    u, b, specs = recipe()
+    u, b, specs = recipe(classes)
     archive, files, routed = stage(u, b, specs)
     dest, data = live_dir() / u.archive, archive.read_bytes()
     updates, expected = {}, {dest: read(dest), live_dir() / SHARED: read(live_dir() / SHARED)}
@@ -235,11 +243,15 @@ def main(argv=None):
     mode.add_argument("--install", action="store_true")
     mode.add_argument("--revert", action="store_true")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--classes", type=lambda v: [c for c in v.split(",") if c], metavar="A,B",
+                   help="--stage / --install only these class folders (default: all)")
     a = p.parse_args(argv)
+    if a.classes and a.revert:
+        p.error("--revert takes the installed archive's records; it has no --classes")
     if a.stage:
-        stage(*recipe())
+        stage(*recipe(a.classes))
     elif a.install:
-        install(a.dry_run)
+        install(a.dry_run, a.classes)
     else:
         revert(a.dry_run)
 

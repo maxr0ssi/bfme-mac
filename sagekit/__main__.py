@@ -1,7 +1,7 @@
 """python3 -m sagekit <command>
 
     list                               every building under assets/
-    validate                           load every building; taxonomy, names and budget rules
+    validate                           load every building; taxonomy, names, budget rules, the upgrade limit
     inventory <faction/building>       its lifecycle as the game defines it, and what exists
     budget [faction]                   memory the own textures take, per faction
     build <faction/building> [--from STEP] [--to STEP]
@@ -80,6 +80,8 @@ def cmd_validate(a):
         except (ValueError, ImportError, AttributeError) as e:
             bad += 1
             print("FAIL %s: %s" % (uid, e))
+    from .upgrades import validate as upgrade_limit
+    bad += upgrade_limit()                      # EA's upgrades + ours within the engine's 1152
     bad += cmd_budget(a)
     return 1 if bad else 0
 

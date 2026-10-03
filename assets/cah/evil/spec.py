@@ -1,10 +1,10 @@
 """What the three Evil class folders share in their design.py: budgets, the bones each row's parts
 may ride (every Evil rig's names), upgrade naming and the anatomy registration.
 
-Upgrades are named per class folder (`Upgrade_SKH_<STEM>_CHH01`, ...; the class's own stem: SOS,
-CMEN, OLOG), as one upgrade serves every subclass of its class that lists it (EA's own upgrades
-do the same: Upgrade_Uruk_CHH02 is the Orc's and the Uruk's). Weapons take the Evil weapon-set
-flags 58-64 (docs/CAH.md) in the order the classes list them.
+Helmets, shoulders and shields take the rows' shared upgrades (`Upgrade_SKH_CHH01` is every
+class's first appended helmet, kit/ini.py row_upgrade; EA shares too: Upgrade_TRLL_CHH08 is the
+trolls' and the Uruk's). Weapons take the Evil weapon-set flags 58-64 (docs/CAH.md) in the order
+the classes list them.
 """
 from . import anatomy
 
@@ -18,19 +18,17 @@ FOREARMS = {"B_FARML", "BAT_FARML", "TROLLLFOREARM", "BIP L FOREARM"}
 WEAPONS = {"B_HAND_R", "B_HANDR", "FIREPOINT01", "TRUNK01", "WEAPONCOB", "WEAPON", "B_SWORD"}
 BONES = {"CreateAHero_Helmet": HEADS, "CreateAHero_ShoulderPlates": ARMS | TRUNK, "CreateAHero_Shield": FOREARMS,
          "CreateAHero_Weapon": WEAPONS}
-SUFFIX = {"CreateAHero_Helmet": "CHH", "CreateAHero_ShoulderPlates": "CHSP", "CreateAHero_Shield": "CHS"}
 
 
-def parts(stem, entries, flags):
+def parts(entries, flags):
     """PARTS from [(sub-object, group, design, name, description, sheet, remap, [subclass indices])]
-    in append order: helmets, shoulders and shields numbered per row, weapons on `flags`."""
+    in append order: helmets, shoulders and shields on the rows' shared upgrades (kit/ini.py
+    row_upgrade), weapons on `flags`."""
+    from ..kit.ini import row_upgrade
     count, flags, out = {}, iter(flags), []
     for k, g, d, n, t, sheet, remap, subs in entries:
-        if g == "CreateAHero_Weapon":
-            up = "Upgrade_SKH_CHW%02d" % next(flags)
-        else:
-            count[g] = count.get(g, 0) + 1
-            up = "Upgrade_SKH_%s_%s%02d" % (stem, SUFFIX[g], count[g])
+        count[g] = count.get(g, 0) + 1
+        up = "Upgrade_SKH_CHW%02d" % next(flags) if g == "CreateAHero_Weapon" else row_upgrade(g, count[g])
         out.append((k, g, d, n, t, sheet, remap, up, subs))
     return out
 
