@@ -204,8 +204,9 @@ def _append_rows(text, adds, ups):
                 if done[0] or not row(x):
                     return x.group(0)
                 done[0] = True
-                return x.group(1) + x.group(2).rstrip() + " " + " ".join(names) + x.group(4)
-            body = re.sub(r"^(\s*BlingUpgrades\s*=\s*)([^\r\n/;]*?)([ \t]*)(\r?\n)", put, body, flags=re.M)
+                tail = x.group(4) if not x.group(4).strip() else (x.group(3) or " ") + x.group(4)   # a trailing comment stays
+                return x.group(1) + x.group(2).rstrip() + " " + " ".join(names) + tail
+            body = re.sub(r"^(\s*BlingUpgrades\s*=\s*)([^\r\n/;]*?)([ \t]*)((?:(?://|;)[^\r\n]*)?\r?\n)", put, body, flags=re.M)
             if not done[0]:
                 raise SystemExit("subclass %s has no %s row" % (index, group))
         return body
@@ -324,8 +325,8 @@ def check(ea, ours, models, ours_models, fragments):
     ea_row = lists(ea[cf], upgrades(ea["upgrades"]))
     some_row = next(r[g0] for r in ea_row.values() if r.get(g0))
     b = dict(ours)
-    b[cf] = b[cf].replace(" ".join(some_row[:2]), "%s %s %s" % (some_row[0], first[g0], some_row[1]), 1) if len(some_row) > 1 \
-        else b[cf].replace(some_row[0], "%s %s" % (first[g0], some_row[0]), 1)
+    b[cf] = re.sub(r"(%s)(\s+@?%s\b)" % (re.escape(some_row[0]), re.escape(some_row[1])), r"\1 %s\2" % first[g0], b[cf], 1) \
+        if len(some_row) > 1 else b[cf].replace(some_row[0], "%s %s" % (first[g0], some_row[0]), 1)   # rows may mark a default @
     broken["inserted_mid_list"] = append_only(ea, b)
     b = dict(ours)
     label = LABELS[ups[first[g0]]["GroupName"]][0]

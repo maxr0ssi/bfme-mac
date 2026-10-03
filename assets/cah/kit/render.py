@@ -5,7 +5,7 @@ three colours previewed through the masks. One Blender process (the shared slot)
 
     python3 -m assets.cah.kit.render <class> [--samples N]   -> build/assets/cah/<class>/renders/overview.png
 
-The class's design.py gives RENDER = {"body": {model: body mesh}, "head_model": model, "game_model":
+The class's design.py gives RENDER = {"body": {model: body mesh or [meshes]}, "head_model": model, "game_model":
 model, "ea_heads": [EA meshes], "kits": [(label, [meshes], ea?)], "colours": [(r, g, b)] * 3,
 "anims": {skeleton: the idle animation it is posed in}}.
 """
@@ -56,6 +56,12 @@ def textures(spec, models):
     return out, masks
 
 
+def _body(R, model):
+    """The meshes always shown: R["body"][model], one mesh or a list (the wizards' body and head)."""
+    b = R["body"][model]
+    return list(b) if isinstance(b, (list, tuple)) else [b]
+
+
 def jobs(spec, samples):
     R = spec.RENDER
     d, src, work = folder(spec)
@@ -68,7 +74,7 @@ def jobs(spec, samples):
     def job(name, model, ea, idle, show, label, **kw):
         skel = spec.SKELETONS[model]
         return dict(name=name, label=label, model=str(ea_path(model) if ea else shipped[model]), skeleton=str(src / (skel + ".w3d")),
-                    anim=str(src / (R["anims"][skel] + ".w3d")), frame=0, show=[R["body"][model]] + show, textures=tex,
+                    anim=str(src / (R["anims"][skel] + ".w3d")), frame=0, show=_body(R, model) + show, textures=tex,
                     masks=masks, colours=R["colours"], out=str(out_dir / (name + ".png")), samples=samples,
                     size=kw.pop("size", (420, 500)), **kw)
     head = dict(focus="head", size=(340, 370), head_bone=R.get("head_bone", "B_HEAD"))

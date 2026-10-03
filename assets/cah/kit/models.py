@@ -65,8 +65,6 @@ def placements(spec, model):
     if spec.SKELETONS[model] == spec.SKELETONS[spec.DESIGN] or model in getattr(spec, "OWN_SPACE", ()):
         # one rest pose (EA's parts sit identically), or a class whose designs measure each model
         return ident, ident
-    if hasattr(spec, "place"):           # no exact shared fit (the archers): spec.place(model, group) per group
-        return None, None
     src = folder(spec)[1]
     dw, dsk = W3DFile(str(src / (spec.DESIGN + ".w3d"))), skeleton(spec, spec.SKELETONS[spec.DESIGN])
     w, sk = W3DFile(str(src / (model + ".w3d"))), skeleton(spec, spec.SKELETONS[model])
@@ -151,15 +149,12 @@ def template(spec, model, w):
 def make_part(spec, entry, tmpl, sk, model, body, weapon, lod):
     name, group, fn, _, _, sheet, remap = entry[:7]
     place = weapon if group == "CreateAHero_Weapon" else body
-    if place is None:
-        place = spec.place(model, group)
     seat = getattr(spec, "SEAT", {}).get(group)
     if seat:
         place = (lambda f, s: lambda p: f(s(p)))(place, seat)
     mesh, tex = tmpl
     m = Gear(mesh, sk, {tex: spec.SHEETS[sheet]}, place=place,
-             bone_map=dict(getattr(spec, "BONE_MAP", {}).get(model, {}), **{spec.DESIGN_HAND: spec.HAND[spec.SKELETONS[model]]}),
-             remap=remap, lod=lod)
+             bone_map={spec.DESIGN_HAND: spec.HAND[spec.SKELETONS[model]]}, remap=remap, lod=lod)
     fn(m)
     return m
 
