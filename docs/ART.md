@@ -147,15 +147,20 @@ A neutral building (the Inn) starts owned by the neutral player and changes hand
 flag it is linked to (`LINKED_TO_FLAG`). The new owner's faction upgrade (`Upgrade_DwarfFaction`...,
 born with every player, `playertemplate.ini` InitialUpgrades) then reaches the building's upgrade
 modules, as EA's own per-faction command sets on the Inn show. A `Capturable` recipe's dress per
-faction becomes two meshes written with the W3D hidden flag (EA's own use: the pathing planes, the
-Lorien archer's helmet): `CAP_<P>` in the body (one bake, one paint, one sheet with it) and its cloth
-`HC_CAP_<P>` in a house-colour model of our own. One `SubObjectsUpgrade` per faction (the Men's on
-Arnor's upgrade too) shows its dress and hides every other's; the engine applies it to every Draw
-module of the object and again after every model swap (`Drawable::showSubObject`,
-`W3DModelDraw::updateSubObjects`, EA's Generals source). The dress hangs on the body's bone, which
-no other sub-object hangs below: hiding a sub-object also hides those on bones below its own. The
-damaged body (derived) carries the dress; construction and ruins do not. The checks hold the hidden
-flags, the bone, the textures, one layout without overlap and the INI modules.
+faction becomes two meshes of a dress model of our own (the style's house template renamed, drawn
+by a Draw module of its own beside the body's), written with the W3D hidden flag (EA's own use: the
+pathing planes, the Lorien archer's helmet): `CAP_<P>`, the pieces, on our sheet (one bake, one
+paint with the body), and `HC_CAP_<P>`, its cloth, on the house-colour flag texture (the tint
+follows the texture, `housecolor.ini`). One `SubObjectsUpgrade` per faction (the Men's on Arnor's
+upgrade too) shows its dress and hides every other's; the engine applies it to every Draw module of
+the object and again after every model swap (`Drawable::showSubObject`,
+`W3DModelDraw::updateSubObjects`, EA's Generals source). Every dress mesh hangs on the dress
+model's root: hiding a sub-object also hides those on bones below its own, and a body's bone is
+often the root of a skinned model whose townsfolk hang below it (the Outpost, the shipwright). The
+dress model's Draw shows wherever our body stands (healthy, snow, damaged), not over a building
+site or rubble. The checks hold the hidden flags, the root, the textures, one layout without
+overlap and the INI modules. EA's capture flag shows its holder the same way, by Lua (scripts.lua
+`OnCaptureFlagGenericEvent` shows the capturer's `FLAG_<FACTION>` sub-object).
 
 ## Where the code is
 
