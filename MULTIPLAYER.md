@@ -43,6 +43,8 @@ that, one player copies every `*sagekit-*.big` file and `asset.dat` from their R
 copy of your own `asset.dat` first), or everyone takes them out (`python3 -m sagekit revert
 <faction>`, `python3 -m assets.<faction>.porter.install --revert`).
 
+Setting up a friend's Mac by copying your installed games, so it matches yours: [docs/SECOND-MAC.md](docs/SECOND-MAC.md).
+
 To check, compare on every machine:
 
 ```sh
