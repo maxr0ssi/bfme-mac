@@ -24,8 +24,9 @@ The yard's middle (x -2..14) stays clear: units leave the gate at (5.9, 20.1) fo
 ## Capture dress
 
 Nothing of it shows while the inn is neutral. When a player captures it, its faction's dress appears
-(`CAP_<P>` in the body, `HC_CAP_<P>` in the house-colour model `NBHCInn_SKN`, tinted in the
-capturer's colour), every other faction's is hidden:
+(`CAP_<P>`, the pieces, and `HC_CAP_<P>`, the cloth tinted in the capturer's colour, both in the
+dress model `NBHCInn_SKN`), every other faction's is hidden. Pass 2 (inn_v2): two banners and the
+ridge crowns per faction (the table below is pass 1's first idea; dress.py has the current pieces):
 
 | Faction | Banner on the hall's gable | Crest over the gate | Finial on the sign post |
 |---|---|---|---|
@@ -41,7 +42,7 @@ Review: `python3 -m sagekit capture neutral/inn` -> `build/assets/neutral/_revie
 
 ## Status
 
-- [x] healthy body designed; damaged (`NBInn_D1`, derived) carries body and dress
+- [x] healthy body designed; damaged (`NBInn_D1`, derived) carries our body, the dress model shows there too
 - [x] construction, really damaged, collapse, rubble rebuilt along EA's pieces (no dress there)
 - [x] checks pass, renders made
 - [ ] reviewed by Max; in-game check: the dress appears on capture, follows a recapture, LAN

@@ -28,7 +28,7 @@ nearly every match: the capture flag on 232 multiplayer maps, the signal fire on
 | signal_fire | NBSigFire | firewood stacks at the foot, a roofed warden's lookout | banners on the lookout, crowns round the column's foot |
 | outpost | NBOutpost_SKN | two market stalls under madder canopies, barrels | banners on the east gable and the watchtower, crowns on two ridges, porch fence |
 | ship_wright | NBShipWrt_SKN | a ship in frame on the slipway | banners on the crane tower and the shed's side, crown on the ridge |
-| ruined_tower | RuinTwr | a squatters' shingled cone roof on the broken top, a lantern | none: it changes hands by garrison and goes back when emptied, and an upgrade cannot be undone; EA's house-colour banner shows who is inside |
+| ruined_tower | RuinTwr | the broken top left open; a squatters' camp on the old floor (fire ring and cookpot, barrels, a fallen roof beam, a lantern pole) | none: it changes hands by garrison and goes back when emptied, and an upgrade cannot be undone; EA's house-colour banner shows who is inside |
 | cave_troll_lair | NBTrollLair | the troll's larder, a spiked club, a skull on a stake | (a lair) |
 | warg_lair | NBWargLair | a gnawed kill on the mound, another at the foot, warg skulls on stakes | |
 | moriar_goblin_lair | NBGoblinLair | a war totem crowning the rock, skulls on spikes, a skull heap | |
