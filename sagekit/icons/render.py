@@ -88,7 +88,7 @@ def spec(faction, names=None, who=("new", "ea"), samples=None, sweep=None):
                                    tile=TILE, shots=[])
             base = dict(res=[img.width * SCALE, img.height * SCALE], focus=[list(f) for f in shot.focus],
                         fill=shot.fill, at=list(shot.at), lens=shot.lens, frame=list(shot.frame),
-                        hide=list(shot.hide), azim=shot.azim, elev=shot.elev, ground=shot.ground,
+                        hide=list(shot.hide), azim=shot.azim, elev=shot.elev, ground=shot.ground, kind=shot.kind,
                         samples=samples or (96 if shot.kind == "portrait" else 64))
             if sweep:
                 for az in sweep[0]:

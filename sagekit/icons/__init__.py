@@ -52,6 +52,11 @@ class Shot:
         return hash((self.building, self.kind, self.azim, self.elev, self.focus))
 
 
+# a tall thin tower's portrait: EA's fill the circle with it, so ours fills the frame top to bottom
+# with the tip of its spire running into the vignette (blender/icon.py TALL_FILL does less)
+TOWER = dict(elev=10, fill=1.0, focus=((0, 1), (0, 1), (0, 0.9)))
+
+
 def Portrait(building, **kw):
     return Shot(building, "portrait", **kw)
 

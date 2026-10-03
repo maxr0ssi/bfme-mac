@@ -4,6 +4,7 @@
     --render [--only A,B] [--samples N] [--who new,ea]   the shots (one Blender), then everything below
     (no option)           grade the renders, compose the pages, check them, the review sheet
     --stage | --install | --revert [--dry-run]   the shared !!!!!!!!!!!!!!sagekit-icons.big
+                          (`icons all --stage`: every faction with an icon run)
 """
 import argparse
 import json

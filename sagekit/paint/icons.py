@@ -1,9 +1,9 @@
 """Grade a render to EA's icon look (numpy: run on Blender's Python, `python -m sagekit.paint.icons
 <job.json>`; sagekit/icons/cli.py writes the job).
 
-Portrait: our building and its ground over a parchment sky (EA's cloud texture, faint), a burnt
-edge, then EA's tone: our luminance mapped rank for rank onto the luminance of EA's own portrait
-(the histogram match), coloured by EA's sepia at that luminance, with a little of our own colour
+Portrait: our building and its ground with a burnt edge in EA's tone: our luminance mapped rank
+for rank onto the luminance of EA's own portrait (the histogram match), the sky a fixed rank of
+it (the median) faintly clouded with EA's cloud texture, all coloured by EA's sepia at that luminance, with a little of our own colour
 kept (gold, fire, the blue banners read through as EA's hearth fire and Undermine glow do); EA's
 vignette alpha exactly. Button: our close-up over a sky (a blue gradient and EA's clouds) or,
 `sky=False`, over a dark stone wash, its luminance and colour moved part way to EA's button's;
@@ -19,7 +19,7 @@ from ..icons import pixels
 
 LUMA = np.array([0.299, 0.587, 0.114], np.float32)
 DEFAULTS = {
-    "portrait": dict(own=0.3, burn=0.45, sky=(0.50, 0.46, 0.36), clouds=0.35, sharpen=0.7, match=1.0),
+    "portrait": dict(own=0.3, burn=0.45, sky=0.5, clouds=0.3, sharpen=0.7, match=1.0),
     "button": dict(transfer=0.55, match=0.6, sky_top=(0.42, 0.58, 0.80), sky_low=(0.80, 0.86, 0.90),
                    clouds=0.75, wall=(0.36, 0.37, 0.35), sharpen=0.45),
 }
@@ -114,17 +114,19 @@ def portrait(render, ea, clouds, o):
     h, w = render.shape[:2]
     k = h // ea.shape[0]
     alpha = upsample(ea[..., 3], k)
-    lumc = tile(clouds, h, w, 0.5)
-    yy = np.linspace(0, 1, h, dtype=np.float32)[:, None, None]
-    sky = np.array(o["sky"], np.float32) * (1 - 0.12 * yy) * (1 + o["clouds"] * (lumc[..., None] - 0.6))
-    img = over(render, sky)
-    img *= (1 - o["burn"] * smoothstep(0.55, 1.05, radius(h, w)))[..., None]
-    lum = img @ LUMA
-    ea_alpha = ea[..., 3]
-    target = match(lum, alpha * render[..., 3], ea[..., :3] @ LUMA, ea_alpha) * o["match"] + lum * (1 - o["match"])
+    a = render[..., 3]
+    burn = 1 - o["burn"] * smoothstep(0.55, 1.05, radius(h, w))
+    lum = render[..., :3] @ LUMA * burn
+    ea_lum, ea_alpha = ea[..., :3] @ LUMA, ea[..., 3]
+    built = match(lum, alpha * a, ea_lum, ea_alpha) * o["match"] + lum * (1 - o["match"])
+    # the sky: a fixed rank of EA's tone, faintly clouded, not matched (it took the top ranks)
+    yy = np.linspace(0, 1, h, dtype=np.float32)[:, None]
+    level = np.quantile(ea_lum[ea_alpha > 0.5], o["sky"])
+    sky = level * (1 - 0.1 * yy) * (1 + o["clouds"] * (tile(clouds, h, w, 0.5) - 0.6)) * burn
+    target = built * a + sky * (1 - a)
     levels, cols = sepia(ea, ea_alpha)
     tint = np.stack([np.interp(target, levels, cols[:, c]) for c in range(3)], -1)
-    own = (img - lum[..., None]) * (target / np.maximum(lum, 1e-3))[..., None]
+    own = (render[..., :3] - (render[..., :3] @ LUMA)[..., None]) * (a * built / np.maximum(lum, 1e-3))[..., None]
     out = tint * target[..., None] + o["own"] * own
     return np.concatenate([np.clip(out, 0, 1), alpha[..., None]], -1)
 

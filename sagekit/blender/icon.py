@@ -18,17 +18,38 @@ from . import render, scene
 
 
 def ground(path, tile):
-    """The rig's ground plane painted with a terrain texture, `tile` units a repeat."""
+    """The rig's ground plane painted with a terrain texture, `tile` units a repeat, fading out with
+    the distance from a point (set per shot by `fade`): EA's ground melts into the parchment sky
+    instead of meeting it at a hard horizon."""
     g = bpy.data.objects["Ground"]
     mat = g.data.materials[0]
     nt = mat.node_tree
+    N = nt.nodes.new
     bsdf = nt.nodes["Principled BSDF"]
-    coord, mapping, tex = nt.nodes.new("ShaderNodeTexCoord"), nt.nodes.new("ShaderNodeMapping"), nt.nodes.new("ShaderNodeTexImage")
+    coord, mapping, tex = N("ShaderNodeTexCoord"), N("ShaderNodeMapping"), N("ShaderNodeTexImage")
     mapping.inputs["Scale"].default_value = (1.0 / tile, 1.0 / tile, 1.0)
     tex.image = bpy.data.images.load(path, check_existing=True)
     nt.links.new(coord.outputs["Object"], mapping.inputs[0])
     nt.links.new(mapping.outputs[0], tex.inputs[0])
     nt.links.new(tex.outputs[0], bsdf.inputs["Base Color"])
+    sub, length, ramp = N("ShaderNodeVectorMath"), N("ShaderNodeVectorMath"), N("ShaderNodeMapRange")
+    sub.name, ramp.name = "FadeCentre", "FadeRange"
+    sub.operation, length.operation = "SUBTRACT", "LENGTH"
+    nt.links.new(coord.outputs["Object"], sub.inputs[0])
+    nt.links.new(sub.outputs[0], length.inputs[0])
+    nt.links.new(length.outputs["Value"], ramp.inputs["Value"])
+    ramp.inputs["To Min"].default_value, ramp.inputs["To Max"].default_value = 1.0, 0.0
+    ramp.interpolation_type = "SMOOTHSTEP"
+    nt.links.new(ramp.outputs["Result"], bsdf.inputs["Alpha"])
+    fade((0, 0, 0), 1e5, 2e5)
+
+
+def fade(centre, start, end):
+    """The ground opaque within `start` of `centre` (on the ground), gone by `end`."""
+    nt = bpy.data.objects["Ground"].data.materials[0].node_tree
+    nt.nodes["FadeCentre"].inputs[1].default_value = (float(centre[0]), float(centre[1]), -0.05)
+    ramp = nt.nodes["FadeRange"]
+    ramp.inputs["From Min"].default_value, ramp.inputs["From Max"].default_value = float(start), float(end)
 
 
 def points(names):
@@ -52,8 +73,13 @@ def points(names):
     return np.concatenate(out)
 
 
+TALL, TALL_FILL = 1.4, 0.95         # a portrait whose framed part stands 1.4 times its width
+FADE = (1.15, 2.6)                  # the ground fades from 1.15 to 2.6 times the meshes' reach
+
+
 def frame(shot, pts):
-    """A camera framing the focus part of `pts` as the shot says."""
+    """A camera framing the focus part of `pts` as the shot says (a tall portrait at TALL_FILL);
+    also the framed part's centre and how far the meshes reach from it on the ground."""
     pts = pts[pts[:, 2] >= -0.5]                # what stands above the ground (no buried upgrade levels)
     lo, hi = pts.min(0), pts.max(0)
     f = np.array(shot["focus"], np.float32)
@@ -77,13 +103,18 @@ def frame(shot, pts):
             return None
         return np.stack([rel @ right / z * fx + 0.5, rel @ up / z * fx + 0.5], 1)
 
+    fill, at = shot["fill"], shot["at"]
+    probe = project(10.0 * float(np.ptp(sel, 0).max()) + 1.0)
+    span = np.ptp(probe, 0)
+    if shot.get("kind") == "portrait" and span[1] > TALL * span[0]:
+        fill, at = max(fill, TALL_FILL), (at[0], 0.5)  # a tower fills EA's circle top to bottom
     near, far = 0.0, 1.0
-    while project(far) is None or np.ptp(project(far), 0).max() > shot["fill"]:
+    while project(far) is None or np.ptp(project(far), 0).max() > fill:
         far *= 2
     for _ in range(40):
         mid = (near + far) / 2
         p = project(mid)
-        if p is None or np.ptp(p, 0).max() > shot["fill"]:
+        if p is None or np.ptp(p, 0).max() > fill:
             near = mid
         else:
             far = mid
@@ -92,10 +123,12 @@ def frame(shot, pts):
     cam = render.camera("IconCam", tuple(centre), far, shot["elev"], shot["azim"], shot["lens"])
     cam.data.sensor_fit = "HORIZONTAL"
     cam.data.sensor_width = 36.0
-    cam.data.shift_x = float(c[0] - shot["at"][0])
-    cam.data.shift_y = float(c[1] - (1.0 - shot["at"][1]))
+    cam.data.shift_x = float(c[0] - at[0])
+    cam.data.shift_y = float(c[1] - (1.0 - at[1]))
     cam.data.clip_start = 0.1
-    return cam
+    reach = max(float(np.max(np.hypot(pts[:, 0] - centre[0], pts[:, 1] - centre[1]))),
+                0.6 * float(np.ptp(pts[:, 2])))       # a tower stands on ground, not a dot of it
+    return cam, centre, reach
 
 
 def purge():
@@ -180,7 +213,8 @@ def model(item):
             o.hide_render = hide or base(o) in shot["hide"]
         g.hide_render = not shot["ground"]
         names = [o.name for o in own if not o.hide_render and (not shot["frame"] or base(o) in shot["frame"])]
-        cam = frame(shot, points(names))
+        cam, centre, reach = frame(shot, points(names))
+        fade(centre, *((reach * FADE[0], reach * FADE[1]) if shot.get("kind") == "portrait" else (1e5, 2e5)))
         sc.camera = cam
         sc.render.resolution_x, sc.render.resolution_y = shot["res"]
         sc.cycles.samples = shot["samples"]

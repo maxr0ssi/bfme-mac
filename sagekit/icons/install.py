@@ -102,6 +102,10 @@ def main(faction, action, dry=False):
         raise SystemExit("Close the game first (it reads its archives at startup).")
     now = installed()
     want = sorted(set(now) - {faction}) if action == "revert" else sorted(set(now) | {faction})
+    if faction == "all":                    # stage only: every faction with an icon run
+        if action != "stage":
+            raise SystemExit("'all' only stages; install and revert name a faction")
+        want = sorted(f for f in os.listdir(paths.BUILD) if os.path.exists(os.path.join(root(f), "icons.json")))
     if action == "revert" and faction not in now:
         raise SystemExit("%s: its icons are not installed" % faction)
     staged = build(want)

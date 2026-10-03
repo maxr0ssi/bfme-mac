@@ -42,6 +42,8 @@ def review(faction, g, man, version=None):
                 for n, m in sorted(man.items()) if m["kind"] == kind]
         half = (len(rows) + 1) // 2
         for part in (rows[:half], rows[half:]):
+            if not part:
+                continue
             cols.append(["("] + [x for row in part for x in row + ["(", "-size", "8x10", "xc:" + BG, ")"]] +
                         ["-background", BG, "-append", ")"])
     top = ["("] + [x for c in cols for x in c + ["(", "-size", "24x8", "xc:" + BG, ")"]] + \
