@@ -240,6 +240,7 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `paint.py`, `models.py`, `ini.py`); the pack composes every class into one
   `!!!!!!!!!!!sagekit-cah.big`. `python3 -m assets.cah.kit.survey [--markdown]` maps EA's subclasses;
   `python3 -m assets.cah.kit.render <class>` renders the overview (`sagekit/blender/cah_pose.py`).
+  The evil classes use `python3 -m assets.cah.evil.render <class>` and `python3 -m assets.cah.evil.contents <class>`.
   How: `docs/CAH.md`.
 - `python3 -m sagekit icons <faction> [--map|--render|--stage|--install|--revert]` (`sagekit/icons/`,
   `sagekit/blender/icon.py`, `sagekit/paint/icons.py`) — EA's building portraits and buttons repainted

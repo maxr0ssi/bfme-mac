@@ -178,3 +178,7 @@ of the naming rules.
   - Snow and Hill trolls are `CHTL_*` with 38-45 meshes each.
   - Templates: `BOOT_06` (Orc), `SLDR_04` (Uruk), `HLMT_08` (Corrupted Man), `HLMT_02` (trolls,
     `MUMntTroll_CHERO_high.tga`).
+  - The 7 subclasses span 6 skeletons, so `assets/cah/evil/` has no `design.py`: it measures each
+    model from EA's own parts and fits every part to it, drawn in the model's own rest space
+    (`OWN_SPACE` in `kit/models.py`).
+  - Shared upgrades use class stems: `Upgrade_SKH_SOS_…`, `_CMEN_…`, `_OLOG_…`.
