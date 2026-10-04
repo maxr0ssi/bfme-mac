@@ -32,8 +32,9 @@ The mock-ups need `build/assets/_hud/backdrop.png`, the bottom-left 900x620 of a
 | `apt_palantir_1` | minimap glass, glows, the round buttons and their sockets (both sides) | upscaled only (recoloured, the sockets' rims came out duller than EA's) |
 | `apt_libingameimagesmain_1` | the portrait's chain of button rings, brackets, medallion bezels (both sides) | upscaled; the metal of the listed parts recoloured bronze, emblems and glows left alone |
 
-The RotWK HUD has only these two skins, Good and Evil. A palantir per faction would need new APT
-movies (the research put it at large to extra-large, with a high crash risk): not done.
+EA's RotWK HUD has only these two skins, Good and Evil. One frame per faction is an APT edit on top of
+this pack: see "One palantir per faction" below. (An earlier note here said it would need new APT
+movies at a high crash risk; the edit below needs none.)
 
 ## How a frame is painted (`sagekit/paint/hud.py`, `hudrings.py`)
 
@@ -100,6 +101,60 @@ shrunk 1.8x with bilinear filtering and no mips; the mock-up shows it holds up.
 - No INI, no upgrades, no asset.dat records (EA's names; TGAs need no record).
 - The archive changes textures and APT geometry only. Everyone in a LAN game should still run the
   same files (MULTIPLAYER.md); it ships in the archive like every other pack.
+
+## One palantir per faction
+
+```sh
+python3 -m sagekit hud --factions              # paint 7 frames (double + single), build the APT edit, check, trace, sheets
+python3 -m sagekit hud --factions --sheet      # the review sheets only
+python3 -m sagekit hud --factions --stage      # build/assets/_hud/_install/factions/!!!!!!!!!!!!!!sagekit-hud.big
+python3 -m sagekit hud --factions --install    # replaces the installed HUD archive (the 2x pack plus the frames)
+python3 -m sagekit hud --factions --revert     # back to the Good/Evil 2x pack (plain --revert: no archive)
+```
+
+**The mechanism** (game.dat 2.01). The game picks the palantir state from PlayerTemplate `Evil`
+(`0x6d3e51`) and sends `SetPalantirFrameState("_good" | "_goodSingle" | "_evil" | "_evilSingle" |
+"_hide")` (`0x8002dc`, names from the table at `0xc4e44c`); it also sends `SetPlayerFaction(<Side>)`
+with PlayerTemplate `Side` (`0x80058e`), which EA's script uses only for the resource bar's faction
+icon (it builds `"_" + faction` and drops it). `sagekit/hud/factionapt.py` edits the data:
+
+- PalantirExport gets, per look and kind (double: minimap and portrait; single: minimap alone), an
+  image, a shape and a sprite copied from EA's Good or Evil ones, exported as
+  `PalantirFrame_<Look><Kind>`, with the images in the `.dat` and the shapes' `.ru` (matrix doubled).
+- Palantir imports them; the frame clip (character 105) gets two frames per side, `_<Side>` and
+  `_<Side>Single`, placing them with EA's transform for that side and kind; an action appended to the
+  root's first frame wraps EA's two functions: each stores its argument, calls EA's original, then
+  `sgApply()` turns the clip to `_<Side>[Single]` when the side is ours and the state a shown one.
+- Append-only: nothing of EA's moves; 12 header words are repointed at grown copies of the
+  character, import, export and frame arrays. The bytecode uses only opcodes EA's palantir uses.
+
+| Side (PlayerTemplate) | Frame | | Side | Frame |
+|---|---|---|---|---|
+| Dwarves | `dwarves` | | Isengard | `isengard` |
+| Elves | `elves` | | Mordor | `mordor` |
+| Men, Arnor | `men` | | Wild | `goblins` |
+| anything else (Observer, ...) | the Good/Evil pack's | | Angmar | `angmar` |
+
+The looks are `assets/hud/factions/<faction>.py` (painted by `sagekit/paint/palantir/`, numpy on
+Blender's Python), drawn over EA's frame: same layout and alpha, rings and resource bar redrawn in the
+faction's cross-section, the scroll joint and spikes recoloured. The round buttons' rims (on
+`apt_palantir_1` and `apt_libingameimagesmain_1`) are one sheet for every side in EA's movie (no
+side labels on the button clips), so they stay the pack's for every faction.
+
+**Checks without the game** (`sagekit/hud/factioncheck.py`, `build/assets/_hud/factions/checks.txt`):
+EA's bytes kept but the header words; every action of the movie decodes to its End (`aptfile.py`'s
+reader decodes all 152 of EA's); our opcodes, flags, constants and branches are EA's kinds; every
+import resolves to an export, every label to EA's transform, every image to a shipped texture at
+twice EA's size with the 2x pack's matrix; then a small interpreter runs our bytecode with EA's
+originals as stubs, replays the game's calls per side (side first, state first, re-shown) and follows
+the label to the texture (`trace.txt`). No external APT tool was available to cross-check the file.
+
+**Risk.** A malformed APT file would fail when the palantir loads at match start. If a match does not
+load, `--factions --revert` (or plain `--revert`) and it is gone. Cost: 14 more frame textures at
+2x, 2 MB per double and 1 MB per single (21 MB). No INI, no upgrades, no asset.dat records.
+
+Review sheets: `build/assets/_review_finish/hud_faction/hud_factions.jpg` (the fallback and each
+faction over the in-game crop at 3024x1964, and details), `hud_factions_single.jpg`, `trace.txt`.
 
 ## Not covered yet
 
