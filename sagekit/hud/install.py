@@ -5,7 +5,9 @@
                                           __patch202.big, so its members are the ones the game reads
 
 `--install` ships 2x (twice the texels, geometry doubled to match); `--install --1x` ships EA's sizes
-only, no geometry: the fallback if 2x ever draws wrong. build/assets/_hud/installed.json records
+only, no geometry: the fallback if 2x ever draws wrong. `--factions --install` ships the 2x pack plus
+one palantir frame per faction (sagekit/hud/factions.py) in the same archive, replacing it;
+`--factions --revert` puts the Good/Evil 2x pack back. build/assets/_hud/installed.json records
 what is in the game; revert refuses an archive it did not write.
 """
 import json
@@ -30,17 +32,27 @@ def receipt():
 
 
 def stage(res):
-    """build/assets/_hud/_install/<res>/!!!...sagekit-hud.big from the checked build; its path."""
+    """build/assets/_hud/_install/<res>/!!!...sagekit-hud.big from the checked build; its path.
+    res: "1x", "2x" or "factions" (the 2x pack and the faction frames)."""
     apt = Apt()
-    lines, bad = check(apt)
+    new = set()
+    if res == "factions":
+        from . import factions
+        lines, bad = factions.check(apt)
+        members = {m: open(p, "rb").read() for m, p in factions.files().items()}
+        new = factions.new_members()
+        where = factions.froot("checks.txt")
+    else:
+        lines, bad = check(apt)
+        members = {m: open(p, "rb").read() for m, p in files(res).items()}
+        where = os.path.join(root(), "checks.txt")
     if bad:
         raise SystemExit("the HUD build's checks fail (%s):\n%s" % (
-            os.path.join(root(), "checks.txt"), "\n".join(x for x in lines if x.startswith("FAIL"))))
-    members = {m: open(p, "rb").read() for m, p in files(res).items()}
+            where, "\n".join(x for x in lines if x.startswith("FAIL"))))
     if not members:
         raise SystemExit("nothing built: python3 -m sagekit hud")
     for m in members:
-        if apt.owner(m) is None:
+        if apt.owner(m) is None and m.lower() not in new:
             raise SystemExit("%s: EA has no such member; refusing to add new files" % m)
     out = Path(root()) / "_install" / res / ARCHIVE
     pack(sorted(members.items()), str(out))
@@ -58,6 +70,12 @@ def main(action, res="2x", dry=False):
     rec = json.loads(receipt().read_text()) if receipt().exists() else None
     if dest.exists() and (rec is None or digest(dest.read_bytes()) != rec["sha256"]):
         raise SystemExit("%s changed since sagekit wrote it; refusing to touch it" % dest)
+    if action == "revert" and res == "factions":
+        if not dest.exists() or (rec or {}).get("res") != "factions":
+            raise SystemExit("the faction palantir is not installed (installed: %s)" % (
+                (rec or {}).get("res") if dest.exists() else "nothing"))
+        print("Reverting the faction palantir to the Good/Evil 2x pack.")
+        action, res = "install", "2x"
     if action == "revert":
         if not dest.exists():
             raise SystemExit("the HUD is not installed")
