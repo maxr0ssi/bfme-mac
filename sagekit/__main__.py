@@ -20,6 +20,8 @@
                                        (sagekit/units/, docs/UNITS.md); unit list | unit selfcheck
     icons <faction> [--map|--render|--stage|--install|--revert]   HUD portraits and buttons of our
                                        buildings (sagekit/icons/, docs/ICONS.md)
+    hud [--sheet|--stage|--install|--revert] [--1x]   the in-game palantir's frames, glass and
+                                       buttons in our metal, 1x and Retina 2x (sagekit/hud/, docs/HUD.md)
     offload pack <faction> [--only b1,b2] | run [--builds N] | results | unpack <zip> [--print-only]
                                        full-quality builds on another machine (sagekit/offload.py)
 """
@@ -43,6 +45,10 @@ def cmd_validate(a):
     for f in self_check():                      # the ownership scan's rules, no game needed
         bad += 1
         print("FAIL ownership: %s" % f)
+    from .inherit import self_check as inherit_check
+    for f in inherit_check():                   # inherited Draw modules made a faction's own, no game needed
+        bad += 1
+        print("FAIL inherit: %s" % f)
     from .lifecycle import self_check as lifecycle_check
     for f in lifecycle_check():                 # the state-texture rules (Building.state_textures), no game needed
         bad += 1
@@ -313,9 +319,15 @@ def main(argv=None):
     if argv[:1] == ["unit"]:                    # its own options (sagekit/units/cli.py)
         from .units.cli import main as unit
         return unit(argv[1:]) or 0
+    if argv[:1] == ["scenery"]:                 # its own options (sagekit/scenery.py)
+        from .scenery import main as scenery
+        return scenery(argv[1:]) or 0
     if argv[:1] == ["icons"]:                   # its own options (sagekit/icons/cli.py)
         from .icons.cli import main as icons
         return icons(argv[1:]) or 0
+    if argv[:1] == ["hud"]:                     # its own options (sagekit/hud/cli.py)
+        from .hud.cli import main as hud
+        return hud(argv[1:]) or 0
     ap = argparse.ArgumentParser(prog="python3 -m sagekit", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list")

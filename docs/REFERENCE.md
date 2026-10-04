@@ -227,7 +227,8 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   for EA runs in the inserted bytes; run alone, its self-checks.
 - `python3 -m sagekit unit <faction>/<unit> [--render|--check|--stage|--install|--revert]`
   (`sagekit/units/`, `sagekit/blender/unit_pose.py`) — unit recipes, `assets/<faction>/porter/design.py`
-  (Dwarves and Elves installed; Men, Goblins, Isengard, Mordor stubs): builds the redesigned builder on
+  (every faction's builder, installed) and `assets/<faction>/worker/design.py` (the construction
+  workers, staged for review: docs/UNITS.md *Construction workers*): builds the redesigned builder on
   EA's rig, checks it, renders EA's and ours in EA's animation poses, stages, installs and reverts it
   in any order with other units (a shared house-colour INI; asset.dat records put back one by one);
   `install.release()` is what the faction's building pack ships. `unit list`, `unit selfcheck`.
@@ -242,11 +243,31 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `python3 -m assets.cah.kit.render <class>` renders the overview (`sagekit/blender/cah_pose.py`).
   The evil classes use `python3 -m assets.cah.evil.render <class>` and `python3 -m assets.cah.evil.contents <class>`.
   How: `docs/CAH.md`.
+- `python3 -m assets.heroes.build [--skip-art]`, `python3 -m sagekit.units.heroes --stage|--install|--revert [--dry-run]`
+  (`assets/heroes/`, `sagekit/units/heroes.py`) — the heroes pack: EA's hidden heroes unlocked (Gamling
+  finished, Damrod, Earnur for the Men), the Captain of Erebor (Dain's object and rig, the Erebor kit:
+  `assets/heroes/captain/design.py`), Aragorn's level-8 armour (`assets/heroes/aragorn/design.py`),
+  portraits and icons (`assets/heroes/portraits.py`, graded by `assets/heroes/imaging.py` on Blender's
+  Python); INI composed onto EA's 2.02 files and linted, strings in a `lang\` archive.
+  `python3 -m assets.heroes.audit [--markdown]` checks EA's hidden heroes; `python3 -m assets.heroes.render`
+  writes the review sheets. How: `docs/HEROES.md`.
 - `python3 -m sagekit icons <faction> [--map|--render|--stage|--install|--revert]` (`sagekit/icons/`,
   `sagekit/blender/icon.py`, `sagekit/paint/icons.py`) — EA's building portraits and buttons repainted
   from our buildings, framed per `assets/<faction>/icons.py`, graded to EA's sepia and sky look,
   composed into copies of EA's pages and checked; one shared `!!!!!!!!!!!!!!sagekit-icons.big` for
   every faction. Review sheet: `build/assets/<faction>/_review/icons_v1.jpg`. How: `docs/ICONS.md`.
+- `python3 -m sagekit hud [--sheet|--stage|--install|--revert] [--1x]` (`sagekit/hud/`,
+  `sagekit/paint/hud.py`, `hudrings.py`, `hudsheet.py`, `assets/hud/`) — the in-game palantir's frames,
+  glass and button sheets repainted (Good bronze and gold, Evil blackened iron) at 1x and Retina 2x,
+  the APT geometry's texture matrices doubled to match; `!!!!!!!!!!!!!!sagekit-hud.big`. Review sheets:
+  `build/assets/_review_finish/hud/`. How: `docs/HUD.md`.
+- `python3 -m sagekit.fx --stage|--review [f,g]|--install|--revert|--status [--dry-run]` (`sagekit/fx/`,
+  `sagekit/paint/particles.py`, `assets/<faction>/fx.py`) — effects in each faction's colours: tinted
+  copies of EA's particle systems (colour keys only), the spell books' shared powers and the buildings'
+  fire and smoke pointed at them. The shared `!!!!!!!!!!!!sagekit-fx.big` ships only
+  fxparticlesystem.ini (with the fire systems), fxlist.ini and system.ini; each faction pack carries
+  its own structure INIs' fire moves. Install it before the faction packs. Review sheets: `build/assets/_review_finish/fx/<faction>.jpg`.
+  How: docs/ART.md "Effects".
 - `assets/<faction>/troops/` — troop redesigns (Dwarves, Elves, Men; staged, not installed):
   `build.py`, `preview.py`, `audit.py`; each folder's README has the commands.
 - `python3 -m sagekit list|validate|inventory|budget|build` — builds new art for a building from
@@ -273,6 +294,16 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   EA's model and ours neutral, then ours as each faction holds it, its dress shown and its cloth in a
   sample player colour: `build/assets/<faction>/_review/<building>_<version>.jpg`. One Blender.
   `new neutral --write --only inn` writes one stub of a faction's survey.
+- `python3 -m sagekit scenery audit|sheets|review|map [--culture a,b]` (`sagekit/scenery.py`,
+  `sagekit/scenery_review.py`, `sagekit/blender/scenery_map.py`, `sagekit/formats/maps.py`,
+  `assets/scenery/`) — the map scenery (EA's civilian buildings, ruins and set pieces): `audit` reads
+  every map and ranks the cultures by maps placing them (`build/assets/scenery/_audit/audit.md`),
+  `sheets` recolours each culture's sheets in its faction's palette or the Wilderland grade at EA's
+  size and format (never a sheet a faction draws or one of our archives ships), `review` renders EA's
+  objects against ours per culture, `map "<map name>"` a stretch of a real map
+  (`build/assets/_review_finish/scenery/`). Ships as `!!!!!!!!!!!sagekit-scenery.big`:
+  `python3 -m sagekit install scenery --check | install scenery | revert scenery`.
+  `python3 -m assets.scenery.paint` is its per-sheet painter on Blender's Python.
 - `python3 -m sagekit board <faction>` (`sagekit/board.py`, `sagekit/blender/board.py`) — the style
   board: EA's buildings of the faction as the game draws them, one labelled grid by role, level-up
   meshes in a last row: `build/assets/<faction>/_board/<faction>_board.jpg`. Works before any recipe

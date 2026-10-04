@@ -16,8 +16,9 @@ What comes next: [FACTIONS-PLAN.md](FACTIONS-PLAN.md).
 | Goblins | 14 | Installed: palette E "Blood, iron and bone", every building. Not yet checked in game. [`assets/goblins/ROLLOUT.md`](../assets/goblins/ROLLOUT.md). |
 | Isengard | 25 | Measured stubs; palette A with silver (Max's pick); the citadel built in colour (three lozenge blades round EA's tower, fire and embers, war-works on the walks); nothing installed. [`assets/isengard/ROLLOUT.md`](../assets/isengard/ROLLOUT.md). |
 | Mordor | 25 | Palette F2 (Max's pick); the citadel in pass 7 (spike claws inside the crowns round green witch-fire), built in colour, not installed. [`assets/mordor/ROLLOUT.md`](../assets/mordor/ROLLOUT.md). |
-| Angmar | 22 | Measured stubs (forge works and mill missing: skinned bodies); the citadel designed (pass 4: four frozen iron tines of the Witch-king's crown round a cold fire, ice at the feet), built in palette A2 (Max's pick: A with D's wood); nothing installed. [`assets/angmar/ROLLOUT.md`](../assets/angmar/ROLLOUT.md). |
+| Angmar | 24 | Measured stubs; the mill and forge works (skinned bodies, [below](#a-skinned-body-the-angmar-mill-and-forge-works)) designed and staged; the citadel designed (pass 4: four frozen iron tines of the Witch-king's crown round a cold fire, ice at the feet), built in palette A2 (Max's pick: A with D's wood); nothing installed. [`assets/angmar/ROLLOUT.md`](../assets/angmar/ROLLOUT.md). |
 | Neutral (capturable) | 11 | A pseudo-faction for EA's capturable buildings and creep lairs (`neutral` in `sagekit/taxonomy.py`): "Wilderland", EA's colours graded. Inn, signal fire, outpost and shipwright built with a capture dress per faction; ruined tower and the six lairs base design only; nothing installed. [`assets/neutral/ROLLOUT.md`](../assets/neutral/ROLLOUT.md). |
+| Map scenery | 0 (sheets only) | EA's civilian buildings, ruins and set pieces (`scenery` in `sagekit/taxonomy.py`): each culture's sheets recoloured in its faction's palette or the Wilderland grade, geometry EA's. Staged, not installed. [Map scenery](#map-scenery-civilian-buildings-and-set-pieces), [`assets/scenery/ROLLOUT.md`](../assets/scenery/ROLLOUT.md). |
 
 Budget: 512 MB of own textures per faction (`budget_mb` in `sagekit/style.py`; `sagekit budget`).
 An installed faction adds `!!!!!!!!!!!sagekit-<faction>.big` with edited INIs to the game folder,
@@ -141,6 +142,49 @@ states (fire only where our body stands) and the rest of the INI to the other ed
 system to the game's INIs; `renders/fire/compare_<view>.png` marks the points over the render
 (Blender cannot draw the particles). A `base` recipe shown per upgrade level declares none.
 
+## Effects: EA's particles in each faction's colours
+
+`assets/<faction>/fx.py` (a `FactionFX`, `sagekit/fx/plan.py`) names the faction's ramps (magic,
+fire, smoke, from its `style.py`), the spell book powers whose own FX take them, and whether its
+buildings' damage fire and smoke do. Tint only: a copy of EA's system named `Sagekit<Faction><EA
+name>` whose Color keys alone change (`sagekit/fx/tint.py`): each key keeps its perceived lightness
+(CIE L* with the Helmholtz-Kohlrausch correction; plain luma made a cyan copy of EA's blood-red War
+Chant half as bright) and takes the ramp's hue there, divided by the texture's own tint
+(`textures.py`: EA's flame texture is yellow, and blue keys on it read green). Lifetimes, sizes,
+rates, counts, emission, priority, shader and texture stay EA's, so a copy costs what EA's costs and
+the particle cap sees the same particles. A system on a strongly coloured texture (the heal's
+magenta `EXHPicsubtle`), natural ones (snow, dust, leaves, debris) and model particles stay EA's.
+
+References move three ways, nothing else: a power's module in EA's shared book (`EvilSpellBook`,
+`GoodSpellBook`, which every faction's book inherits) is copied into the faction's book with
+`ReplaceModule` (EA's own use: `RohanPeasant4`), word for word but for its FX fields; an FX list is
+copied with its ParticleSystem names moved; `ParticleSysBone` lines of EA's Draws in the faction's
+structure INIs (`Style.ini_dirs`) that burn `plan.BUILDING`'s systems name our copies (sagekit's own
+`SagekitFire_` Draws keep theirs). Gameplay modules, weapons, objects and OCLs are never edited.
+
+Each INI ships from one archive. The shared FX archive, `!!!!!!!!!!!!sagekit-fx.big`, ships exactly
+the three shared files: `fxparticlesystem.ini` (EA's, sagekit's fire systems, every faction's tints),
+`fxlist.ini` and `object\system\system.ini`. No faction pack ships them any more (`collect` drops
+`fxparticlesystem.ini`). A faction's structure INIs stay its own pack's: `collect` adds the `fx_bones`
+op (`sagekit/fx/compose.py` `structure_ops`, also over the Draws `sagekit/inherit.py` localises), so a
+rebuild of the faction carries its fire moves. A pack whose fire burns a Sagekit system needs the FX
+archive: `sagekit install <faction>` refuses without it, and `python3 -m sagekit.fx --revert`
+refuses while such a pack is installed. Install order: the FX archive, then the faction packs.
+
+```
+python3 -m sagekit.fx --stage      # compose, check, pack into build/assets/_fx/_install/
+python3 -m sagekit.fx --review     # build/assets/_review_finish/fx/<faction>.jpg
+python3 -m sagekit.fx --install    # after review; --revert takes it out, --status
+```
+
+The sheets draw EA's system and ours from the same random draws at three ages
+(`sagekit/paint/particles.py`: emission, physics, size, colour and alpha keys, additive or alpha
+blending; no wind, no per-particle systems, no ColorScale, model particles as discs) beside the
+keys as swatches. They show colour, not the game's exact look: the in-game check decides. Our copies
+are made from EA's FXParticleSystem blocks; 329 names also have an older `ParticleSystem` block in
+`particlesystem.ini`, and which the game prefers for those is not proven (the 2.02 patch edits only
+the FX file, so the FX block is taken to win).
+
 ## Capture: a neutral building in its holder's look
 
 A neutral building (the Inn) starts owned by the neutral player and changes hands with the capture
@@ -162,13 +206,83 @@ site or rubble. The checks hold the hidden flags, the root, the textures, one la
 overlap and the INI modules. EA's capture flag shows its holder the same way, by Lua (scripts.lua
 `OnCaptureFlagGenericEvent` shows the capturer's `FLAG_<FACTION>` sub-object).
 
+## Map scenery: civilian buildings and set pieces
+
+About 1,700 objects nobody builds (Osgiliath's ruins, Erebor's halls, the Shire's smials, carts and
+fences) are placed by the maps. `python3 -m sagekit scenery audit` reads every map
+(`sagekit/formats/maps.py`: RefPack, then the CkMp object list), sorts the civilian and obsolete
+objects into cultures (`assets/scenery/cultures.py`) and ranks them by the multiplayer maps that
+place them. The work is per sheet, not per object: a sheet takes one culture's palette (the one
+placing it on the most maps), so every object drawing it stays consistent.
+
+- **Palettes.** A faction's culture takes that faction's stone ramp and `Recolour` curve through
+  `StoneRecolour` (`assets/scenery/paint.py`): grey and faintly tinted texels become the faction's
+  stone, a high-pass of EA's luminance sharpens mortar and cracks, coloured texels (ivy, timber,
+  thatch, paint, dark leaves) keep EA's hue with the Wilderland grade. A white balance comes first.
+  The factions' own flat-sheet layers (mode `faction`) were tuned on their own sheets: on
+  Osgiliath's lilac stone the Men's masks read bricks as enamel and cloth (blue specks, red
+  blotches), so the scenery uses its own layer. Wood and hide cultures (Rohan, the Shire, Dale,
+  Dunland, the props) take the neutral buildings' Wilderland grade.
+- **Never a faction's art.** A sheet is left alone when any object outside the civilian, obsolete,
+  nature and cinematic folders draws it (judged by INI folder, not name: EA's
+  `GondorBuildingIthilien01` is civilian), when an INI swap names it, or when any of our archives
+  (installed or staged) ships it. So `!!!!!!!!!!!sagekit-scenery.big` only adds EA sheets nobody
+  else touches, at EA's path, size and format (DDS, TGA, or JPG: Osgiliath's damaged sheets), and
+  every faction and neutral pack stays byte for byte as it is. No INI, no models, no asset.dat
+  change (texture records are by name), no upgrades.
+- **Review.** `scenery review` renders EA's objects against ours per culture
+  (`build/assets/_review_finish/scenery/<culture>.jpg`); `scenery map "<map>"` places a map's
+  scenery as the map does (`sagekit/blender/scenery_map.py`, terrain left out).
+- **Ship.** `python3 -m sagekit scenery sheets`, then `python3 -m sagekit install scenery --check`
+  (stage), `python3 -m sagekit install scenery` (install), `python3 -m sagekit revert scenery`.
+
+## A skinned body: the Angmar mill and forge works
+
+Two of EA's building bodies are skins that animate: the Angmar mill's `BASE` (`KBMill`: the capstan
+the thralls push and its gear turn, `KBMill_IDLE`) and the forge works' (`KBForge`: the troll's
+bellows lever, `KBForge_IDLE`). The rigid pipeline would lose their skin weights in Blender's
+exporter. A recipe needs nothing new to target one (`target = "BASE"` as ever); `sagekit/skinbody.py`
+and `sagekit/blender/skintarget.py` see that the target is a skin and:
+
+- geometry: Blender stands the skin at rest in model space; the design is in those coordinates.
+  New pieces stand still on the root, or ride one of EA's bones rigidly:
+  `self.ride(solids, "BONE_POST01")` (`Building.ride`). Each new vertex is bound 100 % to that one
+  bone (its vertex group), so it moves with the bone in every animation;
+- export: the body as a skin (`work/export_skin/`, with the mesh's vertex counts beside it) and as a
+  rigid mesh at rest (`work/export/`), which every later step reads as it reads a rigid body
+  (derive, lifecycle, night, checks, renders);
+- fixup: the shipped body is rebuilt from EA's mesh and the skin export with the units' mesh writer
+  (`formats/w3dmesh.py`, `exact=True`): EA's vertices first, in EA's order, each EA's vertex byte
+  for byte (position and normal in its bone's space, its `VERTEX_INFLUENCES` row, its second-bone
+  position and normal) with only our UVs and tangent frame; copies of them where our layout cuts a
+  seam; then ours. EA's bones, hierarchy, HLOD and animations are not touched;
+- checks: a section "skinned body" (`skinbody.skin_checks`): EA's animations play on the skeleton,
+  EA's vertices lead ours with their skin data byte for byte (`units/build.skin_kept` on the chunks),
+  every vertex of EA's on a bone an animation moves is kept, ours are each on one bone at 100 %;
+- renders: `renders/anim/compare_<animation>.png`, EA's model and ours posed in EA's animation
+  (`sagekit/skinanim.py` on the units' poser, `blender/unit_pose.py`) at three frames from the RTS
+  camera, and from the recipe's `anim_views` (the capstan close, the troll's yard).
+
+A body's derived state (`KBMill_D1`: EA's rigid copy of the healthy body) takes our rigid export as
+any derived body does; the build-ups and collapses are rebuilt along EA's pieces as for every
+building. `state_normals` names an EA normal map off the `_NRM` pattern that a state draws our body
+with (`KBMill_A`'s `KBMillNormal`). Both recolours (`kbmill*`, `kbforge*`) ship at EA's 512
+(`AngmarStyle.sheet_size`): the bodies are painted on sheets of their own.
+
+```sh
+python3 -m sagekit build angmar/mill            # or angmar/forge_works
+python3 -m sagekit install angmar --check       # stage only
+python3 -m sagekit install angmar               # Max, after review
+python3 -m sagekit revert angmar                # takes the whole Angmar pack out again
+```
+
 ## Where the code is
 
 | Area | Modules (under `sagekit/`) |
 |---|---|
 | Commands | `__main__.py`: list, validate, inventory, budget, build, preview (`preview.py`, `blender/preview.py`), sheets, house, names, owners, new, measure, board (`board.py`, `blender/board.py`), palettes (`palettes.py`, `paint/palette.py`), install, revert |
-| A building | `building.py` (the recipe base class), `style.py`, `atlas.py`, `taxonomy.py`, `registry.py`, `workspace.py`, `paths.py` |
-| The game | `game.py` (archives in load order), `formats/big.py`, `formats/assetcache.py`, `formats/ini.py`, `ownership.py` |
+| A building | `building.py` (the recipe base class), `skinbody.py` + `skinanim.py` + `blender/skintarget.py` (a skinned body), `style.py`, `atlas.py`, `taxonomy.py`, `registry.py`, `workspace.py`, `paths.py` |
+| The game | `game.py` (archives in load order), `formats/big.py`, `formats/assetcache.py`, `formats/ini.py`, `ownership.py`, `inherit.py` (inherited Draw modules made a pack's own) |
 | Models | `formats/w3d.py` (read, fix the exporter's losses), `w3dframes.py`, `w3dpose.py`, `w3dmesh.py`, `w3dcopy.py`, `w3dlight.py` |
 | Textures | `formats/textures.py` (headers), `paint/imageio.py` (pixels; 24- and 32-bit TGA) |
 | Design | `assets/<faction>/shapes.py` (the kit), `blender/geometry.py` (closed solids), `blender/layout.py`, `blender/mapping.py` |
@@ -179,6 +293,8 @@ overlap and the INI modules. EA's capture flag shows its holder the same way, by
 | Player colour, install | `house.py`, `housemesh.py`, `blender/house.py`, `install.py` |
 | Units (builders) | `units/` (recipe, mesh, build, paint, render, install, records, cli), `blender/unit_pose.py`: [UNITS.md](UNITS.md) |
 | HUD icons | `icons/` (mapped, render, pages, pixels, sheet, install, cli), `blender/icon.py`, `paint/icons.py`: [ICONS.md](ICONS.md) |
+| Heroes | `units/heroes.py`, `assets/heroes/` (roster, powers, levels, captain, aragorn, portraits, lint), `blender/cah_pose.py`: [HEROES.md](HEROES.md) |
+| HUD palantir | `hud/` (apt, build, tga, sheet, install, cli), `paint/hud.py`, `paint/hudrings.py`, `paint/hudsheet.py`, `assets/hud/`: [HUD.md](HUD.md) |
 
 ## A faction's folder
 
@@ -237,7 +353,14 @@ build/assets/<faction>/<building>/
   Arnor for the Men), so swaps, own-model repoints, house draws and hidden banners reach Arnor too.
 - A ChildObject draws the Draw modules it inherits from a parent defined elsewhere
   (`Install.object_draws`: GondorFarm draws FarmInterface's, in `farminterface.ini`); edits to
-  them go to the parent's file.
+  them go to the parent's file. When other factions' objects inherit from that file too (the
+  civilian LumberMill, Furnace and SlaughterHouse: the Goblin, Isengard and Mordor mills, Isengard's
+  furnace, Mordor's slaughter house), the pack instead writes the parent's Draw modules, its edits
+  applied, into its own children under the parent's tags, as EA's ChildObjects do
+  (`sagekit/inherit.py`), and the parent stays EA's. Until 2026-10-04 all three packs shipped
+  `civilianbuildings.ini` and the Goblins' copy, read first, hid the others: every evil mill drew
+  the Goblin mill. `sagekit install` refuses to stage a pack whose INI another installed faction
+  pack ships with other bytes.
 - One Draw module may show two bodies under `BUILD_VARIATION_ONE` / `_TWO` (the Men's fortress
   expansions). Each is a recipe of its own that owns only its variation's states
   (`Building.own_states`): derived and lifecycle models, variants, repoints and ownership follow
