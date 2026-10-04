@@ -203,6 +203,11 @@ class AngmarStyle(Style):
         from .shapes import AngmarShapes
         return AngmarShapes()
 
+    def sheet_size(self, name):
+        """EA's own 512 for the mill's and the forge works' sheets (their redesigns paint their bodies on
+        sheets of their own; the recolours are left to EA's level-up meshes and leftovers), else 1024."""
+        return 512 if name.lower().startswith(("kbmill", "kbforge")) else super().sheet_size(name)
+
     def sheet_atlas(self, name):
         """KBFortressB's and KBFortressX's tables (atlas_sheets.py) before the faction atlas: both
         names start with KBFortress, which the base class would take for the master's family."""

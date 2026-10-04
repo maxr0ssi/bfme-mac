@@ -57,10 +57,12 @@ den, Hall of Twilight, forge works, sentry tower, wall hub, fortress).
   `AngmarSentryTower_Independent` in the same file; the scaffolder resolved only parents defined
   elsewhere and drops `_Independent` as a variant, so the tower had no stub.
   `scaffold.local_children` fixes it (no other faction's plan changes).
-- **Missing: forge works and mill.** `KBForge`'s body is `BASE`, 1,991 skinned triangles (the
-  hill troll works it); `KBMill`'s is `BASE`, 580 skinned (V1 510 and V2 1,309 are static level-ups).
-  The scaffolder and the geometry step take static bodies only, so both need a skinned-target path
-  in the framework (or a design on the static level-up meshes) before they get recipes.
+- **Forge works and mill (2026-10-04): skinned bodies.** `KBForge`'s body is `BASE`, 1,991 skinned
+  triangles (the hill troll works its bellows lever); `KBMill`'s is `BASE`, 580 skinned (the capstan
+  and gear turn; V1 510 and V2 1,309 are static level-ups). The pipeline now targets a skin
+  (docs/ART.md, "A skinned body"): EA's bones, animations and skin weights stay byte for byte, our
+  pieces stand on the root or ride one bone. Recipes [mill](mill/README.md) and
+  [forge_works](forge_works/README.md); review `build/assets/_review_finish/angmar_skinned/`.
 - **Not a building on its own:** `hallof_twilight_v1` is the Hall of Twilight's level-2 piece
   (V1, shown at level 2, hidden at 3); `hallof_twilight_top` (TOP_1, level 1) and
   `hallof_twilight_v2` (V2, level 3) were added by hand to freeze the horns on every level.
@@ -188,5 +190,5 @@ that reads at RTS, each its own story, no new spires:
    every bib, the `_Ice` crusts and the snow sheets have tables in `atlas_sheets.py`; EA vs A2 on
    EA's buildings in `_review/sheets_v1.jpg`. Rust stays warm and the ground is a cold earth on
    them (the citadel's KBFortress paint is unchanged, bit for bit).
-3. The forge works and the mill (skinned bodies).
+3. ~~The forge works and the mill (skinned bodies)~~: designed and staged 2026-10-04 (pass 1).
 4. `house_template = 'KBHCBtlTwr'` for the walls and expansions: unchecked.
