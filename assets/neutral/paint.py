@@ -17,7 +17,10 @@ class Grade(Layer):
         self.contrast, self.mid, self.saturation, self.warm, self.lift = contrast, mid, saturation, warm, lift
 
     def apply(self, col, cv, pal):
-        a = to_srgb(cv.load("atlas")).astype(np.float32)[..., :3]
+        return self.grade(to_srgb(cv.load("atlas")).astype(np.float32)[..., :3])
+
+    def grade(self, a):
+        """sRGB texels (..., 3) graded (the flat-sheet form: assets/scenery/paint.py)."""
         a = self.mid + (a - self.mid) * self.contrast + self.lift
         lum = (a @ W)[..., None]
         a = lum + (a - lum) * self.saturation

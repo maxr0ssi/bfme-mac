@@ -19,7 +19,10 @@ FACTIONS = ("men", "elves", "dwarves", "isengard", "mordor", "goblins", "angmar"
 # capturable buildings (data\ini\object\neutral, sheets in art\compiledtextures\nb). It never
 # counts as a faction for the seven (sagekit/ownership.py owner_of): their checks are as before.
 NEUTRAL = "neutral"
-OWNERS = FACTIONS + (NEUTRAL,)
+# `scenery`: EA's civilian buildings, ruins and set pieces the maps place, recoloured per sheet in
+# their culture's palette (sagekit/scenery.py, assets/scenery/); no recipes, only the sheets
+SCENERY = "scenery"
+OWNERS = FACTIONS + (NEUTRAL, SCENERY)
 ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 MB = 1 << 20
 

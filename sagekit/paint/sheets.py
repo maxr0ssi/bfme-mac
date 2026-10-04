@@ -111,6 +111,9 @@ def recolour_sheet(style, src_dds, out_dds, size, upscaler):
                                "-m", os.path.join(os.path.dirname(upscaler), "models")],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         up = read_rgba(up_png)[..., :3]
+        prepare = getattr(style, "sheet_prepare", None)     # a style's pass before the masks (the map
+        if prepare is not None:                             # scenery's white balance, sagekit/scenery.py)
+            up = prepare(up)
         cv = SheetCanvas(up[::-1].copy(), style.sheet_atlas(os.path.basename(src_dds)))
         col = None
         for layer in style.sheet_layers():
