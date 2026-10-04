@@ -56,11 +56,12 @@ def reviewed(faction):
     return json.load(open(os.path.join(r, "icons.json")))
 
 
-def members(factions):
-    """{archive member: bytes}: every page any of the factions draws on, composed and checked."""
+def members(factions, scale=1):
+    """{archive member: bytes}: every page any of the factions draws on, composed and checked; at
+    scale 2 twice EA's size (sagekit/ui2x: our crops from the 4x renders, EA's images upscaled)."""
     from .cli import compose
     g = Install()
-    by_page, owner = {}, {}
+    by_page, owner, big = {}, {}, {}
     for f in sorted(factions):
         for name, m in reviewed(f).items():
             rect = tuple(m["rect"])
@@ -69,8 +70,12 @@ def members(factions):
                     raise SystemExit("%s %s and %s %s claim the same pixels of %s" % (f, name, other, oname, m["page"]))
             owner.setdefault(m["page"], {})[f + ":" + name] = (rect, name)
             by_page.setdefault(m["page"], []).append((rect, os.path.join(root(f), "crops", "%s_new.png" % name)))
+            big.setdefault(m["page"], []).append((rect, os.path.join(root(f), "crops", "%s_new@4x.png" % name), m["kind"]))
     files = {}
-    for page, crops in sorted(by_page.items()):
+    if scale == 2:
+        from ..ui2x.icons import pages2x
+        files = pages2x(big)
+    for page, crops in sorted(by_page.items()) if scale == 1 else ():
         _, dds, probs = compose(g, page, crops, os.path.join(shared_root(), "pages"))
         if probs:
             raise SystemExit("%s: %s" % (page, "; ".join(probs)))
@@ -84,17 +89,49 @@ def members(factions):
     return files
 
 
-def build(factions):
-    """The archive for `factions` staged under build/assets/_icons/; its path, or None for none."""
+def build(factions, scale=1, out=None):
+    """The archive for `factions` staged under build/assets/_icons/ (or `out`); its path, or None."""
     if not factions:
         return None
-    files = members(factions)
-    out = Path(shared_root()) / "_install" / SHARED
+    files = members(factions, scale)
+    out = Path(out or Path(shared_root()) / "_install" / SHARED)
     pack(sorted(files.items()), str(out))
     staged = Archive(str(out))
     assert all(staged.read(n) == d for n, d in files.items())
-    print("Staged %s: %d pages for %s" % (out, len(files), ", ".join(sorted(factions))))
+    print("Staged %s: %d pages at %dx for %s" % (out, len(files), scale, ", ".join(sorted(factions))))
     return out
+
+
+def scale_now():
+    """The scale of the installed archive (1 unless sagekit ui2x installed it at 2)."""
+    return json.loads(receipt().read_text()).get("scale", 1) if receipt().exists() else 1
+
+
+def put(staged, want, scale, dry, verb):
+    """Write (or, staged None, remove) the live archive and its receipt."""
+    dest = live()
+    data = staged.read_bytes() if staged else None
+    if dry:
+        print("Dry run: would %s %s (%s, %dx)" % ("write" if data else "remove", dest, ", ".join(want) or "no faction",
+                                                 scale))
+        return 0
+    apply({dest: data}, Path(shared_root()) / "apply-receipt.json", {dest: read(dest)})
+    if data is None:
+        receipt().unlink(missing_ok=True)
+    else:
+        receipt().write_text(json.dumps(dict(sha256=digest(data), factions=want, scale=scale), indent=1) + "\n")
+    print("%s; the icon archive carries %s at %dx." % (verb, ", ".join(want) or "nothing (removed)", scale))
+    return 0
+
+
+def rescale(scale, action="install", dry=False, out=None):
+    """The installed factions' archive again at `scale` (sagekit ui2x --install 2, --revert 1);
+    stage: only build it (at `out`). Returns the staged path (None: no faction installed)."""
+    want = installed()
+    staged = build(want, scale, out)
+    if action != "stage" and want:
+        put(staged, want, scale, dry, "Icons rebuilt")
+    return staged
 
 
 def main(faction, action, dry=False):
@@ -108,23 +145,12 @@ def main(faction, action, dry=False):
         want = sorted(f for f in os.listdir(paths.BUILD) if os.path.exists(os.path.join(root(f), "icons.json")))
     if action == "revert" and faction not in now:
         raise SystemExit("%s: its icons are not installed" % faction)
-    staged = build(want)
+    scale = scale_now()
+    staged = build(want, scale)
     if action == "stage":
         print("Nothing installed.")
         return 0
-    dest = live()
-    data = staged.read_bytes() if staged else None
-    if dry:
-        print("Dry run: would %s %s (%s)" % ("write" if data else "remove", dest, ", ".join(want) or "no faction"))
-        return 0
-    apply({dest: data}, Path(shared_root()) / "apply-receipt.json", {dest: read(dest)})
-    if data is None:
-        receipt().unlink(missing_ok=True)
-    else:
-        receipt().write_text(json.dumps(dict(sha256=digest(data), factions=want), indent=1) + "\n")
-    print("%s %s; the icon archive carries %s." % ("Reverted" if action == "revert" else "Installed", faction,
-                                                    ", ".join(want) or "nothing (removed)"))
-    return 0
+    return put(staged, want, scale, dry, "%s %s" % ("Reverted" if action == "revert" else "Installed", faction))
 
 
 def pack_archive(faction):

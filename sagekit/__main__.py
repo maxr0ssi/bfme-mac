@@ -22,6 +22,8 @@
                                        buildings (sagekit/icons/, docs/ICONS.md)
     hud [--sheet|--stage|--install|--revert] [--1x]   the in-game palantir's frames, glass and
                                        buttons in our metal, 1x and Retina 2x (sagekit/hud/, docs/HUD.md)
+    ui2x [--stage|--install|--revert|--sheet]   Retina 2x pages for portraits, buttons, our icons and
+                                       the tooltip frame (sagekit/ui2x/, docs/UI2X.md)
     offload pack <faction> [--only b1,b2] | run [--builds N] | results | unpack <zip> [--print-only]
                                        full-quality builds on another machine (sagekit/offload.py)
 """
@@ -325,6 +327,9 @@ def main(argv=None):
     if argv[:1] == ["icons"]:                   # its own options (sagekit/icons/cli.py)
         from .icons.cli import main as icons
         return icons(argv[1:]) or 0
+    if argv[:1] == ["ui2x"]:                    # its own options (sagekit/ui2x/cli.py)
+        from .ui2x.cli import main as ui2x
+        return ui2x(argv[1:]) or 0
     if argv[:1] == ["hud"]:                     # its own options (sagekit/hud/cli.py)
         from .hud.cli import main as hud
         return hud(argv[1:]) or 0

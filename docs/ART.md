@@ -295,6 +295,7 @@ python3 -m sagekit revert angmar                # takes the whole Angmar pack ou
 | HUD icons | `icons/` (mapped, render, pages, pixels, sheet, install, cli), `blender/icon.py`, `paint/icons.py`: [ICONS.md](ICONS.md) |
 | Heroes | `units/heroes.py`, `assets/heroes/` (roster, powers, levels, captain, aragorn, portraits, lint), `blender/cah_pose.py`: [HEROES.md](HEROES.md) |
 | HUD palantir | `hud/` (apt, build, tga, sheet, install, cli), `paint/hud.py`, `paint/hudrings.py`, `paint/hudsheet.py`, `assets/hud/`: [HUD.md](HUD.md) |
+| Retina 2x UI pages | `ui2x/` (select, build, icons, tooltip, sheet, install, cli), `paint/ui2x.py`: [UI2X.md](UI2X.md) |
 
 ## A faction's folder
 

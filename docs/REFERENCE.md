@@ -261,6 +261,18 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   glass and button sheets repainted (Good bronze and gold, Evil blackened iron) at 1x and Retina 2x,
   the APT geometry's texture matrices doubled to match; `!!!!!!!!!!!!!!sagekit-hud.big`. Review sheets:
   `build/assets/_review_finish/hud/`. How: `docs/HUD.md`.
+- `python3 -m sagekit hud --factions [--sheet|--stage|--install|--revert] [--dry-run]`
+  (`sagekit/hud/factions.py`, `factionapt.py`, `factioncheck.py`, `aptfile.py`, `factionsheet.py`,
+  `sagekit/paint/palantir/`, `assets/hud/factions/`) — one palantir frame per faction (Arnor shares
+  Men's) over the 2x pack, chosen by an APT edit from the side the game passes to SetPlayerFaction;
+  checks, a bytecode dry trace per side; the same archive; `--revert` puts the Good/Evil 2x pack back.
+  Review sheets: `build/assets/_review_finish/hud_faction/`. How: `docs/HUD.md`.
+- `python3 -m sagekit ui2x [--stage|--install|--revert|--sheet] [--dry-run]` (`sagekit/ui2x/`,
+  `sagekit/paint/ui2x.py`) — Retina 2x MappedImage pages: unit and hero portraits, unit command,
+  ability, hero bar and spell book buttons (EA's paintings upscaled by Real-ESRGAN with EA's grain put
+  back, round masks redrawn), the tooltip frame in our bronze and gold (APT, geometry doubled) in
+  `!!!!!!!!!!!!!!sagekit-ui2x.big`; our building icons' pages at 2x in the icon archive. Review
+  sheets: `build/assets/_review_finish/ui2x/`. How: `docs/UI2X.md`.
 - `python3 -m sagekit.fx --stage|--review [f,g]|--install|--revert|--status [--dry-run]` (`sagekit/fx/`,
   `sagekit/paint/particles.py`, `assets/<faction>/fx.py`) — effects in each faction's colours: tinted
   copies of EA's particle systems (colour keys only), the spell books' shared powers and the buildings'

@@ -41,6 +41,7 @@ the map's castle walls), so the table decides.
 | checks | `icons/pages.py` | format, size and mips EA's; pixels outside our rects EA's (exactly away from shared blocks); our rects the intended pixels within DXT error; alpha EA's within the 4-bit step |
 | sheet | `icons/sheet.py` | `build/assets/<faction>/_review/icons_v1.jpg`: EA against ours at 1x and 2x, every page before and after |
 | archive | `icons/install.py` | `!!!!!!!!!!!!!!sagekit-icons.big`, one for every faction (pages serve several), rebuilt from every installed faction's crops on each install and revert; no asset.dat records (EA's names and sizes) |
+| 2x | `icons/install.py` `rescale()`, `ui2x/icons.py` | `python3 -m sagekit ui2x --install` rebuilds this archive at twice EA's page size: our crops box-filtered from the 4x renders, EA's other images on the page upscaled ([UI2X.md](UI2X.md)); the receipt records the scale and later installs keep it; `ui2x --revert` rebuilds it at 1x |
 | release | `icons/install.py` `release()`, `packbuild.py` | each faction's pack carries `!!!!!!!!!!!!!!sagekit-icons-<faction>.big`, its own pages as deltas against EA's; refused while a page holds two factions' icons (none does today) |
 
 An uncompressed page (`expansion1icons_021`, the Elven `buildingradialbuttons_150`) keeps EA's
@@ -49,12 +50,20 @@ their masks say, so `pixels.raw_dds` decodes them by their masks and the writer 
 On RotWK's pages the 64-pixel icons sit one pixel apart off the 4-pixel grid: a neighbour's edge
 column shares DXT blocks with ours and moves by DXT's error (the check allows up to 96).
 
+## 2x pages work without an INI change
+
+A MappedImage's UVs are its Coords over the size its INI *declares*, not over the loaded page:
+RotWK's own 2.02 patch ships `ResourceBarIcons` declared 256 x 32 in `handcreatedmappedimages.ini`
+on a 512 x 64 page (`__patch202.big`, full mip chain), and the command-point icon draws whole on a
+3024x1964 screenshot. So a page twice the size, with the INI unchanged, draws every image at the
+same place and size with four times the texels; asset.dat's texture records hold no size. (Earlier
+versions of this page called this unproven; EA's patch proves it.) The icon archive ships at 1x
+unless `sagekit ui2x --install` rebuilt it at 2x.
+
 ## Not covered yet
 
 - Builders keep EA's face icons. A bust render through `sagekit/units/render.py` is easy, but EA's
   unit portrait (`UPDwarven_Porter`, 191 x 191) and button (`BDFortress_Porter`) are paintings of the
   face, which our redesign keeps; a render of the game mesh would be a visual downgrade. The
   portrait page also holds `UPAngmar_Porter`.
-- 2x pages: the renders are 4x; the MappedImage UVs are Coords over the INI's declared size in EA's
-  Generals source, unproven for BFME2, so the pages ship at EA's 256.
 - The release pack (`sagekit/pack.py`) does not carry the icon archive yet.
