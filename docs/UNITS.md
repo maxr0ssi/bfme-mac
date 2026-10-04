@@ -58,8 +58,60 @@ recipe checks. A stub (`design` returns `{}`) renders EA's unit against itself a
 - **Release:** `install.release()` gives `sagekit/pack.py` the staged archive, its cache ops and
   its `housecolor.ini` lines.
 
+## Construction workers
+
+The little figures a building's `GettingBuiltBehavior` spawns (`WorkerName`) while it goes up. One
+recipe per faction, `assets/<faction>/worker/design.py`, each matching that faction's builder:
+
+| Recipe | EA's model | Ships as | Drawn by |
+|---|---|---|---|
+| `dwarves/worker` | `DUWorker_SKN` (the builder's dwarf) | in place | DwarvenWorker |
+| `elves/worker` | `EUWorker_SKN` (the builder's Elf) | in place | ElvenWorker |
+| `men/worker` | `GUWorker_SKN` | in place | GondorWorker, ArnorWorker, the neutral and civilian sites |
+| `mordor/worker` | `MUOrcLabor_SKN` | `MUWorker_SKN` | MordorWorker, MordorWorkerNoSelect (repointed) |
+| `goblins/worker` | `MUOrcLabor_SKN` | `WUWorker_SKN` | WildLaborer (repointed) |
+| `angmar/worker` | `MUOrcLabor_SKN` | `KUWorker_SKN` | AngmarWorker (repointed) |
+| `isengard/worker` | `MUOrcLabor_SKN` | `IUWorker_SKN` | IsengardWorkerNoSelect, IsengardFortressWorkerNoSelect (new; the Isengard pack names them) |
+
+```sh
+python3 -m sagekit unit <faction>/worker --render | --check | --stage
+python3 -m sagekit unit <faction>/worker --install      # after review; one faction at a time is fine
+python3 -m sagekit unit <faction>/worker --revert
+```
+
+EA's body, skeleton, skin weights and animations are kept (the checks prove it); each worker has a
+private atlas and house mask, its own archive `!!!!!!!!!!!!sagekit-<faction>-worker.big`, and
+player-colour cloth: a piece tagged `HC` (`sagekit/units/cloth.py`) samples a patch of EA's sheet
+that EA's house mask covers fully, so the game tints it as it tints EA's tunic or apron. `drape`
+gives each row of cloth its own bone and stretches the band between, so capes bend with the body.
+The four orc workers share `sagekit/units/labourer.py` (EA's labourer: its anatomy, sheet regions,
+tool grips and paint); each draws its own gear, HAMMER (shown while building) and AXE (idle, chop).
+Sub-object names stay EA's, because the INI shows and hides them by name.
+
+Recipe attributes the workers added (all opt-in, the builders unchanged): `anim_family` (the orc's
+animations are `MUOrcLabor_*` on `MUGblnSlv_SKL`), `mask_source` and `mask_scale` (Gondor's mask
+is a 64-pixel PNG; the sheet is painted at 256), and `ini_files(base)` (INI members of the unit's
+own, composed on the game's text without unit archives).
+
+**INI data.** Dwarves, Elves and Men: none (models replaced in place). Mordor, Goblins, Angmar: one
+`Model =` line per repointed Draw in their worker INI, which no faction pack ships. Isengard has no
+worker object (its buildings call Mordor's), so its archive adds
+`data\ini\object\evilfaction\units\mordor\worker_isengard.ini`: two ChildObjects of Mordor's
+workers, `IsengardWorkerNoSelect` and `IsengardFortressWorkerNoSelect`, with MordorWorkerNoSelect's
+Draw drawing `IUWorker_SKN` (the file must sort after `worker.ini`: the engine reads INIs in sorted
+order and a child needs its parent first). The Isengard pack names them: `IsengardStyle.workers`
+makes `sagekit/install.py` swap `WorkerName` in the 13 Isengard structure INIs it composes (op
+`worker`, `formats/ini.py set_worker`), so no INI is in two archives. The pack therefore needs the
+unit: install `isengard/worker` first, then `sagekit install isengard`; revert the pack (or
+reinstall it without the workers) before the unit. Both refuse the wrong order (`Unit.defines`,
+`units/install.py workers_guard`). No objects anywhere else, no upgrades. Goblin caves, spider pits and
+mine shafts, Angmar's Hall of Twilight and mill, and the shared Evil sentry tower still call
+Mordor's workers (EA's choice), so they show the Mordor labourer.
+
+Review sheets: `build/assets/_review_finish/workers/<faction>.jpg` (EA's worker, ours and our
+builder: close, behind, building, and at the RTS camera; red simulates the player colour).
+
 ## Not covered yet
 
-Construction workers (`DUWorker_SKN`, `GUWorker_SKN`, `MUOrcLabor_SKN`), troops and heroes; the
-lower-detail `_SKNM` / `_SKNL` models (only `_SKN` is redesigned); player colour and wheel spin
-are checked in game only.
+Troops and heroes; the lower-detail `_SKNM` / `_SKNL` models (only `_SKN` is redesigned); player
+colour and wheel spin are checked in game only.
