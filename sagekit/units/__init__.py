@@ -43,10 +43,13 @@ class Unit:
     own_model = None            # ship under this name (EA's model is shared with other factions)
     objects = {}                # own_model: {object: (INI member, Draw tag)} whose Model is repointed
     anims = ()                  # animations extracted for the previews ("idla", "runa", ...)
+    anim_family = None          # their file prefix when it is not the skeleton's ("MUOrcLabor")
     expected = {}               # {"duporter_skn": sha256, ...}: refuse any other source
     textures = {}               # {EA texture: private texture} renamed in the rebuilt meshes
     house = {}                  # {private texture: private mask}: house-colour INI lines, in order
     mask = None                 # (EA's mask, ours): EA's tiled across the atlas' left half
+    mask_source = None          # EA's mask's archive member when not <mask>.tga (HC_GUWorker: a PNG)
+    mask_scale = None           # tile EA's mask scaled to this size (a 64-px sheet painted at 256)
     sources = ()                # further EA sheets paint() reads ("DBFortress1.tga")
     archive = None              # "!!!!!!!!!!!!sagekit-dwarf-builder.big"
     bone = "CART"               # Mesh primitives' default bone
@@ -56,6 +59,8 @@ class Unit:
     labels = ("EA'S BUILDER", "OURS - DESIGN PREVIEW")
     label_colour = "#171b21cc"
     same_bones = ()             # rebuilt meshes whose bone set must stay EA's
+    defines = ()                # objects ini_files() defines that a faction pack names (Isengard's
+                                # workers): the unit installs before that pack and reverts after it
 
     # ------------------------------------------------------------------ the recipe's part
     def design(self, w, sk):
@@ -69,6 +74,12 @@ class Unit:
     def check(self, b, original, new, sk):
         """Recipe checks beyond the shared ones (build.check); raise AssertionError."""
 
+    def ini_files(self, base):
+        """{INI member: bytes} the archive adds or edits beyond `objects` (Isengard's worker: its
+        own worker objects, and its structures' WorkerName). base(member) is the game's text without
+        any unit archive (EA's, or a faction pack's). {} by default."""
+        return {}
+
     # ------------------------------------------------------------------ derived
     def mesh(self, w, sk, name, keep=False, skin=None):
         """Mesh for EA's mesh `name` with this recipe's texture names and default bone."""
@@ -78,6 +89,8 @@ class Unit:
 
     @property
     def family(self):
+        if self.anim_family:
+            return self.anim_family.lower()
         return self.skeleton.lower()[:-4] if self.skeleton.lower().endswith("_skl") else self.skeleton.lower()
 
     @property

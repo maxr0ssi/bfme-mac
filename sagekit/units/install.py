@@ -109,12 +109,47 @@ def members(u, b):
         files[compiled_path(u.mask[1], ".tga")] = (b.work / u.mask[1].lower()).read_bytes()
     if u.house:
         files[INI] = compose(base(INI), [u])
+    files.update(u.ini_files(base))
     for obj, (member, tag) in u.objects.items():
         text = files.get(member) or base(member)
         files[member] = set_model(text.decode("latin-1"), obj, tag, u.model, u.own_model).encode("latin-1")
         if files[member] == text:
             raise SystemExit("%s: %s draws no %s in %s %s" % (u.id, obj, u.model, member, tag))
     return files
+
+
+def named(objects, files):
+    """The objects of `objects` that an INI of `files` {member: bytes} names as its WorkerName."""
+    import re
+    out = set()
+    for member, data in files.items():
+        if member.lower().endswith(".ini"):
+            for obj in objects:
+                if re.search(rb"(?im)^\s*WorkerName\s*=\s*" + re.escape(obj.encode()) + rb"\b", data):
+                    out.add(obj)
+    return out
+
+
+def workers_guard(faction, files):
+    """sagekit/install.py, before a faction pack is installed: every worker object its INIs name
+    (Style.workers) is defined by a unit installed already, or nothing is installed."""
+    have = installed()
+    for uid in ids(faction):
+        u = load(uid)
+        if u.defines and named(u.defines, files) and uid not in have:
+            raise SystemExit("%s's buildings name %s, which %s defines: python3 -m sagekit unit %s --install "
+                             "first; nothing installed" % (faction, ", ".join(sorted(named(u.defines, files))), uid, uid))
+
+
+def pack_files():
+    """{member: bytes} of every INI in the faction packs in the game folder (eleven '!')."""
+    out = {}
+    for p in sorted(live_dir().glob("!!!!!!!!!!!sagekit-*.big")):
+        if p.name.startswith("!!!!!!!!!!!!"):
+            continue                                    # twelve or more: a unit's or a shared archive
+        a = Archive(str(p))
+        out.update({m: a.read(m) for m in a.index() if m.endswith(".ini")})
+    return out
 
 
 def owned(u, b):
@@ -237,6 +272,9 @@ def revert(u, b, dry=False):
     dest = live_dir() / u.archive
     if not owned(u, b):
         raise SystemExit("%s is not installed." % u.id)
+    if u.defines and named(u.defines, pack_files()):
+        raise SystemExit("%s: an installed faction pack names %s (its WorkerName); revert or reinstall that "
+                         "pack first, so no building calls a worker that no longer exists" % (u.id, ", ".join(u.defines)))
     model = Archive(str(dest)).read(Install.model_path(u.shipped))
     updates, expected = {dest: None}, {dest: read(dest), live_dir() / SHARED: read(live_dir() / SHARED)}
     for live, ops in Install().route_cache_ops(cache_ops(u, model)).items():

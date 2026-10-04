@@ -75,6 +75,9 @@ class IsengardStyle(Style):
     palette = PALETTE
     atlas = IsengardAtlas()
     ini_dir = 'data\\ini\\object\\evilfaction\\structures\\isengard\\'
+    # Isengard's construction workers (assets/isengard/worker defines them): its buildings called Mordor's
+    workers = {"MordorWorkerNoSelect": "IsengardWorkerNoSelect",
+               "MordorFortressWorkerNoSelect": "IsengardFortressWorkerNoSelect"}
     sheet_dir = 'art\\compiledtextures\\ib\\'
     master_variants = {'damaged': 'IBFortress_D.tga', 'snow': 'IBFortress_snow.tga', 'stonework': 'IBFortress_U.tga'}
     house_template = 'IBHCBtlTwr'   # copied for buildings EA gave no house-colour model (the expansions): check

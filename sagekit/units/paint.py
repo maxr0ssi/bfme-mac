@@ -58,16 +58,25 @@ def _size(mask):
     return size
 
 
-def house_mask(source, dest):
+def mask_pixels(source, scale=None):
+    """EA's mask as RGBA bytes; scale: resized (nearest) to scale x scale first, for a recipe that
+    paints EA's small sheet larger (sagekit/units Unit.mask_scale)."""
+    if not scale:
+        return raw(source)
+    return subprocess.check_output(["magick", str(source), "-filter", "point", "-resize", "%dx%d!" % (scale, scale),
+                                    "-depth", "8", "rgba:-"])
+
+
+def house_mask(source, dest, scale=None):
     """Our house-colour mask (2048 x 1024 TGA): EA's mask exactly where EA's sheet repeats, and
     neutral (transparent white) under the swatches, so our new pieces take no player colour."""
-    mask = raw(source)
+    mask = mask_pixels(source, scale)
     rgba = dest.with_name("mask.rgba")
     rgba.write_bytes(_mask_rows(mask, _size(mask)))
     magick("-size", "2048x1024", "-depth", "8", "rgba:" + str(rgba), dest)
 
 
-def check_mask(source, built):
-    mask, original = raw(built), raw(source)
+def check_mask(source, built, scale=None):
+    mask, original = raw(built), mask_pixels(source, scale)
     assert len(mask) == 2048 * 1024 * 4, "house mask is not 2048 x 1024"
     assert mask == _mask_rows(original, _size(original)), "house mask is not EA's, tiled"

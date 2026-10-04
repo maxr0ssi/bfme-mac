@@ -52,10 +52,15 @@ def prepare(u, b):
     for name in u.sources:
         fetch(compiled_path(name, ".dds"), b.src / (name.lower()[:-4] + ".dds"))
     if u.mask:
-        fetch(compiled_path(u.mask[0], ".tga"), b.src / u.mask[0].lower())
+        fetch(mask_member(u), b.src / u.mask[0].lower())
     (b.dir / "textures.json").write_text(json.dumps(textures, indent=2))
     (b.dir / "sources.json").write_text(json.dumps(hashes, indent=2))
     return w, P.Skeleton(b.src.joinpath(u.skeleton.lower() + ".w3d").read_bytes())
+
+
+def mask_member(u):
+    """EA's house mask as an archive holds it (the recipe's mask_source, else <mask>.tga)."""
+    return u.mask_source or compiled_path(u.mask[0], ".tga")
 
 
 def build(u, b):
@@ -77,7 +82,7 @@ def build(u, b):
         textures[name.lower()] = str(dest)
     (b.work / "textures.json").write_text(json.dumps(textures, indent=2))
     if u.mask:
-        PT.house_mask(b.src / u.mask[0].lower(), b.work / u.mask[1].lower())
+        PT.house_mask(b.src / u.mask[0].lower(), b.work / u.mask[1].lower(), u.mask_scale)
     return check(u, b)
 
 
@@ -125,8 +130,8 @@ def check(u, b):
         anim = P.Animation(b.anim(a).read_bytes())
         assert anim.hierarchy.upper() == sk.name.upper() and anim.frames > 0, a
     if u.mask:
-        assert b.src.joinpath(u.mask[0].lower()).read_bytes() == g.read(compiled_path(u.mask[0], ".tga"))
-        PT.check_mask(b.src / u.mask[0].lower(), b.work / u.mask[1].lower())
+        assert b.src.joinpath(u.mask[0].lower()).read_bytes() == g.read(mask_member(u))
+        PT.check_mask(b.src / u.mask[0].lower(), b.work / u.mask[1].lower(), u.mask_scale)
     u.check(b, original, new, sk)
     report = {"rebuilt": rebuilt, "unchanged": [n for n in new.meshes if n not in rebuilt],
               "source_triangles": sum(len(m.tris) for m in original.meshes.values()),
