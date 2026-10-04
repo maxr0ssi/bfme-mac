@@ -82,8 +82,29 @@ def collect(faction, install):
                 cache_ops.setdefault(live, []).extend((op, where) for op in ops)
         for member, ops in record["ini"].items():
             ini_ops.setdefault(member, []).extend(tuple(op) for op in ops)
+    style = buildings[0][0].style if buildings else None
+    if style is not None and style.workers:             # its buildings' construction workers (docs/UNITS.md)
+        from .formats.ini import set_worker
+        for d in style.ini_dirs():
+            for member in [m for m in install.members(d) if m.endswith(".ini")]:
+                text = install.read(member).decode("latin-1")
+                ops = [("worker", old, new) for old, new in style.workers.items()
+                       if set_worker(text, old, new) != text]
+                if ops:
+                    ini_ops.setdefault(member, []).extend(ops)
+    if style is not None:                               # its structures' damage fire in its colours (sagekit/fx)
+        from .fx.compose import structure_ops
+        for member, ops in structure_ops(faction, style, install).items():
+            ini_ops.setdefault(member, []).extend(ops)
+    from .fire_systems import MEMBER                    # one fxparticlesystem.ini, the shared FX archive's
+    ini_ops.pop(MEMBER, None)
     for member, ops in ini_ops.items():
         files[member] = apply_ops(install.read(member).decode("latin-1"), ops).encode("latin-1")
+    if buildings:                                       # a parent other factions inherit too: its Draw
+        from .inherit import localise                   # modules go into our children (sagekit/inherit.py)
+        files = localise(files, install, buildings[0][0].style, faction)
+        from .fx.compose import localised_bones         # the Draws it gave our children burn ours too
+        files = localised_bones(files, faction, style, install)
     return files, cache_ops
 
 
@@ -225,6 +246,9 @@ def install_faction(faction, log=print, check=False):
     expected[dest] = read(dest)
     ops = {}
     files, updates = prepare(faction, ops)
+    from .inherit import clashes                    # one INI, two packs: the first would hide the other
+    for member, other in clashes(archive_name(faction), files):
+        raise SystemExit("%s ships %s, which %s ships otherwise; nothing staged" % (faction, member, other))
     stage = Path(paths.BUILD)/faction/"_install"
     stage.mkdir(parents=True,exist_ok=True)
     archive = stage/archive_name(faction)
@@ -240,6 +264,10 @@ def install_faction(faction, log=print, check=False):
     if check:
         log("Staged and verified; unrelated cache records preserved. Nothing installed.")
         return
+    from .fx.install import requires                # the FX archive defines the systems its fire burns
+    requires(faction, files)
+    from .units.install import workers_guard        # the workers its buildings name must be installed
+    workers_guard(faction, files)
     if game_running():
         raise SystemExit("game started during staging; nothing installed")
     apply(updates,stage/"receipt.json",expected)

@@ -392,12 +392,19 @@ def _object_lines(text):
         yield raw
 
 
+def set_worker(text, old, new):
+    """Every `WorkerName = old` (GettingBuiltBehavior: the construction worker a building spawns)
+    names `new`; comments and spacing stay."""
+    return re.sub(r"(?im)^(\s*WorkerName\s*=\s*)%s\b" % re.escape(old), lambda m: m.group(1) + new, text)
+
+
 def apply_ops(text, ops):
     """Apply [('swaps', base, {ea: (own, own variant)}) | ('lod_off', object, tag) |
     ('field', object, tag, key, value) | ('draw', object, tag, model) |
     ('state', object, tag, [flags], model) | ('model', object, tag, old, new) |
     ('fire_draw', object, after tag, tag, lines) | ('fx_systems', ((name, after, lines), ...)) |
-    ('behavior', object, tag, lines)] in order."""
+    ('behavior', object, tag, lines) | ('worker', EA's worker object, ours) |
+    ('fx_bones', ((EA system, ours), ...))] in order."""
     for op in ops:
         if op[0] == "fx_systems":                   # particle systems of our own (sagekit/fire_systems.py)
             from ..fire_systems import add_systems
@@ -416,6 +423,11 @@ def apply_ops(text, ops):
             text = add_texture_swaps(text, op[1], op[2])
         elif op[0] == "lod_off":
             text = lod_off(text, op[1], op[2])
+        elif op[0] == "worker":
+            text = set_worker(text, op[1], op[2])
+        elif op[0] == "fx_bones":                   # EA's damage fire in the faction's colours (sagekit/fx)
+            from ..fx.compose import repoint_bones
+            text = repoint_bones(text, dict(op[1]))[0]
         else:
             text = set_field(text, *op[1:])
     return text
