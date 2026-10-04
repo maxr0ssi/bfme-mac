@@ -91,15 +91,20 @@ def run(j):
         if j.get("colours") and tex in j["masks"]:
             tint(obj, j["masks"][tex], j["colours"])
     render.rig(tuple(j["size"]), j.get("samples", 32))
+    if j.get("transparent"):                    # a cut-out (hero portraits): no ground, no sky
+        bpy.context.scene.render.film_transparent = True
+        bpy.data.objects["Ground"].hide_render = True
     allp = np.concatenate(pts)
     if j.get("focus") == "head":                # the same head shot whatever the helmet
         hb = m.skel.index(j.get("head_bone", "B_HEAD"))
         mat = np.array(pose[0][hb]).reshape(3, 4)
-        target = (mat[:, 3] + np.array([0.6, 0, 1.2]) * (mat[2, 3] / 14.8)).tolist()
-        dist = 15.0 * mat[2, 3] / 14.8
+        k = mat[2, 3] / 14.8                    # the head's height against the CaH dwarf's
+        target = (mat[:, 3] + np.array(j.get("head_offset", [0.6, 0, 1.2])) * k).tolist()
+        dist = j.get("head_dist", 15.0) * k
     elif j.get("focus") == "part":              # a part close-up at a fixed distance
         sel = np.concatenate([m.world(n, pose) for n in m.w3d.meshes if n.upper() in [x.upper() for x in j["part"]]])
         target = ((sel.min(axis=0) + sel.max(axis=0)) / 2).tolist()
+        target[2] += j.get("lift", 0.0)         # optional: aim above the part's centre (a bust)
         dist = j["dist"]
     else:
         lo, hi = allp.min(axis=0), allp.max(axis=0)

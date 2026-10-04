@@ -7,7 +7,7 @@ its saved frame pointer and return address: the game crashes the first time such
 removed (the cah pack's crash, docs/CAH.md). EA's 2.02 defines 1027 upgrades.
 
     tally(ours)     EA's names plus {source: names} of ours: (total, problems, report line)
-    validate()      python3 -m sagekit validate: EA + every installed archive of ours + the staged cah pack
+    validate()      python3 -m sagekit validate: EA + every installed archive of ours + the staged cah and heroes packs
 """
 import os
 import re
@@ -63,7 +63,7 @@ def tally(ours, ea=None):
 
 
 def validate():
-    """Count EA + every installed archive of ours + the staged cah pack; 1 when over the limit."""
+    """Count EA + every installed archive of ours + the staged packs; 1 when over the limit."""
     from .units import Folder, load
     try:
         ea = ea_names()
@@ -71,10 +71,11 @@ def validate():
     except OSError as e:
         print("note: game files not readable (%s): the upgrade limit not checked" % e)
         return 0
-    u = load("cah/pack")
-    staged = Folder(u).stage / u.archive
-    if staged.exists():
-        ours["staged " + u.archive] = archive_names(staged)
+    for uid in ("cah/pack", "heroes/pack"):             # the packs staged for review, not yet installed
+        u = load(uid)
+        staged = Folder(u).stage / u.archive
+        if staged.exists():
+            ours["staged " + u.archive] = archive_names(staged)
     _, problems, line = tally(ours, ea)
     print("FAIL " + problems[0] if problems else "ok   " + line)
     return 1 if problems else 0
