@@ -32,6 +32,8 @@ class Style:
     atlas = None                    # the faction's shared Atlas (instance)
     ini_dir = None                  # the faction's structure INIs, e.g. data\\ini\\object\\...\\dwarven; or a
                                     # list of folders and files (every one is the faction's)
+    workers = {}                    # {EA's worker object: ours} the structures' WorkerName names instead;
+                                    # ours come from the faction's worker unit (docs/UNITS.md), installed first
     budget_mb = 512                 # own textures of every building of the faction, in memory: RotWK has 4 GB
                                     # (docs/MEMORY-4GB.md); 1.03 bytes of it per texture byte (MEMORY-2GB.md)
 
