@@ -5,11 +5,13 @@ player colour. He wears a headband with trailing rag tails in player colour, a n
 with a small skull, a horned skull on the left shoulder, a scrap-iron bracer and a hide-rope belt
 with a crimson rag. His hammer is a lump of rock lashed to a long bone; his axe a crude scrap
 cleaver, notched and blood-stained. Ships as WUWorker_SKN; WildLaborer's Draw (its NoSelect and
-Fortress children inherit it) is repointed to it. Palette E (assets/goblins/style.py); the skull,
+Fortress children inherit it) is repointed to it. The cave, spider pit and mine shaft called Mordor's
+workers: the archive adds GoblinLaborerNoSelect and GoblinFarmLaborerNoSelect, children of Mordor's
+drawing WUWorker_SKN (sagekit/units/labourer.py `children`), which the Goblin pack names. Palette E (assets/goblins/style.py); the skull,
 bone and rag shapes are the builder's kit. python3 -m sagekit unit goblins/worker --render.
 """
 from assets.goblins.porter.kit import bone_shaft, rag, skull
-from assets.goblins.style import PALETTE
+from assets.goblins.style import PALETTE, GoblinStyle
 from sagekit.units import Unit
 from sagekit.units.cloth import HC
 from sagekit.units.labourer import (ACCENT, AXE_BLADE, AXE_GRIP, BONE, DARK, ELBOW, GLOW, HAMMER_GRIP,
@@ -84,6 +86,7 @@ class Worker(Labourer, Unit):           # (Unit: the framework's recipe scan loo
     """WildLaborer's labourer, shipped under a name of its own."""
     own_model = "WUWorker_SKN"
     objects = {"WildLaborer": (INI, "ModuleTag_01")}
+    children = GoblinStyle.workers          # the Goblin pack names them: installed before it, reverted after
     textures = {"MUOrcLabor.tga": "WUWorkCr.tga", "MUOrcWarr.tga": "WUWorkCr.tga"}
     house = {"WUWorkCr.tga": "HC_WUWorkCr.tga"}
     mask = ("HC_MUOrcLabor.tga", "HC_WUWorkCr.tga")

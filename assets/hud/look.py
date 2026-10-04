@@ -50,6 +50,8 @@ class Look:
     ramps = {}
     mat_ramp = {}                   # material -> ramp name
     ornament = []                   # EA's pixels: luminance (0..1) -> colour
+    ember_gain = 0.0                # a forge-glow added in the crevices (sagekit/paint/hud.py `ember`)
+    ember_colour = (1.0, 0.42, 0.10)
     ornament_gain = 1.0
 
     @property
@@ -141,6 +143,7 @@ class Evil(Look):
     ornament = [(0, (0, 0, 0)), (.1, (.03, .03, .033)), (.3, (.115, .115, .125)), (.5, (.26, .26, .28)),
                 (.68, (.45, .46, .49)), (.85, (.70, .72, .76)), (1, (.93, .94, .97))]
     ornament_gain = 1.15            # EA's grey iron is dark already; its dragon and thorns must still read
+    ember_gain = 0.13               # Max's pick: faint, 10-15%; the iron stays the main read
 
     def bead1(self, u):
         """A chamfered bar: flat top, hard bevels (machined, not polished round)."""

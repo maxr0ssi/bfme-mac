@@ -57,6 +57,9 @@ class GoblinStyle(Style):
     palette = PALETTE
     atlas = GoblinAtlas()
     ini_dir = 'data\\ini\\object\\evilfaction\\structures\\wild\\'
+    # the cave, spider pit and mine shaft called Mordor's workers; ours (assets/goblins/worker defines
+    # them) are children of Mordor's, so they behave as EA's and look like the Goblin labourer
+    workers = {"MordorWorkerNoSelect": "GoblinLaborerNoSelect", "MordorFarmWorkerNoSelect": "GoblinFarmLaborerNoSelect"}
     sheet_dir = 'art\\compiledtextures\\wb\\'
     master_variants = {'damaged': 'WBFortress_D.tga', 'snow': 'WBFortress_snow.tga', 'stonework': 'WBFortress_U.tga'}
     house_template = 'WBHCTower'    # copied for buildings EA gave no house-colour model (the expansions)

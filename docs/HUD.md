@@ -51,7 +51,9 @@ movies (the research put it at large to extra-large, with a high crash risk): no
    left. Good: a polished gold bead, a gold rope, the broad band aged bronze engraved with a
    lozenge-and-pellet border. Evil: a chamfered steel bar, a notched blade edge, the broad band
    riveted iron plates with barbed chevrons and dark seams.
-5. Box-filtered to 2x and 1x and sharpened a little. The 1x carries EA's alpha byte for byte, the
+5. Evil only: a faint forge-ember (13%, Max's pick) wherever the metal is darker than its
+   surroundings: grooves, plate seams, between the rivets, the cuts of EA's spikes (`ember`).
+6. Box-filtered to 2x and 1x and sharpened a little. The 1x carries EA's alpha byte for byte, the
    2x EA's alpha resized (Lanczos).
 
 ## Retina 2x: why it works, and the one edit it needs

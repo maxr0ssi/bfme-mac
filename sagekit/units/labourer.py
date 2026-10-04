@@ -17,7 +17,9 @@ face below it; mail x 0-64 y 210-256; rust x 64-152 y 210-256.
 """
 import math
 import random
+import re
 
+from ..formats.ini import ANIM_OPENER, STATE_OPENERS, strip
 from . import Unit, View
 from .cloth import check_patch, patch_uv
 from .paint import crop_rgb, magick, ramp_bytes, raw
@@ -82,6 +84,34 @@ def haft(m, grip, tag, r=.2, cap=None):
         m.tube(a, lerp(a, b, .05), r * 1.5, cap, sides=7)
 
 
+WORKER_INI = "data\\ini\\object\\evilfaction\\units\\mordor\\worker.ini"
+
+
+def draw_block(text, obj, tag="ModuleTag_01"):
+    """The lines of object `obj`'s Draw module `tag`, from `Draw = ...` to its End, nested as
+    sagekit/formats/ini.py set_model walks a Draw module."""
+    lines = text.splitlines(keepends=True)
+    start = next(i for i, l in enumerate(lines) if re.match(r"^(Child)?Object\s+%s\s" % obj, l))
+    end = next((i for i in range(start + 1, len(lines)) if re.match(r"^(Child)?Object\s", lines[i])), len(lines))
+    first = next(i for i in range(start, end) if re.match(r"^Draw\s*=\s*\S+\s+%s\b" % tag, strip(lines[i])))
+    depth = 1
+    for i in range(first + 1, len(lines)):
+        line = strip(lines[i])
+        low = line.lower()
+        key = line.partition("=")[0].strip().lower()
+        if low.startswith("beginscript"):
+            depth += 1
+        elif low.startswith("endscript"):
+            depth -= 1
+        elif key in STATE_OPENERS or key == ANIM_OPENER and depth == 2:
+            depth += 1
+        elif low == "end":
+            depth -= 1
+            if depth == 0:
+                return "".join(lines[first:i + 1])
+    raise ValueError("no end to %s's %s" % (obj, tag))
+
+
 class Labourer(Unit):
     """EA's orc labourer; a faction's recipe sets own_model, objects, textures, house, mask[1],
     archive, labels, SWATCHES, DYE, palette, and draws gear / hammer / axe."""
@@ -102,6 +132,31 @@ class Labourer(Unit):
     MAIL_DYE = None             # ramp for the mail and rust patches (None: EA's)
     SWATCHES = ()               # 16 x (ramp name, middle value)
     SEED = 7
+    # {Mordor's worker object: ours}: worker objects of the faction's own for its buildings that call
+    # Mordor's (its Style.workers; the faction's pack names them). Each is a ChildObject of Mordor's,
+    # so it behaves exactly as EA's, with MordorWorkerNoSelect's Draw drawing our model, in its own
+    # file sorting after Mordor's worker.ini (the engine reads INIs in sorted order; a child needs
+    # its parent first).
+    children = {}
+
+    @property
+    def defines(self):
+        return tuple(self.children.values())
+
+    def ini_files(self, base):
+        if not self.children:
+            return {}
+        ea = base(WORKER_INI).decode("latin-1")
+        faction = self.id.split("/")[0]
+        own = ["; %s's own construction workers (sagekit, assets/%s/worker): Mordor's, drawing\r\n" % (faction, faction),
+               "; %s. This file sorts after worker.ini, so their parents are read first.\r\n" % self.own_model]
+        # Mordor's Fortress and Farm workers draw the Draw they inherit from MordorWorkerNoSelect
+        block = draw_block(ea, "MordorWorkerNoSelect").replace("MUOrcLabor_SKN", self.own_model)
+        if self.own_model not in block:
+            raise SystemExit("%s: MordorWorkerNoSelect's Draw draws no MUOrcLabor_SKN" % self.id)
+        for parent, child in self.children.items():
+            own += ["\r\nChildObject %s %s\r\n" % (child, parent), block.rstrip("\r\n") + "\r\n", "End\r\n"]
+        return {WORKER_INI[:-4] + "_%s.ini" % faction: "".join(own).encode("latin-1")}
 
     # ---------------------------------------------------------------- the faction's part
     def gear(self, body):

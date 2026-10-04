@@ -15,6 +15,7 @@ from sagekit import paths
 
 from . import compose as C
 from . import ea, lint, portraits, strings
+from . import gamling_model
 from .aragorn import design as aragorn
 from .captain import design as captain
 
@@ -26,9 +27,11 @@ def art(skip=False):
     if not skip or not (Path(paths.BUILD) / "heroes" / "portraits" / "report.json").exists():
         captain.build()
         aragorn.build()
+        gamling_model.build()
         portraits.build()
     files = dict(captain.members())
     files.update(aragorn.members())
+    files.update(gamling_model.members())
     rep = json.loads((Path(paths.BUILD) / "heroes" / "portraits" / "report.json").read_text())
     files.update({k: Path(v) for k, v in rep["files"].items()})
     missing = [str(v) for v in files.values() if not Path(v).exists()]
@@ -47,7 +50,7 @@ def build(skip_art=False):
     strings.check(table, entries)
     labels = set(strings.labels_of(table))
     images = set(ea.mapped_images()) | {n.lower() for n in _our_images()}
-    models = {captain.MODEL.lower(), aragorn.MODEL.lower()}
+    models = {captain.MODEL.lower(), aragorn.MODEL.lower(), gamling_model.MODEL.lower()}
     objects = set(ea.objects()) | set(lint.object_texts(f))
     problems = lint.check(ea_files, f, labels, images, models, objects)
     if problems:

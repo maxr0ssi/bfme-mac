@@ -1,6 +1,7 @@
-"""The unlocked heroes' review sheet: Gamling, Damrod and Earnur as EA built them (their models are
-EA's, unchanged), close up and at the RTS camera, with the portrait and icon each now shows
-(Damrod's and Earnur's EA's own; Gamling's ours: EA left his commented out)."""
+"""The unlocked heroes' review sheet: Gamling on EA's unused detailed model with EA's own sword and
+shield (SKGamling_SKN, assets/heroes/gamling_model.py) beside the model he drew before, close up, in
+idle and attack and at the RTS camera; Damrod and Earnur as EA built them; with the portrait and
+icon each now shows (Damrod's and Earnur's EA's own; Gamling's ours: EA left his commented out)."""
 import subprocess
 from pathlib import Path
 
@@ -14,9 +15,32 @@ from .review_roster import image_of, tile
 
 OUT = Path(paths.BUILD) / "heroes" / "unlocked"
 # hero: (model, skeleton, idle, run, portrait, icon, house mask of its sheet or None)
-HEROES = {"Gamling": ("RUGamling_SKN", "GUBoromir_SKL", "GUBoromir_IDLA", "GUBoromir_RUNA", "HPGamling", "HIGamling"),
-          "Damrod": ("GUDamrod_SKN", "GUFaramir_SKL", "GUFaramir_IDLC", "GUFaramir_RUNA", "HPDamrodPortrait", "HIDamrodIcon"),
+HEROES = {"Damrod": ("GUDamrod_SKN", "GUFaramir_SKL", "GUFaramir_IDLC", "GUFaramir_RUNA", "HPDamrodPortrait", "HIDamrodIcon"),
           "Earnur": ("GUIsildur_SKN", "GUAragorn_SKL", "GUAragorn_IDLA", "GUAragorn_RUNB", "HPEarnurPortrait", "HIEarnurIcon")}
+
+
+def gamling_jobs():
+    """Gamling, the model he drew before beside ours, at the same zoom."""
+    import json
+    from .gamling_model import EA_MODEL, GEAR, MODEL, OLD, SKELETON, folder
+    d, src, work = folder()
+    tex = json.loads((work / "textures.json").read_text())
+    masks = {"rugamling_new.tga": tex.pop("hc_rugamling_new.tga")}
+    blue = [R.ERE_BLUE, (0, 0, 0), (0, 0, 0)]
+    old, new, skel = src / (OLD.lower() + ".w3d"), work / (MODEL.lower() + ".w3d"), src / (SKELETON.lower() + ".w3d")
+    a = {k: src / ("guboromir_%s.w3d" % k) for k in ("idla", "atka", "runa")}
+    showo, shown = ["RUROYALGUARD"], ["RUGAMLING_MESH", GEAR]
+    J = R.job
+    close = dict(part=["RUROYALGUARD"], dist=13.0, lift=6.8)
+    closen = dict(part=["RUGAMLING_MESH"], dist=13.0, lift=6.8)
+    return [J("G2_old_close", "GAMLING BEFORE (RUGamling_SKN)", old, skel, a["idla"], showo, tex, OUT, **R.close(**close)),
+            J("G2_new_close", "GAMLING NOW (EA's RUGamlingCH_SKN + EA gear)", new, skel, a["idla"], shown, tex, OUT, masks, blue,
+              **R.close(**closen)),
+            J("G2_old_idle", "BEFORE: IDLE", old, skel, a["idla"], showo, tex, OUT, **R.full()),
+            J("G2_new_idle", "NOW: IDLE", new, skel, a["idla"], shown, tex, OUT, masks, blue, **R.full()),
+            J("G2_old_atk", "BEFORE: ATTACK", old, skel, a["atka"], showo, tex, OUT, frame=24, **R.full(azimuth=-40)),
+            J("G2_new_atk", "NOW: ATTACK", new, skel, a["atka"], shown, tex, OUT, masks, blue, frame=24, **R.full(azimuth=-40)),
+            J("G2_new_rts", "NOW: RTS CAMERA", new, skel, a["runa"], shown, tex, OUT, masks, blue, frame=8, **R.rts())]
 
 
 def review():
@@ -49,7 +73,9 @@ def review():
                    **R.close(part=show[:1], dist=15.0, lift=6.5)),
                  J("%s_rts" % hero, "%s: RTS CAMERA" % hero.upper(), files[model], files[skel], run_anim, show, tex, OUT,
                    frame=8, **R.rts())]
+    jobs += gamling_jobs()
     R.run(jobs, OUT)
+    rows.append([j["out"] for j in jobs if j["name"].startswith("G2_")])
     for hero, (model, skel, idle, run, hp, hi) in HEROES.items():
         row = [str(OUT / ("%s_%s.png" % (hero, k))) for k in ("full", "close", "rts")]
         for img, size in ((hp, 192), (hi, 128)):

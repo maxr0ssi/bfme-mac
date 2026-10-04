@@ -10,7 +10,8 @@ his powers are Boromir's modules, renamed for Rohan:
   L3  Horn of Helm Hammerhand    Boromir's Horn of Gondor (enemies debuffed, stunned from level 5)
   L6  Captain of the Guard       Boromir's Captain of Gondor (experience to targeted troops), no voice line
 
-Also: Boromir's sword (tier 2, like Boromir: 1400, 2400 health), the Create-a-Hero captain's
+Also: his model is EA's unused, more detailed RUGamlingCH_SKN with the sword and shield of the
+model EA drew (gamling_model.py); Boromir's sword (tier 2, like Boromir: 1400, 2400 health), the Create-a-Hero captain's
 voice (HeroWestMale), our portrait and icon (HPGamling, HIGamling, HIGamling_res), stances,
 capture, tier-2 command points, Men as his side, his ten levels granting 1, 3 and 6.
 """
@@ -73,7 +74,8 @@ def object_file(src):
                        t, count=1, flags=re.M)
         if n != 1:
             raise SystemExit("heroes: gamling.ini: no commented %s" % key)
-    t = set_field(t, "StaticModelLODMode", "No", comment="EA ships no RUGamling_SKNM/L")
+    t = set_field(t, "Model", "SKGamling_SKN", comment="EA's unused RUGamlingCH_SKN with EA's sword and shield")
+    t = set_field(t, "StaticModelLODMode", "No", comment="our model has no M/L copies")
     t = set_field(t, "Side", "Men", comment="was Obsolete")
     t = set_field(t, "BuildTime", "HERO_BUILDTIME_TIER_2")
     t = re.sub(r"^([ \t]*Weapon[ \t]*=[ \t]*PRIMARY[ \t]+)HwaldarAxe\b[^\r\n]*", r"\g<1>BoromirSword\t; sagekit heroes: was EA's placeholder",

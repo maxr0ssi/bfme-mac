@@ -20,7 +20,7 @@ Review sheets: `build/assets/_review_finish/heroes/` (`captain_of_erebor.jpg`, `
 
 | Hero | Faction | What |
 |---|---|---|
-| Gamling | Men | EA's `RohanGamling`, finished. EA left him `Side = Obsolete` with no portrait (commented out), Boromir's voice and button, a placeholder weapon (HwaldarAxe: "line limit in weapon.ini") and no powers. Now: Boromir's sword and tier (1400, 2400 health), the Create-a-Hero captain's voice, our portrait and icons, stances and capture, and Boromir's power modules, which his Draw already animates: Leadership (1), Horn of Helm Hammerhand (3, Boromir's Horn of Gondor), Captain of the Guard (6, Boromir's Captain of Gondor without Boromir's voice line). |
+| Gamling | Men | EA's `RohanGamling`, finished, on EA's unused detailed model (below). EA left him `Side = Obsolete` with no portrait (commented out), Boromir's voice and button, a placeholder weapon (HwaldarAxe: "line limit in weapon.ini") and no powers. Now: Boromir's sword and tier (1400, 2400 health), the Create-a-Hero captain's voice, our portrait and icons, stances and capture, and Boromir's power modules, which his Draw already animates: Leadership (1), Horn of Helm Hammerhand (3, Boromir's Horn of Gondor), Captain of the Guard (6, Boromir's Captain of Gondor without Boromir's voice line). |
 | Damrod | Men | EA's `GondorDamrod` (obsolete.ini) is complete: model, portrait, icon, strings, voice, four powers, ten levels. Rostered as is. |
 | Earnur | Men | EA's `GondorEarnur` is complete but for levels (2.02 took him out of Aragorn's) and his recruit text (Boromir's). Now: Aragorn's ten levels copied for him, his own recruit text. |
 | Captain of Erebor | Dwarves | New: King Dain's object rewritten (`assets/heroes/captain/hero.py`), on Dain's rig and animations; Gloin's tier (1500, 2700 health, Gloin's axe and levels); the Create-a-Hero dwarf's voice; powers from EA's modules: Leadership (1, Dain's aura), Charge (3, the CaH dwarf's), Toughness (5, the CaH dwarf's), Train Allies (7, the CaH level grant), Summon Royal Guard (10, Dain's, on a power of our own without Dain's voice line). Model: Dain with a blue-steel Erebor helm (rounded faceted skull, ridge crest, gold-runed band in the player's colour, brow guard, nasal, pointed cheek guards, nape guard; `captain/kit.py`, seated on Dain's larger head), matching pauldrons, the CaH Shield of Erebor and war axe. |
@@ -40,9 +40,10 @@ From `python3 -m assets.heroes.audit`: Gamling, Damrod and Earnur are used (abov
 | Orc chieftains (`OrcChief01..05`) | Lurtz's command set, voice, strings and buttons; his powers not carried; no levels; 01 misses 65 animations, 03-05 have no model |
 | DwarftHero | a premade Create-a-Hero dwarf for custom maps: no strings, no powers, no levels, portrait texture missing |
 
-EA also ships an unused higher-detail Gamling, `RUGamlingCH_SKN` (929 vertices, `RUGamling_new.tga`
-with a house-colour mask), on the same skeleton but with no sword or shield; the pack keeps
-`RUGamling_SKN`, which carries them.
+Gamling wears EA's unused higher-detail model, `RUGamlingCH_SKN` (929 vertices, `RUGamling_new.tga`
+with EA's house-colour mask, on the skeleton his Draw animates), which has no sword or shield: the
+pack adds EA's own, the triangles of the old `RUGamling_SKN` on `B_SWORDBONE` and `B_SHIELD`, as one
+sub-object on the same bones (`assets/heroes/gamling_model.py`, `SKGamling_SKN`).
 
 ## How it works
 

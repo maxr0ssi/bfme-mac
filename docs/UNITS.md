@@ -69,8 +69,8 @@ recipe per faction, `assets/<faction>/worker/design.py`, each matching that fact
 | `elves/worker` | `EUWorker_SKN` (the builder's Elf) | in place | ElvenWorker |
 | `men/worker` | `GUWorker_SKN` | in place | GondorWorker, ArnorWorker, the neutral and civilian sites |
 | `mordor/worker` | `MUOrcLabor_SKN` | `MUWorker_SKN` | MordorWorker, MordorWorkerNoSelect (repointed) |
-| `goblins/worker` | `MUOrcLabor_SKN` | `WUWorker_SKN` | WildLaborer (repointed) |
-| `angmar/worker` | `MUOrcLabor_SKN` | `KUWorker_SKN` | AngmarWorker (repointed) |
+| `goblins/worker` | `MUOrcLabor_SKN` | `WUWorker_SKN` | WildLaborer (repointed); GoblinLaborerNoSelect, GoblinFarmLaborerNoSelect (new) |
+| `angmar/worker` | `MUOrcLabor_SKN` | `KUWorker_SKN` | AngmarWorker (repointed); AngmarLaborerNoSelect, AngmarFarmLaborerNoSelect (new) |
 | `isengard/worker` | `MUOrcLabor_SKN` | `IUWorker_SKN` | IsengardWorkerNoSelect, IsengardFortressWorkerNoSelect (new; the Isengard pack names them) |
 
 ```sh
@@ -94,19 +94,19 @@ is a 64-pixel PNG; the sheet is painted at 256), and `ini_files(base)` (INI memb
 own, composed on the game's text without unit archives).
 
 **INI data.** Dwarves, Elves and Men: none (models replaced in place). Mordor, Goblins, Angmar: one
-`Model =` line per repointed Draw in their worker INI, which no faction pack ships. Isengard has no
-worker object (its buildings call Mordor's), so its archive adds
-`data\ini\object\evilfaction\units\mordor\worker_isengard.ini`: two ChildObjects of Mordor's
-workers, `IsengardWorkerNoSelect` and `IsengardFortressWorkerNoSelect`, with MordorWorkerNoSelect's
-Draw drawing `IUWorker_SKN` (the file must sort after `worker.ini`: the engine reads INIs in sorted
-order and a child needs its parent first). The Isengard pack names them: `IsengardStyle.workers`
-makes `sagekit/install.py` swap `WorkerName` in the 13 Isengard structure INIs it composes (op
-`worker`, `formats/ini.py set_worker`), so no INI is in two archives. The pack therefore needs the
-unit: install `isengard/worker` first, then `sagekit install isengard`; revert the pack (or
-reinstall it without the workers) before the unit. Both refuse the wrong order (`Unit.defines`,
-`units/install.py workers_guard`). No objects anywhere else, no upgrades. Goblin caves, spider pits and
-mine shafts, Angmar's Hall of Twilight and mill, and the shared Evil sentry tower still call
-Mordor's workers (EA's choice), so they show the Mordor labourer.
+`Model =` line per repointed Draw in their worker INI, which no faction pack ships. Buildings that
+called Mordor's workers get their own faction's: Isengard's (it has no worker object), the Goblin
+cave, spider pit and mine shaft, and Angmar's Hall of Twilight and mill. The worker unit adds them in
+`data\ini\object\evilfaction\units\mordor\worker_<faction>.ini` (`labourer.py children`):
+ChildObjects of Mordor's workers (so they behave exactly as EA's) with MordorWorkerNoSelect's Draw
+drawing our model; the file sorts after `worker.ini`, as the engine reads INIs in sorted order and
+a child needs its parent first. The faction's own pack names them: `Style.workers` makes
+`sagekit/install.py` swap `WorkerName` in the INIs it composes (op `worker`, `formats/ini.py
+set_worker`), so no INI is in two archives. The pack therefore needs the unit: install
+`<faction>/worker` first, then `sagekit install <faction>`; revert the pack before the unit. Both
+refuse the wrong order (`Unit.defines`, `units/install.py workers_guard`). No upgrades. The
+civilian lumber mill, furnace and slaughter house (parents of the evil factions' copies) and the
+shared Evil sentry tower still call Mordor's workers.
 
 Review sheets: `build/assets/_review_finish/workers/<faction>.jpg` (EA's worker, ours and our
 builder: close, behind, building, and at the RTS camera; red simulates the player colour).

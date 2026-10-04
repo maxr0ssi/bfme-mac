@@ -16,20 +16,14 @@ so this unit installs before that pack and reverts after it (`defines`; both ref
 No upgrades.
 python3 -m sagekit unit isengard/worker --render (docs/UNITS.md, sagekit/units/labourer.py).
 """
-import re
-
 from assets.isengard.porter.kit import plane, white_hand
 from assets.isengard.style import PALETTE, IsengardStyle
-from sagekit.formats.ini import ANIM_OPENER, STATE_OPENERS, strip
 from sagekit.units import Unit
 from sagekit.units.cloth import HC, drape
 from sagekit.units.labourer import (AXE_BLADE, AXE_GRIP, BONE, DARK, ELBOW, HAMMER_GRIP, HAMMER_HEAD, HEAD,
                                     IRON, LEATHER, PELVIS, SPINE, STEEL, TRIM, WOOD, WRIST, Labourer, haft,
                                     lerp, ring, slab, spike)
 
-WORKER_INI = "data\\ini\\object\\evilfaction\\units\\mordor\\worker.ini"
-OWN_INI = "data\\ini\\object\\evilfaction\\units\\mordor\\worker_isengard.ini"   # after worker.ini
-WORKERS = IsengardStyle.workers         # {Mordor's: ours}; the Isengard pack swaps its WorkerName
 CHARCOAL = [(0, (.012, .012, .013)), (.45, (.07, .07, .075)), (.8, (.17, .17, .18)), (1, (.30, .30, .32))]
 
 
@@ -93,31 +87,6 @@ def broad_axe(m):
     spike(m, back, (back[0] - .4, back[1] + 1.3, back[2] + .9), .3, IRON, sides=4)
 
 
-def draw_block(text, obj, tag="ModuleTag_01"):
-    """The lines of object `obj`'s Draw module `tag`, from `Draw = ...` to its End, nested as
-    sagekit/formats/ini.py set_model walks a Draw module."""
-    lines = text.splitlines(keepends=True)
-    start = next(i for i, l in enumerate(lines) if re.match(r"^(Child)?Object\s+%s\s" % obj, l))
-    end = next((i for i in range(start + 1, len(lines)) if re.match(r"^(Child)?Object\s", lines[i])), len(lines))
-    first = next(i for i in range(start, end) if re.match(r"^Draw\s*=\s*\S+\s+%s\b" % tag, strip(lines[i])))
-    depth = 1
-    for i in range(first + 1, len(lines)):
-        line = strip(lines[i])
-        low = line.lower()
-        key = line.partition("=")[0].strip().lower()
-        if low.startswith("beginscript"):
-            depth += 1
-        elif low.startswith("endscript"):
-            depth -= 1
-        elif key in STATE_OPENERS or key == ANIM_OPENER and depth == 2:
-            depth += 1
-        elif low == "end":
-            depth -= 1
-            if depth == 0:
-                return "".join(lines[first:i + 1])
-    raise ValueError("no end to %s's %s" % (obj, tag))
-
-
 class Worker(Labourer, Unit):           # (Unit: the framework's recipe scan looks for it)
     """Isengard's labourer under a name of its own, drawn by worker objects of its own."""
     own_model = "IUWorker_SKN"
@@ -125,7 +94,7 @@ class Worker(Labourer, Unit):           # (Unit: the framework's recipe scan loo
     house = {"IUWorkCr.tga": "HC_IUWorkCr.tga"}
     mask = ("HC_MUOrcLabor.tga", "HC_IUWorkCr.tga")
     archive = "!!!!!!!!!!!!sagekit-isengard-worker.big"
-    defines = tuple(WORKERS.values())       # installed before the Isengard pack names them, reverted after
+    children = IsengardStyle.workers        # the Isengard pack names them: installed before it, reverted after
     labels = ("EA'S ORC LABOURER (ISENGARD)", "ISENGARD URUK LABOURER - REVIEW")
     palette = PALETTE
     DYE = CHARCOAL
@@ -145,16 +114,3 @@ class Worker(Labourer, Unit):           # (Unit: the framework's recipe scan loo
 
     def axe(self, m):
         broad_axe(m)
-
-    def ini_files(self, base):
-        """Only the new objects; the Isengard pack names them (IsengardStyle.workers)."""
-        ea = base(WORKER_INI).decode("latin-1")
-        own = ["; Isengard's own construction workers (sagekit, assets/isengard/worker): Mordor's, drawing\r\n",
-               "; IUWorker_SKN. This file sorts after worker.ini, so their parents are read first.\r\n"]
-        for parent, child in WORKERS.items():
-            # MordorFortressWorkerNoSelect draws the Draw it inherits from MordorWorkerNoSelect
-            block = draw_block(ea, "MordorWorkerNoSelect").replace("MUOrcLabor_SKN", self.own_model)
-            if self.own_model not in block:
-                raise SystemExit("isengard/worker: %s's Draw draws no MUOrcLabor_SKN" % parent)
-            own += ["\r\nChildObject %s %s\r\n" % (child, parent), block.rstrip("\r\n") + "\r\n", "End\r\n"]
-        return {OWN_INI: "".join(own).encode("latin-1")}

@@ -11,7 +11,7 @@ Erebor, Aragorn's level-8 armour; staged, installed and reverted like the cah pa
     RotWK/lang/English!!!!!!!!!!!sagekit-heroes.big   2.02's English string table plus our labels (the
                                                   game reads data\\lotr.str from lang\\English*.big first)
     RotWK/!!!!!!!!!!!!!sagekit-units.big          the shared housecolor.ini (sagekit/units/install.py)
-    asset.dat                                     our two models filed under their own names, our
+    asset.dat                                     our three models filed under their own names, our
                                                   textures registered; EA's records untouched
 
 Revert removes both archives, takes our records out of asset.dat (records.py) and rebuilds the
@@ -32,7 +32,8 @@ from .build import sha
 from .install import SHARED, installed, live_dir, shared_receipt, shared_update
 
 UID = "heroes/pack"
-MODELS = {"skereborcpt_skn.w3d": "dudain_skn.w3d", "skaragorn_skn.w3d": "guaragorn_skn.w3d"}
+MODELS = {"skereborcpt_skn.w3d": "dudain_skn.w3d", "skaragorn_skn.w3d": "guaragorn_skn.w3d",
+          "skgamling_skn.w3d": "rugamlingch_skn.w3d"}
 TEXTURE_LIKE = {"sheet": "chdw_dw_of3d_hlmt_06.tga", "mask": "hc_chdw_tm_03.tga"}
 
 

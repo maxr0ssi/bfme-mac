@@ -30,17 +30,31 @@ def look_for(side):
     return LOOKS[side]
 
 
-def unsharp(img, amount, radius=1):
-    """img + amount * (img - a small box blur of it)."""
-    if amount <= 0:
-        return img
+def box(img, radius):
+    """A (2 radius + 1)-wide box blur."""
     k = 2 * radius + 1
     pad = np.pad(img, [(radius, radius), (radius, radius)] + [(0, 0)] * (img.ndim - 2), mode="edge")
     c = np.cumsum(np.cumsum(pad, 0), 1)
     c = np.pad(c, [(1, 0), (1, 0)] + [(0, 0)] * (img.ndim - 2))
     h, w = img.shape[:2]
-    blur = (c[k:k + h, k:k + w] - c[:h, k:k + w] - c[k:k + h, :w] + c[:h, :w]) / (k * k)
-    return np.clip(img + amount * (img - blur), 0, 1)
+    return (c[k:k + h, k:k + w] - c[:h, k:k + w] - c[k:k + h, :w] + c[:h, :w]) / (k * k)
+
+
+def unsharp(img, amount, radius=1):
+    """img + amount * (img - a small box blur of it)."""
+    if amount <= 0:
+        return img
+    return np.clip(img + amount * (img - box(img, radius)), 0, 1)
+
+
+def ember(col, opaque, look, k):
+    """The look's faint forge-glow in the metal's crevices: wherever a pixel is darker than the
+    metal round it (grooves, plate seams, between rivets, the cuts of EA's spikes), by how much."""
+    if not look.ember_gain:
+        return col
+    lum = col @ LUMA
+    cavity = np.clip((box(lum, 3 * k // 2) - lum) * 4, 0, 1) * opaque
+    return np.clip(col + look.ember_gain * cavity[..., None] * np.array(look.ember_colour, np.float32), 0, 1)
 
 
 def rect_mask(shape, rects, k, feather=1.0):
@@ -95,6 +109,8 @@ def paint(job, tex):
         ours = look.colour(mat, shade, spec_term)
         wgt = (weight * opaque)[..., None]
         col = ours * wgt + col * (1 - wgt)
+    if tex["kind"] == "frame":
+        col = ember(col, opaque, look, k)
     col = unsharp(col, tex.get("sharpen", 0.35))
     os.makedirs(os.path.dirname(tex["out4"]), exist_ok=True)
     save(tex["out4"], np.concatenate([col, alpha4[..., None]], -1))

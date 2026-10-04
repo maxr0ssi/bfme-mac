@@ -182,6 +182,9 @@ class AngmarStyle(Style):
     palette = PALETTE
     atlas = AngmarAtlas()
     ini_dir = 'data\\ini\\object\\evilfaction\\structures\\angmar\\'
+    # the Hall of Twilight and the mill called Mordor's workers; ours (assets/angmar/worker defines
+    # them) are children of Mordor's, so they behave as EA's and look like the Angmar thrall
+    workers = {"MordorWorkerNoSelect": "AngmarLaborerNoSelect", "MordorFarmWorkerNoSelect": "AngmarFarmLaborerNoSelect"}
     sheet_dir = 'art\\compiledtextures\\kb\\'
     sheet_skip = Style.sheet_skip + ("nrm_ice", "normal", "_height",    # KBFortressNRM_Ice, KBHall_Normal,
                                      "dummy.", "low.", "med.")          # KBMillNormal, KBFortress_Height; EA's

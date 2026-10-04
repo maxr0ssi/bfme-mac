@@ -5,11 +5,13 @@ apron keeps the player colour. Over his shoulders lies a collar of rime-white fu
 with a short cape in player colour behind it and a cold-fire charm at the throat; iron arm rings.
 His hammer is a frost-rimed iron maul; his axe a bearded Hill-men axe with a pale ice edge. Ships
 as KUWorker_SKN; AngmarWorker's Draw (its NoSelect and Fortress children inherit it) is repointed
-to it. Palette A2 (assets/angmar/style.py). python3 -m sagekit unit angmar/worker --render.
+to it. The Hall of Twilight and the mill called Mordor's workers: the archive adds
+AngmarLaborerNoSelect and AngmarFarmLaborerNoSelect, children of Mordor's drawing KUWorker_SKN
+(sagekit/units/labourer.py `children`), which the Angmar pack names. Palette A2 (assets/angmar/style.py). python3 -m sagekit unit angmar/worker --render.
 """
 import math
 
-from assets.angmar.style import PALETTE
+from assets.angmar.style import PALETTE, AngmarStyle
 from sagekit.units import Unit
 from sagekit.units.cloth import HC, drape
 from sagekit.units.labourer import (ACCENT, AXE_BLADE, AXE_GRIP, DARK, ELBOW, GLOW, HAMMER_GRIP, HAMMER_HEAD,
@@ -86,6 +88,7 @@ class Worker(Labourer, Unit):           # (Unit: the framework's recipe scan loo
     """AngmarWorker's labourer, shipped under a name of its own."""
     own_model = "KUWorker_SKN"
     objects = {"AngmarWorker": (INI, "ModuleTag_01")}
+    children = AngmarStyle.workers          # the Angmar pack names them: installed before it, reverted after
     textures = {"MUOrcLabor.tga": "KUWorkCr.tga", "MUOrcWarr.tga": "KUWorkCr.tga"}
     house = {"KUWorkCr.tga": "HC_KUWorkCr.tga"}
     mask = ("HC_MUOrcLabor.tga", "HC_KUWorkCr.tga")

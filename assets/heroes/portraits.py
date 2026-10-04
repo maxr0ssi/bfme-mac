@@ -45,17 +45,11 @@ def model_source(hero):
         tex = json.loads((work / "textures.json").read_text())
         return (work / (MODEL.lower() + ".w3d"), src / (SKELETON.lower() + ".w3d"), src / "dudain_idlb.w3d", tex,
                 ["COAT", "BODY", "HEAD", "SHIELD", "HELMET", "REDAXE"])
-    g, src = Install(), OUT / "src"
-    src.mkdir(parents=True, exist_ok=True)
-    files = {}
-    for name in ("RUGamling_SKN", "GUBoromir_SKL", "GUBoromir_IDLA"):
-        p = src / (name.lower() + ".w3d")
-        p.write_bytes(g.read(g.model_path(name)))
-        files[name] = p
-    m = sheet_member(g, "rugambling.tga")
-    tex = src / m.split("\\")[-1]
-    tex.write_bytes(g.read(m))
-    return files["RUGamling_SKN"], files["GUBoromir_SKL"], files["GUBoromir_IDLA"], {"rugambling.tga": str(tex)}, ["RUROYALGUARD"]
+    from .gamling_model import GEAR, MODEL, SKELETON, folder
+    d, src, work = folder()
+    tex = json.loads((work / "textures.json").read_text())
+    return (work / (MODEL.lower() + ".w3d"), src / (SKELETON.lower() + ".w3d"), src / "guboromir_idla.w3d", tex,
+            ["RUGAMLING_MESH", GEAR])
 
 
 def ea_reference(name, dest):
