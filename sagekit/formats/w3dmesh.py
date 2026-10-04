@@ -92,14 +92,16 @@ class Source:
         return tuple(int(round(x)) for x in vals) if PER_VERTEX[t][1].endswith("B") else tuple(vals)
 
 
-def build_mesh(template, sources, name, container, verts, tris, skinned, rest=None):
+def build_mesh(template, sources, name, container, verts, tris, skinned, rest=None, exact=False):
     """A MESH chunk: `template`'s materials with the given vertices and triangles.
 
     sources: {key: Source}, carrying every template slot; unused extra colour chunks are allowed.
     verts: [(key, [(vertex, weight)], matrix, bone, {chunk id: value})]
     tris: [((i, j, k), surface type)]
     rest: a skin's bones' rest matrices: its header box and sphere are measured in the model's
-    space, where the skin stands at rest (EA's are), not in its vertices' bone spaces."""
+    space, where the skin stands at rest (EA's are), not in its vertices' bone spaces.
+    exact: a source vertex carried as it is (one source vertex, the identity matrix) keeps its normal
+    and tangent frame bit for bit, not renormalised (a skinned body's EA vertices, skinbody.py)."""
     used = sorted({i for ids, _ in tris for i in ids})       # vertices no triangle uses are dropped
     if len(used) != len(verts):
         remap = {v: k for k, v in enumerate(used)}
@@ -120,6 +122,9 @@ def build_mesh(template, sources, name, container, verts, tris, skinned, rest=No
             v = over.get(t) if t in over else sources[key].value(slots[key][k], combo)
             if t == VERTICES:
                 v = point(m, v)
+            elif t in FRAME and exact and len(combo) == 1 and combo[0][1] == 1 and t not in over \
+                    and [float(x) for x in m] == IDENTITY:
+                pass
             elif t in FRAME:
                 v = direction(m, v)
                 n = math.sqrt(sum(x * x for x in v)) or 1.0

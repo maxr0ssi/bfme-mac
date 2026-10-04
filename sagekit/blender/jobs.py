@@ -9,7 +9,7 @@ import bpy
 from .. import workspace
 from ..formats.w3d import W3DFile
 from . import scene
-from .layout import add_solids, own_layout, take_faces
+from .layout import own_layout, take_faces
 
 
 def _target(b):
@@ -37,7 +37,10 @@ def job_geometry(b, stage=None, cloth=None):
               ws.house["model"])
     from .capture import take_cloth         # a capturable building's dress cloth (sagekit/capture.py)
     take_cloth(b, obj, solids, ws)
-    added, stats = add_solids(obj, solids, b.style.atlas, b.world_space)
+    from .skintarget import add                 # a skinned target: new pieces on EA's bones (skinbody.py)
+    from ..skinbody import skeleton
+    sk = skeleton(ws) if W3DFile(ws.source_model).meshes[b.target].skinned else None
+    added, stats = add(obj, solids, b.style.atlas, b.world_space, *((sk.pivots[0][0], sk.names) if sk else ()))
     bb1 = scene.bbox(obj.data, obj.matrix_world if b.world_space else None)
     print("TRIS before", before)
     print("TRIS after ", {n: scene.tri_count(bpy.data.objects[n].data) for n in meshes}, "added", added, stats)
@@ -98,7 +101,9 @@ def job_export(b):
     ws = workspace.Workspace(b)
     from .capture import split              # a capturable building's dress: meshes of their own
     split(b)
-    scene.export_w3d(ws.export_model, b.target)
+    from .skintarget import export          # a skinned target: its skin export too (skinbody.py)
+    if not export(ws, b):
+        scene.export_w3d(ws.export_model, b.target)
     scene.save(ws.stage("export"))
 
 

@@ -249,6 +249,13 @@ class Fixup(Step):
         fixed, report = fix(orig, open(self.ws.export_model, "rb").read(), self.b.renames())
         print("\n".join("  " + x for x in report if x.startswith(self.b.target)))
         mesh = W3DFile(fixed).meshes[self.b.target].bytes
+        from . import skinbody                  # a skinned body: EA's skin kept, ours on EA's bones
+        if skinbody.skinned(self.ws):
+            path = skinbody.export_skin(self.ws)
+            skin, _ = fix(orig, open(path, "rb").read(), self.b.renames())
+            mesh, lines = skinbody.rebuild(orig, skin, self.b.target, skinbody.skeleton(self.ws, orig), self.b.renames(),
+                                           json.load(open(path[:-4] + ".json")))
+            print("\n".join("  " + x for x in lines))
         out = splice_mesh(orig, self.b.target, mesh, self.ws.container)
         from .nightlights import carry          # night meshes: our lights, in the faction's look
         out = carry(self.b, self.b.source, out, install=self.p.install)
@@ -461,7 +468,8 @@ class Render(Step):
                 self.blender("render", log_as="render_%s%s" % (tag, who), w3d=model, prefix=os.path.join(r, who + "_" + tag),
                              views=views, res=res, spp=spp, frame=body, **self.references(model, recoloured=who == "new"))
             self.labelled(r, views, res, tag)
-        from . import fire, lifecycle, nightlights
+        from . import fire, lifecycle, nightlights, skinanim
+        skinanim.render(self)                   # a skinned body: EA's animation played on ours
         lifecycle.render(self)                  # the construction / damaged / rubble models
         nightlights.render(self)                # night views: EA's night meshes against ours
         fire.render(self)                       # the fire points marked over the render

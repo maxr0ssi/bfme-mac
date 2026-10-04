@@ -91,7 +91,7 @@ def check_model(b, ws, r, m, e):
     # vertex influences valid; EA's skinned vertices carried into a piece keep EA's weights
     ea_bones, ea_skin = set(), {}
     for n in pieces:
-        ea_bones |= set(EA.vertex_bones(n))
+        ea_bones |= set(EA.vertex_bones(n)) | set(EA.follow_bones(n))     # (6, 7, 0, 100): follows bone 7
         for key, value in _skin_rows(we.meshes[n]):
             ea_skin.setdefault(key, set()).add(value)
     ea_rows = {v[0] for vs in ea_skin.values() for v in vs}

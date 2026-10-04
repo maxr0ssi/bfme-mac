@@ -183,6 +183,10 @@ class Building:
         read_skl = lambda skl: install.read(install.model_path(skl[:-4]))        # noqa: E731
         data = install.read(install.model_path(self.source))
         healthy, hf = W3DFile(data).meshes[self.target], mesh_frames(data, read_skl)[self.target]
+        if healthy.skinned:                     # a skinned body (sagekit/skinbody.py): at rest in model space
+            from .formats.w3dpose import Skeleton
+            from .skinbody import at_rest
+            healthy = at_rest(healthy, Skeleton(read_skl(W3DFile(data).skeleton())))
         data = install.read(install.model_path(model))
         frames = mesh_frames(data, read_skl)
         tol, tris = (2.5, False) if model.lower() in {x.lower() for x in self.also_derived} else (0.5, True)
@@ -286,13 +290,17 @@ class Building:
             return {}
         from .formats.textures import sheet_member
         out = {}
-        for t, lifecycle in self.state_textures(install, self.swap_variants(install)):
-            if "_nrm" not in t.lower():
+        states = self.state_textures(install, self.swap_variants(install)) + [(t, True) for t in self.state_normals]
+        for t, lifecycle in states:
+            if "_nrm" not in t.lower() and t not in self.state_normals:
                 continue
             out[t] = own_variant_name(self.sheet_atlas.texture, self.own_diffuse, t, same_length=True)
             if lifecycle and sheet_member(install, out[t]):     # (the derived bodies' were never checked:
                 raise ValueError("%s: %s is one of EA's names; pin one in own_textures" % (t, out[t]))  # kept as built)
         return out
+
+    state_normals = ()              # EA normal maps named off the _NRM pattern that state models draw our
+                                    # body with (KBMill_A's POST and RING: KBMillNormal): ours under their names
 
     def state_textures(self, install, swaps=()):
         """[(EA texture, from a lifecycle model)] our body is painted with in a state model that is
@@ -545,6 +553,14 @@ class Building:
     def design(self, kit):
         """-> [Solid]: every new solid, in the target mesh's local coordinates."""
         raise NotImplementedError
+
+    @staticmethod
+    def ride(solids, bone):
+        """A skinned target's pieces that move with EA's bone `bone` (its pivot name), rigidly; the
+        others stand still on the root (sagekit/skinbody.py). Returns the solids."""
+        for s in solids:
+            s.bone = bone
+        return solids
 
     def emphasis(self, center, normal):
         """Texel-density weight of a face (1 = average); the RTS camera's favourites get more."""

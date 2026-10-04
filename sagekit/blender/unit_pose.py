@@ -42,6 +42,8 @@ def run(j):
     pose = m.pose(frame)
     scene.clear()
     for name, mesh in m.w3d.meshes.items():
+        if name in j.get("hide", ()):          # a building's level-up, night and pick meshes (skinanim.py)
+            continue
         bones = m.vertex_bones(name)
         faces = [t for t in mesh.tris if all(pose[1][bones[v]] for v in t)]
         if not faces:

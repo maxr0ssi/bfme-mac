@@ -137,6 +137,9 @@ def run(b, ws, r):
         r.check("%s chunk identical" % name, x == y and len(x) <= 1, "%d bytes" % (len(x[0]) if x else 0))
     r.check("top-level chunk order unchanged", [t for t, _ in cn] == [t for t, _ in co], str([hex(t) for t, _ in cn]))
 
+    from ..skinbody import skin_checks              # a skinned body: EA's bones, animations, skin weights
+    skin_checks(b, ws, r, WO, WN)
+
     r.section("state variants (damaged / snow / stonework) and derived models")
     for ea, mine in sorted(ws.variants.items()):
         path = ws.shipped_texture(mine, ".dds")
@@ -219,6 +222,10 @@ def placed(ws, new, body, healthy, target):
         p = os.path.join(ws.src, name)
         return open(p, "rb").read() if os.path.exists(p) else None
     a, h = new.meshes[body], healthy.meshes[target]
+    if h.skinned:                           # a skinned healthy body: at rest in model space (skinbody.py)
+        from ..formats.w3dpose import Skeleton
+        from ..skinbody import at_rest
+        h = at_rest(h, Skeleton(skl(healthy.skeleton())))
     for how, fa, fh in (("as it stands", IDENTITY, IDENTITY),
                         ("in model space", mesh_frames(new.data, skl).get(body), mesh_frames(healthy.data, skl).get(target))):
         if fa and fh and all(abs(x - y) < 0.01 for x, y in zip(model_box(a, fa), model_box(h, fh))):
