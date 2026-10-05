@@ -42,6 +42,11 @@ EDITS = [
     # is bound by Wine's render thread (every draw call crosses into 64-bit OpenGL), and zooming out
     # draws more units, trees and buildings - 1000 made big battles unplayable, 700 is measured fine.
     (r"data\ini\gamedata.ini", None, "DefaultCameraMaxHeight", "700.0"),
+    # Pathfinder: a path search gives up after 5000 new cells instead of 15000. A search that fails
+    # (a horde's footprint does not fit where the zone check said yes, a goal walled in by units)
+    # runs to this limit in one logic phase; the unit then gets the closest-path fallback and paths
+    # again on arrival, as it does now at 15000. docs/PERFORMANCE.md §20.
+    (r"data\ini\gamedata.ini", None, "MaxCellsFindPathLimit", "5000"),
 ]
 
 
