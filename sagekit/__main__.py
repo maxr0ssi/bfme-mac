@@ -90,6 +90,8 @@ def cmd_validate(a):
             print("FAIL %s: %s" % (uid, e))
     from .upgrades import validate as upgrade_limit
     bad += upgrade_limit()                      # EA's upgrades + ours within the engine's 1152
+    from .texbake import validate as texture_formats
+    bad += texture_formats()                    # staged archives: no TGA left to build mips in game
     bad += cmd_budget(a)
     return 1 if bad else 0
 
@@ -290,14 +292,14 @@ def cmd_install(a):
         return 1
     if a.revert:
         from .install import revert_faction
-        revert_faction(a.faction)
+        revert_faction(a.faction, dry=a.dry_run)
     else:
         install_faction(a.faction, check=a.check)
 
 
 def cmd_revert(a):
     from .install import revert_faction
-    revert_faction(a.faction)
+    revert_faction(a.faction, dry=a.dry_run)
 
 
 def cmd_unit(a):
@@ -381,6 +383,7 @@ def main(argv=None):
     for name in ("install", "revert"):
         p = sub.add_parser(name)
         p.add_argument("faction")
+        p.add_argument("--dry-run", action="store_true", help="with a revert: say what it would write")
         if name == "install":
             modes = p.add_mutually_exclusive_group()
             modes.add_argument("--check",action="store_true",help="stage and verify without installing")

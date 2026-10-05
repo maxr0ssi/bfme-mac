@@ -7,8 +7,12 @@
       - the faction INIs with every building's edits applied to EA's text, in order
     asset.dat: patch the CURRENT cache, preserving other installed factions and units.
 
-Every write is staged and backed up. Revert restores the last installation only when its
-files still match the receipt, never overwriting a later installation's shared cache.
+Every write is staged and backed up. Revert restores a file from the receipt's backup when it
+still matches the receipt. An asset.dat a later install changed since gets record-level revert
+instead: the records the pack's ops wrote (installed-ops.json) go back as the backup holds them
+(EA's, or an earlier build's, whose archive comes back too), after checking they are still the
+ones it wrote; every other record is untouched (sagekit/units/records.py). Anything else changed
+since is refused.
 """
 import hashlib
 import json
@@ -246,6 +250,8 @@ def install_faction(faction, log=print, check=False):
     expected[dest] = read(dest)
     ops = {}
     files, updates = prepare(faction, ops)
+    from .texbake import bake                       # TGAs ship with their mips built (sagekit/texbake.py)
+    files = bake(files, log)
     from .inherit import clashes                    # one INI, two packs: the first would hide the other
     for member, other in clashes(archive_name(faction), files):
         raise SystemExit("%s ships %s, which %s ships otherwise; nothing staged" % (faction, member, other))
@@ -271,16 +277,51 @@ def install_faction(faction, log=print, check=False):
     if game_running():
         raise SystemExit("game started during staging; nothing installed")
     apply(updates,stage/"receipt.json",expected)
-    log("Installed %s; scoped backups saved, unrelated records preserved." % faction)
+    atomic(stage/"installed-ops.json", (json.dumps(record, indent=1)+"\n").encode())  # revert's (--check
+    log("Installed %s; scoped backups saved, unrelated records preserved." % faction)  # rewrites cache-ops)
 
 
-def revert_faction(faction, log=print):
-    revert_receipt(Path(paths.BUILD)/faction/"_install/receipt.json")
-    log("Restored files from the last %s installation only." % faction)
+def installed_ops(faction):
+    """({Path(live asset.dat): [op]}, model reader) of the faction pack in the game folder, from
+    installed-ops.json or cache-ops.json, whichever describes that archive (--check rewrites
+    cache-ops.json), else ({}, None).
+    Refuses when another faction pack's ops write one of the same records."""
+    from .formats.big import Archive
+    from .units.records import written
+    stage = Path(paths.BUILD)/faction/"_install"
+    dest = Path(paths.GAMEDIRS["rotwk"])/archive_name(faction)
+    have = digest(dest.read_bytes()) if dest.exists() else None
+    recs = [json.loads(f.read_text()) for f in (stage/"installed-ops.json", stage/"cache-ops.json") if f.exists()]
+    rec = next((r for r in recs if have and r.get("archive_sha256") == have), None)
+    if rec is None:
+        return {}, None
+    ops = {Path(paths.GAMEDIRS[g])/"asset.dat": [tuple(op) for op in o] for g, o in rec["caches"].items()}
+    for other in Path(paths.BUILD).glob("*/_install/cache-ops.json"):
+        if other.parent.parent.name == faction or not (other.parent/"receipt.json").exists():
+            continue
+        theirs = json.loads(other.read_text())["caches"]
+        for g, o in theirs.items():
+            mine = set(written(ops.get(Path(paths.GAMEDIRS[g])/"asset.dat", [])))
+            both = mine & set(written([tuple(op) for op in o]))
+            if both:
+                raise SystemExit("%s and %s both write asset.dat %s; refusing a record-level revert"
+                                 % (faction, other.parent.parent.name, " ".join(sorted(both)[0])))
+    return ops, lambda model: Archive(str(dest)).read(Install.model_path(model[:-4]))
 
 
-def revert_receipt(receipt):
-    """Restore the files one receipt lists, refusing if any changed since (sagekit/pack.py too)."""
+def revert_faction(faction, log=print, dry=False):
+    updates = revert_receipt(Path(paths.BUILD)/faction/"_install/receipt.json", lambda: installed_ops(faction), dry)
+    if dry:
+        log("Dry run: would write %s" % ", ".join("%s (%s)" % (p, "remove" if d is None else "%d bytes" % len(d))
+                                                   for p, d in updates.items()))
+    else:
+        log("Restored files from the last %s installation only." % faction)
+
+
+def revert_receipt(receipt, cache_ops=None, dry=False):
+    """Restore the files one receipt lists, refusing if any changed since (sagekit/pack.py too).
+    cache_ops() -> ({Path(asset.dat): [op]}, model reader): in an asset.dat changed since, only the
+    records those ops write go back as the backup holds them, every other record untouched."""
     if game_running():
         raise SystemExit("close the game before reverting")
     if not receipt.exists():
@@ -290,14 +331,22 @@ def revert_receipt(receipt):
     for e in entries:
         p = Path(e["path"])
         expected[p] = read(p)
-        if digest(expected[p]) != e["after"]:
-            raise SystemExit("Later changes to %s; refusing to overwrite them." % p)
         before = Path(e["backup"]).read_bytes() if e["before"] is not None else None
         if digest(before) != e["before"]:
             raise SystemExit("Backup damaged: %s" % e["backup"])
         updates[p] = before
+        if digest(expected[p]) != e["after"]:
+            ops, model = cache_ops() if cache_ops and p.name == "asset.dat" and before else ({}, None)
+            if p not in ops:
+                raise SystemExit("Later changes to %s; refusing to overwrite them." % p)
+            from .units import records             # this install's records as the backup has them
+            live = AssetCache(str(p))
+            updates[p] = records.unstage(live, records.copy(live, before), ops[p], model)
+    if dry:
+        return updates
     apply(updates,receipt.with_name("revert-receipt.json"),expected)
     receipt.unlink()
+    return updates
 
 
 def selfcheck():
@@ -378,7 +427,19 @@ def selfcheck():
             pass
         else:
             raise AssertionError("stale preparation accepted")
-    print("PASS: scoped cache/pack changes, revert guards, idempotence, rollback, stale preparation")
+        from .units import records                   # a later install's record survives the revert
+        later = [("texture", "dwarf.tga", "base.tga", None, None)]
+        with patch.object(paths,"BUILD",tmp),patch.dict(paths.GAMEDIRS,{"rotwk":tmp}), \
+                patch(__name__+".game_running",return_value=False):
+            assert apply(updates,receipt)
+            (receipt.parent/"cache-ops.json").write_text(json.dumps(dict(archive_sha256=digest(updates[elf]),
+                                                         caches={"rotwk":[op for op,_ in ops[str(cache)]]})))
+            cache.write_bytes(records.staged(AssetCache(str(cache)),later,None).data)
+            revert_faction("elves",log=lambda _:None)
+        assert cache.read_bytes() == records.staged(records.copy(probe,original),later,None).data
+        assert not elf.exists()
+    print("PASS: scoped cache/pack changes, revert guards, idempotence, rollback, stale preparation, "
+          "record-level revert after a later install")
 
 
 if __name__ == "__main__":
