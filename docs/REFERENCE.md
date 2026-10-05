@@ -80,7 +80,7 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   art pipeline (Blender → W3D → `asset.dat`).
 - `tools/make_group_pack.py <rotwk|bfme2>` — builds the **group pack**, `!!!!!!!!!!group-pack.big`, from
   your own install: INI copies with our tweaks (4000 particles, heat effects off, camera max
-  height 700) that override the game's own because the name sorts first. Install with
+  height 700, path searches give up after 5000 cells instead of 15000) that override the game's own because the name sorts first. Install with
   `scripts/install-mod.sh rotwk build/group-pack/rotwk/install`; everyone playing together needs the
   same pack (`MULTIPLAYER.md`). The edits are the `EDITS` list at the top of the tool.
 
@@ -113,7 +113,9 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   per-pass render timers (`passtimers`) and shadow volumes built on several cores (`shadowpar`,
   which checks itself against the serial result for its first 300 frames). Every patch checks the exact original bytes first, gives bit-identical
   results (so patched and unpatched players can play together) and can be switched off in
-  `gamepatch.ini` or with `GAMEPATCH_<NAME>=0`. `play-rotwk.sh` loads it (`dinput8=n,b`) while
+  `gamepatch.ini` or with `GAMEPATCH_<NAME>=0`. Exceptions: `moveawaycap` and `moveawayqueue` change
+  the game logic (the same way on every machine), so every LAN player needs them set alike
+  (`docs/PERFORMANCE.md` §20). `play-rotwk.sh` loads it (`dinput8=n,b`) while
   `gamepatch.ini` is in the game folder; log in `logs/gamepatch.log`. `--test` runs the standalone
   bit-exactness tests (`gamepatch/tests/`) in a throwaway prefix; `--bundle` makes the two files
   another player copies into their RotWK folder. Record: `docs/PERFORMANCE.md` §10.

@@ -13,7 +13,8 @@ Contents: 1 pipeline · 2 in-game measurements · 3 GL call costs · 4 synthetic
 5 d3d9 test suite · 6 Wine fixes · 7 Vulkan · 8 other levers · 9 crashes · 10 game patch
 (10.1 render side, 10.2 shadow volumes, 10.3 shadow-map pass, 10.4 particles, 10.5 game logic) ·
 11 d3dx9 effects · 12 per-draw FX cost · 13 first-use texture loads · 14 eight-player games ·
-15 our art's draw cost against EA's · 16 session monitor.
+15 our art's draw cost against EA's · 16 session monitor · 17 logic phase 5 · 18 spell-cast freezes ·
+19 unit-count scaling.
 
 Machine: MacBook Pro, Apple M3 Max (12P+4E cores, 40-core GPU), 64 GB unified memory, macOS 26.3,
 `powermode 0`. Engine `engines/w10` (Sikarugir wine-staging 10.0, new-style WoW64, x86_64 under
@@ -1133,3 +1134,310 @@ Expected gain, from the profiles (no phase split yet): sqrt ~2,800 calls per dra
 HordeContain and the pathfinder in phase 5. The next session's `lmath2:` line gives the real call counts,
 and logicstats (`scripts/measure-session.sh on`) the per-phase time.
 
+
+## 18. Spell-cast freezes: the Eye of Sauron, read from the code (2026-10-05, static)
+
+Max: casting spell-book powers (the Eye of Sauron, for one) freezes big games for 0.5–1.4 s. The
+2026-10-05 session had 13 such freezes (472–1362 ms, main thread 100 %, render thread idle, no
+loads; §16.1), all in logic phases 3–4 by the earlier analysis. New rule from Max: results need not
+match EA's, only be the same on every machine running our build (no clocks, thread order or
+uninitialised data). Everything below is from the INI (`__patch202.big`, the files the game loads)
+and the disassembly; the per-cell costs are estimates, marked as such.
+
+### 18.1 What the cast does
+
+`OCLSpecialPower` (system.ini) runs `SUPERWEAPON_SpawnEyeOfSauron`: one `EyeOfSauron` object at the
+target (object/evilfaction/units/mordor/eyeofsauron.ini). Its modules:
+
+| module | effect | update list / phase | changes an AI state? |
+|---|---|---|---|
+| AttributeModifierAuraUpdate `ModuleTag_FearMe` | every 1 s, enemy `INFANTRY`/`CAVALRY` of rank 1 within 150 get `EyeOfSauronFear` (2 s): ModelCondition `EMOTION_AFRAID`, nothing else | 2 (phase 5) | no (below) |
+| AttributeModifierAuraUpdate `ModuleTag_OrcTroopBonus` | every 2 s, allies within 150 get `GenericHeroLeadership` (armour, damage, XP, FX) | 2 (phase 5) | no |
+| vision 200, StealthDetectorUpdate (500 ms) | reveals the area to the caster's team, unstealths | 2 | indirectly (18.4) |
+| AIUpdateInterface, PhysicsBehavior, LifetimeUpdate 60 s | the Eye itself (NO_COLLIDE aircraft, moves only when ordered) | 0 / 2 | no |
+| SpecialPowerModule `ModuleTag_EyeStarter` | nothing triggers it (its AntiCategory line is commented out) | - | no |
+
+**The fear is cosmetic in the logic.** `EMOTION_AFRAID` is model-condition bit 64 (Object+0x10C
+bitset). Setting it calls the change notifier 0x68b53c: the Drawable picks a new animation and
+AIUpdateInterface::wakeUpNow (0x662552) schedules the unit's AI for the next AI update. Nothing in
+the logic reads the bit to change behaviour: the only constant tests of it (Object+0x114 bit 0, at
+0x749810 and 0x7568cf) are in cower states that set and clear it on themselves, and the Lua uses it
+only to pick a sound (`MordorFighterBecomeUncontrollablyAfraid`). The fear emotions (FearIdle →
+`BACK_AWAY`, FearBusy → `AVOID_SCARER`, Terror → `RUN_AWAY_PANIC`; emotions.ini) start only for
+objects in `EMOTION_AFRAIDOF_OBJECTFILTER` or from Lua broadcasts (Balrog, Phial, gate damage); the
+Eye is in neither. So with ~200 units in the area, no unit changes state and none asks for a path.
+
+**Its cost** (estimate): the cast frame (phase 5) has one object creation, two partition scans of
+radius 150, ~200 modifier applications with model-condition changes, the leadership FX on the allies
+and a radius-200 shroud reveal: about 5–15 ms. The next phase 3 or 4 runs the ~200 woken AI updates
+once: 1–6 ms, or up to ~120 ms if all of them are due a target scan (iterateObjects 0xa3bdb0, about
+0.1–0.6 ms each in a crowd) in the same phase. **That is one to two orders below 0.5–1.4 s: the Eye
+alone does not add up.**
+
+### 18.2 What else runs in phases 3–4: the pathfind queue
+
+§14 and §17 said phases 3–4 run only update list 0. They also run the pathfind queue:
+GameLogic::update calls it (0x6f2364, call at 0x62e69f) at the top of every phase, before the
+phase's lists, and TheAI's update calls it again in phase 5. Each call resets its counter and serves
+requests (AIUpdateInterface::doPathfind 0x668e94, vt+0x230) while the counter is below
+`MaxPathfindCellsPerFrame` = 4000 (gamedata.ini; x100 in a match's first 25 logic frames). The cells
+are charged only when a search ends (cleanOpenAndClosedLists 0x6f5519), so the budget is checked
+between requests: one request runs to its own end, however long.
+
+### 18.3 The searches and their limits
+
+| search | limit (gamedata.ini, GlobalData offset) | reached from |
+|---|---|---|
+| findPath (vt+0, 0x6fe7cb): zone check, hierarchical pass, cell search 0x6fd06f | `MaxCellsFindPathLimit` 15000 (+0x1210); after 2000 cells only cells within twice the best distance to the goal expand | queue only |
+| findClosestPath 0x6fb869, slot 5 0x6fce1a | soft 2000 | queue only |
+| findAttackPath 0x6fc18e / sideways 0x6fde38 | 2500 / 2500 (+0x1214 / +0x1218) | queue only |
+| path patch 0x6fc9da | `MaxCellsPatchPath` 2000 (+0x120c) | queue only |
+| **getMoveAwayFromPath 0x6fb231** | **none** | privateMoveAwayFromUnit 0x66da5f (AI command 0x34) |
+| adjustDestination 0x6fe456 | 400 candidate cells (+0x11f0) + one checkPathCost 0x6f70d5 of ≤500 cells | AI states (phases 3–4) |
+| 0x6f74d0, adjustToPossibleDestination 0x6f3c87, melee spots 0x6f37b3 / 0x6fb67a | 200, 400, 50, 200 | AI update (phases 3–4) |
+
+- The PathfindServicesInterface searches are reached only through doPathfind, which only the queue
+  calls. No AI state calls them directly; the searches inside AI updates are the small bounded ones
+  in the last two rows (worst case a few ms each).
+- getMoveAwayFromPath is a goal-less flood (Dijkstra) from the unit until a cell is free of other
+  units' goals (checkDestination 0x6f3082) and its box, unit radius plus the other unit's, misses
+  every segment of the other unit's path, and of a second unit's (LineInRegion per segment, per
+  popped cell). If it finds nothing, privateMoveAwayFromUnit runs it a second time with
+  canPathThroughUnits. A horde member forwards the order to its horde (0x66dad7), which then searches
+  with the horde's footprint. Issuers of command 0x34: Pathfinder::moveAllies 0x6f503b (inside
+  doPathfind, computePath 0x6668ca and computeAttackPath 0x665c33, when the new path is blocked by
+  allies: every idle, not-attacking ally on the path's cells gets the order), the exit-production
+  line callback 0x6f53af and gates (GateOpenAndCloseBehavior). moveAllies' depth limit is 1
+  (0x6f50b4), so the cascade is one level wide: one path, K allies, K floods.
+- The open list is a binary heap (push 0x6f4b45 = vector push_back + push_heap, pop 0x6f4af2), each
+  cell is tested for open/closed (0x6e7f98, 0x6e7f85) before any work, so a cell is examined at most
+  once: no O(n²) list. The cell-info pool grows 256 at a time (0x934538) and never refuses.
+
+### 18.4 Cost per examined cell (estimate from the code)
+
+examineNeighboringCells 0x6f9850 does for each of the 8 neighbours: the open/closed tests, cost
+terms, the hierarchical-corridor bitset (+1000 cost outside it), two CRT floor calls, a heap push,
+the footprint check 0x6ebaa0 over d x d cells and the crowd scan 0x6ed21e over 1, 9 or 25 cells.
+d is the pathfind diameter in cells (0x6eaf79: geometry diameter / 10, capped at 5, or 9 for
+HORDE, MONSTER and SHIP): infantry 2 (4 cells), a 30x45 horde box 9 (81 cells). Every unit listed in
+a footprint cell costs a relationship test; every unit in the crowd-scan cells costs a relationship
+test, two AI-priority calls and a heading test. At ~0.3–0.5 ns per simple instruction under Rosetta
+and ~50–150 ns per unit test:
+
+| mover | open ground | in a packed group |
+|---|---|---|
+| infantry | 3–5 µs per popped cell | 6–12 µs |
+| horde (81-cell footprint) | 10–15 µs | 20–45 µs |
+
+### 18.5 Does a queue request add up?
+
+| request | cells | time (estimate) |
+|---|---|---|
+| ordinary findPath | 100–1,000 | 1–15 ms |
+| findPath that fails for a horde (the cell search cannot fit the 9-cell footprint where the zone check said yes, or the goal is walled in by units) | 2,000–4,000 typical, 15,000 at most, + closest-path fallback ~2,000 | 0.06–0.25 s typical, up to ~0.8 s |
+| one move-away by a horde in a packed group (no free cell until the group's edge) | 1,000–3,000 | 20–135 ms; twice if the first finds nothing |
+| move-away with no free cell anywhere reachable (boxed in, or the other path's corridor covers it) | the whole connected area, 10^4–10^5 | 0.2–4 s, twice |
+| one path blocked by K idle allies (moveAllies) | K move-aways | K = 5–20: 0.1–2.7 s |
+
+So a single request, served at the top of whichever phase comes next, can take 0.5–1.4 s, and the
+Eye cannot. Its link is indirect at most: the reveal and the leadership let the caster's idle
+hordes pick targets, their approach paths run through their own packed army, and moveAllies sends
+every idle horde on each path into a move-away flood. The same happens without any spell wherever
+idle groups stand packed, such as rally points that new units leave production through. That fits
+the timing better than battle size does: all 13 freezes came between minutes 1 and 4.6 of the first
+match (logic frames 295–1374, 680–1150 objects), none in its last ~45 s or in the 4-minute second match. The
+one thing this reading does not settle is which of the two (failed horde findPath, move-away
+cascade) dominates; the installed stall sampler names it from the next game's samples without extra
+steps (chain 0x62e69f > 0x6f2364 > 0x668e94 > 0x6fd06f or > 0x66da5f > 0x6fb231).
+
+### 18.6 Fix design, ranked by gain
+
+All of these count cells, units and queue entries, never time, so every machine running our build
+does the same thing: the queue runs once per logic phase (six per logic frame, in lockstep), its
+requests come in the order the AI updates queue them, and the caps and orders below depend only on
+game state. No change is visible in the picture; the gameplay effects are listed.
+
+1. **Cap getMoveAwayFromPath** (0x6fb231) at N popped cells, N = `MaxCellsAdjustDestination` (400,
+   GlobalData+0x11f0) or a constant; at the cap it returns no path, and the second attempt is capped
+   the same way. Removes the only search with no limit: worst case per move-away from seconds to
+   ~20 ms (400 x 45 µs). Gameplay: a unit deep inside a packed group does not step aside; the mover
+   keeps its path and waits or squeezes past as it does now when a move-away finds nothing.
+2. **Queue the move-aways.** moveAllies sends at most M orders per request (M = 2, say) and queues
+   the rest in the order it finds them on the path; later queue runs serve them inside the 4000-cell
+   budget. Gameplay: allies step aside one to a few phases later (up to ~0.1 s). Together with 1,
+   the cascade term (K x flood) becomes a few ms per phase.
+3. **Lower `MaxCellsFindPathLimit`** 15000 → 5000 (gamedata.ini, an INI change that ships in our
+   archive; nothing to patch). The worst failing horde findPath falls from ~0.7 s to ~0.23 s.
+   Gameplay: a route needing more than 5000 cells (rare with the hierarchical corridor; long mazes
+   on big maps) gets the closest-path fallback and re-paths on arrival.
+4. **Exact per-cell speed-ups**, bit-for-bit the same results (the logicmath pattern, §10.5):
+   Object::getRelationship once per (player pair) per search instead of per unit test, the two CRT
+   floor calls as SSE (as worldcell), and the footprint loop skipping cells with no units. Expected
+   1.5–3x on every search, queued or not. No gameplay change.
+5. A per-phase cap on move-away searches ordered by object ID is covered by 2. "One search per
+   horde" already holds: members forward move-away orders to their horde, and hordes path as one.
+
+Not chosen: a time budget (differs between machines, so it would desync), and resumable A* across
+phases (a large patch; 1–3 bound the single request, which is what freezes).
+
+## 19. Logic that grows with the unit count: ranking, and two exact speed-ups (2026-10-05, static + standalone tests)
+
+Big 8-player games: what on the main thread scales badly with n units, read from the exe, Open-BFME-1/2
+and the Zero Hour source. Big battle = 1,500 units, ~1,000 of them moving, ~60 hordes of 25; logic
+5 steps/s. Measured per-call costs come from standalone tests under Wine (engine w10) running the
+exe's own code; per-step totals are **estimates** from those costs and the counts in brackets.
+
+| rank | system | shape in n | per logic step at n = 1,500 (estimate) | evidence |
+|---|---|---|---|---|
+| 1 | shroud redraw on cell crossings | O(crossings x R²): every 40-unit cell crossing redraws the unit's vision circle (R = 8-15 cells, 200-700 cells) plus up to 3 counter-layer circles and one queued undo | 3-20 ms (~300 crossings x 2-5 circles x 2-15 µs) | circle r=10, 1 vision bit 1.95 µs; r=15, 4 bits 15.5 µs (t_shroud); per cell and player bit a virtual predicate call and a call to 0xb52e10/0xb52ec0/0xb52bf0 |
+| 2 | range scans (AI mood targets, auras, fear, emotion tracker, stealth detection, hunts) | O(n·k), k = units in the scan radius, so O(n²) in a clump; RotWK sets AttackPriority on nearly every unit, so mood scans take the full-radius, sorted path | 3-10 ms (~300-700 queries of ~20 µs; distance calls 3,800 per step at 1,100 objects in the 10-05 session, ~2-4x that in a 1,500-unit battle) | query in a 1,000-unit battle, r=300: 19.7 µs as installed (t_scan); 0xa3c4e0 walks 21 per-player quadtrees, 1 result alloc + log2(k) vector growths per query |
+| 3 | HordeContain formation | O(m) per horde every ~15 frames (slot position: sqrt, CRT acos, fsin, fcos, terrain query; updateGoal per member); an O(m²) member-slot swap (0x2435F0 in BFME1) of unknown frequency | 1-3 ms | Open-BFME-1 HordeContain; rate unconfirmed |
+| 4 | PhysicsBehavior | O(n): ~2 terrain-height queries, integration, pitch/roll atan2 for some | 1-2 ms | ZH PhysicsUpdate.cpp:627-924; RotWK update not mapped |
+| 5 | attribute modifiers and auras (beyond their scans) | O(hits) per pulse: name hash, linear search of the target's modifiers, one AsciiString per hit; fortress auras with Range 99999 hit every unit every ~2 s | 0.5-2 ms | Open-BFME-1 AttributeModifierAuraUpdate.cpp:198-272 |
+
+Stealth: StealthUpdate is O(1) per stealthed object per frame, detectors (~10 at DetectionRange 800,
+every 3 frames) ~2k candidates a step: under 0.5 ms. ZH's per-cell collision pairs (O(Σk²))
+are absent from BFME1's binary by Open-BFME-1's reading; not verified in RotWK. Spell reveals: one circle when the reveal
+appears and one undo when it goes; a growing reveal redraws on every change (~530 cells at r=500).
+
+**Implemented** (code `gamepatch/src/p_shroud.c`, `p_scan.c`, `gp_scale.h`; tests `t_shroud`, `t_scan`;
+switches `shroudspan`, `scantree`, on by default; log lines `shroudspan:` / `scantree:` every 60 s and
+at exit with their counts). Both give the original's results bit for bit, so they are deterministic
+across machines and LAN-safe even if only one player has them on.
+
+| patch | site | what | proof | measured |
+|---|---|---|---|---|
+| shroudspan | `jmp` at 0xb4fc80, 0xb4fd20, 0xb4fdc0 (hash-checked with their helpers 0xb4e460, 0xb52e10, 0xb52ec0, 0xb52bf0 and the constant-true predicate 0x5879b0) | the span's per-cell, per-player-bit counter update inline; the original per-cell function still runs where the cell's visible status changes (counts 0, 1, 0xfffe, 0xffff: object status caches, the client refresh callback), in the same order; any other predicate is called as before | 400 k random spans (clipped, empty, reversed, any 20-bit mask, a recording predicate, amounts past both clamps) and 20 k whole circles through the original raster 0xb50100, each against an untouched copy on an identical grid: 0 mismatches in grid, object caches and callback/predicate call logs | span of 21 cells 108 -> 38 ns; circle r=10, 1 bit 1.95 -> 0.65 µs; r=15, 4 bits 15.5 -> 4.45 µs |
+| scantree | the walk's call at 0xa3c659 (0xa3c4e0, 0xa3a860, append, filter chain, both 2D distance tails hash-checked) | the quadtree walk iterative and in the original's order; the centre and bounding-circle 2D distances inline in SSE after the same getter calls (x87 replica of the original arithmetic outside the safe range or in another FPU mode); filter chain and append fast path inline; region queries run the original walk | 200 k random queries (distance types 0-3, 0-3 filters, sorts, regions, clustered worlds, huge/tiny/denormal/inf/NaN values) and 70 k in 7 other x87 modes, against the untouched copy through the game's own 0xa3c4e0 and linkNode-built trees: identical result vectors and getter/filter call logs | per query (1,000-unit battle, r=300, circle, 2 filters, sorted, 119 candidates): 71.6 µs unpatched, 19.7 µs with distcalc (as installed), **8.6 µs** |
+
+A finding on the way: with a NaN distance in a sorted result, EA's sort (0xa3a6b0/0xa3a700) runs
+past the vector and its output depends on the memory around it, original against original. It needs
+NaN positions, so it should not occur in play; t_scan compares those results unsorted.
+
+Expected in game (estimate, from the shares above): shroudspan saves ~65-70 % of rank 1, 2-14 ms a
+logic step; scantree ~55 % of a query, 1.5-5 ms. The next session's `shroudspan:` and `scantree:`
+lines give the real span, cell, walk and candidate counts per minute to replace these estimates.
+Next candidates: getClosestObject 0xa3bdb0 (102 call sites: a best-first search with a static heap
+vector, CRT floor/ceil per improvement), the 3D distance functions 0xa3a7d0/0xa3aeb0 if the
+`scantree:` line shows many table calls, and the horde slot swap once logicstats names its rate.
+
+## 20. The pathfinder: how a search works, a benchmark on the game's own code, and four fixes (2026-10-05, standalone tests)
+
+Follows §18. Max's rule for this work: results need only be the same on every machine running our
+build (no time, thread order, addresses or uninitialised data); they may differ from EA's.
+
+### 20.1 The algorithm, from the code
+
+- **Grid.** One `PathfindCell` (16 bytes: info pointer, flags with type, layer, pinched and road
+  bits) per 10x10 world units, stored as columns (`pf+0x10[x] + 16*y`); bridges are extra layers.
+  A 4800-unit 8-player map is 480x480 = 230 k cells. Per-search state lives in a 60-byte
+  `PathfindCellInfo` taken from a pool (0xdea438, grows 256 at a time) when a cell is first touched.
+- **Open list: already a binary heap** (STL `push_heap`/`pop_heap` on a vector of cell pointers,
+  0x6f57a1 / 0x6f4af2, O(log n)), keyed by the info's 16-bit total cost. A cell is skipped once it is
+  open or closed (no decrease-key), so each cell is pushed at most once. No sorted-list problem to fix.
+  The compare reads cell -> info -> cost (two dependent loads per compare, infos scattered over the
+  pool: the heap is cache-unfriendly, but it is not where the time goes, below).
+- **Costs.** Integers: 10 orthogonal / 14 diagonal, +14 pinched, turn penalties, +10 per blocked
+  footprint cell, +1000 outside the hierarchical corridor, +10 in the AI danger grid, plus the crowd
+  cost. Heuristic 10·max + 5·min of |dx|, |dy| (it overestimates diagonals, so the search is greedy
+  rather than optimal). Every 16th expanded cell a jump-ahead step (0x6f6d57) tries a straight run
+  toward the goal (its own counter 0xde4b14, limit MaxCellsToExamineTowardsGoal 25000).
+- **Per expanded cell**, the search step 0x6f9850 does for each of 8 neighbours: getCell (a call),
+  the open/closed tests, a passability test, **checkForMovement 0x6ebaa0 over the unit's
+  (2r+c)² footprint** (a getCell call per footprint cell; per unit standing there a relationship
+  call and up to four more game calls), cost terms, two CRT floor calls for the danger grid, and
+  **the crowd cost 0x6ed21e over the same window** (per unit heading there a relationship call, two
+  AI-priority calls, a "moving" call, and for movers two x87 distances with CRT sqrt, two x87
+  divides by locomotor speeds and a terrain height through two virtual calls). Footprints: 1 cell
+  for small infantry, up to 9x9 = 81 for hordes, monsters and ships (§18.4).
+- **x87 under Rosetta:** the crowd maths (fsub/fmul/fadd, sqrt, fdivr), the cliff height test
+  (fabs) and the floor calls; the rest is integer code and calls. Memory: the cell columns are read
+  9-81 times per neighbour (once per footprint window that covers them), infos are scattered.
+- **Worst case per search** (gamedata.ini): findPath gives up after MaxCellsFindPathLimit = 15000
+  new cells; findAttackPath 2500, path patch 2000, adjustDestination 400; the move-away flood
+  getMoveAwayFromPath 0x6fb231 has **no limit**. Found on the way: the jump-ahead counter 0xde4b14
+  and the infos that stay on cells (units', obstacles') carry state from one search into the next,
+  so a search depends on the searches before it; that is the same on every machine (same history),
+  so it is not a desync source, but a test must reset it (t_path does).
+
+### 20.2 The benchmark: `gamepatch/tests/t_path.c` (+ `t_path_world.c`)
+
+It runs the exe's own pathfinder code under Wine (engine w10, the game patch's floor and sqrt in the
+imports as installed): the search loop of findPath 0x6fd06f around the game's pop, closed list,
+layer check, search step, info pool and clean-up, on a synthetic 480x480 map (lakes, cliffs, 260
+buildings with obstacle infos, 8 walled bases, one closed) with 6400 units in four battle clusters,
+one of them a packed block of 1600 standing units. Only what lies outside the pathfinder is stood in
+for: relationship, "is moving", AI priority, locomotor speed, three blocker lookups, footprint
+parity, three terrain height methods. Movers have footprints of 1, 3, 4 and 9 cells. Those
+stand-ins cost a few ns, the game's own versions far more, so the numbers below understate the
+original's per-unit cost and the gain of 20.3.
+
+Results (24 searches, median of 3 runs each, ms per search, original -> pathfind patch; the machine
+was shared with five other jobs, so the spread is about ±30 %):
+
+| searches | cells expanded (mean) | mean | slowest | per expanded cell |
+|---|---|---|---|---|
+| across the map | 2,501 | 5.84 -> 3.75 | 18.8 -> 9.6 | 2.3 -> 1.5 µs |
+| into a battle | 11,039 | 13.6 -> 12.4 | 27.8 -> 20.7 | 1.2 -> 1.1 µs |
+| unreachable goal (runs to 15000 cells) | 12,102 | 15.2 -> 12.8 | 28.0 -> 20.8 | 1.3 -> 1.1 µs |
+| unreachable goal, limit 5000 (20.5) | | 12.8 -> 6.7 | | |
+
+### 20.3 pathfind (exact, on): the two footprint scans memoised per search
+
+`gamepatch/src/p_path.c`. checkForMovement and the crowd cost rewritten with the original's control
+flow and writes, called from the search step and the jump-ahead step only (4 call sites), with: the
+ground getCell inline; every per-unit and per-mover answer (relationship, moving, priority, speed,
+parity) asked once per search, kept in a memo indexed by object ID (verified by pointer equality,
+never dereferenced); the crowd distances and divides in SSE single precision, which is what the x87
+code gives in the game's FPU mode (other modes run the original); the terrain height the original
+computes and never reads is skipped. The memo ends at the clean-up every search ends with (0x6f5519)
+and when a search step starts with at most one closed cell or another mover. Proof (t_path [2]-[4]):
+200 k direct calls of each function, original vs patched, same results and the same bytes in the
+movement-info struct; 24 whole searches give the same popped-cell sequence, path, cost, cell count
+and final lists; again in a second world with another memory layout and pool order: identical. Gain
+in the bench x1.1-1.6, more in the game (the real per-unit calls are dearer than the stand-ins).
+No gameplay change.
+
+### 20.4 moveawaycap (changes logic, on): the move-away flood stops after 400 popped cells
+
+The flood's pops (call 0x6fb626) go through a counter; a new flood is one whose closed list is
+empty at a pop. At 400 it ends with no spot, as when the game finds none; privateMoveAwayFromUnit's
+second attempt is capped the same way. t_path [6] runs the flood (goal-less search to the first
+cell whose footprint no other unit stands in or heads for, off the blocked path's row) from inside
+and at the edge of the packed block: from the edge every footprint found a spot within 63 cells;
+from deep inside, 16-843 cells. Caps 200 / 400 / 800 / 1600: 41 / 43 / 47 / 48 of 48 found one,
+exactly the ones the uncapped runs predicted, repeated runs identical. At ~45 µs per cell for a
+horde in a crowd in the game (§18.4) 400 cells is ~18 ms, against seconds uncapped.
+**Gameplay:** a unit deep inside a packed army no longer steps aside for a path through it (the
+mover waits or squeezes past, as when no spot exists); units at the edge still do.
+
+### 20.5 moveawayqueue (changes logic, on) and the INI limit
+
+- `gamepatch/src/p_path2.c`: moveAllies' order call (0x6f550b) gives at most 2 move-away orders per
+  mover per pathfinder-queue run; the rest wait in a FIFO of object IDs and 2 are given at the start
+  of each later queue run (hook at the queue's entry 0x6f2364, which runs at the top of every logic
+  phase); an ally or mover that has gone is dropped. t_path [7] checks the order log (who, for whom,
+  where, which run) against the expected one, twice. **Gameplay:** with K allies on a new path, the
+  3rd and later step aside 1-K/2 phases later (~0.03 s each); a saved game drops waiting orders.
+- `MaxCellsFindPathLimit` 15000 -> 5000 in the group pack (`tools/make_group_pack.py` EDITS; built
+  in `build/group-pack/rotwk/install/`, not installed). The worst failing findPath halves in the
+  bench (above). **Gameplay:** a route needing more than 5000 new cells (long mazes on big maps;
+  rare with the hierarchical corridor) gets the closest-path fallback and re-paths on arrival.
+
+### 20.6 Not done
+
+- **Budget inside a queue request** (§18 fix 2): the 4000-cell queue budget is checked between
+  requests. Cutting a request and re-queueing it repeats its work from scratch, and a request bigger
+  than the budget would never finish unless it runs uncapped when first in a run, which brings back
+  the same worst case; real suspend/resume needs the open/closed lists kept across phases while the
+  synchronous searches in AI updates use the same lists. With the 5000 limit, one queue run is at most
+  ~4000 + 5000 cells. Left for later.
+- Per-horde path sharing: already the case (members forward move-away orders to their horde, and a
+  horde paths as one, §18.3). A precomputed static cost grid would only replace the cheap static
+  part of the footprint test; the memo removes the dear part.
+
+Install: `scripts/game-patch.sh` (the three switches `pathfind`, `moveawaycap`, `moveawayqueue` in
+`gamepatch.ini`), group pack `scripts/install-mod.sh rotwk build/group-pack/rotwk/install`; revert
+with `scripts/game-patch.sh --revert` and `scripts/install-mod.sh rotwk --revert` (puts the previous
+pack back from its `.premod.bak`). The exit log gives
+the counts (`pathfind`, `moveawaycap`, `moveawayqueue` lines).
