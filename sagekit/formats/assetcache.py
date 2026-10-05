@@ -156,12 +156,14 @@ class AssetCache:
         self.data = bytes(data)
         return lines or ["record already matches the file"]
 
-    def add_model(self, new, like, w3d_path):
+    def add_model(self, new, like, w3d_path, own=False):
         """File model `new` (our copy of EA's `like` under another name: sagekit/owncopy.py,
         house.py) - the engine draws no model the cache does not file, even when an archive holds
         it. The asset record has like's timestamp and the file's own layout; the object records are
         like's, renamed (a dropped mesh left out, a mesh of ours without one given the textures it
-        names). An earlier filing of `new` is replaced. Returns report lines."""
+        names). An earlier filing of `new` is replaced. own=True: `new` is a model of our own, not a
+        copy (assets/cah/kit/attach.py): like gives only the timestamp and the cache; its HLOD record
+        lists its own sub-objects and hierarchy, as EA's attached weapons' do. Returns report lines."""
         import re
         newb, likeb = new.lower().encode("latin-1"), like.lower().encode("latin-1")
         old_u, new_u = likeb[:-4].upper(), newb[:-4].upper()
@@ -213,7 +215,13 @@ class AssetCache:
             key = (name or "").upper().encode("latin-1")
             if tag not in (b"HSEM", b"DOLH"):
                 continue
-            if key in cloned:                               # the HLOD without the meshes we dropped
+            if own and tag == b"DOLH":                      # EA's form: 'model.mesh' ..., 'h*hierarchy'
+                deps = [n.lower().encode("latin-1") for n, t, _, _ in entries if t == b"HSEM"]
+                deps += [n.lower().encode("latin-1") for n, t, _, _ in entries if t == b"REIH"]
+            elif own and tag == b"HSEM":
+                deps = sorted({t.lower().encode("latin-1") for t in re.findall(
+                    r"[A-Za-z0-9_\-]+\.(?:tga|dds|fx)", f.data[off:off + size].decode("latin-1"), re.I)})
+            elif key in cloned:                             # the HLOD without the meshes we dropped
                 deps = [d for d in cloned[key] if d not in dropped]
             elif tag == b"HSEM":
                 deps = sorted({t.lower().encode("latin-1") for t in re.findall(

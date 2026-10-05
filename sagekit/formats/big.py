@@ -45,7 +45,13 @@ class Archive:
 
 
 def pack(members, out_path):
-    """members: [(archive path with '\\', bytes)] -> a new archive (the format RotWK reads)."""
+    """members: [(archive path with '\\', bytes)] -> a new archive (the format RotWK reads). Refuses a
+    model texture as a TGA the game would build mips for on its thread (sagekit/texbake.py)."""
+    from ..texbake import unbaked
+    slow = unbaked(dict(members))
+    if slow:
+        raise SystemExit("%s: %d TGA texture(s) would build their mips in game (%s); ship them through "
+                         "sagekit.texbake.bake" % (os.path.basename(out_path), len(slow), ", ".join(slow[:4])))
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "wb") as fh:
         fh.write(bigtool.build_big(sorted(members, key=lambda m: norm(m[0])), b"BIGF"))

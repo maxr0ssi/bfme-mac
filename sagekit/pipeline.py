@@ -425,7 +425,7 @@ def apply_cache_ops(cache, ops, model_path):
     lines = []
     for op in ops:
         if op[0] == "model":
-            lines += cache.add_model(op[1], op[2], model_path(op[1]))
+            lines += cache.add_model(op[1], op[2], model_path(op[1]), own=len(op) > 3 and op[3] == "own")
         elif op[0] == "texture":
             lines += cache.add_texture(*op[1:])
         elif op[0] == "patch":
