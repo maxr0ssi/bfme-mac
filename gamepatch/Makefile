@@ -52,6 +52,9 @@ $(DLL) $(TESTS): src/gp_scale.h
 # the queue's long searches parked and resumed over queue runs (pathsplit)
 PATCHES += src/p_path.c src/p_path2.c src/p_path3.c
 TESTS   += $(OUT)/t_path.exe
+# one terrain/road relight per building placement instead of one per lowered cell (flattenlight)
+PATCHES += src/p_flatlight.c
+TESTS   += $(OUT)/t_flatlight.exe
 
 all: $(DLL) $(TESTS)
 $(DLL) $(TESTS): src/gp_render.h src/gp_logic.h src/p_stall.h

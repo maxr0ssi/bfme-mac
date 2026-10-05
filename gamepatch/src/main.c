@@ -7,7 +7,7 @@
  * Switches: GAMEPATCH=0 disables every patch; GAMEPATCH_<NAME>=0/1 one patch (NAME = DXLOCK,
  * INVSQRT, NORMTAIL, HITTEST, QUATMAT, SHUTDOWN, LIMITER, FLOOR, PERFMARKER, PASSTIMERS, ANIMDEDUP,
  * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MONITOR, STALLS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2, CRTSQRT, OCTILE, SHROUDSPAN, SCANTREE,
- * PATHFIND, MOVEAWAYCAP, MOVEAWAYQUEUE, PATHSPLIT,
+ * PATHFIND, MOVEAWAYCAP, MOVEAWAYQUEUE, PATHSPLIT, FLATTENLIGHT,
  * LOGICSTATS, HIGHMEM); otherwise [patches] <name>=0/1 in gamepatch.ini
  * next to the DLL; default on, except limiter, passtimers, shadowpar, logicstats and highmem (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
  * to the DLL. highmem (a diagnostic, not a patch) runs in any large-address-aware exe, before the RotWK check. */
@@ -122,6 +122,7 @@ static void attach(HMODULE self)
     run("animdedup", gp_patch_animdedup, &ok, 1);
     run("animdecode", gp_patch_animdecode, &ok, 1);
     run("particlevtx", gp_patch_particlevtx, &ok, 1);
+    run("flattenlight", gp_patch_flattenlight, &ok, 1);
     run("edgemap", gp_patch_edgemap, &ok, 1);
     run("shadowpar", gp_patch_shadowpar, &ok, 0);    /* off until tested in game: see gamepatch.ini */
     run("shadowstats", gp_patch_shadowstats, &ok, 1); /* counters only */
@@ -169,6 +170,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gp_pf_exit_log();
         gp_maq_exit_log();
         gp_ps_exit_log();
+        gp_fl_exit_log();
         gp_lst_exit_log();
     }
     (void)reserved;

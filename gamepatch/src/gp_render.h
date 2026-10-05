@@ -103,4 +103,20 @@ extern uint32_t gp_pst_mgr_cont, gp_pst_robj_cont, gp_pst_c1_cont, gp_pst_c2_con
 extern uint32_t gp_pst_sort_cont, gp_pst_pbuf_cont;
 extern uint32_t gp_pst_sort_head_va;            /* 0xd9b2bc (tests may move it) */
 
+/* flattenlight (p_flatlight.c): one terrain/road relight per flattenTerrain call */
+#define GP_FNV_49172D  0xde702b5e2aefa6fbull   /* W3DTerrainVisual::setRawMapHeight, 0x51 bytes */
+#define GP_FNV_684CBA  0x7400dee3e55698cfull   /* TerrainLogic::flattenTerrain, 0x537 bytes */
+#define GP_FNV_4E0B69  0x8a2b59d71a2c4cddull   /* HeightMapRenderObjClass::staticLightingChanged, 0xb1 bytes */
+#define GP_FNV_467BF9  0xa38f85d6c34b0624ull   /* BaseHeightMapRenderObjClass::staticLightingChanged, 0x29 bytes */
+#define GP_FNV_4D4297  0x38f0d05ae01a4744ull   /* W3DRoadBuffer::updateLighting, 0x31 bytes */
+#define GP_FNV_4D3E5F  0x6f2def1ce8cb53c7ull   /* RoadSegment::updateSegLighting, 0xbb bytes */
+#define GP_FNV_511C06  0xefc90799e1d1eb36ull   /* terrain tile: buffers released, 0x38 bytes */
+int  gp_patch_flattenlight(void);
+void gp_fl_exit_log(void);
+void gp_fl_relight(void);                       /* asm: replaces `call *0x224(%eax)` at 0x491772 */
+void gp_fl_flatten(void);                       /* asm: thiscall, replaces `call 0x684cba` (2 sites) */
+extern uint32_t gp_fl_fn;
+extern volatile LONG gp_fl_depth, gp_fl_arg, gp_fl_stats[4];
+extern void *volatile gp_fl_obj;
+
 #endif

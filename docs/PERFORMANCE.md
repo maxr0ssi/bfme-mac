@@ -14,7 +14,8 @@ Contents: 1 pipeline · 2 in-game measurements · 3 GL call costs · 4 synthetic
 (10.1 render side, 10.2 shadow volumes, 10.3 shadow-map pass, 10.4 particles, 10.5 game logic) ·
 11 d3dx9 effects · 12 per-draw FX cost · 13 first-use texture loads · 14 eight-player games ·
 15 our art's draw cost against EA's · 16 session monitor · 17 logic phase 5 · 18 spell-cast freezes ·
-19 unit-count scaling · 20 the pathfinder · 21 path searches split over logic phases.
+19 unit-count scaling · 20 the pathfinder · 21 path searches split over logic phases ·
+22 building placement relights every road.
 
 Machine: MacBook Pro, Apple M3 Max (12P+4E cores, 40-core GPU), 64 GB unified memory, macOS 26.3,
 `powermode 0`. Engine `engines/w10` (Sikarugir wine-staging 10.0, new-style WoW64, x86_64 under
@@ -1612,3 +1613,80 @@ requests, parks, resumes, drops by cause, requests still parked, most phases for
 pops in one phase (and in a game's first 5 s, budget x100), earlier searches' parents kept, restore
 anomalies by case: via points, zone grid, lists not empty at a resume, closed / open cell already
 flagged or linked, parent without info (each expected 0).
+
+## 22. Building placement relit every road, once per lowered cell: flattenlight (2026-10-05, static + standalone test)
+
+**What the stall sampler found.** Session `logs/sessions/20261005-153629` (map mp eastfarthing hills,
+1 human + 7 AI): ~10 in-match frames of 0.7–1.4 s and many of 0.2–0.6 s, main thread 98 %, no loads.
+All 4,000 stall samples under `W3DRoadBuffer::updateLighting` (0x4d4297) have the same chain (names:
+`tools/obfme_map.py`, Open-BFME-2 and EA's Zero Hour source, read for understanding only):
+
+GameLogic::update phase 3/4 (0x62e4e8) > an AI update's StateMachine::updateStateMachine (0x8db6d5) >
+a builder state that creates the structure (0x88c5c7 > 0x88c51b) > object creation notifies its
+modules (0x68c18f > 0x6a99cb) > the construction module (0x88d44f: trees cleared, ground levelled,
+object put on the ground, added to the pathfind map) > **TerrainLogic::flattenTerrain 0x684cba** >
+**W3DTerrainVisual::setRawMapHeight 0x49172d** > vt+0x224 **staticLightingChanged** (0x4e0b69 >
+0x467bf9) > W3DRoadBuffer::updateLighting > RoadSegment::updateSegLighting 0x4d3e5f (every vertex) >
+the terrain diffuse 0x46acd7 > doTheLight 0x468cc0.
+
+- flattenTerrain averages the ground height over the building's footprint (its geometry box), takes
+  the lower of that and the centre height, and calls setRawMapHeight on every footprint cell and its
+  8 neighbours (9 calls per cell, sites 0x684e9a–0x68518e; nothing else calls setRawMapHeight).
+- setRawMapHeight lowers a cell that is higher than the target and then calls staticLightingChanged
+  (EA's comment in Zero Hour: "this could benefit from the new Seismic update code"). That marks the
+  terrain for a full rebuild, releases each terrain tile's buffers and **relights every road vertex on
+  the map**. So one placement relights all roads once per lowered cell.
+- Per road vertex (`updateSegLighting`): the grid point under it, its terrain normal (0x46a250: four
+  heights, an inverse square root), its height, then doTheLight: every light in the 3D scene's light
+  list (range test, distance, attenuation, x87 compares and fsqrt), the three global lights, the
+  height tint, three `_ftol2`; under water also the interpolated height (0x46a575, four CRT `floor`
+  calls). The sampled split: 0x468cc0 45 %, 0x46a575 15 %, 0x46a250 12 %, 0x4d3e5f 13 %.
+- Counts, from the map file (road points of "mp eastfarthing hills", read with a scratch parser):
+  531 road segments, 62,900 units of road, ~13,000–14,700 road vertices (two per 10 units). A
+  footprint of 6x6 / 8x8 / 10x10 / 12x12 cells at random spots of its height map lowers a median of
+  32 / 50 / 72 / 98 cells. The samples bound it from the other side: the setRawMapHeight call site on
+  the stack changes 8–59 times within one stall, so at most 9–48 ms per relight in the game.
+- The other stall functions are not related: 0x4984b4 (DirectInputKeyboard::getKey, its time in
+  win32u) is the 12 s and 4.7 s frames before the match starts; 0x4eee64 / 0x4eec82 are in the
+  terrain tiles' build at map load (LoadScreen::update > 0x4e09ae > 0x5149f1 > d3dx9) and in a
+  frame after the match (logic frame 0).
+
+**Fix: flattenlight** (`gamepatch/src/p_flatlight.c`, on). Each relight recomputes every vertex from
+the current heights and lights and overwrites it; the rest of staticLightingChanged sets flags and
+releases tile buffers that only the next draw rebuilds. Nothing in flattenTerrain's loop reads what
+a relight writes, and nothing draws until it returns. So only the last relight is ever seen. The two
+calls of flattenTerrain (0x88d5ab, 0x8ad801) go through a wrapper and setRawMapHeight's relight call
+(0x491772) through a stub: inside flattenTerrain the relight is noted and run once, with the same
+argument, as flattenTerrain returns, i.e. with the same heights and lights as the original's last
+one. Outside flattenTerrain it runs at once as before. Hash checks on setRawMapHeight,
+flattenTerrain, both staticLightingChanged, updateLighting, updateSegLighting and the tile release.
+Client side only: the heights are set exactly as before, no logic value changes, so it is safe in a
+LAN game against players without it.
+
+**Proof: `gamepatch/tests/t_flatlight.c`** (in `scripts/game-patch.sh --test`). Two relocated copies
+of the exe's code, one patched by the installer; each gets the same world: 510x510 heights, 531 road
+segments (13,206 vertices), a scene light list, three global lights. Everything from setRawMapHeight
+to the vertex colour is the game's code; flattenTerrain is a stand-in with its per-cell call order.
+Engine w10, test machine in use (results from one run):
+
+| check | result |
+|---|---|
+| 16 flattens on roads (footprints 6–12 cells), lights moved between them, 0 and 16 scene lights | heights, all 36 bytes of every road vertex, the render object and the road buffer identical after every flatten |
+| relights | 1,045 -> 16 (65 lowered cells per flatten on average) |
+| a flatten that lowers nothing; setRawMapHeight outside a flatten | no relight / relit at once, identical |
+| sensitivity: the end relight left out | 25 road colours differ; changing the scene lights changes 4,561 |
+
+| per flatten (original x87 invsqrt and `_ftol2` in both) | original | flattenlight |
+|---|---|---|
+| no scene lights | 2,166 ms (slowest 3,920) | 35 ms (slowest 48) |
+| 16 scene lights | 5,066 ms (slowest 9,466) | 75 ms (slowest 87) |
+
+One relight costs 33 ms (no scene lights) to 78 ms (16) in the test; in the game the invsqrt and
+`ftol2` patches make it cheaper, and the sample bound above says at most 9–48 ms. **Expected in the
+game:** a building placement costs one relight (~10–50 ms, one frame) instead of 0.2–1.4 s.
+The relight itself is left as it is: computing it in parts over several frames, or only near the
+lowered cells, would show different road colours than the original for those frames (the scene
+lights change in between), so it is not done. Not yet seen in the game; the exit log line
+`flattenlight` gives flattens, relights folded and run.
+
+Install: `scripts/game-patch.sh` (`flattenlight=1` in `gamepatch.ini`); off: `flattenlight=0`.

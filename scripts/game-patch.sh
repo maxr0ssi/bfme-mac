@@ -50,7 +50,7 @@ case "${1:-}" in
     grep -v 'mvk-info\|VK_\|^	' "$L/$label.raw" > "$L/$label.txt"; rm -f "$L/$label.raw"
     local r=$(tail -1 "$L/$label.txt"); r=${r%$'\r'}; echo "$label: $r"; [[ "$r" == PASS ]]   # Wine writes CRLF
   }
-  for t in t_regs t_misc t_dxlock t_quat t_hittest t_invsqrt t_shadow t_perf t_particle t_anim t_adecode t_rstats t_pstats t_monitor t_stall t_logic t_ftol2 t_lmath2 t_lstats t_shroud t_scan t_path; do
+  for t in t_regs t_misc t_dxlock t_quat t_hittest t_invsqrt t_shadow t_perf t_particle t_anim t_adecode t_rstats t_pstats t_monitor t_stall t_logic t_ftol2 t_lmath2 t_lstats t_shroud t_scan t_path t_flatlight; do
     runt $t "$OUT/$t.exe" "$EXE" || st=1
   done
   WINEDLLOVERRIDES="mscoree,mshtml=;dinput8=n,b" runt t_attach "$OUT/t_attach.exe" \
