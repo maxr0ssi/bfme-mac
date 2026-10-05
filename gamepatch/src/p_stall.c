@@ -43,6 +43,7 @@ static volatile LONG wpos, rpos, lost, n_stalls, n_samples;
 static LONGLONG held_sum, held_max;
 static HANDLE main_th;
 static uintptr_t stack_top, img_lo, img_hi, code_lo, code_hi, self_lo, self_hi;
+extern volatile uint32_t gp_ps_stack_top;   /* pathsplit's fiber stack base (p_path3.c), 0: none */
 static LONGLONG s_q0, s_freq, s_stall, s_every_ms, s_max;
 static uint32_t stk[STACK_MAX / 4];
 static char exe_name[MAX_PATH];
@@ -84,8 +85,10 @@ static void sample(LONGLONG since)
     LONGLONG t0 = qpc();
     if (SuspendThread(main_th) == (DWORD)-1) return;
     BOOL ok = GetThreadContext(main_th, &c);
-    if (ok && c.Esp < stack_top && stack_top - c.Esp <= (1u << 24)) {
-        n = (uint32_t)(stack_top - c.Esp);
+    uintptr_t top = stack_top, ft = gp_ps_stack_top;     /* the main thread may run pathsplit's fiber */
+    if (ft && c.Esp < ft && ft - c.Esp <= (1u << 20)) top = ft;
+    if (ok && c.Esp < top && top - c.Esp <= (1u << 24)) {
+        n = (uint32_t)(top - c.Esp);
         if (n > STACK_MAX) n = STACK_MAX;
         memcpy(stk, (const void *)(uintptr_t)c.Esp, n);   /* from ESP up is committed */
     }

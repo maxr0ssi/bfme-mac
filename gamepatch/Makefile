@@ -48,8 +48,9 @@ PATCHES += src/p_shroud.c src/p_scan.c
 TESTS   += $(OUT)/t_shroud.exe $(OUT)/t_scan.exe
 $(DLL) $(TESTS): src/gp_scale.h
 # pathfinder: the search step's movement check and crowd cost memoised per search (pathfind), a cell
-# cap on the move-away search (moveawaycap), move-away orders spread over queue runs (moveawayqueue)
-PATCHES += src/p_path.c src/p_path2.c
+# cap on the move-away search (moveawaycap), move-away orders spread over queue runs (moveawayqueue),
+# the queue's long searches parked and resumed over queue runs (pathsplit)
+PATCHES += src/p_path.c src/p_path2.c src/p_path3.c
 TESTS   += $(OUT)/t_path.exe
 
 all: $(DLL) $(TESTS)
@@ -84,8 +85,8 @@ $(DLL) $(TESTS): src/par_shadow.h ../parallel/pool/parallel.h
 $(OUT)/t_shadow.exe: tests/t_shadow.c tests/t_shadow_world.c tests/t_shadow.h tests/orig.c $(PATCHES) | $(OUT)
 	$(CC) $(TFLAGS) -o $@ tests/t_shadow.c tests/t_shadow_world.c tests/orig.c $(PATCHES) -lwinmm
 
-$(OUT)/t_path.exe: tests/t_path.c tests/t_path_world.c tests/t_path.h tests/orig.c $(PATCHES) | $(OUT)
-	$(CC) $(TFLAGS) -o $@ tests/t_path.c tests/t_path_world.c tests/orig.c $(PATCHES) -lwinmm
+$(OUT)/t_path.exe: tests/t_path.c tests/t_path_world.c tests/t_path_split.c tests/t_path.h tests/orig.c $(PATCHES) | $(OUT)
+	$(CC) $(TFLAGS) -o $@ tests/t_path.c tests/t_path_world.c tests/t_path_split.c tests/orig.c $(PATCHES) -lwinmm
 
 clean:
 	rm -rf $(OUT)

@@ -113,9 +113,9 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   per-pass render timers (`passtimers`) and shadow volumes built on several cores (`shadowpar`,
   which checks itself against the serial result for its first 300 frames). Every patch checks the exact original bytes first, gives bit-identical
   results (so patched and unpatched players can play together) and can be switched off in
-  `gamepatch.ini` or with `GAMEPATCH_<NAME>=0`. Exceptions: `moveawaycap` and `moveawayqueue` change
+  `gamepatch.ini` or with `GAMEPATCH_<NAME>=0`. Exceptions: `moveawaycap`, `moveawayqueue` and `pathsplit` change
   the game logic (the same way on every machine), so every LAN player needs them set alike
-  (`docs/PERFORMANCE.md` §20). `play-rotwk.sh` loads it (`dinput8=n,b`) while
+  (`docs/PERFORMANCE.md` §20, §21). `play-rotwk.sh` loads it (`dinput8=n,b`) while
   `gamepatch.ini` is in the game folder; log in `logs/gamepatch.log`. `--test` runs the standalone
   bit-exactness tests (`gamepatch/tests/`) in a throwaway prefix; `--bundle` makes the two files
   another player copies into their RotWK folder. Record: `docs/PERFORMANCE.md` §10.

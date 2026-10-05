@@ -14,7 +14,7 @@ Contents: 1 pipeline · 2 in-game measurements · 3 GL call costs · 4 synthetic
 (10.1 render side, 10.2 shadow volumes, 10.3 shadow-map pass, 10.4 particles, 10.5 game logic) ·
 11 d3dx9 effects · 12 per-draw FX cost · 13 first-use texture loads · 14 eight-player games ·
 15 our art's draw cost against EA's · 16 session monitor · 17 logic phase 5 · 18 spell-cast freezes ·
-19 unit-count scaling.
+19 unit-count scaling · 20 the pathfinder · 21 path searches split over logic phases.
 
 Machine: MacBook Pro, Apple M3 Max (12P+4E cores, 40-core GPU), 64 GB unified memory, macOS 26.3,
 `powermode 0`. Engine `engines/w10` (Sikarugir wine-staging 10.0, new-style WoW64, x86_64 under
@@ -1426,7 +1426,8 @@ mover waits or squeezes past, as when no spot exists); units at the edge still d
 
 ### 20.6 Not done
 
-- **Budget inside a queue request** (§18 fix 2): the 4000-cell queue budget is checked between
+- **Budget inside a queue request** (§18 fix 2; **done 2026-10-05, §21**: the search is parked on a
+  fiber with its state saved by cell, so nothing is repeated): the 4000-cell queue budget is checked between
   requests. Cutting a request and re-queueing it repeats its work from scratch, and a request bigger
   than the budget would never finish unless it runs uncapped when first in a run, which brings back
   the same worst case; real suspend/resume needs the open/closed lists kept across phases while the
@@ -1441,3 +1442,135 @@ Install: `scripts/game-patch.sh` (the three switches `pathfind`, `moveawaycap`, 
 with `scripts/game-patch.sh --revert` and `scripts/install-mod.sh rotwk --revert` (puts the previous
 pack back from its `.premod.bak`). The exit log gives
 the counts (`pathfind`, `moveawaycap`, `moveawayqueue` lines).
+
+## 21. Path searches split over logic phases: pathsplit (2026-10-05, standalone tests)
+
+Follows §18 and §20. With the move-away cap and the 5000-cell limit, the worst single frame left is
+one long queued search: a failing horde search from inside a packed army (5000 cells, ~4,400
+popped) runs to its end in one logic phase, and two can share a phase. Rule as in §20: the results
+need only be the same on every machine running our build.
+
+### 21.1 What the sources show
+
+EA's *Zero Hour* source (`AIPathfind.cpp`, read for understanding, nothing copied): the queue
+(`processPathfindQueue`) checks its cell budget between requests, and the cells are charged in
+`cleanOpenAndClosedLists` when a search ends; every search uses the pathfinder's one open list and
+one closed list and the per-cell `PathfindCellInfo` that also holds the units standing on or
+heading for the cell; a search also keeps state on the pathfinder (`m_isTunneling`,
+`m_ignoreObstacleID` set by `doPathfind`, the zone blocks' corridor flags from the hierarchical
+pass). RotWK 2.02 (the exe, with Open-BFME-2 for names) is the same with these differences:
+
+| state a search keeps | where | who else writes it |
+|---|---|---|
+| open list: a binary heap of cell pointers | vector pf+0x1d1f0 | every search |
+| closed list, linked through info+0x34/+0x38 | pf+0x34 | every search; clean-up releases the infos |
+| per cell: parent (+0x8, an info), +0xc (a cell), costs (+0x10, +0x12), flags bit 0, open 0x8, closed 0x10 (+0x2c) | the cell's info | every search on that cell |
+| start-blocked flag / ignored obstacle | pf+0x38 / pf+0x48 | each search sets its own; doPathfind sets pf+0x48 for its request |
+| via points (12-byte entries; the heuristic and the search step read them) | vector pf+0x1c1cc | findPath's hierarchical pass fills it; move-away and others clear it |
+| corridor flags of the zone blocks | pf+0x460+0x1ba38, byte +0x34 of each 0x44-byte block | findPath / closest / attack paths set them, move-away sets all (0x6fb287) |
+| jump-ahead counter | 0xde4b14 | every search with a goal |
+
+- The info release (0x9347c6) skips an info that is flagged open or closed or linked in a list, so
+  a running search's infos are safe from units moving; an info with no flags is released when its
+  last unit leaves. The goal cell's info is read on every iteration (its x, y) but has no flags
+  until the search reaches it.
+- Two queues: a priority list (pf+0x1c9e8, vt+0x234, served first up to half the budget) and the
+  requests (pf+0x1c1e0, `doPathfind` vt+0x230 at 0x6f2570). The queue runs at the top of every
+  phase (0x62e69f) and a second time in phase 5 from TheAI's update (0x6fec66).
+- Who searches while a queued search could be in flight: the AI updates' synchronous searches
+  (adjustDestination 0x6fe456, checkPathCost 0x6f70d5, 0x6f74d0, adjustToPossibleDestination
+  0x6f3c87, melee spots), move-away floods (gates, production exits, the moveawayqueue FIFO at the
+  queue's start), and inside `doPathfind` itself: patchPath, attack paths, moveAllies' floods for
+  other units. findPath (vt+0) and findClosestPath (vt+4) are reached only from `doPathfind`.
+
+### 21.2 Design
+
+`gamepatch/src/p_path3.c`, switch `pathsplit` (on), `pathsplit_cells` = 1000.
+
+- **One request on a fiber.** The queue's call of `doPathfind` (0x6f2570) runs it on a fiber
+  (`CreateFiberEx`, 1 MB). findPath's cell search (0x6fd06f) and findClosestPath (0x6fb869) take
+  their pops from the patch (0x6fd9a1, 0x6fdc0c, 0x6fbdb3, 0x6fc060). Every pop of every search is
+  counted (0x6f4af2 entry). When the fiber has popped `pathsplit_cells` cells in this phase, the
+  search is **parked** and the queue run ends; the next phase resumes it before serving anything
+  else (0x6f24de, after the priority list). Phase 5's second run shares the phase's count, so no
+  drawn frame pops more than the budget on the fiber. One request is in flight at most.
+- **Parked = clean pathfinder** (chosen over routing the AI's synchronous searches through the
+  queue, which would change what dozens of AI states see at once, and over a second set of lists,
+  which the per-cell infos shared with the units rule out): the open heap and the closed list are
+  emptied and every cell's search fields saved by cell (parent as a cell); closed infos are
+  released as the game's clean-up does (0x934806), open ones stay on their cells as the game leaves
+  them. Saved too: pf+0x38, pf+0x48 (left at 0, as `doPathfind` leaves it), 0xde4b14, the via
+  points and the corridor flags. Everything that runs between phases sees what it would see
+  between two requests. **Resuming** puts the state back by cell, in the same heap and list order
+  (a cell whose info was released meanwhile gets a new one, the goal's included), and restarts the
+  pathfind patch's memo (units have moved).
+- **Only the unit's own search parks, and only where every object the fiber holds is the unit**:
+  not inside `doPathfind`'s approach/attack branch (0x6668ca keeps the victim; a marker around its
+  call at 0x6690c3), never in searches for other units (move-away floods), attack paths, path
+  patches or the hierarchical pass: those run to their end and count against the phase.
+- **The unit while parked**: its waiting-for-path flag (ai+0x3b1, cleared by `doPathfind`) is set
+  again and its ID put back at the queue's head, so its AI, and the pathfinder's snapshot
+  (0x6f3606, which covers both queues), see a queued request.
+  Before resuming: the unit gone (its ID no longer gives the same object) or its request cancelled
+  (flag cleared, as `destroyPath` does) → the search is dropped, as the game drops a queued request
+  whose unit no longer waits (fiber deleted, its hierarchical path freed, lists already clean).
+  Request fields changed (a new order) → the old request finishes, the new one is served by the
+  queue entry. Otherwise the flag is cleared again. A map reset (0x6f5a5e) drops a parked search.
+  Once the request is done, its queue entry finds the flag cleared and costs nothing.
+- Counts only (popped cells, phases), so every machine parks and resumes at the same cell, and
+  the pathfinder's snapshot (pf+0x38, pf+0x48, the queues) is the same between players with the same
+  setting. The stall sampler (p_stall.c) reads the fiber's stack when the main thread is on it.
+
+### 21.3 Proof: `t_path` [8] (`gamepatch/tests/t_path_split.c`)
+
+Requests served the way the patched queue serves them on the §20.2 world (480², 3,200 units, a packed
+block of 800): 24 searches (across the map, into battles, unreachable, limit 5000) and 8 horde
+searches (9-cell footprint) from inside the packed block to the closed base. Between phases: a
+short search or a move-away flood on the main stack, then the corridor flags, via points, jump
+counter, pf+0x38 and pf+0x48 scrambled.
+
+| check | result |
+|---|---|
+| every request against the same request whole (popped-cell sequence, path, cost, cells, final lists); budgets 500 / 1000 / 2000, via points none / 2, two memory layouts | 0 of 32 differ in all 12 cases (95 parks at budget 1000) |
+| most pops on the fiber in one phase | exactly the budget |
+| results and per-phase pop counts, layout 0 against layout 1 | identical |
+| test sensitivity: the patch with one restore left out | corridor, via points, start-blocked flag, jump counter, list order: results differ; goal info: crash. Flag bit 0 left out: no difference (the search step clears it before use) |
+| unit gone / request cancelled / map reset while parked | dropped, lists clean, the unit back at the queue's head while parked, the next request identical |
+| request fields changed while parked | finished, identical, the unit stays waiting |
+| inside the approach marker; another unit's search on the fiber first | not split (the other unit's 3,771 pops run whole), results identical |
+| the game-side entries (both pop stubs with stand-in frames, run start, resume point, reset, approach marker, request call) | the right frame fields and registers (xmm0-7 kept across parks too: the pop's call tree never touches them), same pops whole and parked |
+
+### 21.4 Time per frame, and the budget
+
+Same 32 requests, ms per queue run (searches only, least disturbed of 3), test machine shared:
+
+| | runs | pops per run, mean / most | slowest run | a path ready after (runs, mean) |
+|---|---|---|---|---|
+| whole (as EA) | 25 | 4,315 / 6,141 | 6.88 ms | 11.3 |
+| split, 500 | 229 | 471 / 500 | 1.24 ms | 100.9 |
+| split, 1000 | 120 | 899 / 1,000 | 2.19 ms | 52.8 |
+| split, 2000 | 70 | 1,541 / 2,000 | 3.76 ms | 30.3 |
+
+The bench's stand-ins cost ~1.1 µs per pop. In the game a pop of a horde in a packed army costs
+more: §18.4 estimated 20–45 µs (before the §20.3 memo, so an upper bound). **Worst frame, estimate:
+whole 6,141 pops = 0.12–0.28 s; split at 1000 = 20–45 ms, at 2000 = 40–90 ms.** Parking and
+resuming cost ~5 % of a run in the bench. The budget is 1000: at the upper per-pop estimate one
+phase stays near one 30 FPS frame. The price is throughput when the queue is saturated: this
+test queues 32 long searches at once and a path then takes 4.7× as many phases (2.7× at 2000);
+an ordinary request (under 1,000 pops) is never split. `pathsplit_cells` sets it (every LAN player
+alike).
+
+### 21.5 Gameplay effect
+
+- A search longer than the budget arrives 1–5 phases later (5000 cells of a horde: ~5 phases,
+  ~0.15 s at 30 FPS); requests queued behind it wait as long. The unit stands still meanwhile:
+  `computePath` drops the old path before searching, as before, only now for longer.
+- The path starts where the unit was when its search started.
+- A unit that dies, is stopped or gets a new order while its search is parked: as in 21.2.
+- LAN: changes the game logic; every player needs the same `pathsplit` and `pathsplit_cells`
+  (the shared bundle has them). Replays recorded with it need it on.
+
+Install: `scripts/game-patch.sh` (with `pathsplit=1`, `pathsplit_cells=1000` in `gamepatch.ini`);
+off: `pathsplit=0`; revert all: `scripts/game-patch.sh --revert`. Exit log line `pathsplit`:
+requests, parks, resumes, drops by cause, most phases for one request, most pops in one phase,
+restore anomalies (expected 0).

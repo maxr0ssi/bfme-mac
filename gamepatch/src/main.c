@@ -7,7 +7,7 @@
  * Switches: GAMEPATCH=0 disables every patch; GAMEPATCH_<NAME>=0/1 one patch (NAME = DXLOCK,
  * INVSQRT, NORMTAIL, HITTEST, QUATMAT, SHUTDOWN, LIMITER, FLOOR, PERFMARKER, PASSTIMERS, ANIMDEDUP,
  * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MONITOR, STALLS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2, CRTSQRT, OCTILE, SHROUDSPAN, SCANTREE,
- * PATHFIND, MOVEAWAYCAP, MOVEAWAYQUEUE,
+ * PATHFIND, MOVEAWAYCAP, MOVEAWAYQUEUE, PATHSPLIT,
  * LOGICSTATS, HIGHMEM); otherwise [patches] <name>=0/1 in gamepatch.ini
  * next to the DLL; default on, except limiter, passtimers, shadowpar, logicstats and highmem (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
  * to the DLL. highmem (a diagnostic, not a patch) runs in any large-address-aware exe, before the RotWK check. */
@@ -139,6 +139,9 @@ static void attach(HMODULE self)
     run("pathfind", gp_patch_pathfind, &ok, 1);
     run("moveawaycap", gp_patch_moveawaycap, &ok, 1);     /* changes behaviour: same on every LAN machine */
     run("moveawayqueue", gp_patch_moveawayqueue, &ok, 1); /* changes behaviour: same on every LAN machine */
+    int ps_cells = setting("pathsplit_cells", 1000);
+    gp_ps_budget = ps_cells < 100 ? 100 : (uint32_t)ps_cells;
+    run("pathsplit", gp_patch_pathsplit, &ok, 1);         /* changes behaviour: same on every LAN machine */
     /* last, so its call-site writes never meet another patch's byte checks */
     run("monitor", gp_patch_monitor, &ok, 1);       /* counters only; needs GAMEPATCH_MONITOR */
     run("logicstats", gp_patch_logicstats, &ok, 0); /* diagnostic, off unless asked for */
@@ -165,6 +168,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gp_scan_exit_log();
         gp_pf_exit_log();
         gp_maq_exit_log();
+        gp_ps_exit_log();
         gp_lst_exit_log();
     }
     (void)reserved;

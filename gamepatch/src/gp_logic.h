@@ -108,4 +108,34 @@ extern volatile LONG gp_maq_stats[4];    /* orders, waited, given later, dropped
 extern volatile LONG gp_pf_stats[6];
 extern uint32_t gp_pf_gen;
 
+/* p_path3.c: pathsplit (the queue's long searches parked and resumed over queue runs, on a fiber) */
+#define GP_FNV_6F236A  0x1f38a7f5d7d94828ull   /* the pathfind queue after its first 6 bytes, 0x294 bytes */
+#define GP_FNV_6FD06F  0x134970761cde75a6ull   /* findPath's cell search, 0xd76 bytes */
+#define GP_FNV_6FB869  0x1f0065078419a3c9ull   /* findClosestPath, 0x925 bytes */
+#define GP_FNV_6F4AF2  0x27ba74db3b819cd8ull   /* open heap pop (+ clean open), 0x28 bytes */
+#define GP_FNV_6F5A5E  0xe98889830bada086ull   /* Pathfinder::reset, 0x152 bytes */
+#define GP_FNV_668E94  0x52c57a92be8be09full   /* AIUpdateInterface::doPathfind, 0x75b bytes */
+#define GP_FNV_6EA019  0x9072b1fa2e7741c9ull   /* allocate a cell's info, 0x34 bytes */
+#define GP_FNV_934594  0x0a944ab3fe409106ull   /* put on the closed list, 0x16 bytes */
+#define GP_FNV_6E8074  0x92012db44667af58ull   /* unlink an info, 0x41 bytes */
+#define GP_FNV_9347C6  0x2d86800885cc89e2ull   /* release a cell's info, 0x40 bytes */
+#define GP_FNV_90BE00  0x036de4a89a083a29ull   /* vector<cell *>::push_back, 0x31 bytes */
+#define GP_FNV_6EC096  0x611af9f649ad8f30ull   /* the queue holds an ID, 0x3b bytes */
+#define GP_FNV_6EC1B7  0xffca189e1adf7a7eull   /* owner pointer delete, 0x4d bytes */
+#define GP_FNV_93450F  0x377648e1d6b69ccdull   /* link an info at a list head, 0x29 bytes */
+int  gp_patch_pathsplit(void);
+void gp_ps_exit_log(void);
+extern uint32_t gp_ps_budget;            /* popped cells per queue run */
+extern volatile uint32_t gp_ps_stack_top;   /* pathsplit's fiber stack base, 0: none (p_stall.c) */
+extern volatile LONG gp_ps_pops, gp_ps_stats[14], gp_ps_unsafe;   /* unsafe > 0: inside the approach branch */
+/* the C parts of the hooks, for the tests: a queue run starts; a request (run(ctx) for the unit obj
+ * with AI ai) is served on the fiber, 1 = the run must end; the parked request is resumed; a pop of a
+ * splittable search; the pathfinder is reset */
+void gp_ps_runstart(uint8_t *pf, uint32_t ret);   /* ret: the queue's caller (0 in the tests) */
+int  gp_ps_serve_fn(uint8_t *pf, uint8_t *obj, uint8_t *ai, void (*run)(void *), void *ctx);
+void gp_ps_resume(uint8_t *pf);
+uint8_t *gp_ps_pop_ctx(uint8_t *pf, uint8_t *obj, uint8_t *goal, uint8_t *hp);
+void gp_ps_drop(void);
+int  gp_ps_parked(void);
+
 #endif
