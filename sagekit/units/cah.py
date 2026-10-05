@@ -91,14 +91,14 @@ def compose_ini(specs, b):
     """Every class's fragment composed onto EA's files, linted, written into the pack's work/ini."""
     from assets.cah.kit import ini
     from ..formats.w3d import W3DFile
-    from assets.cah.kit import attach
+    from assets.cah.kit.attach_lint import check
     ea = ini.read_all()
     frags = [attached(s)[1] for s in specs]
     ours = ini.compose(ea, frags)
     models = {n.lower(): set(W3DFile(d).meshes) for s in specs for n, d in shipped_models(s).items()}
     report = ini.check(ea, ours, models, [], frags)
     for s in specs:
-        report["attach_" + s.NAME] = attach.check(s, ea, ours, attached(s)[0])
+        report["attach_" + s.NAME] = check(s, ea, ours, attached(s)[0])
     written, changed = ini.write(ours, ea, b.work / "ini", frags)
     return written, report
 
