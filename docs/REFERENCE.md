@@ -323,8 +323,9 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `paint.py`, `models.py`, `ini.py`); the pack composes every class into one
   `!!!!!!!!!!!sagekit-cah.big`. `python3 -m assets.cah.kit.survey [--markdown]` maps EA's subclasses;
   `python3 -m assets.cah.kit.render <class>` renders the overview (`sagekit/blender/cah_pose.py`).
-  `python3 -m assets.cah.kit.attach <class> [--review]` builds a class's parts as models of our own on the hero's
-  bones (`kit/attach.py`, `kit/attach_review.py`; the redesign, docs/CAH.md); `--stage` takes only classes built this way.
+  `python3 -m assets.cah.kit.attach <class> [--review | --review-only]` builds a class's parts as models of our own on
+  the hero's bones (`kit/attach.py`, checks in `kit/attach_lint.py`, review sheet `kit/attach_review.py`; docs/CAH.md);
+  every class is built this way and `--stage` takes only classes built this way.
   The evil classes use `python3 -m assets.cah.evil.render <class>` and `python3 -m assets.cah.evil.contents <class>`.
   How: `docs/CAH.md`.
 - `python3 -m assets.heroes.build [--skip-art]`, `python3 -m sagekit.units.heroes --stage|--install|--revert [--dry-run]`

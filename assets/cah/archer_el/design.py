@@ -35,6 +35,9 @@ MASKS = {"SKCAH_ARELGEAR.tga": "HC_SKCAH_ARELGEAR.tga", "SKCAH_ARELFUN.tga": "HC
 WEAPON_LIKE, WEAPON_NOTE = "WEAPONSET_CREATE_A_HERO_WS_37", "EA's elven bows (ranged and melee)"
 BONES, budget = parts.BONES, parts.budget
 PARTS = parts.named(__import__("sys").modules[__name__])
+# every part rides the hero's bones in models of our own (assets/cah/kit/attach.py, docs/CAH.md); EA's
+# models are not copied. Staged with python3 -m sagekit.units.cah --stage.
+ATTACH, ATTACH_STEM = [p[0] for p in PARTS], "SKAE"
 ALSO_SHOW = {}          # EA's bows also show WestronSword, which neither archer model carries
 
 # the overview (python3 -m assets.cah.kit.render archer_el)

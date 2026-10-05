@@ -69,9 +69,9 @@ def _parts():
 
 
 PARTS = _parts()
-# the redesign's pilot (docs/CAH.md): these parts ride bones in models of our own (assets/cah/kit/attach.py);
-# EA's dwarf models are not copied. Staged with python3 -m sagekit.units.cah --stage --classes dwarf.
-ATTACH, ATTACH_STEM = ["SKH_HLMT_ER", "SKH_AXE_ER"], "SKDW"
+# every part rides the hero's bones in models of our own (assets/cah/kit/attach.py, docs/CAH.md; the
+# Erebor helm and axe were the pilot); EA's dwarf models are not copied.
+ATTACH, ATTACH_STEM = [p[0] for p in PARTS], "SKDW"
 
 
 def budget(name, group, kind):

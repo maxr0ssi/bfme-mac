@@ -33,7 +33,7 @@ screen's rows, for every class. The Dwarf (`assets/cah/dwarf`) is the first clas
 
 | Path | What |
 |---|---|
-| `assets/cah/kit/` | the shared kit: `geom.py` (primitives, lod trimming), `ornament.py`, `paint.py` (sheet painter, masks), `models.py` (sources, model copies, checks), `ini.py` (fragments, composition, lint), `survey.py`, `render.py` |
+| `assets/cah/kit/` | the shared kit: `geom.py` (primitives, lod trimming), `ornament.py`, `paint.py` (sheet painter, masks), `models.py` (sources, part design per model, the old copies), `attach.py` (part models on bones, Draw modules), `attach_lint.py` (their checks), `attach_review.py` (review sheets), `ini.py` (fragments, composition, lint), `survey.py`, `render.py` |
 | `assets/cah/<class>/` | a class: `design.py` (its spec), `build.py`, `paint.py` (tile tables), its part designs |
 | `assets/cah/pack/design.py` | the one unit recipe: the archive name and every class's mask lines (shared house-colour INI) |
 | `sagekit/units/cah.py` | stage, install and revert the whole pack |
@@ -43,7 +43,8 @@ screen's rows, for every class. The Dwarf (`assets/cah/dwarf`) is the first clas
 
 ```sh
 python3 -m assets.cah.kit.survey --markdown        # EA's subclasses (the table below)
-python3 -m assets.cah.<class>.build [--skip-paint] # sources, sheets, models, INI fragment, every check
+python3 -m assets.cah.<class>.build [--skip-paint] # sources and sheets (and the old copies, never shipped)
+python3 -m assets.cah.kit.attach <class> [--review] # part models on bones, INI fragment, every check, review sheet
 python3 -m assets.cah.kit.render <class>           # build/assets/cah/<class>/renders/overview.png (one Blender)
 python3 -m sagekit.units.cah --stage               # compose all classes, lint, pack, asset.dat round trip
 python3 -m sagekit.units.cah --install [--dry-run] # one archive, records, shared house-colour INI
@@ -80,6 +81,7 @@ Copy `assets/cah/dwarf` and fill `design.py`:
 | `BUDGET`, `budget()` | vertex caps per group and kind |
 | `PARTS` | `(sub-object, group, design(gear), name, description, "serious"/"fun", tile remap, upgrade[, [subclass indices]])`, in **append order** |
 | `RENDER` | the overview's bodies, head model, EA helmets, kits, colours, idle animations |
+| `ATTACH`, `ATTACH_STEM` | the parts that ride bones (every part) and the part-model name stem, at most 4 characters (`kit/attach.py`) |
 
 A part's design function draws into a `Gear` (`kit/geom.py`): `shell`, `sweep`, `tube`, `stud`, `slab`,
 `loft`, `blade`, `ribbon`, all in the design model's rest space and each bound to an EA bone. Never
@@ -93,7 +95,8 @@ reorder or remove an entry once a build has shipped: append only.
 | Weapon upgrades | `Upgrade_SKH_CHW<nn>`, `nn` = its own flag `WEAPONSET_CREATE_A_HERO_WS_<nn>` | `Upgrade_SKH_CHW52` |
 | Weapon-set flags | Dwarf 43-45 (used). **Men + Wizards 46-51, Archers 52-57, Orc/Uruk/Corrupted Man/Olog-hai 58-64** | |
 | Sub-objects (≤ 15 chars) | `SK<STEM>_<PART>`, globally unique | `SKARFE_HOODPK` |
-| Model copies | EA's name with `CH` → `SK` | `SKHW_SM_M_SKN` |
+| Part models (≤ 15 chars) | `ATTACH_STEM` + EA model's two middle fields + `_` + bone code (`HD` head, `HR`/`HL` hands, `UL`/`UR` upper arms, `FL` forearm, `S1`/`S2` spine, `RB` ribs, `PV` pelvis; else the bone's name) | `SKDWTMU_HD` |
+| Attach Draw modules | `SKH_Att_<ATTACH_STEM>_<bone>` | `SKH_Att_SKDW_B_HAND_R` |
 | Sheets (≤ the template's texture name) | `SKCAH_<FAM>GEAR.tga`, `SKCAH_<FAM>FUN.tga`; masks `HC_` + sheet | `SKCAH_ARGEAR.tga` |
 | INI module tags | made by the kit (`SKH_Show_<sub-object>`, `SKH_Remove_<upgrade>`, `SKH_Weapon_<upgrade>`) | |
 
@@ -277,6 +280,9 @@ python3 -m sagekit.units.cah --revert
 
 A class not converted yet (still on copies) is refused by `--stage`/`--install`.
 
+**Max's result (2026-10-05, the installed pilot):** "works !": the helm and axe show only when picked, one
+part at a time. But they do **not** follow the three Create-a-Hero colour pickers (see "Hero colours" below).
+
 **What Max tests:** a dwarf (Taskmaster, then Sage) in the creation screen. Check:
 1. No new part shows until it is picked.
 2. Helmet row: EA helmet → Erebor helm → EA helmet: one helmet at a time.
@@ -286,6 +292,99 @@ A class not converted yet (still on copies) is refused by `--stage`/`--install`.
 
 If (1) fails, the engine ignores the W3D hidden flag. If (2) fails because a part never shows, it
 ignores the show on a hidden-flag mesh. Either would need our Lua names, so ask Max first.
+
+### Every class on bones (staged 2026-10-05, not installed)
+
+Every class is now built by `kit/attach.py`, every part the old pack had (the silly ones too, same
+designs, same sheets): `ATTACH = [every part]` and an `ATTACH_STEM` in each `design.py`. Nothing
+ships copies of EA's skins any more; `MODELS` and `kit/models.py`'s copies only feed the old overview
+renders.
+
+| Class | Stem | Parts | Part models | Draw modules | Parts split by bone | Rows (ours) |
+|---|---|---|---|---|---|---|
+| archer_el | SKAE | 22 | 13 | 10 | 1 | helmet 11, shoulders 5, shield 3, weapon 3 |
+| archer_fe | SKAF | 22 | 13 | 10 | 1 | helmet 11, shoulders 5, shield 3, weapon 3 |
+| corruptedman | SKCM | 12 | 20 | 5 | 3 | helmet 6, shoulders 4, weapon 2 |
+| dwarf | SKDW | 24 | 24 | 7 | 2 | helmet 13, shoulders 5, shield 3, weapon 3 |
+| men_cg | SKCG | 18 | 18 | 10 | 2 | helmet 10, shoulders 4, shield 2, weapon 2 |
+| men_sm | SKSM | 16 | 18 | 13 | 2 | helmet 8, shoulders 4, shield 2, weapon 2 |
+| ologhai | SKTL | 16 | 42 | 21 | 3 | helmet 6, shoulders 5, shield 2, weapon 3 |
+| servantsofsauron | SKSS | 17 | 24 | 10 | 4 | helmet 7, shoulders 5, shield 3, weapon 2 |
+| wizard | SKWZ | 14 | 18 | 4 | 0 | helmet 8, shoulders 4, weapon 2 |
+
+161 parts, 190 part models, 90 Draw modules. Upgrades: EA 1027 + ours 43 = 1070 of 1152, headroom
+82 (shared row upgrades, as before). Staged archive: 239 members, 83 MB (190 models 45 MB, 18 sheets
+25 MB, 18 masks 13 MB, 13 INI); a model loads only when its subclass's state draws it.
+
+What changed in the kit:
+
+- **Split by bone.** A pauldron pair, a cloak over the spine and both arms, the troll war-plates:
+  `rigid_pieces` trims the part to its budget as a whole, then splits its triangles by the bone
+  their vertices ride (a triangle across bones stops the build). Every piece keeps the part's
+  sub-object name, so the part's one `SubObjectsUpgrade` shows all its pieces (the show and hide go
+  to every Draw module and act by name in each). Nothing moves: each vertex rode one bone already.
+- **One Draw module per (class, bone)**, not per model. It lists **every** `CREATE_A_HERO` state of
+  the class's EA models in `createaheromodels.inc` (the mounted `MOUNTED CREATE_A_HERO_00/02`, the
+  archers' and Corrupted Men's `… INVISIBLE_STEALTH`, the troll's two states), each with our model
+  for that EA model and bone, or `Model = None`. With only its own state, a module made for the
+  in-game Captain would also match `MOUNTED CREATE_A_HERO_00` and put the unmounted fit on the rider.
+- **Bone names with a space** (`TROLL HEAD`, `BIP L UPPERARM`) are written quoted:
+  `AttachToBoneInAnotherModule` is read by EA's quoted-string reader (game.dat 0x4b65ba → 0x42e757:
+  a value opening with `"` takes the following tokens up to the closing quote, joined by one space).
+- **Short model names** (the naming table) so troll bones fit in 15 characters.
+- Per-skeleton bones come from each class's own placement (the Dwarf's `B_HAND_R`/`B_HANDR`, the
+  Shieldmaiden's `BONE05/09/13/14` and `SPEARBONE` on the mount, the archers' `BOWBONE`, the trolls'
+  `TROLL…`/`BIP …`/`BAT_…` rigs, `WEAPON`, `WEAPONCOB`, `FIREPOINT01`); each EA model keeps its own fit.
+- **Checks** (`kit/attach_lint.py`, each with a broken copy that must fail): createaheromodels.inc
+  is EA's; EA's text first in every shipped INI; every part mesh hidden, rigid, name ≤15; every part
+  model on a bone its skeleton has, drawn by its class's module for that bone in a state of its own
+  EA model; no module draws a model in another EA model's state; no module misses one of the class's
+  states; every part in some model. Through EA's check animation every vertex keeps its distance to
+  its bone. `--stage` reruns the class checks on the whole composition.
+
+Review sheets (per subclass and row: EA's part, ours in menu order, EA's again on the creation-screen
+model; then EA's kit, our serious kit and our fun kit on each of the subclass's models, the mounted
+ones too), `build/assets/_review_finish/cah_attach/<class>_sheet.jpg` for `archer_el`, `archer_fe`,
+`corruptedman`, `dwarf`, `men_cg`, `men_sm`, `ologhai`, `servantsofsauron`, `wizard`.
+
+```sh
+python3 -m assets.cah.kit.attach <class> [--review | --review-only]
+python3 -m sagekit.units.cah --stage                # every class; the pilot must be --revert-ed before --install
+```
+
+### Hero colours (2026-10-05, open)
+
+Max: the pilot's helm and axe do not change with the three colour pickers; earlier "select colors no
+longer work on heros". What the exe does (read from game.dat; nothing run):
+
+- The pickers are `CahAppearance::HairColor / SkinColor / PaintColor`. Each handler (e.g. 0x9c3c76)
+  stores the colour in the hero record (`MyHero` +0x2c/+0x30/+0x34; setters 0x809745… set dirty bit 8)
+  and calls the applier (`MyHero` vtable +0x10, 0x80ace3).
+- The applier, on bit 8, builds a three-colour struct (0x80959a) and calls the drawable (0x6727b0),
+  which calls **every** Draw module's slot 0x7c (`W3DModelDraw` 0x4b877d): if the module has a render
+  object, it passes the colours to it (render object slot 0x1f8). The HLOD forwards to every
+  sub-object (0x59b1a0); the mesh (0x54bde0) looks up its texture's `HouseColor` mask (housecolor.ini)
+  and builds or rebuilds the coloured mask texture on the CPU (0x531c77: output = mask R × colour 1 +
+  G × colour 2 + B × colour 3, alpha kept; the mask must be A8R8G8B8 or A4R4G4B4, anything else is
+  skipped).
+- The colours are **not stored** in the Draw module (the module's own colour, +0x28, is the player
+  colour from `OkToChangeModelColor`; the "store in every module" broadcast 0x6727ea has no caller).
+  So only render objects alive at the broadcast get the hero's colours; one created later shows the
+  player colour (R channel only) until the next colour change.
+- A CaH object's modules with `OkToChangeModelColor = Yes` mark their colour "rebuildable" (0x4b4a30,
+  bit 30, from the object's KindOf), so later changes rebuild the coloured texture in place.
+
+Our attached modules meet every condition found: they are in the broadcast (the show and hide reach
+them the same way), have `OkToChangeModelColor = Yes`, copy EA's part material, and ship the mask as
+an A8R8G8B8 DDS (texbake; d3dx9 loads EA's TGA masks as the same format). **So the cause is not
+found in the static path, and no fix is made.** Two candidates, one test session separates them:
+
+1. Pick an EA helmet on the Dwarf and move the pickers. If EA's helmet does not change either, the
+   regression is global: try the same with `WINED3D_STASH_MANAGED=0` (Wine patch 0022 keeps managed
+   textures out of the process; the rebuild locks and rewrites an uploaded texture), then with the cah
+   pack reverted.
+2. If EA's changes and ours do not, it is the attached modules: note whether ours change after a
+   picker is moved *after* the part was picked (render object alive at the broadcast) or never.
 
 ## EA's subclasses
 

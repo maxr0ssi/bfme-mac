@@ -108,6 +108,9 @@ ENTRIES = [   # (sub-object, group, design, name, description, sheet, remap) in 
 ]
 PARTS = C.name_parts(C.wrapped(sys.modules[__name__], ENTRIES), (46, 47))
 budget = C.budget_fn({n: C.CLOAK for n in ("SKHWCG_SPTREE", "SKHWCG_FPINK", "SKHWCG_FRAINB")})
+# every part rides the hero's bones in models of our own (assets/cah/kit/attach.py, docs/CAH.md); EA's
+# models are not copied. Staged with python3 -m sagekit.units.cah --stage.
+ATTACH, ATTACH_STEM = [p[0] for p in PARTS], "SKCG"
 
 # the overview (python3 -m assets.cah.kit.render men_cg)
 RENDER = {"body": {"chhw_cg_u_skn": "CHHW_SMNL", "chhw_cg_c_skn": "CHHW_SMN", "chhw_mw_m_skn": "CHHW_SMNL"},

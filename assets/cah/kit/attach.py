@@ -7,29 +7,29 @@ CreateAHeroHideEverything, run by the CreateAHeroFunctions events OnCreated and 
 No CaH mesh carries the W3D hidden flag, so a part missing from that list is drawn from spawn
 on. Our copies of EA's skins carried 12-24 such parts on every hero: "permanent stuff".
 
-Now each part is a rigid mesh in a small model of ours, one model per (EA model, bone),
-e.g. SKDWTMU_HEAD. A Draw module per model (`AttachToBoneInAnotherModule`, EA's own
-HeroOfTheWestShield pattern) draws it only in the subclass's CREATE_A_HERO states. Every part
-mesh has the W3D hidden flag, so it starts hidden without EA's list. The part's upgrade shows it
-through the same SubObjectsUpgrade / RemoveUpgradeUpgrade modules as before. createaheromodels.inc
-and EA's skins are not touched. A hero who picks none of our parts draws exactly EA's models.
+Now each part is split by bone into rigid meshes (every vertex of a part already rides one bone;
+a pauldron pair rides both upper arms) in small models of ours, one model per (EA model, bone),
+e.g. SKDWTMU_HD. All pieces of a part keep the part's sub-object name, so its one
+SubObjectsUpgrade shows them all. A Draw module per (class, bone) (`AttachToBoneInAnotherModule`,
+EA's own HeroOfTheWestShield pattern) lists every CREATE_A_HERO state of the class's EA models,
+each with our model for that EA model and bone, or None; a mounted state therefore never falls
+back to the unmounted model's parts. Every part mesh has the W3D hidden flag, so it starts hidden
+without EA's list. createaheromodels.inc and EA's skins are not touched. A hero who picks none
+of our parts draws exactly EA's models.
 
-A class opts in with ATTACH = [part sub-objects] (the pilot: the Dwarf's Erebor helm and axe)
-and ATTACH_STEM (the model-name stem, e.g. "SKDW").
+A class opts in with ATTACH = [part sub-objects] (every part) and ATTACH_STEM (the model-name
+stem, at most 4 characters, e.g. "SKDW"). Checks: assets/cah/kit/attach_lint.py.
 
     python3 -m assets.cah.kit.attach <class> [--review]   build/assets/cah/<class>/attach/
 """
 import json
-import math
 import re
 import struct
 import sys
 import types
-from pathlib import Path
 
 from sagekit.formats import w3dmesh as WM
-from sagekit.formats import w3dpose as P
-from sagekit.formats.w3d import HLOD, HIERARCHY, MESH_HEADER3, VERTEX_INFLUENCES, W3DFile, chunk_bytes, chunks, rename_textures
+from sagekit.formats.w3d import HLOD, HIERARCHY, MESH_HEADER3, W3DFile, chunk_bytes, chunks, rename_textures
 
 from . import ini
 from .models import LODS, folder, make_part, parts_of, placements, skeleton, sources, template
@@ -38,6 +38,11 @@ HIDDEN = 0x1000                                         # W3D_MESH_FLAG_HIDDEN
 SKIN_TYPE = 0x00FF0000
 FLT_MAX = 3.4028234663852886e+38
 NAME_MAX = ini.NAME_MAX
+# short bone codes for model names (15 characters at most): every rig's names for a body place
+BONE_CODES = [(r"HEAD", "HD"), (r"(HAND_?R|R HAND)$", "HR"), (r"(HAND_?L|L HAND)$", "HL"),
+              (r"(UARML|L ?UPPERARM)$", "UL"), (r"(UARMR|R ?UPPERARM)$", "UR"),
+              (r"(FARML|L ?FOREARM)$", "FL"), (r"(FARMR|R ?FOREARM)$", "FR"),
+              (r"SPINE2$", "S2"), (r"SPINE1?$", "S1"), (r"RIBS$", "RB"), (r"PELVIS$", "PV"), (r"WAIST$", "WA")]
 
 
 def attach_dir(spec):
@@ -65,16 +70,28 @@ def ea_models(spec):
     return list(dict.fromkeys(m.lower() for s in spec.SUBCLASSES for m in s["models"]))
 
 
-def stem(bone):
-    return re.sub(r"[^A-Z0-9]", "", bone.upper().replace("B_", "", 1))
+def bone_code(bone):
+    """B_HEAD, BAT_HEAD, TROLL HEAD, BIP HEAD -> HD; B_HAND_R -> HR; BAT_UARML -> UL; others: the
+    bone's letters and digits without its rig prefix, at most 6."""
+    b = bone.upper()
+    for pat, code in BONE_CODES:
+        if re.search(pat, b):
+            return code
+    return re.sub(r"[^A-Z0-9]", "", re.sub(r"^(B_|BAT_|BIP |TROLL)", "", b))[:6]
 
 
 def model_name(spec, ea_model, bone):
-    """Ours for EA's model and bone: CHDW_TM_U_SKN + B_HEAD -> SKDWTMU_HEAD."""
-    name = "%s%s_%s" % (spec.ATTACH_STEM, "".join(ea_model.upper().split("_")[1:3]), stem(bone))
+    """Ours for EA's model and bone: CHDW_TM_U_SKN + B_HEAD -> SKDWTMU_HD."""
+    name = "%s%s_%s" % (spec.ATTACH_STEM, "".join(ea_model.upper().split("_")[1:3]), bone_code(bone))
     if len(name) > NAME_MAX:
         raise SystemExit("%s: model name longer than %d characters" % (name, NAME_MAX))
     return name
+
+
+def ini_bone(bone):
+    """A bone name as an INI value: quoted when it holds a space (TROLL HEAD, BIP HEAD); EA's INI
+    reader takes a quoted string as one value (game.dat 0x42e787)."""
+    return '"%s"' % bone if " " in bone else bone
 
 
 def _set_container(mesh_chunk, container):
@@ -96,10 +113,15 @@ def _set_attrs(mesh_chunk, add=0, clear=0):
     raise ValueError("no mesh header")
 
 
-def rigid_part(spec, entry, model, container="X"):
-    """(bone name, rigid hidden MESH chunk named after the part, its vertices in the bone's space,
-    stats): the kit's design, trimmed to the budget, every vertex on one bone (an attached model
-    is rigid at that bone)."""
+def attrs(mesh_chunk):
+    return [struct.unpack_from("<I", mesh_chunk, o + 12)[0] for t, o, _, _ in chunks(mesh_chunk, 8, len(mesh_chunk))
+            if t == MESH_HEADER3][0]
+
+
+def rigid_pieces(spec, entry, model, container="X"):
+    """([(bone name, rigid hidden MESH chunk named after the part)], stats): the kit's design,
+    trimmed to the part's budget as a whole, split by the bone each vertex rides (an attached
+    model is rigid at its bone; a part is rigid on its bones already, so nothing moves)."""
     name, group = entry[0], entry[1]
     if len(name) > NAME_MAX:
         raise SystemExit("%s: a W3D sub-object name holds %d characters" % (name, NAME_MAX))
@@ -113,16 +135,20 @@ def rigid_part(spec, entry, model, container="X"):
         g = make_part(spec, entry, tmpl, sk, model, body, weapon, lod)
         if len(g.verts) <= cap:
             break
-    bones = {v[3] for v in g.verts}
-    if len(bones) != 1:
-        raise SystemExit("%s in %s rides %s: an attached part rides one bone (split it)" %
-                         (name, model, sorted(sk.names[b] for b in bones)))
-    bone = sk.names[bones.pop()]
-    raw = WM.build_mesh(g.original.bytes, {0: WM.Source(g.original.bytes)}, name, container, g.verts, g.tris, False)
-    raw = rename_textures(raw, [(None, k, v.ljust(len(k), "\0")) for k, v in g.names.items()], name)
-    raw = _set_attrs(raw, add=HIDDEN, clear=SKIN_TYPE)
-    stats = dict(verts=len(g.verts), tris=len(g.tris), lod=lod, budget=cap, over=len(g.verts) > cap, bone=bone)
-    return bone, raw, W3DFile(raw).meshes[name.upper()].verts, stats
+    by_bone = {}
+    for t in g.tris:
+        bones = {g.verts[i][3] for i in t[0]}
+        if len(bones) != 1:
+            raise SystemExit("%s in %s: a triangle spans bones %s" % (name, model, sorted(sk.names[b] for b in bones)))
+        by_bone.setdefault(bones.pop(), []).append(t)
+    pieces = []
+    for b, tris in sorted(by_bone.items()):
+        raw = WM.build_mesh(g.original.bytes, {0: WM.Source(g.original.bytes)}, name, container, g.verts, tris, False)
+        raw = rename_textures(raw, [(None, k, v.ljust(len(k), "\0")) for k, v in g.names.items()], name)
+        pieces.append((sk.names[b], _set_attrs(raw, add=HIDDEN, clear=SKIN_TYPE)))
+    stats = dict(verts=len(g.verts), tris=len(g.tris), lod=lod, budget=cap, over=len(g.verts) > cap,
+                 bones=[b for b, _ in pieces])
+    return pieces, stats
 
 
 def _model(name, meshes):
@@ -143,40 +169,55 @@ def _model(name, meshes):
 
 def build_models(spec):
     """{model name: (EA model, bone, bytes)} and per-part stats: for each of EA's models, one model
-    of ours per bone its attached parts ride, drawn in that model's states only (each EA model has
-    its own fit of the design, so the creation-screen Taskmaster and Sage differ slightly)."""
+    of ours per bone its parts ride, drawn in that model's states only (each EA model has its own
+    fit of the design, so the creation-screen and in-game models differ slightly)."""
     groups, stats = {}, {}
     want = {p[0] for p in parts(spec)}
     for m in ea_models(spec):
+        codes = {}
         for entry in [p for p in parts_of(spec, m) if p[0] in want]:
-            bone, raw, _, st = rigid_part(spec, entry, m)
-            name = model_name(spec, m, bone)
-            groups.setdefault(name, (m, bone, []))[2].append((entry[0], _set_container(raw, name)))
-            stats["%s/%s" % (name, entry[0])] = st
+            pieces, st = rigid_pieces(spec, entry, m)
+            for bone, raw in pieces:
+                name = model_name(spec, m, bone)
+                if codes.setdefault(name, bone) != bone:
+                    raise SystemExit("%s: bones %s and %s share the model name %s" % (m, codes[name], bone, name))
+                groups.setdefault(name, (m, bone, []))[2].append((entry[0], _set_container(raw, name)))
+            stats["%s/%s" % (m, entry[0])] = st
     return {n: (m, b, _model(n, meshes)) for n, (m, b, meshes) in groups.items()}, stats
 
 
-def states(ea_models_text, models):
-    """The ModelConditionState lines whose Model is one of `models` (EA's createaheromodels.inc)."""
+def class_states(ea_models_text, models):
+    """[(state, EA model)] of every ModelConditionState in EA's createaheromodels.inc whose Model is
+    one of `models`, in file order (a mounted state and a stealth state included)."""
     out = []
-    text = ini.strip(ea_models_text)
-    for m in re.finditer(r"^\s*ModelConditionState\s*=\s*([^\n]*?)\s*\n\s*Model\s*=\s*(\S+)", text, re.M | re.I):
-        if m.group(2).lower() in models and m.group(1) not in out:
-            out.append(m.group(1))
+    for m in re.finditer(r"^\s*ModelConditionState\s*=\s*([^\n]*?)\s*\n\s*Model\s*=\s*(\S+)", ini.strip(ea_models_text), re.M | re.I):
+        st = " ".join(m.group(1).split())
+        if m.group(2).lower() in models and st not in [s for s, _ in out]:
+            out.append((st, m.group(2).lower()))
     if not out:
         raise SystemExit("createaheromodels.inc has no state drawing %s" % models)
     return out
 
 
+def module_tag(spec, bone):
+    """SKH_Att_SKDW_B_HAND_R: the class's stem and the bone's full name (B_HAND_R and B_HANDR share
+    a model-name code, never a module)."""
+    return "SKH_Att_%s_%s" % (spec.ATTACH_STEM, re.sub(r"[^A-Za-z0-9]", "_", bone.upper()))
+
+
 def draw_modules(spec, ea, built):
+    """One Draw module per bone our parts ride in this class: every state of the class's EA models,
+    each drawing our model for that EA model and bone, or None."""
     NL = ini.NL
     text = ""
-    for name, (ea_model, bone, _) in sorted(built.items()):
-        text += ("Draw = W3DScriptedModelDraw SKH_Att_%s\t; sagekit cah: %s parts on %s, hidden until picked" % (name, spec.NAME, bone) + NL +
+    states = class_states(ea["models"], ea_models(spec))
+    by = {(m, b): n for n, (m, b, _) in built.items()}
+    for bone in sorted({b for _, b, _ in built.values()}):
+        text += ("Draw = W3DScriptedModelDraw %s\t; sagekit cah: %s parts on %s, hidden until picked" % (module_tag(spec, bone), spec.NAME, bone) + NL +
                  "\tOkToChangeModelColor = Yes" + NL + "\tDefaultModelConditionState" + NL + "\t\tModel = None" + NL + "\tEnd" + NL)
-        for st in states(ea["models"], [ea_model]):
-            text += "\tModelConditionState = %s" % st + NL + "\t\tModel = %s" % name + NL + "\tEnd" + NL
-        text += "\tAttachToBoneInAnotherModule = %s" % bone + NL + "End" + NL
+        for st, m in states:
+            text += "\tModelConditionState = %s" % st + NL + "\t\tModel = %s" % by.get((m, bone), "None") + NL + "\tEnd" + NL
+        text += "\tAttachToBoneInAnotherModule = %s" % ini_bone(bone) + NL + "End" + NL
     return text
 
 
@@ -186,79 +227,6 @@ def fragment(spec, ea, built):
     frag["append"]["obj_createaherodrawmodules"] = draw_modules(spec, ea, built)
     frag["attach"] = {n: sorted(W3DFile(b).meshes) for n, (_, _, b) in built.items()}
     return frag
-
-
-def lint(spec, ea, ours, built):
-    """The redesign's promises, each a check; broken copies must each fail (check())."""
-    errs = []
-    if ours["models"] != ea["models"]:
-        errs.append("createaheromodels.inc changed: every hero would draw something else than EA's model")
-    for k in ea:
-        if not k.startswith("class_") and not ours[k].startswith(ea[k].rstrip()):
-            errs.append("%s: EA's text is not kept byte for byte before ours" % k)
-    meshes = {}
-    for name, (ea_model, bone, data) in built.items():
-        if len(name) > NAME_MAX:
-            errs.append("model %s: longer than %d characters" % (name, NAME_MAX))
-        if bone not in skeleton(spec, spec.SKELETONS[ea_model]).names:
-            errs.append("%s rides %s, which %s's skeleton lacks" % (name, bone, ea_model))
-        if not re.search(r"Draw = W3DScriptedModelDraw SKH_Att_%s\b[^\n]*\n(?:(?!^End).*\n)*?\s*AttachToBoneInAnotherModule = %s\s"
-                         % (name, re.escape(bone)), ours["obj_createaherodrawmodules"], re.M):
-            errs.append("%s: no Draw module attaches it to %s" % (name, bone))
-        for mesh_name, m in W3DFile(data).meshes.items():
-            meshes[mesh_name] = name
-            attrs = [struct.unpack_from("<I", m.bytes, o + 12)[0] for t, o, _, _ in chunks(m.bytes, 8, len(m.bytes)) if t == MESH_HEADER3][0]
-            if not attrs & HIDDEN:
-                errs.append("%s.%s: not hidden by default (it would show on every hero)" % (name, mesh_name))
-            if attrs & SKIN_TYPE or any(t == VERTEX_INFLUENCES for t, _, _, _ in chunks(m.bytes, 8, len(m.bytes))):
-                errs.append("%s.%s: skinned; an attached part is rigid on its bone" % (name, mesh_name))
-            if len(mesh_name) > NAME_MAX:
-                errs.append("%s.%s: longer than %d characters" % (name, mesh_name, NAME_MAX))
-    for p in parts(spec):
-        if p[0].upper() not in meshes:
-            errs.append("%s: in no part model" % p[0])
-    return errs
-
-
-def check(spec, ea, ours, built):
-    errs = lint(spec, ea, ours, built)
-    broken = {}
-    b = dict(ours)
-    b["models"] = ours["models"].replace("CHDW_TM_U_SKN", "SKDW_TM_U_SKN", 1) + " "
-    broken["models_redirected"] = lint(spec, ea, b, built)
-    b = dict(ours)
-    b["obj_createaherodrawmodules"] = re.sub(r"AttachToBoneInAnotherModule = \S+", "AttachToBoneInAnotherModule = NOBONE",
-                                            ours["obj_createaherodrawmodules"])
-    broken["no_attach"] = lint(spec, ea, b, built)
-    n0 = next(iter(built))
-    k, bone, data = built[n0]
-    first = next(iter(W3DFile(data).meshes.values()))
-    shown = data.replace(first.bytes, _set_attrs(first.bytes, clear=HIDDEN))
-    broken["shown_by_default"] = lint(spec, ea, ours, {**built, n0: (k, bone, shown)})
-    b = dict(ours)
-    b["remove"] = "X" + ours["remove"]
-    broken["ea_text_changed"] = lint(spec, ea, b, built)
-    if errs or not all(broken.values()):
-        raise SystemExit("attach lint failed: %s" % (errs or {k: v for k, v in broken.items() if not v}))
-    return {"errors": errs, "broken": {k: v[:1] for k, v in broken.items()}}
-
-
-def pose_check(spec, built):
-    """Every part vertex stays finite at its bone through EA's check animation."""
-    worst = 0
-    for name, (model, bone, data) in built.items():
-        sk = skeleton(spec, spec.SKELETONS[model])
-        anim = P.Animation((folder(spec)[1] / (spec.CHECK_ANIM[spec.SKELETONS[model]] + ".w3d")).read_bytes())
-        b = sk.names.index(bone)
-        for f in range(0, anim.frames, max(1, anim.frames // 8)):
-            pose = sk.pose(anim, f)
-            for mesh in W3DFile(data).meshes.values():
-                for v in mesh.verts[::7]:
-                    p = P.point(pose[0][b], v)
-                    assert all(math.isfinite(x) for x in p), (name, f)
-                    worst = max(worst, abs(math.dist(p, pose[0][b][3::4][:3]) - math.dist(v, (0, 0, 0))))
-    assert worst < 1e-3, worst
-    return worst
 
 
 def load(spec):
@@ -278,9 +246,12 @@ def sheets(built):
 
 def build(spec):
     """Part models, the INI fragment and every check into build/assets/cah/<class>/attach/."""
+    from .attach_lint import check, pose_check
     sources(spec)
     out = attach_dir(spec)
     out.mkdir(parents=True, exist_ok=True)
+    for old in out.glob("*.w3d"):
+        old.unlink()
     built, stats = build_models(spec)
     for name, (_, _, data) in built.items():
         (out / (name.lower() + ".w3d")).write_bytes(data)
@@ -295,9 +266,12 @@ def build(spec):
     written, changed = ini.write(ours, ea, out / "ini", [frag])
     report["ini"].update(members=written, changed_lines=changed)
     report["over_budget"] = [(k, s["verts"], s["budget"]) for k, s in stats.items() if s["over"]]
+    report["split"] = {k: s["bones"] for k, s in stats.items() if len(s["bones"]) > 1}
     (out / "report.json").write_text(json.dumps(report, indent=1) + "\n")
-    for n, (k, b, d) in sorted(built.items()):
-        print("PASS %s (%s, on %s): %s, %d bytes, every part hidden by default" % (n, k, b, ", ".join(sorted(W3DFile(d).meshes)), len(d)))
+    print("PASS %s: %d parts, %d part models on %d bones, %d Draw modules; every part hidden by default; %d parts split by bone"
+          % (spec.NAME, len(parts(spec)), len(built), len({b for _, b, _ in built.values()}),
+             len(re.findall(r"^Draw = ", frag["append"]["obj_createaherodrawmodules"], re.M)), len(report["split"])))
+    print("budgets: %s" % ("all parts within" if not report["over_budget"] else "OVER: %s" % report["over_budget"]))
     print("INI: EA's files kept before ours, createaheromodels.inc untouched; members %s" % sorted(written.values()))
     print("Built into %s; nothing installed." % out)
     return report
@@ -307,7 +281,8 @@ if __name__ == "__main__":
     import importlib
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     spec = importlib.import_module("assets.cah.%s.design" % args[0])
-    build(spec)
-    if "--review" in sys.argv:
+    if "--review-only" not in sys.argv:
+        build(spec)
+    if "--review" in sys.argv or "--review-only" in sys.argv:
         from .attach_review import review
         review(spec)

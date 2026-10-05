@@ -86,6 +86,9 @@ PARTS = E.parts([
     ("SKOLG_WPN_CLUB", W, arms.club_angmar, "Rime-club of Angmar", "Fights as EA's troll weapons.", "serious", None, ALL),
 ], range(62, 65))
 budget = E.budget_of({"SKOLG_CAPE_MOR", "SKOLG_FUN_BANNR", "SKOLG_FUN_TUTU"})
+# every part rides the hero's bones in models of our own (assets/cah/kit/attach.py, docs/CAH.md); EA's
+# models are not copied. Staged with python3 -m sagekit.units.cah --stage.
+ATTACH, ATTACH_STEM = [p[0] for p in PARTS], "SKTL"
 
 
 def paint(work):

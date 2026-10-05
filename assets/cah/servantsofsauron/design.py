@@ -79,6 +79,9 @@ PARTS = E.parts([
     ("SKSOS_FUN_CHICK", W, arms.rubber_chicken, "Rubber Chicken", "Squeaks. Fights as a sword.", "fun", None, BOTH),
 ], range(58, 60))
 budget = E.budget_of({"SKSOS_CAPE_MOR", "SKSOS_FUN_BANNR"})
+# every part rides the hero's bones in models of our own (assets/cah/kit/attach.py, docs/CAH.md); EA's
+# models are not copied. Staged with python3 -m sagekit.units.cah --stage.
+ATTACH, ATTACH_STEM = [p[0] for p in PARTS], "SKSS"
 
 
 def paint(work):
