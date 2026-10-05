@@ -13,12 +13,14 @@ limit in the file; EA's longest run past 30 characters), prefixed "Sagekit", and
 EA's names in either particle INI.
 
 The blocks are made at build time from the player's own EA file (no EA text in git): the base
-block renamed, the listed fields' values replaced, the Color module's keyframes replaced. Every
+block renamed, the listed fields' values replaced, the Color module's keyframes replaced, and, for a
+system in sagekit/fire_lean.py LEAN (the fire budget), the whole block made lean. Every
 building that draws any of them ships the whole set (`ops`), so every faction archive's copy of
 the file is the same and whichever one the game reads defines them all.
 """
 import re
 
+from .fire_lean import LEAN, lean, why as lean_why
 from .formats.ini import strip
 
 MEMBER = "data\\ini\\fxparticlesystem.ini"
@@ -50,6 +52,9 @@ OWN = {
                          ("Color1 = R:30 G:34 B:44 0", "ColorScale = -16 16"),
                          "EA's SmokeChimney, twice as broad, blue-black"),
 }
+# the fire budget (appended 2026-10-04): lean copies of EA's systems, and the four above made lean the
+# same way (sagekit/fire_lean.py: fewer, slightly larger, longer-lived particles over the same volume)
+OWN.update({n: (spec[0], {}, None, None) for n, spec in LEAN.items() if n not in OWN})
 HEAD_RE = r"^[ \t]*(?:FX)?ParticleSystem[ \t]+%s(?=[ \t;/\r\n]|$)"
 
 
@@ -83,6 +88,7 @@ def block(text, name):
     """The lines of our system `name` (unindented header, EA's indentation inside) made from its
     EA base block in `text` (EA's fxparticlesystem.ini)."""
     base, fields, colour, why = OWN[name]
+    why = why or lean_why(name)
     a, z = ea_block(text, base)
     src = text.splitlines()[a + 1:z]
     out, module, depth, seen, in_colour, had_colour = [], None, 1, set(), False, False
@@ -102,7 +108,7 @@ def block(text, name):
         key, _, val = (x.strip() for x in s.partition("="))
         if depth == 1:
             depth, module = 2, key
-            in_colour = key.lower() == "color"
+            in_colour = key.lower() == "color" and colour is not None
             had_colour |= in_colour
             out.append(pad + s)
             continue
@@ -116,8 +122,10 @@ def block(text, name):
     missing = [k for k in fields if (k[0].lower(), k[1].lower()) not in seen]
     if missing:
         raise ValueError("%s: EA's %s has no %s" % (name, base, ", ".join("%s.%s" % k for k in missing)))
-    if not had_colour:
+    if not had_colour and colour is not None:
         raise ValueError("%s: EA's %s has no Color module" % (name, base))
+    if name in LEAN:
+        out = lean(name, out)
     return ["; sagekit (sagekit/fire_systems.py): %s" % why, "FXParticleSystem %s" % name] + out + ["End"]
 
 

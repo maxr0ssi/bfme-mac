@@ -275,7 +275,7 @@ def object_cost(ini, obj, find_model, rates, flags=(), index=None):
     if ini is None:
         return None
     night += [] if "NIGHT" in flags else night_names(ini.blocks.get(obj, []))
-    entries, flags = [], set(flags)
+    entries, flags, fire = [], set(flags), {}
     for d in ini.draws.get(obj, []):
         st = pick(d, flags)
         if st is None or not st.model or st.model.lower() == "none":
@@ -288,4 +288,10 @@ def object_cost(ini, obj, find_model, rates, flags=(), index=None):
         shown = model.shown(night, [h for h in hide if h.upper() not in show])
         shown += [m for m in model.meshes.values() if m.name in show and m.hidden and m.key in model.drawn]
         entries.append((model, shown, [rates.live(p) for p in particles_of(ini.lines, d, st)]))
-    return cost_of(entries) if entries else None
+        if d.tag.startswith("SagekitFire_"):        # our fire (sagekit/fire.py): by rig, for the fire budget
+            fire[model.name] = max(fire.get(model.name, 0.0), sum(entries[-1][2]))
+    if not entries:
+        return None
+    c = cost_of(entries)
+    c["fire"] = fire
+    return c

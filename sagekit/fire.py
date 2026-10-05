@@ -44,26 +44,30 @@ HLOD_LOD_ARRAY, HLOD_SUB_OBJECT_ARRAY_HEADER = 0x702, 0x703
 # kind -> particle systems: EA's (in data\ini\fxparticlesystem.ini or particlesystem.ini, each drawn by one
 # of EA's own buildings or props in its healthy state) or, named Sagekit*, our own copies of EA's (fire_systems.py)
 KINDS = {
-    "chimney": ("SiegeWorkFire", "SmokeChimney"),       # Isengard siege works' fire; Isengard tavern's chimney
-    "furnace": ("furnaceFire", "furnaceSparks"),        # the civilian furnace; Isengard camp's sparks
-    "forge": ("ForgeCoal", "ForgeEmbers"),              # the Men forge: coal glow, rising embers
-    "hearth": ("furnaceFire", "CampfireEmbersSmall"),   # a broad low bed of fire; campfire embers
-    "crucible": ("ForgeCoal", "furnaceSparks"),         # a molten glow and a few sparks
-    "brazier": ("FireTorch", "TorchSmokeBlack"),        # Isengard tavern's torches
-    "grate": ("ForgeCoal", "CampfireEmbersSmall"),      # hot coals under a grating
-    "embers": ("CampfireEmbersSmall",),
-    # smoke (appended 2026-09-30; the kinds above are unchanged: installed buildings use them)
-    "pyre": ("FireBuildingLarge", "SmokeBuildingLarge"),  # EA's burning structures (73 and 115 INIs): big fire,
-                                                          # a heavy dark plume (grey 48, particles 10..20, growing)
-    "smoke": ("SmokeChimney",),                         # a thin dark column only (Isengard and Mordor taverns)
-    # green witch-fire and a heavy plume alone (appended 2026-09-30, the Mordor citadel; the kinds above are
-    # unchanged). Sagekit* systems are our own: copies of EA's, made and shipped by sagekit/fire_systems.py
-    "witchfire": ("SagekitWitchFire", "SagekitWitchSmoke"),  # furnaceFire in Morgul green, a modest dark plume
+    # since the fire budget (2026-10-04) every kind but the unused pyre draws lean copies of EA's systems
+    # (sagekit/fire_lean.py: fewer, slightly larger, longer-lived particles over the same volume, in the
+    # same colours); the comment names EA's own building or prop that burns the EA system copied:
+    "chimney": ("SagekitLeanSiegeWorkFire", "SagekitLeanSmokeChimney"),  # Isengard siege works; tavern chimney
+    "furnace": ("SagekitLeanFurnaceFire", "SagekitLeanFurnaceSparks"),   # the civilian furnace; Isengard camp
+    "forge": ("SagekitLeanForgeCoal", "SagekitLeanForgeEmbers"),         # the Men forge: coal glow, rising embers
+    "hearth": ("SagekitLeanFurnaceFire", "SagekitLeanCampfireEmbers"),   # a broad low bed of fire; campfire embers
+    "crucible": ("SagekitLeanForgeCoal", "SagekitLeanFurnaceSparks"),    # a molten glow and a few sparks
+    "brazier": ("SagekitLeanFireTorch", "SagekitLeanTorchSmoke"),        # Isengard tavern's torches
+    "grate": ("SagekitLeanForgeCoal", "SagekitLeanCampfireEmbers"),      # hot coals under a grating
+    "embers": ("SagekitLeanCampfireEmbers",),
+    "pyre": ("FireBuildingLarge", "SmokeBuildingLarge"),  # EA's burning structures' big fire and heavy plume:
+                                                          # over the fire budget alone (103 live), used nowhere
+    "smoke": ("SagekitLeanSmokeChimney",),              # a thin dark column only (Isengard and Mordor taverns)
+    # green witch-fire and cold fire: our own colours of furnaceFire / SmokeChimney (sagekit/fire_systems.py)
+    "witchfire": ("SagekitWitchFire", "SagekitWitchSmoke"),  # Morgul green, a modest dark plume
     "witchflame": ("SagekitWitchFire",),                # the green fire alone (a second flame in one bowl)
-    "plume": ("SmokeBuildingLarge",),                   # EA's heavy dark plume alone (over a forge's flue)
-    # Angmar's cold fire (appended 2026-10-01, the Angmar citadel; the kinds above are unchanged)
-    "coldfire": ("SagekitColdFire", "SagekitColdSmoke"),  # furnaceFire ice-blue to white, a blue-black plume
+    "plume": ("SagekitLeanSmokePlume",),                # EA's heavy dark plume alone (over a forge's flue)
+    "coldfire": ("SagekitColdFire", "SagekitColdSmoke"),  # ice-blue to white, a blue-black plume (Angmar)
     "coldflame": ("SagekitColdFire",),                  # the cold fire alone (more flames in one hearth)
+    # appended with the fire budget: a part of a kind, for points that share a neighbour's smoke or sparks
+    "torch": ("SagekitLeanFireTorch",),                 # the brazier's flame without its smoke
+    "coals": ("SagekitLeanForgeCoal",),                 # the grate's glow without its embers
+    "flame": ("SagekitLeanFurnaceFire",),               # the hearth's / furnace's fire alone
 }
 NO_FIRE = {State.CONSTRUCTION, State.PLACEMENT, State.EDITOR, State.RUBBLE}
 LIKE = "obbfoundationx.w3d"             # EA's meshless model whose asset.dat record the rig copies

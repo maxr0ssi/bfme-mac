@@ -56,6 +56,10 @@ def cmd_validate(a):
         bad += 1
         print("FAIL lifecycle: %s" % f)
     game = _game_checks()
+    fire_rates = None
+    if game:                                    # the fire budget needs the game's particle INIs
+        from .fire_budget import rates
+        fire_rates = rates(Install())
     for bid in registry.building_ids():
         try:
             b = registry.load(bid)
@@ -63,6 +67,11 @@ def cmd_validate(a):
                 game[0](b)
             from .fire import points as fire_points
             fire_points(b)                      # (x, y, z, kind) with a kind sagekit/fire.py knows
+            if fire_rates is not None:          # at most 60 live particles of fire (sagekit/fire_budget.py)
+                from .fire_budget import problem
+                over = problem(b, fire_rates)
+                if over:
+                    raise ValueError(over)
             from .lifecycle import check_settings
             check_settings(b)                   # lifecycle allowances carry a number and a reason
             for old, new in b.texture_names().items():

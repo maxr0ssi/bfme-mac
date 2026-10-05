@@ -12,14 +12,14 @@ import json
 import os
 import sys
 
-from .drawcost import STATES, Ini, ModelCost, Rates, object_cost
+from .drawcost import STATES, Ini, ModelCost, object_cost
 from .formats.big import Archive
+from .fire_budget import BUDGET
 from .game import Install
 
 # ours <= EA's main-view draws x 1.10 + 2, and EA's render objects + 2: a building may add its house-colour
 # model and its fire rig (the two faction standards that are Draw modules of their own), nothing more
 CAP = {"objects": 2, "main": 2, "ratio": 1.10}
-FIRE_WARN = 330                 # live particles: EA's heaviest standing building (FireDrakeLair's lava, healthy)
 SKIP = ("-ui2x", "-icons", "-hud", "-fx", "-scenery", "-units", "-cah", "english")
 
 
@@ -50,7 +50,7 @@ class Game:
     """EA's side, read once: models, object INIs ({model: {member}}, {object: Ini}), particle rates."""
 
     def __init__(self):
-        from .fire_systems import OWN
+        from .fire_budget import rates
         self.install = Install()
         self.side = Side(self.install)
         self.by_model, self.index = {}, {}
@@ -64,9 +64,7 @@ class Game:
                 for d in draws:
                     for m in d.models():
                         self.by_model.setdefault(m.lower(), set()).add(member)
-        texts = [self.install.read(m).decode("latin-1") for m in ("data\\ini\\fxparticlesystem.ini",
-                 "data\\ini\\particlesystem.ini") if self.install.owner(m)]
-        self.rates = Rates(texts, {k: v[0] for k, v in OWN.items()})
+        self.rates = rates(self.install)            # EA's particle INIs with our fire's systems (fire_budget.py)
 
 
 def compare_archive(path, game, states=STATES):
@@ -152,15 +150,29 @@ def validate():
     bad = [r for r in rows if over_cap(r)]
     for r in bad:
         print("FAIL draw cost %s (%s): %s" % (r["object"], r["archive"].strip("!"), over_cap(r)))
-    hot = sorted({(round(r["healthy"]["ours"]["particles"]), r["object"]) for r in rows
-                  if r["healthy"]["ours"]["particles"] > FIRE_WARN}, reverse=True)
-    if hot:                                         # a warning: fire is Max's call (docs/PERFORMANCE.md §14)
-        print("warn draw cost: fire over EA's heaviest building (%d live particles): %s" % (
-            FIRE_WARN, ", ".join("%s %d" % (o, n) for n, o in hot)))
+    hot = over_budget(rows)                         # the fire budget (sagekit/fire_budget.py, Max 2026-10-04)
+    for obj, archive, rig, n, st in hot:
+        print("FAIL fire budget %s (%s): its fire %s burns %.1f live particles in the %s state, over %d" % (
+            obj, archive.strip("!"), rig, n, st, BUDGET))
+    if not hot:
+        print("ok   fire budget: every staged building's fire within %d live particles in every state" % BUDGET)
     if not bad:
         print("ok   draw cost: %d objects within EA's draws x %.2f + %d and EA's render objects + %d" % (
             len(rows), CAP["ratio"], CAP["main"], CAP["objects"]))
-    return len(bad)
+    return len(bad) + len(hot)
+
+
+def over_budget(rows):
+    """[(object, archive, fire rig, live particles, state)] of our fire over the budget in its worst state."""
+    out = []
+    for r in rows:
+        worst = {}
+        for st in STATES:
+            for rig, n in (((r.get(st) or {}).get("ours") or {}).get("fire") or {}).items():
+                if n > worst.get(rig, (0.0, None))[0]:
+                    worst[rig] = (n, st)
+        out += [(r["object"], r["archive"], rig, n, st) for rig, (n, st) in sorted(worst.items()) if n > BUDGET + 1e-6]
+    return out
 
 
 def plain(c):
