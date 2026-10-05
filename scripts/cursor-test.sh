@@ -3,7 +3,8 @@
 # without the game. Builds tools/cursortest.c, runs it in a throwaway prefix (build/prefix-cursor)
 # with WINEDEBUG=+cursor, and checks each cursor became NSCursor frames, not the macOS arrow
 # (winemac falls back to the arrow when it cannot convert a cursor). Reads the cursor files from the
-# game folder and never writes there. Moves the pointer once and puts it back.
+# game folder and never writes there. Moves the pointer once and puts it back. Also builds
+# build/cursorprobe for CURSORPROBE=<secs> scripts/play-rotwk.sh.
 #   scripts/cursor-test.sh            exit status = cursors that became the arrow (0 = pass)
 set -eu
 BFME_ROOT="${0:A:h:h}"
@@ -15,8 +16,10 @@ cursors="$WINEPREFIX/drive_c/Program Files (x86)/Electronic Arts/RotWK/data/curs
 [[ -d $cursors ]] || { echo "no $cursors"; exit 1; }
 src=$BFME_ROOT/tools/cursortest.c exe=$BFME_ROOT/build/cursortest.exe
 if [[ ! -x $exe || $src -nt $exe ]]; then
-  i686-w64-mingw32-gcc -O2 -Wall -o "$exe" "$src" -lgdi32 || { echo "build failed"; exit 1; }
+  i686-w64-mingw32-gcc -O2 -Wall -o "$exe" "$src" -lgdi32 -ld3d9 || { echo "build failed"; exit 1; }
 fi
+probe=$BFME_ROOT/build/cursorprobe   # for CURSORPROBE=<secs> scripts/play-rotwk.sh
+[[ -x $probe && ! $BFME_ROOT/tools/cursorprobe.swift -nt $probe ]] || swiftc -O -o "$probe" "$BFME_ROOT/tools/cursorprobe.swift" 2>/dev/null || echo "cursorprobe not built (swiftc)"
 export WINEPREFIX="$BFME_ROOT/build/prefix-cursor"
 [[ -d $WINEPREFIX ]] || { WINEDEBUG=-all wine wineboot -i >/dev/null 2>&1; wineserver -w; }
 out=$BFME_ROOT/build/cursortest.out trace=$BFME_ROOT/build/cursortest.trace

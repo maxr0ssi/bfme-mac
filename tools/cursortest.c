@@ -11,12 +11,17 @@
  * scripts/cursor-test.sh matches the two and fails on any cursor that became the arrow.
  * Prints "handle file steps rate color|mono WxH hotspot" per cursor.
  *
- * Build: i686-w64-mingw32-gcc -O2 -o build/cursortest.exe tools/cursortest.c -lgdi32
+ * cursortest <dir> <file> <secs> instead holds that one cursor over a full-screen window, as the
+ * game does in a match.
+ *
+ * Build: i686-w64-mingw32-gcc -O2 -o build/cursortest.exe tools/cursortest.c -lgdi32 -ld3d9
  * Run:   scripts/cursor-test.sh
  * It moves the pointer once (SetCursorPos into its window, top left of the screen) and puts it back.
  */
 #include <windows.h>
+#include <d3d9.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef HCURSOR (WINAPI *GetCursorFrameInfo_t)(HCURSOR, DWORD, DWORD, DWORD *, DWORD *);
@@ -36,13 +41,36 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     return DefWindowProcA(hwnd, msg, wp, lp);
 }
 
+static IDirect3DDevice9 *dev;   /* CURSORTEST_D3D=<alpha 0-255>[,a8|x8]: draw like the game, with D3D9 */
+static D3DCOLOR clear_color;
+
+static void d3d_init(HWND hwnd, const char *spec)
+{
+    IDirect3D9 *d3d = Direct3DCreate9(D3D_SDK_VERSION);
+    D3DPRESENT_PARAMETERS pp = {0};
+    clear_color = D3DCOLOR_ARGB(atoi(spec) & 0xff, 40, 60, 40);
+    pp.Windowed = TRUE;
+    pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+    pp.BackBufferFormat = strstr(spec, "a8") ? D3DFMT_A8R8G8B8 : D3DFMT_X8R8G8B8;
+    pp.hDeviceWindow = hwnd;
+    if (!d3d || FAILED(IDirect3D9_CreateDevice(d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd,
+                                               D3DCREATE_SOFTWARE_VERTEXPROCESSING, &pp, &dev)))
+        printf("d3d9 device failed\n");
+    printf("d3d9: clear alpha %lu, backbuffer %s\n", clear_color >> 24, strstr(spec, "a8") ? "A8R8G8B8" : "X8R8G8B8");
+}
+
 static void pump(DWORD ms)
 {
     DWORD end = GetTickCount() + ms;
     MSG m;
     do {
         while (PeekMessageA(&m, 0, 0, 0, PM_REMOVE)) { TranslateMessage(&m); DispatchMessageA(&m); }
-        Sleep(5);
+        if (dev)
+        {
+            IDirect3DDevice9_Clear(dev, 0, NULL, D3DCLEAR_TARGET, clear_color, 1.0f, 0);
+            IDirect3DDevice9_Present(dev, NULL, NULL, NULL, NULL);
+        }
+        Sleep(dev ? 15 : 5);
     } while ((LONG)(end - GetTickCount()) > 0);
 }
 
@@ -95,6 +123,8 @@ static void describe(int i)
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "data\\cursors";
+    const char *hold = argc > 2 ? argv[2] : NULL;   /* hold <file> <secs>: full screen, one cursor */
+    int secs = argc > 3 ? atoi(argv[3]) : 10;
     WNDCLASSA wc = {0};
     POINT saved;
     HWND hwnd;
@@ -103,14 +133,28 @@ int main(int argc, char **argv)
     wc.lpfnWndProc = wndproc;
     wc.hInstance = GetModuleHandleA(NULL);
     wc.lpszClassName = "cursortest";      /* hCursor NULL, as the game's class */
+    if (getenv("CURSORTEST_PAINT")) wc.hbrBackground = (HBRUSH)GetStockObject(GRAY_BRUSH);
     RegisterClassA(&wc);
-    hwnd = CreateWindowExA(WS_EX_TOPMOST, "cursortest", "cursortest", WS_POPUP | WS_VISIBLE,
-                           0, 0, 256, 256, NULL, NULL, wc.hInstance, NULL);
+    hwnd = CreateWindowExA(hold ? 0 : WS_EX_TOPMOST, "cursortest", "cursortest", WS_POPUP | WS_VISIBLE, 0, 0,
+                           hold ? GetSystemMetrics(SM_CXSCREEN) : 256, hold ? GetSystemMetrics(SM_CYSCREEN) : 256,
+                           NULL, NULL, wc.hInstance, NULL);
+    SetForegroundWindow(hwnd);
+    if (getenv("CURSORTEST_D3D")) d3d_init(hwnd, getenv("CURSORTEST_D3D"));
     pump(300);
     GetCursorPos(&saved);
     SetCursorPos(128, 128);               /* makes our window the server's cursor window */
     pump(100);
-    for (current = 0; current < ncursors; current++)
+    if (hold)   /* the game's steady state: one cursor, re-set on every WM_SETCURSOR */
+    {
+        for (current = 0; current < ncursors && lstrcmpiA(names[current], hold); current++) ;
+        if (current == ncursors) { printf("no %s\n", hold); return 1; }
+        describe(current);
+        printf("holding %s for %d s, foreground %d\n", names[current], secs, GetForegroundWindow() == hwnd);
+        fflush(stdout);
+        SetCursor(cursors[current]);
+        pump(secs * 1000);
+    }
+    for (current = 0; !hold && current < ncursors; current++)
     {
         describe(current);
         fflush(stdout);
