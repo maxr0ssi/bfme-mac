@@ -74,6 +74,16 @@ extern uint32_t gp_rst_sw_fn, gp_rst_lod_fn;   /* the originals the two logging 
 void gp_rst_get(LONG *out, unsigned n);        /* the counters, in the order of p_rstats.c's rst_t */
 extern LONG gp_rst_logged; extern uint32_t gp_rst_last_caller; extern int gp_rst_last_arg;
 
+/* monitor (p_monitor.c): per-frame session data for scripts/monitor.sh, while GAMEPATCH_MONITOR is set */
+int  gp_patch_monitor(void);
+void gp_mon_frame(void);                       /* from gp_rst_frame: one drawn frame */
+void gp_mon_flush(int final);                  /* the writer's step (tests call it directly) */
+void gp_mon_exit(void);
+void gp_mon_vm(LONG v[7]);
+extern int gp_mon_on, gp_mon_start_writer;
+extern uint32_t gp_mon_fn[8];
+extern void *const gp_mon_wrappers[8];        /* texload surfload cubeload volload create volcreate fx fxfile */
+
 /* particlestats (p_pstats.c, p_pstats.S): timers/counters of the RenderParticles pass, per pass */
 enum { PS_MGR, PS_ROBJ, PS_COLOR, PS_SORT, PS_PBUF, PS_N };   /* timed kinds */
 #define PS_KINDS 9                                            /* draw module kinds of the system walk */

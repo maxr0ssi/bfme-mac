@@ -170,7 +170,7 @@ void gp_rst_force_report(void)
 }
 
 /* called from p_rstats.S (main thread only: the render helper and everything under it) */
-__attribute__((force_align_arg_pointer)) void gp_rst_frame(void) { rs.frames++; periodic(); }
+__attribute__((force_align_arg_pointer)) void gp_rst_frame(void) { rs.frames++; periodic(); if (gp_mon_on) gp_mon_frame(); }
 __attribute__((force_align_arg_pointer))
 void gp_rst_timed(unsigned kind, uint32_t t0lo, uint32_t t0hi, uint32_t t1lo, uint32_t t1hi)
 {

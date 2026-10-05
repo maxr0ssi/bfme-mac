@@ -20,6 +20,9 @@ TESTS   += $(OUT)/t_rstats.exe
 # timers for the RenderParticles pass, main vs shadow-map pass (particlestats)
 PATCHES += src/p_pstats.c src/p_pstats.S
 TESTS   += $(OUT)/t_pstats.exe
+# per-frame session data for scripts/monitor.sh (monitor)
+PATCHES += src/p_monitor.c
+TESTS   += $(OUT)/t_monitor.exe
 TESTS   += $(OUT)/t_perf.exe $(OUT)/t_particle.exe $(OUT)/t_anim.exe $(OUT)/t_adecode.exe
 # shadow volumes on the worker pool of parallel/pool (shadowpar), edge chaining (edgemap), counters
 # (shadowstats)
@@ -31,6 +34,9 @@ PATCHES += src/p_logic.c src/p_logic.S src/p_ftol2.S
 TESTS   += $(OUT)/t_logic.exe $(OUT)/t_ftol2.exe
 # highmem diagnostic: the low 2 GB reserved at start-up (t_highmem: a large-address-aware stand-in)
 PATCHES += src/p_highmem.c
+# logicstats diagnostic: GameLogic::update per phase, its subsystems and update modules
+PATCHES += src/p_lstats.c src/p_lstats.S
+TESTS   += $(OUT)/t_lstats.exe
 TESTS   += $(OUT)/t_highmem.exe
 
 all: $(DLL) $(TESTS)

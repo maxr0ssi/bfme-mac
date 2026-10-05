@@ -46,4 +46,22 @@ LONG gp_lm_count(int x87, int k);         /* summed over the per-thread counter 
 void gp_lm_periodic(void);               /* the 60 s log line; p_logic.S calls it every 64 k calls */
 extern DWORD gp_lm_period_ms;            /* 60000 (tests shorten it) */
 
+/* logicstats (p_lstats.c/.S): diagnostic timers of GameLogic::update per phase, its subsystems,
+ * direct calls and update modules; no behaviour change, off by default */
+int  gp_patch_logicstats(void);
+void gp_lst_exit_log(void);
+void gp_lst_logic_stub(void); void gp_lst_mod_stub(void);
+void gp_lst_sub0(void); void gp_lst_sub1(void); void gp_lst_sub2(void); void gp_lst_sub3(void);
+void gp_lst_sub4(void); void gp_lst_sub5(void); void gp_lst_sub6(void); void gp_lst_sub7(void);
+void gp_lst_sub8(void); void gp_lst_sub9(void); void gp_lst_sub10(void); void gp_lst_sub11(void);
+void gp_lst_sub12(void); void gp_lst_sub13(void); void gp_lst_sub14(void); void gp_lst_sub15(void);
+void gp_lst_sub16(void); void gp_lst_sub17(void); void gp_lst_sub18(void);
+void gp_lst_call0(void); void gp_lst_call1(void); void gp_lst_call2(void); void gp_lst_call3(void);
+void gp_lst_call4(void); void gp_lst_call5(void);
+extern uint32_t gp_lst_logic_cont, gp_lst_cont[32], gp_lst_sub_slot[19];
+extern DWORD gp_lst_period_ms;
+void gp_lst_force_report(void);
+void gp_lst_get(int kind, int ph, LONG *calls, uint64_t *ticks);   /* kind -1 logic, -2 modules */
+LONG gp_lst_mod_calls(uint32_t vt);
+
 #endif
