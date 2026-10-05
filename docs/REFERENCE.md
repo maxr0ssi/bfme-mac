@@ -183,7 +183,8 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 - `scripts/texstash.sh [--gb G] [args]` + `tools/texstash.c` — 4.5 GB of managed textures in our formats
   in a large-address-aware 32-bit process, on engines/w10 and build/engine-0022: address space after each
   256 MB, first failure, upload and frame times, eviction, relock, GetDC and Reset, and a CRC of every
-  texture drawn, compared between the two. Throwaway prefix build/prefix-texstash. `docs/MEMORY-4GB.md`.
+  texture drawn, compared between the two; `--reserve 1300` takes the game's own share of the address
+  space first. Throwaway prefix build/prefix-texstash. `docs/MEMORY-4GB.md`.
 - `scripts/bench-d3d9.sh <variant> [args]` + `tools/d3d9bench.c` — compares wined3d builds without the
   game (a 640x480 window for ~15 s per run, 3 runs, median; refuses to run beside a game). The bench
   replays WW3D2's per-frame D3D9 pattern (EA's Generals source, `dx8wrapper.cpp`): per-object state

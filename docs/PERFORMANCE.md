@@ -792,6 +792,8 @@ a full 8-player build would need ~5 GB of the 4 GB (the 09-28 memwatch: 1.3-1.5 
 before most art loads). No eviction or hitch from pressure before that wall. Opaque DXT5 sheets now
 ship as the DXT1 that draws the same texels: 3554 → 3287 MB staged over all packs; no texture has a
 top mip level the closest camera never samples at 3024x1964 (`sagekit/texreach.py`).
+wined3d 0022 offline (MEMORY-4GB.md): 4.09 GB of our textures in 85 MB of address space instead of
+3660 MB; frames unchanged within the spread; a texture's first draw 0.3-0.7 ms per MB slower.
 
 Still to see in game (needs the game): which of these loads land on a click at Max's settings, i.e.
 whether RotWK preloads a structure's assets at match load (Generals only does with `-preload`; RotWK

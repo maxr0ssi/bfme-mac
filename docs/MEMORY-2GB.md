@@ -57,8 +57,9 @@ before/after eviction and relock. `tools/d3d9lockcheck.c`: 0 failures on both.
 ## Patch 0022 — managed textures' system memory in host memory
 
 `patches/wined3d-wow64-buffers/unbuilt/0022-wined3d-Keep-managed-textures-system-memory-in-host-memory-under-WoW64.patch`
-(against bfme-fixes-10.0; applies with `git apply --check`). Written, not built into the
-engine and not played; `scripts/wine-fixes.sh` does not apply `unbuilt/`.
+(against bfme-fixes-10.0; applies with `git apply --check`). Not in `scripts/wine-fixes.sh`'s
+build (`unbuilt/`); built, staged and tested offline on 2026-10-04 by `scripts/wine-0022.sh`
+(MEMORY-4GB.md, "Patch 0022"), not played.
 
 - When the game has filled a managed texture (unmap of its last mip) and after every upload, the
   CS thread copies the CPU half's memory into a `malloc` in `wined3d.so` (64-bit, above 4 GB; the
