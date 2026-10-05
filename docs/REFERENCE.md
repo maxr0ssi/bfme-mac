@@ -241,6 +241,13 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   systems and live particles per state, and the main-thread µs they cost; `--scene` the 8-player late
   game. `sagekit validate` caps each object at EA's draws x 1.10 + 2 and EA's render objects + 2.
   `docs/PERFORMANCE.md` §14.
+- `python3 -m sagekit.fire_budget [faction/building ...]` (`sagekit/fire_budget.py`, `fire_lean.py`) — each
+  burning recipe's fire in live particles against the budget of 60 (BurstCount / BurstDelay x Lifetime
+  per system, over its points); `sagekit validate` and the check suite fail one over it. docs/ART.md "Fire budget".
+- `python3 -m sagekit.fire_review --snapshot <out.json> | [--before <json>] <faction/building> ...`
+  (`sagekit/fire_review.py`, `sagekit/paint/fire_composite.py` on Blender's Python) — the fire before and
+  after drawn over the build's renders, healthy and damaged, in-game camera and close-up, live counts on
+  each tile: `build/assets/_review_finish/fire_budget/`.
 - `tools/d3dx9fxbench.c` — replays the game's per-batch / per-mesh `ID3DXEffect` calls (shadow-map
   pass + main view) on the real `.fxo` effects against any `d3dx9_27.dll` build, without the game;
   `--hash` checksums every device call the effects make, so two builds can be proven identical.

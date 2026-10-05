@@ -76,6 +76,9 @@ FIRE_POINTS = [
     (27.7, -52.1, 57.1, 'coldflame'), (-27.7, -52.1, 57.1, 'coldflame'), (27.7, 52.1, 57.1, 'coldflame'),
     (-52.1, 27.7, 57.1, 'coldflame'),                                                  # the braziers
 ]
+# The fire budget (2026-10-04, docs/ART.md "Fire budget": at most 60 live particles): every crater and
+# brazier keeps its cold flame; the two plumes go. 57.6 live (was 207).
+FIRE_POINTS = [(x, y, z, 'coldflame') for x, y, z, _ in FIRE_POINTS]
 
 
 class Fortress(Building):

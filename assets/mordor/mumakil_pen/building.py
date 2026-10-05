@@ -29,6 +29,15 @@ FIRE_POINTS = [
     (45.8, 33.0, 12.3, 'furnace'), (45.8, 33.0, 15.0, 'smoke'), (45.8, 0.0, 78.5, 'furnace'),
     (45.8, 0.0, 81.0, 'plume'), (-26.0, -44.8, 0.4, 'embers'), (12.0, -44.8, 0.4, 'embers')
 ]
+# The fire budget (2026-10-04, docs/ART.md "Fire budget": at most 60 live particles): every bowl keeps
+# its flame, the crown's its sparks and plume; two of the four side bowls (one per side) keep their
+# smoke. 59.5 live (was 253).
+FIRE_POINTS = [
+    (7.0, -38.6, 34.1, 'flame'), (7.0, -38.6, 36.8, 'smoke'), (7.0, 38.6, 34.1, 'flame'),
+    (45.8, -33.0, 12.3, 'flame'), (45.8, 33.0, 12.3, 'flame'), (45.8, 33.0, 15.0, 'smoke'),
+    (45.8, 0.0, 78.5, 'furnace'), (45.8, 0.0, 81.0, 'plume'), (-26.0, -44.8, 0.4, 'embers'),
+    (12.0, -44.8, 0.4, 'embers')
+]
 
 
 class MumakilPen(Building):

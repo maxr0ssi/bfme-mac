@@ -958,10 +958,26 @@ live particles and 0.5-0.8 ms of particle render: their bases had not reached th
 most 120 live particles (EA's own furnace has 111): 8 bases 499 → 342 systems, 7,561 → 5,223 particles;
 at most 60: 230 systems, 3,585 particles, under the cap.
 
+**Built (2026-10-04 late, Max chose 60; docs/ART.md "Fire budget"):** lean copies of EA's fire systems
+(`sagekit/fire_lean.py`) and six recipes consolidated. Our fire over all 64 burning recipes 6,480 →
+1,537 live particles; the worst building 538 → 59.5 (Mumakil pen; Isengard citadel 57.8, Mordor
+citadel 56.2). Same staged packs, same scene (`build/assets/_review_finish/fire_budget/drawcost_after.txt`):
+
+| 8 bases | EA | ours before | ours after |
+|---|---|---|---|
+| particle systems / live particles | 35 / 809 | 499 / 7,561 | 433 / 2,428 |
+| particle render, map-wide (model) | 0.46 ms | 2.80 ms (at the cap) | 1.91 ms |
+
+The rest (render objects, draws, materials) is unchanged. 2,428 includes EA's own effects on our
+objects (the Elven bases' 425). A citadel with every add-on burns more than one recipe's fire (Isengard
+209, Mordor 104, Angmar 92, damaged state); the scene counts the healthy citadels. Not measured in
+game yet.
+
 **The check.** `sagekit validate` holds every staged object's healthy state to EA's main-view draws
-x 1.10 + 2 and EA's render objects + 2 (a house model and a fire rig), and warns where a building's fire
-passes EA's heaviest standing one (330 live particles: Isengard citadel 538, Mordor citadel 421,
-Isengard furnace 368). All 326 objects pass.
+x 1.10 + 2 and EA's render objects + 2 (a house model and a fire rig). It warned where a building's
+fire passed EA's heaviest standing one (330 live particles: Isengard citadel 538, Mordor citadel 421,
+Isengard furnace 368); since the fire budget it fails any recipe, and any staged object's fire rig in
+any state, over 60 (`sagekit/fire_budget.py`). All 326 objects pass.
 
 ## 16. Session monitor: hard data from every game (2026-10-04)
 

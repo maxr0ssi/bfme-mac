@@ -40,6 +40,14 @@ FIRE_POINTS = [
     (57.0, 20.5, 6.5, 'crucible'), (64.0, 24.0, 8.6, 'brazier'), (64.0, -43.0, 8.6, 'brazier'),
     (20.0, -42.0, 8.6, 'brazier'), (57.0, 5.0, 15.0, 'crucible'), (52.0, 7.4, 22.3, 'crucible')
 ]
+# The fire budget (2026-10-04, docs/ART.md "Fire budget": at most 60 live particles): the hearth's
+# crucible (8 units off) merges into the hearth, the two crucibles on the forge deck glow without sparks.
+# 56.8 live (was 258).
+FIRE_POINTS = [
+    (2.5, -4.0, 109.2, 'chimney'), (15.0, 8.0, 42.0, 'furnace'), (50.0, 24.0, 7.2, 'hearth'),
+    (64.0, 24.0, 8.6, 'brazier'), (64.0, -43.0, 8.6, 'brazier'), (20.0, -42.0, 8.6, 'brazier'),
+    (57.0, 5.0, 15.0, 'coals'), (52.0, 7.4, 22.3, 'coals')
+]
 
 CRATER = (2.5, -4.0)
 SMELTER = ((2.5, -4.0), 10.5, 48.0, 110.0)          # the smelter stack out of the crater: centre, half-diagonal, z0, mouth

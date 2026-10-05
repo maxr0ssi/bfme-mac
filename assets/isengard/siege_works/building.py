@@ -38,6 +38,14 @@ FIRE_POINTS = [
     (49.4, 24.9, 1.3, 'furnace'), (49.4, 39.1, 1.3, 'furnace'), (40.0, 28.0, 5.6, 'brazier'),
     (14.0, 33.0, 3.9, 'hearth'), (20.6, 29.7, 3.3, 'crucible')
 ]
+# The fire budget (2026-10-04, docs/ART.md "Fire budget": at most 60 live particles): each forge plinth
+# keeps one furnace and one flame (the sparks of one cover both), the forge's crucible (7 units off)
+# merges into its hearth. 55.8 live (was 253).
+FIRE_POINTS = [
+    (49.4, -39.1, 1.3, 'furnace'), (49.4, -24.9, 1.3, 'flame'), (40.0, -28.0, 5.6, 'brazier'),
+    (49.4, 24.9, 1.3, 'flame'), (49.4, 39.1, 1.3, 'furnace'), (40.0, 28.0, 5.6, 'brazier'),
+    (14.0, 33.0, 3.9, 'hearth')
+]
 
 PYLONS = [(47.0, -32.0), (47.0, 32.0)]          # the forge plinths' centres, along y
 PLINTH = (11.8, 2.1, 7.5)                       # half length (y), half width (x), height

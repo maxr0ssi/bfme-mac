@@ -56,6 +56,19 @@ CITADEL_FIRE = {
     "D": _KEPT + [_HEARTH[1], _HEARTH[-1]],                     # the pair had no fire points
     "D2": _KEPT + [_HEARTH[1], _HEARTH[-1], (-56.6, 56.8, 94.3, 'brazier')],     # the point crown's fire-pot
 }
+# The fire budget (2026-10-04, docs/ART.md "Fire budget": at most 60 live particles): D2's 21 points burn
+# as 11. Each forge walk keeps its furnace, one flame for its hearth bed (where a hearth and a crucible
+# stood 5 units apart) and a torch; the +Y walk keeps the hanging crucible's glow; the wall braziers are
+# torches, the crown's fire-pot a brazier with its smoke. The courtyard grates and the walks' second
+# hearths and crucibles go (their neighbours' fire covers them). 57.8 live (was 538).
+CITADEL_FIRE["D2"] = [
+    (-10.0, 57.5, 49.6, 'furnace'), (12.7, 59.7, 51.1, 'flame'), (1.3, 41.1, 76.8, 'coals'),
+    (3.9, 56.1, 52.0, 'torch'),                                                         # the +Y forge walk
+    (0.0, -53.6, 49.5, 'furnace'), (0.0, -61.5, 51.3, 'flame'), (18.3, -53.1, 52.0, 'torch'),
+    (-18.3, -53.1, 52.0, 'torch'),                                                      # the -Y forge walk
+    (51.3, -22.9, 52.0, 'torch'), (53.0, 18.8, 52.0, 'torch'),                          # the gate's braziers
+    (-56.6, 56.8, 94.3, 'brazier'),                                                     # the point crown's fire-pot
+]
 
 
 CITADEL = "D2"

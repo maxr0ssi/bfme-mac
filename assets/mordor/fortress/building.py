@@ -68,6 +68,16 @@ FIRE_POINTS = [
     (-19.0, 34.6, 56.5, 'brazier'), (22.0, 34.6, 56.5, 'brazier'), (-20.0, -34.6, 56.5, 'brazier'),
     (17.0, -34.6, 56.5, 'brazier'),                                                     # the fire baskets
 ]
+# The fire budget (2026-10-04, docs/ART.md "Fire budget": at most 60 live particles): the four crowns burn
+# green, two across the diagonal with their plumes (the back one's second flame merged into it), the
+# others the flame alone; the forge's flue its heavy plume, the forge a coal glow; three fire baskets are
+# torches. The lava channels' embers and smoke go. 56.1 live (was 421).
+FIRE_POINTS = [
+    (-40.2, 41.0, 135.0, 'witchfire'),                                                  # the back crown
+    (-40.2, -44.0, 134.5, 'witchflame'), (43.2, -44.0, 134.5, 'witchfire'), (43.2, 41.0, 134.5, 'witchflame'),
+    (0.0, 40.5, 53.8, 'coals'), (12.3, 44.4, 101.0, 'plume'),                           # the forge, its flue
+    (-19.0, 34.6, 56.5, 'torch'), (22.0, 34.6, 56.5, 'torch'), (17.0, -34.6, 56.5, 'torch'),  # fire baskets
+]
 
 
 class Fortress(Building):

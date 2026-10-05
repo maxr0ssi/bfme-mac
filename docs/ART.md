@@ -106,23 +106,26 @@ damaged, rubble, building site, placement ghost, where EA's own damage fire take
 EA's systems (in `fxparticlesystem.ini` or `particlesystem.ini`, the two the game loads, each on one of EA's own
 buildings or props):
 
-| Kind | Systems | EA's use |
+| Kind | Systems (live particles) | EA's system copied, and its use |
 |---|---|---|
-| chimney | SiegeWorkFire, SmokeChimney | Isengard siege works, Isengard tavern |
-| furnace | furnaceFire, furnaceSparks | civilian furnace, Isengard camp |
-| forge | ForgeCoal, ForgeEmbers | Men forge |
-| hearth | furnaceFire, CampfireEmbersSmall | furnace, campfire props |
-| crucible | ForgeCoal, furnaceSparks | forge, furnace |
-| brazier | FireTorch, TorchSmokeBlack | Isengard tavern torches |
-| grate | ForgeCoal, CampfireEmbersSmall | forge, campfire props |
-| embers | CampfireEmbersSmall | campfire props |
-| pyre | FireBuildingLarge, SmokeBuildingLarge | every burning structure's big fire and heavy dark plume |
-| smoke | SmokeChimney | Isengard and Mordor taverns' chimneys (a thin dark column, no fire) |
-| plume | SmokeBuildingLarge | the heavy dark plume alone (the Mordor forge's flue) |
-| witchfire | SagekitWitchFire, SagekitWitchSmoke | ours: furnaceFire in Morgul green, a modest dark plume (the Mordor crowns) |
-| witchflame | SagekitWitchFire | ours: the green fire alone |
-| coldfire | SagekitColdFire, SagekitColdSmoke | ours: furnaceFire ice-blue to white, a modest blue-black plume (the Angmar crown) |
-| coldflame | SagekitColdFire | ours: the cold fire alone |
+| chimney | SagekitLeanSiegeWorkFire, SagekitLeanSmokeChimney (13.1) | SiegeWorkFire, SmokeChimney: Isengard siege works, Isengard tavern |
+| furnace | SagekitLeanFurnaceFire, SagekitLeanFurnaceSparks (9.7) | furnaceFire, furnaceSparks: civilian furnace, Isengard camp |
+| forge | SagekitLeanForgeCoal, SagekitLeanForgeEmbers (5.8) | ForgeCoal, ForgeEmbers: Men forge |
+| hearth | SagekitLeanFurnaceFire, SagekitLeanCampfireEmbers (10.0) | furnaceFire, CampfireEmbersSmall: furnace, campfire props |
+| crucible | SagekitLeanForgeCoal, SagekitLeanFurnaceSparks (5.5) | forge, furnace |
+| brazier | SagekitLeanFireTorch, SagekitLeanTorchSmoke (6.0) | FireTorch, TorchSmokeBlack: Isengard tavern torches |
+| grate | SagekitLeanForgeCoal, SagekitLeanCampfireEmbers (5.9) | forge, campfire props |
+| embers | SagekitLeanCampfireEmbers (2.8) | campfire props |
+| pyre | FireBuildingLarge, SmokeBuildingLarge (103: over the budget alone; used nowhere) | every burning structure |
+| smoke | SagekitLeanSmokeChimney (5.1) | Isengard and Mordor taverns' chimneys (a thin dark column, no fire) |
+| plume | SagekitLeanSmokePlume (5.1) | SmokeBuildingLarge: the heavy dark plume alone (the Mordor forge's flue) |
+| witchfire | SagekitWitchFire, SagekitWitchSmoke (12.3) | ours: furnaceFire in Morgul green, a modest dark plume (the Mordor crowns) |
+| witchflame | SagekitWitchFire (7.2) | ours: the green fire alone |
+| coldfire | SagekitColdFire, SagekitColdSmoke (12.3) | ours: furnaceFire ice-blue to white, a modest blue-black plume (the Angmar crown) |
+| coldflame | SagekitColdFire (7.2) | ours: the cold fire alone |
+| torch | SagekitLeanFireTorch (3.0) | the brazier's flame without its smoke |
+| coals | SagekitLeanForgeCoal (3.0) | the grate's glow without its embers |
+| flame | SagekitLeanFurnaceFire (7.2) | the hearth's or furnace's fire alone |
 
 EA burns no green or cold blue fire in place (its green and ice systems are spells, hits, arrows
 and mists; the Angmar citadel's blue torch is a flame card, `EXFireTorchSeqBlue`), so a kind may
@@ -134,13 +137,57 @@ EA's fire orange). The game reads FX systems from `Data\INI\FXParticleSystem.ini
 ini step inserts each block into that file after the EA block it copies (the 2.02 patch's note at
 the end asks for nothing to be added there). A building drawing any of them ships the whole set,
 so every faction archive's copy of the file is the same. The checks hold the file to EA's plus
-exactly our blocks, each defined once, no name EA's. New kinds are appended; the existing ones
-never change (installed buildings use them).
+exactly our blocks, each defined once, no name EA's. Since the fire budget every kind but pyre draws
+lean copies (below); a change to a kind changes every building that burns it.
 
 The checks hold the rig's bones to the points, its record to the file, each fire Draw to EA's
 states (fire only where our body stands) and the rest of the INI to the other edits, and every
 system to the game's INIs; `renders/fire/compare_<view>.png` marks the points over the render
 (Blender cannot draw the particles). A `base` recipe shown per upgrade level declares none.
+
+### Fire budget (Max, 2026-10-04)
+
+Our fire once cost ~7,600 live particles over eight late-game bases (EA's buildings: 809), past the
+game's 4,000 cap, above which the engine drops the oldest particles of everything, combat effects
+included (`docs/PERFORMANCE.md` §15). Now **a building's fire is at most 60 live particles** in its
+worst state (it burns the same in healthy, damaged and snow; night lights are meshes). Live particles
+are counted, not measured: BurstCount / BurstDelay x Lifetime per system (`sagekit/drawcost.py`
+Rates), summed over the fire points (`python3 -m sagekit.fire_budget` lists every building).
+`sagekit validate` fails a recipe or a staged object over it, the check suite a building over it.
+EA's own effects on the same object (its damage fire, the furnace's own flames, spells) are EA's and
+not counted.
+
+Two levers, both keeping the look:
+- **Lean systems** (`sagekit/fire_lean.py`): our copies of EA's flame, ember and smoke systems with
+  fewer, slightly larger, longer-lived particles over the same volume, in the same colours. Per
+  system one spec: the new BurstCount / BurstDelay, a stretch L (each particle lives L times as long
+  on EA's path, L times slower: lifetime and keyframes x L, velocities, size and spin rates / L,
+  dampings ^ 1/L, gravity / L^2), a growth s (Size, SizeRate x s), and the brightness or cover the
+  cut leaves given back on the Color keys (k / L s, hue kept) or Alpha keys (k / L s^2, at most 1.3:
+  thicker puffs hid the flames under them). Live counts fall 2-9 times per system.
+- **Consolidation** in the recipe: where points overlap (a hearth and a crucible 5 units apart) one
+  emitter burns for both; a cluster keeps one point with sparks or smoke and the rest take a part of
+  a kind (`flame`, `torch`, `coals`). The six recipes over budget after the lean systems were
+  consolidated by hand, each with a comment: the Isengard citadel 21 points -> 11, the Mordor
+  citadel 19 -> 9, the Mumakil pen 12 -> 10, the Isengard furnace 9 -> 8, the Isengard siege works
+  8 -> 7, the Angmar citadel's two plumes dropped. A design's fire log prints the full list again;
+  validate fails it until it is consolidated.
+
+A citadel's add-ons are recipes of their own on the same object, each within 60: the Isengard citadel
+with every add-on burns 209 (was ~1,140), the Mordor one 104, the Angmar one 92.
+
+Review: `python3 -m sagekit.fire_review --snapshot <before.json>` saves the fire as it stands;
+`python3 -m sagekit.fire_review [--before <before.json>] <faction/building> ...` draws the fire
+before and after over the build's renders (healthy) and a render with the damaged sheet (damaged,
+with EA's damage fire), in-game camera and close-up, the live counts on each tile
+(`build/assets/_review_finish/fire_budget/`; the sprites are approximated by
+`sagekit/paint/fire_composite.py`, no wind; the in-game look is Max's check).
+
+Install: the systems live in the shared FX archive's `fxparticlesystem.ini`, so the FX archive goes
+first, then each pack whose buildings burn (`sagekit install` refuses a pack whose systems the
+installed FX archive lacks): `python3 -m sagekit.fx --install`, then `python3 -m sagekit install
+<faction>` for dwarves, elves, goblins, isengard, mordor, angmar and neutral. Revert in the other
+order (`python3 -m sagekit revert <faction>`, then `python3 -m sagekit.fx --revert`).
 
 ## Effects: EA's particles in each faction's colours
 
