@@ -1,5 +1,13 @@
 """EA's APT textures are uncompressed 32-bit TGAs (rows bottom-up, BGRA; the atlases carry the
-TRUEVISION footer). Ours keep EA's header and trailing bytes byte for byte, with the new size."""
+TRUEVISION footer). Ours keep EA's header and trailing bytes, with the new size and one fix: the
+descriptor always declares 8 alpha bits.
+
+Why the alpha bits matter (game.dat 2.01, `0x531049`): the game copies a 32-bit TGA straight into
+an A8R8G8B8 texture only when D3DX accepts it at the file's own size and format; otherwise it hands
+the file to D3DXCreateTextureFromFileInMemoryEx, which reads a 32-bit TGA that declares 0 alpha bits
+as X8R8G8B8, with no alpha. EA's two atlases (apt_palantir_1, apt_libingameimagesmain_1) declare 0
+and always took the copy at 1024x512; at 2048x1024 ours went to D3DX and lost their alpha: the
+power button's highlight drew as an opaque square (2026-10-04)."""
 import struct
 
 
@@ -34,6 +42,7 @@ def encode(ref, w, h, rgba):
         raise ValueError("%d bytes for %dx%d" % (len(rgba), w, h))
     head = bytearray(ref[:18 + ref[0]])
     struct.pack_into("<HH", head, 12, w, h)
+    head[17] = (head[17] & 0xF0) | 8                # 8 alpha bits, whatever EA declared
     tail = ref[18 + ref[0] + rw * rh * 4:]
     bgra = bytearray(len(rgba))
     bgra[0::4], bgra[1::4], bgra[2::4], bgra[3::4] = rgba[2::4], rgba[1::4], rgba[0::4], rgba[3::4]
@@ -41,3 +50,7 @@ def encode(ref, w, h, rgba):
     if not desc & 0x20:
         rows.reverse()
     return bytes(head) + b"".join(rows) + bytes(tail)
+
+
+def alpha_bits(data):
+    return data[17] & 0x0F

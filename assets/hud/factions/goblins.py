@@ -35,7 +35,7 @@ class Goblins(Faction):
     rim_col = (1.0, 0.75, 0.7)
     ember = ((0.9, 0.15, 0.08), 0.10)
     patina = 0.1
-    medals = [("minimap", 180, 8.6)]
+    medals = []                                                  # the skull at 180 degrees is 3D (pieces.py)
     shine = (0.8, 0.5, 3, (1.0, 0.9, 0.85))
     glint = (26, 0.86, (1.0, 0.97, 0.92), (6, 14))
     bloom = (0.9, (3, 9))
@@ -48,7 +48,7 @@ class Goblins(Faction):
         if name == "bar":
             prof.lip(p, 0.08, I)
             prof.chamfer(p, 0.08, 0.3, I, 1.0, flat=0.4)
-            self.skin(p, "beam", 0.3, 1.0, H, base=0.7, carve=1.2, lift=0.4, gain=1.1, v0=0.1, v1=1.0)
+            self.skin(p, "beam", 0.3, 1.0, H, base=0.7, carve=0.8, lift=0.3, gain=1.0, v0=0.1, v1=1.0, soft=1)
             prof.hammer(p, 0.2, 0.5)
             ctx.s = s0
             return p
@@ -56,34 +56,27 @@ class Goblins(Faction):
         prof.chamfer(p, 0.04, 0.13, I, 1.2, flat=0.3)            # a black iron band round the glass
         # bone tusks biting into the glass
         u, w, m = band(ctx, 0.13, 0.4)
-        lx, ly, idx, L = local(ctx, u, w, 1.0 * w)
+        lx, ly, idx, L = local(ctx, u, w, 1.7 * w)
         size = 0.75 + 0.25 * noise(idx * 3.1, 0.0 * idx, 6)
         tipu = 1 - size
         half = 0.42 * L * np.clip((u - tipu) / (1 - tipu), 0, 1) ** 0.8
         inside = (np.abs(lx + 0.15 * L * (1 - u)) < half) & (u > tipu)
         fang = 0.35 + 1.1 * np.sqrt(np.clip(1 - (lx / np.maximum(half, 1e-3)) ** 2, 0, 1)) * (0.5 + 0.5 * u)
-        p.put(m, 0.1 + 0.0 * u, D)
-        p.put(m & inside, fang, Bo)
+        inside = inside & (fx.focus(ctx) > 0.12)                  # only near the focal points
+        p.put(m, 0.6 + 0.3 * prof.half_round(u), I)
+        p.put(m & inside, fang + 0.3, Bo)
         bone = self.tex["bone"].sample(np.clip((1 - u) * 130, 0, 135), np.clip(lx / L + 0.5, 0, 1) * 21, 1.0)
         p.tint((m & inside).astype(np.float32), np.clip(bone * 1.05, 0, 1))
         # the blood-red horn plates, black iron straps every few, a skull now and then
-        rgb, lum, m, u = self.skin(p, "hide", 0.4, 0.94, H, base=0.8, carve=1.6, lift=0.3, gain=1.1,
-                                   v0=0.15, v1=0.45, aspect=1.0, wrap="mirror")
+        rgb, lum, m, u = self.skin(p, "hide", 0.4, 0.94, H, base=0.8, carve=0.45, lift=0.1, gain=0.85,
+                                   v0=0.15, v1=0.45, aspect=1.6, wrap="mirror", soft=2)
         w = 0.54 * float(np.median(ctx.bw))
         lx, ly, idx, L = local(ctx, u, w, 2.4 * w)
-        kind = idx % 4
-        strap = (np.abs(lx) < 0.16 * w) & (kind == 2) & m
+        kind = idx % 3
+        strap = (np.abs(lx) < 0.16 * w) & (kind == 0) & m
         p.put(strap, 1.05 + 0.15 * prof.half_round(lx / (0.32 * w) + 0.5), I)
         nail = sd_circle(np.abs(lx) - 0.0, np.abs(ly) - 0.3 * w, 0.09 * w)
         p.over(fill(nail) * strap, 1.25 + 0.2 * dome(nail, 0.3), I)
-        sk, holes = prof.skull(lx, ly - 0.02 * w, 0.95 * w)
-        isk = (kind == 0) & m
-        p.over(fill(sk) * isk, 0.9 + 0.7 * dome(sk, 0.9), Bo)
-        p.over(fill(holes) * isk * (sk < 0), np.full(u.shape, 0.4, np.float32), D)
-        for sg in (-1, 1):                                        # a pair of ribs curving across the plate
-            rib = np.abs(lx - sg * 0.32 * w - sg * 0.5 * w * (u - 0.5) ** 2 * 2) - 0.11 * w
-            ir = ((kind == 1) | (kind == 3)) & m
-            p.over(fill(rib) * ir, 1.0 + 0.6 * np.sqrt(np.clip(-rib / (0.11 * w), 0, 1)), Bo)
         prof.chamfer(p, 0.94, 1.02, I, 0.8, flat=0.4)
         self.blood(p, ctx, fx.focus(ctx))
         prof.hammer(p, 0.25, 0.45)
@@ -91,50 +84,13 @@ class Goblins(Faction):
         return p
 
     def blood(self, p, ctx, foc):
-        """Dried blood in patches over bone and iron; wet blood running down at the focal points."""
+        """Dried blood in patches over the bone and the iron."""
         dried = smoothstep(0.55, 0.72, fbm(ctx.x * 0.3, ctx.yy * 0.3, 4, 12)) * ((p.mat == self.BONE) | (p.mat == self.IRON))
         p.tint(dried * 0.75, np.full(dried.shape + (3,), 0.0, np.float32) + np.array((0.28, 0.03, 0.02), np.float32))
-        col = np.floor(ctx.x / 1.6)
-        start = noise(col * 0.9, 0.3 + 0 * col, 13)
-        drip = (np.abs(ctx.x - (col + 0.5) * 1.6) < 0.32 + 0.2 * noise(ctx.yy * 0.5, col, 14))
-        drip = drip & (noise(col * 0.37, 0.8 + 0 * col, 15) > 0.62)
-        length = 3 + 7 * noise(col * 1.3, 0.1 + 0 * col, 16)
-        top = np.floor(ctx.yy / 9) * 9 + 9 * start
-        wet = drip & (ctx.yy > top) & (ctx.yy < top + length) & (foc > 0.35)
-        wet = wet & (ctx.s > 0.1) & (ctx.s < 1.0)
-        p.over(wet.astype(np.float32), p.h + 0.3, self.WET)
 
     def orn_colour(self, lum, x4):
         """EA's spikes and joint as the citadel's: blood red, white-streaked at the ridges."""
         return ramp(self.orn_stops, lum * 1.08)
-
-    def protrude(self, x, y):
-        """A bloodied bone jutting over the joint, a tusk off the top left, a skull hanging under the bar."""
-        bone = np.full(x.shape + (3,), 0.0, np.float32) + np.array((0.88, 0.85, 0.78), np.float32)
-        out = []
-        ax, ay, bx, by = 230, 50, 256, 12
-        shaft = sd_seg(x, y, ax, ay, bx, by, 2.9)
-        knob = np.minimum(np.minimum(sd_circle(x - bx - 2.2, y - by + 0.8, 3.6), sd_circle(x - bx + 2.4, y - by - 1.8, 3.4)),
-                          np.minimum(sd_circle(x - ax - 2.0, y - ay + 2.4, 3.6), sd_circle(x - ax + 2.4, y - ay - 0.8, 3.4)))
-        d = np.minimum(shaft, knob)
-        cov = fill(d)
-        h = 0.9 + 1.4 * np.sqrt(np.clip(-d / 3.2, 0, 1))
-        gore = smoothstep(0.5, 0.62, fbm(x * 0.22, y * 0.22, 3, 17)) * cov
-        wet = (gore > 0.5) & (noise(x * 0.8, y * 0.2, 18) > 0.55)
-        out.append(fx.layer(h, np.where(wet, self.WET, self.BONE), cov, None,
-                            bone * (1 - 0.8 * gore[..., None]) + gore[..., None] * np.array((0.3, 0.02, 0.02)), cov * (1 - wet)))
-        d, t, a = fx.spike(x, y, 42, 41, -136, 30, 8.5, 0.3)
-        cov = fill(d)
-        tip = smoothstep(0.6, 0.9, t) * cov
-        out.append(fx.layer(fx.ridge(a, t, 0.9, 1.4), np.where(tip > 0.5, self.WET, self.BONE), cov, None, bone, cov * (1 - tip)))
-        sk, holes = prof.skull(x - 27, -(y - 243.5), 12.0)
-        cord = sd_seg(x, y, 27, 231, 27, 238, 0.6)
-        out.append(fx.layer(np.full(x.shape, 0.9, np.float32), self.DARK, fill(cord)))
-        cov = fill(sk) * (y > 233)
-        h = 0.8 + 1.0 * dome(sk, 1.5)
-        out.append(fx.layer(np.where(holes < 0, 0.4, h), np.where(holes < 0, self.DARK, self.BONE), cov, None, bone,
-                            cov * (holes > 0)))
-        return out
 
     def medal(self, lx, ly, R):
         sk, holes = prof.skull(lx, ly + 0.3, R * 1.9)

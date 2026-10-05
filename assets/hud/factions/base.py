@@ -42,11 +42,11 @@ class Faction:
         raise NotImplementedError
 
     def skin(self, p, name, s0, s1, mat, base=0.8, carve=0.8, lift=0.0, gain=1.0, v0=0.0, v1=1.0,
-             aspect=1.0, wrap="repeat", flip=True, offset=0.0):
+             aspect=1.0, wrap="repeat", flip=True, offset=0.0, soft=0):
         """Lay swatch `name` (cut from the citadel) over band [s0, s1] of P: its colour is the albedo,
         its luminance a relief (carve: the high-pass, the joints and carving; lift: bright parts
         proud). Returns (rgb, luminance, mask, u)."""
-        rgb, lum, m, u = tex.skin(p.ctx, self.tex[name], s0, s1, v0, v1, aspect, wrap, flip, offset)
+        rgb, lum, m, u = tex.skin(p.ctx, self.tex[name], s0, s1, v0, v1, aspect, wrap, flip, offset, soft)
         p.put(m, base + lift * lum + tex.relief(lum, 3, carve), mat)
         p.tint(m.astype(np.float32), np.clip(rgb * gain, 0, 1))
         return rgb, lum, m, u

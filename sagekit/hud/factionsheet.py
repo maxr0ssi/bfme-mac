@@ -28,7 +28,7 @@ TW = 600
 
 
 def tile(src, text, out, crop=None, flat=None, tw=TW):
-    cmd = [MAGICK, src]
+    cmd = [MAGICK, src, "+repage"]
     if flat:
         cmd += ["-background", flat, "-flatten"]
     if crop:
@@ -65,15 +65,24 @@ def citadels():
                                "-resize", "%dx%d" % (900, 660), "-background", "#7a6f5e",
                                "-gravity", "center", "-extent", "%dx%d" % (900, 660), cut])
         row = [tile(cut, "%s: the citadel" % n.capitalize(), os.path.join(t, n + "_cit.png"), tw=900),
-               tile(mock, "New: %s (in-game size, 3024x1964)" % f["what"], os.path.join(t, n + "_new.png"), tw=900)]
+               tile(mock, "New: %s (100%%, as at 3024x1964)" % f["what"], os.path.join(t, n + "_new.png"), tw=900)]
         prev = froot("sheet", "prev", "mock_%s.png" % n)
         if os.path.exists(prev):
             row.append(tile(prev, "Previous", os.path.join(t, n + "_prev.png"), tw=900))
+        row.append(tile(mock, "New, zoomed 2x: the joint and the top", os.path.join(t, n + "_100.png"),
+                        crop="450x310+120+0", tw=900))
         for k, (crop2, what) in enumerate((("380x262+300+0", "the joint"), ("380x262+0+0", "the top left"),
                                             ("380x262+0+250", "the bar's left end"))):
             row.append(tile(froot("paint", "%s_double_2.png" % n), "New: %s (2x texture, magnified 2.4x)" % what,
                             os.path.join(t, "%s_newd%d.png" % (n, k)), crop=crop2, flat="#4a4038", tw=900))
         rows.append(row)
+    sock = froot("paint", "sockets_2.png")
+    if os.path.exists(sock):
+        rows.append([tile(os.path.join(root(), "paint", "libingameimagesmain_1_2.png"),
+                          "Portrait button rings before (every side)", os.path.join(t, "sock_prev.png"),
+                          crop="262x404+2+250", flat="#4a4038", tw=450),
+                     tile(sock, "Now: neutral gunmetal (every side)", os.path.join(t, "sock_new.png"),
+                          crop="262x404+2+250", flat="#4a4038", tw=450)])
     return sheet(rows, os.path.join(CIT, "all.jpg"))
 
 

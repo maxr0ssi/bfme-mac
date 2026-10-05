@@ -52,25 +52,6 @@ class Angmar(Faction):
     shine = (0.78, 0.6, 3, (0.8, 0.92, 1.0))
     glint = (46, 0.8, (0.8, 0.92, 1.0), (8, 20))
 
-    def ice(self, p, ctx, s0, s1, foc, every, seed=0):
-        """Ice crystals growing outward from [s0, s1], clustered at the focal points."""
-        ctx_s = ctx.s
-        u = (ctx_s - s0) / (s1 - s0)
-        w = (s1 - s0) * float(np.median(ctx.bw))
-        lx, ly, idx, L = local(ctx, u, w, every * w)
-        keep = (foc > 0.32) | ((idx % 9) == seed % 9)
-        tilt = (noise(idx * 3.7 + seed, 0.5 + 0 * idx, 5) - 0.5) * 0.9
-        size = 0.7 + 0.5 * noise(idx * 1.9 + seed, 0.2 + 0 * idx, 6)
-        clen = w * size * (0.75 + 0.5 * foc)
-        cd, cx_, cy_ = prof.crystal(lx, ly - 0.5 * w + 0.5 * clen, clen, 0.38 * w * size, np.pi / 2 + tilt)
-        facet = np.clip(1 - np.abs(cy_) / (0.19 * w * size), 0, 1) ** 0.6
-        cov = fill(cd) * keep * (u > -0.1) * (u < 1.05)
-        p.over(cov, 1.2 + 1.4 * facet, self.ICE)
-        p.tint(cov, fx.crystal_glass(np.full(cov.shape, 0.3, np.float32) * facet, facet))
-        core = np.exp(-(cy_ / (0.12 * w)) ** 2) * cov
-        p.glow(core * (0.35 + 0.4 * foc), COLD)
-        return cov
-
     def ring(self, ctx, name):
         I, S, St, Ho, D, Wd = range(6)
         p = prof.P(ctx)
@@ -81,8 +62,6 @@ class Angmar(Faction):
                       wrap="mirror")
             prof.bead(p, 0.62, 0.68, I, 0.6)
             self.skin(p, "scales", 0.68, 1.0, I, base=0.7, carve=1.6, gain=1.2, v0=0.08, v1=0.2)
-            foc = fx.focus(ctx)
-            self.ice(p, ctx, 0.2, 1.0, foc * (foc > 0.3), 0.9, seed=3)
             return p
         prof.lip(p, 0.04, I)
         prof.chamfer(p, 0.04, 0.12, S, 1.4, flat=0.3)            # frosted steel round the glass
@@ -97,16 +76,6 @@ class Angmar(Faction):
         rgb, lum, m, u = self.skin(p, "blocks", 0.43, 0.8, St, base=0.85, carve=1.6, gain=1.15, v0=0.3, v1=0.62,
                                    aspect=1.0, wrap="mirror")
         self.skin(p, "scales", 0.8, 0.99, I, base=0.8, carve=1.6, gain=1.0, v0=0.08, v1=0.2)
-        # the crown's horn tines hooked over the wall, every few blocks
-        u2 = (ctx.s - 0.16) / 0.84
-        w = 0.84 * float(np.median(ctx.bw))
-        lx, ly, idx, L = local(ctx, u2, w, 2.4 * w)
-        d, t, x = tine(lx, ly, w, 0.42)
-        cov = fill(d) * (ctx.s > 0.16) * (ctx.s < 1.0)
-        p.over(cov, 1.1 + 1.2 * np.sqrt(np.clip(1 - x * x, 0, 1)) * (1 - 0.3 * t), Ho)
-        frost = cov * np.exp(-((x + 0.6) / 0.28) ** 2)            # the white frost line down its edge
-        p.tint(frost, np.full(d.shape + (3,), 0.9, np.float32))
-        self.ice(p, ctx, 0.45, 1.0, fx.focus(ctx), 0.75, seed=1)   # ice crystals, clustered at the focal points
         return p
 
     def post(self, col, env):
@@ -124,29 +93,6 @@ class Angmar(Faction):
         rc = np.array((0.80, 0.90, 1.0), np.float32)
         col = col * (1 - 0.6 * rime[..., None]) + rc * (0.6 * rime[..., None]) * (0.7 + 0.4 * grain[..., None])
         return self.signature(col, env)
-
-    def protrude(self, x, y):
-        """Past the frame: ice crystals rising over the joint, icicles off the bar's ends, a horn tine
-        hooking off the top left with frost down its edge."""
-        out = []
-        rng = np.random.default_rng(9)
-        spikes = [(240, 46, -88, 30, 6.5), (231, 47, -112, 20, 5.0), (250, 50, -66, 22, 5.0), (222, 44, -128, 12, 3.6),
-                  (127, 6, -90, 0, 0)]
-        drips = [(x0, 229.0, 90, rng.uniform(7, 19), rng.uniform(2.6, 4.0)) for x0 in (13, 19, 25, 31, 37, 221, 227, 233, 239)]
-        for x0, y0, ang, L, W in spikes[:4] + drips:
-            d, t, a = fx.spike(x, y, x0, y0, ang, L, W, 0.0, p=1.0 if ang == 90 else 0.7)
-            cov = fill(d)
-            facet = np.clip(1 - np.abs(a), 0, 1) ** 0.5
-            alb = fx.crystal_glass(0.25 * facet, facet)
-            core = np.exp(-(a / 0.35) ** 2) * cov * (1 - 0.6 * t)
-            out.append(fx.layer(1.0 + 1.3 * facet * (1 - 0.3 * t), self.ICE, cov, (core * 0.55)[..., None] * COLD,
-                                alb, cov))
-        d, t, a = fx.spike(x, y, 42, 41, -138, 30, 7.0, -0.3)
-        cov = fill(d)
-        frost = np.exp(-((a + 0.6) / 0.3) ** 2) * cov
-        out.append(fx.layer(fx.ridge(a, t, 0.9, 1.5), self.HORN, cov, None,
-                            np.full(cov.shape + (3,), 0.92, np.float32), frost))
-        return out
 
     def medal(self, lx, ly, R):
         """The Witch-king's crown: black horn tines round a cold blue fire, in an iron ring."""

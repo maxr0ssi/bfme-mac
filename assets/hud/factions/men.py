@@ -78,36 +78,7 @@ class Men(Faction):
         p.glow(fill(tree) * m * (np.abs(cx) < w) * 0.35, TREE_GLOW)
         self.skin(p, "corbel", 0.8, 0.97, St, base=0.8, carve=1.2, lift=0.3, aspect=1.0, gain=1.15)
         prof.bead(p, 0.97, 1.02, S, 0.3)
-        if name == "minimap":                                     # the White Tree glowing at the top
-            bw = float(np.median(ctx.bw))
-            hx, hy = ctx.t - np.radians(270.0) * ctx.mid, (ctx.s - 0.5) * bw
-            plate = sd_box(hx, hy, 0.78 * bw, 0.46 * bw, 0.12 * bw)
-            on = fill(plate) * (ctx.s > 0.04) * (ctx.s < 0.97)
-            p.over(on, 0.8 + 0.2 * dome(plate, 0.5), B)
-            p.emit = p.emit * (1 - on[..., None])
-            rim = np.abs(plate) - 0.4
-            p.over(fill(rim) * (ctx.s > 0.02), 1.2 + 0.3 * dome(rim, 0.3), Si)
-            tree = white_tree(hx, hy, 0.085 * bw)
-            p.over(fill(tree) * on, 1.0 + 0.4 * dome(tree, 0.35), St)
-            p.glow(fill(tree) * on * 1.0 + fill(tree - 1.5) * on * 0.25, TREE_GLOW)
-            for sx_ in (-0.5, 0.5):
-                st = sd_star(hx - sx_ * bw, hy - 0.1 * bw, 0.13 * bw, 6, 0.42)
-                p.over(fill(st) * on, 1.2 + 0.4 * dome(st, 0.4), Si)
         return p
-
-    def protrude(self, x, y):
-        """A white stone pinnacle with a silver star over the joint; a silver spear point off the top left."""
-        out = []
-        d, t, a = fx.spike(x, y, 243, 56, -90, 30, 13.0, 0.0, p=1.0)
-        out.append(fx.layer(fx.ridge(a, t, 0.9, 1.3), self.STONE, fill(d)))
-        band = fill(np.abs(y - 47) - 1.2) * fill(d)
-        out.append(fx.layer(np.full(x.shape, 1.5, np.float32), self.SILVER, band))
-        st = sd_star(x - 243, -(y - 22), 5.5, 6, 0.42)
-        out.append(fx.layer(1.8 + 0.8 * dome(st, 1.0), self.SILVER, fill(st), (fill(st) * 0.9)[..., None] *
-                            np.array(TREE_GLOW, np.float32)))
-        d, t, a = fx.spike(x, y, 42, 41, -135, 22, 5.0, 0.0, p=1.0)
-        out.append(fx.layer(fx.ridge(a, t, 1.0, 1.4), self.SILVER, fill(d)))
-        return out
 
     def medal(self, lx, ly, R):
         """The citadel's banner: royal blue, swallow-tailed, the White Tree in white."""

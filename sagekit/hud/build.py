@@ -17,7 +17,7 @@ import subprocess
 from .. import paths, texrecords
 from ..icons import pixels
 from ..pipeline import REALESRGAN
-from . import root, table, tga
+from . import root, spritecheck, table, tga
 from .apt import Apt, geometry, images, matrices, retina
 
 MAGICK = pixels.MAGICK
@@ -89,6 +89,9 @@ def paint():
 
 
 def write_textures(apt):
+    import shutil
+    for res in ("1x", "2x"):                        # nothing stale ships (files() walks these)
+        shutil.rmtree(os.path.join(root(), res), ignore_errors=True)
     for mv, tid, spec, key, member in specs():
         ea = apt.read(member)
         for size, f in (("1x", "_1"), ("2x", "_2")):
@@ -136,10 +139,12 @@ def check(apt):
         two = open(d("2x", *member.split("\\")), "rb").read()
         w1, h1, rgba1 = tga.decode(one)
         w2, h2, rgba2 = tga.decode(two)
-        say(one[:18] == ea[:18] and len(one) == len(ea), "%s 1x: EA's header and size (%dx%d)" % (key, w1, h1))
+        same = one[:17] == ea[:17] and one[17] & 0xF0 == ea[17] & 0xF0 and len(one) == len(ea)
+        say(same, "%s 1x: EA's header (but 8 alpha bits) and size (%dx%d)" % (key, w1, h1))
         say(_alpha(rgba1) == _alpha(ergba), "%s 1x: alpha is EA's, byte for byte" % key)
-        say((w2, h2) == (2 * ew, 2 * eh) and tga.info(two)[2:] == tga.info(ea)[2:],
-            "%s 2x: %dx%d, EA's format" % (key, w2, h2))
+        say((w2, h2) == (2 * ew, 2 * eh) and tga.info(two)[2:4] == tga.info(ea)[2:4]
+            and tga.info(two)[4] & 0xF0 == tga.info(ea)[4] & 0xF0 and tga.alpha_bits(two) == 8,
+            "%s 2x: %dx%d, EA's format, 8 alpha bits" % (key, w2, h2))
         a2 = _alpha(rgba2)
         worst = total = n = 0
         for y in range(eh):
@@ -157,7 +162,7 @@ def check(apt):
         for tid in ours:
             w, h = tga.info(apt.read(table()[2](mv, tid)))[:2]
             size[tid] = (w, h)
-        for member, data in geometry(apt, mv).items():
+        for member, data in geometry(apt, mv, own=True).items():
             path = d("2x", *member.split("\\"))
             new = open(path, "rb").read() if os.path.exists(path) else data
             old_m, new_m = matrices(data.decode("latin-1")), matrices(new.decode("latin-1"))
@@ -173,6 +178,10 @@ def check(apt):
                         say(False, "%s %s: samples texels (%.0f, %.0f)-(%.0f, %.0f) of a %dx%d texture" % (
                             mv, member, lo_u, lo_v, hi_u, hi_v, 2 * w, 2 * h))
         say(True, "%s: every texture matrix sampling %s checked" % (mv, sorted(ours)))
+        pairs = {tid: (apt.read(table()[2](mv, tid)), open(d("2x", *table()[2](mv, tid).split("\\")), "rb").read())
+                 for tid in ours}
+        n = spritecheck.check(apt, mv, pairs, say)
+        say(True, "%s: %d sprites' sampled alpha compared with EA's" % (mv, n))
     for res in ("1x", "2x"):
         say(*texrecords.check(list(files(res)), "the %s pack" % res))
     with open(d("checks.txt"), "w") as fh:

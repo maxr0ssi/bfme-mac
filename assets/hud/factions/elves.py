@@ -92,20 +92,6 @@ class Elves(Faction):
         col = col + up[..., None] * np.array((0.05, 0.08, 0.14), np.float32)
         return Faction.post(self, col, env)
 
-    def protrude(self, x, y):
-        """A moonsilver spire with gold leaves over the joint; a gold leaf curling off the top left."""
-        out = []
-        d, t, a = fx.spike(x, y, 243, 52, -90, 42, 6.0, 0.0, p=0.9)
-        out.append(fx.layer(fx.ridge(a, t, 1.0, 1.4), self.SILVER, fill(d)))
-        for sg in (1, -1):
-            d, t, a = fx.spike(x, y, 243 + sg * 2.0, 42, -90 + sg * 40, 22, 9.0, sg * 0.3, p=1.2)
-            out.append(fx.layer(fx.ridge(a, t, 1.0, 1.2) - 0.3 * np.exp(-(a / 0.15) ** 2), self.GOLD, fill(d)))
-        knot = sd_circle(x - 243, y - 40, 3.4)
-        out.append(fx.layer(1.6 + 0.8 * dome(knot, 3.4), self.GOLD, fill(knot)))
-        d, t, a = fx.spike(x, y, 42, 41, -138, 28, 10.0, -0.25, p=1.3)
-        out.append(fx.layer(fx.ridge(a, t, 1.0, 1.2) - 0.3 * np.exp(-(a / 0.15) ** 2), self.GOLD, fill(d)))
-        return out
-
     def medal(self, lx, ly, R):
         """A lancet window of the citadel in a gold pointed arch."""
         W, H = R * 1.25, R * 1.95

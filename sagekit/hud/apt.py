@@ -29,6 +29,7 @@ class Apt:
     """The game's APT members, pristine (archives this repo installs are skipped)."""
 
     def __init__(self, game="rotwk"):
+        self.game = game
         self._archives = []
         for g in paths.SEARCH_ORDER[game]:
             d = paths.GAMEDIRS[g]
@@ -76,9 +77,12 @@ def images(apt, movie):
     return out
 
 
-def geometry(apt, movie):
-    """{member: bytes} of every .ru file of the movie, as the game reads them."""
-    return {m: apt.read(m) for m in apt.members("%s_geometry\\" % movie.lower()) if m.endswith(".ru")}
+def geometry(apt, movie, own=False):
+    """{member: bytes} of every .ru file of the movie, as the game reads them. own: only the game's
+    own (RotWK's); BFME2's Palantir.big has .ru files for characters RotWK's movie does not have."""
+    home = os.path.realpath(paths.GAMEDIRS[apt.game])
+    return {m: apt.read(m) for m in apt.members("%s_geometry\\" % movie.lower()) if m.endswith(".ru")
+            and (not own or os.path.realpath(apt.owner(m).path).startswith(home + os.sep))}
 
 
 def scale(text, image_ids, factor):
@@ -122,7 +126,7 @@ def retina(apt, movie, textures, factor=2):
     imgs = images(apt, movie)
     ids = {i for i, t in imgs.items() if t in textures}
     out, total = {}, 0
-    for member, data in geometry(apt, movie).items():
+    for member, data in geometry(apt, movie, own=True).items():
         text, n = scale(data.decode("latin-1"), ids, factor)
         if n:
             out[member] = text.encode("latin-1")

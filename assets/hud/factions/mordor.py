@@ -113,22 +113,6 @@ class Mordor(Faction):
         col = col + sp[..., None] * np.array((1.0, 0.6, 0.15), np.float32) * 1.4
         return Faction.post(self, col, env)
 
-    def protrude(self, x, y):
-        """Steel blades of the crown rising past the frame: three over the joint, one off the top left;
-        fire at their roots."""
-        out = []
-        for x0, y0, ang, L, W, cv in ((241, 44, -96, 36, 7.5, -0.12), (228, 46, -122, 22, 5.5, -0.1),
-                                      (254, 50, -70, 24, 5.5, 0.1), (42, 41, -133, 26, 6.5, -0.1),
-                                      (52, 32, -112, 16, 4.5, -0.1)):
-            d, t, a = fx.spike(x, y, x0, y0, ang, L, W, cv)
-            cov = fill(d)
-            edge = np.exp(-((a - 0.55) / 0.2) ** 2)              # a honed edge catches the light
-            root = np.exp(-t / 0.18) * cov
-            em = (root * 1.4)[..., None] * FIRE + (root ** 3 * 0.8)[..., None] * np.array((1, 0.8, 0.4), np.float32)
-            out.append(fx.layer(fx.ridge(a, t, 0.9, 1.6) + 0.4 * edge, np.where(t < 0.12, self.IRON, self.STEEL),
-                                cov, em))
-        return out
-
     def medal(self, lx, ly, R):
         # the Eye: a slit of fire in a black iron disc
         h, mat, cov = disc(lx, ly, R, self.STEEL, self.IRON, rim_w=1.1, field_h=0.6)

@@ -3,7 +3,9 @@
 
 build/assets/_hud/factions/
     swatch/<look>/<name>.png           the look's materials cut from its citadel's sheets (sagekit/hud/swatch.py)
+    pieces/<look>_<kind>.png           the look's 3D ornaments rendered in Blender (sagekit/hud/pieces.py)
     paint/<look>_<kind>_4.png, _2.png  each look's double and single frame at 4x (review) and 2x (ships)
+    paint/sockets_2.png                the portrait's button rings toned gunmetal (libInGameImagesMain_1, 2x)
     files/...                          what the archive adds to the 2x pack: palantir.apt/.const,
                                        palantirexport.apt/.dat, the new shapes' .ru (matrices doubled)
                                        and the new frames' textures (art\\textures\\apt_palantirexport_<n>.tga)
@@ -38,10 +40,12 @@ def factions():
 
 def paint(names, mockups=True):
     from .sheet import ABOVE, PLACE
+    from .pieces import folder, render
     from .swatch import cut
     print("swatches cut from the citadels: %d new" % cut(names))
+    print("3D ornaments rendered: %d" % render(names))
     job = dict(hud=root(), out=os.path.dirname(froot("paint", "x")), factions=list(names),
-               swatch=os.path.dirname(froot("swatch", "x")),
+               swatch=os.path.dirname(froot("swatch", "x")), pieces=folder(), sockets=True,
                backdrop=os.path.join(root(), "backdrop.png") if mockups else "", place=list(PLACE),
                keep=ABOVE, mock_out=os.path.dirname(froot("sheet", "x")))
     path = froot("paint", "job.json")
@@ -65,6 +69,10 @@ def assemble(apt):
     members, images, labels, act = build_apt(apt, factions())
     for i, (look, kind, ea_img) in images.items():
         members["art\\textures\\apt_palantirexport_%d.tga" % i] = texture(apt, look, kind, ea_img)
+    # the portrait's button rings in a neutral gunmetal (the pack's texture, every side)
+    member = "art\\textures\\apt_libingameimagesmain_1.tga"
+    w, h, rgba = pixels.read(froot("paint", "sockets_2.png"))
+    members[member] = tga.encode(apt.read(member), w, h, rgba)
     for m in [k for k in members if k.endswith(".ru")]:
         text, n = scale(members[m].decode("latin-1"), set(images), 2)
         if n != 1:

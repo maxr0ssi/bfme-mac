@@ -65,22 +65,10 @@ class Isengard(Faction):
         foc = fx.focus(ctx)
         # the furnace behind: orange through the lancets, and between the flutes at the focal points
         win = fill(arch + 0.3) * m * (mull > 0.2)
-        hot = win * (0.22 + 0.8 * foc) * (0.75 + 0.35 * np.clip(-ly / (0.5 * w) + 0.5, 0, 1.4))
+        hot = win * 0.95 * smoothstep(0.15, 0.6, foc) * (0.75 + 0.35 * np.clip(-ly / (0.5 * w) + 0.5, 0, 1.4))
         p.emit = p.emit + fx.heat(hot, FURNACE) * smoothstep(0.02, 0.15, hot)[..., None] * 1.2
         groove = np.clip(0.45 - lum, 0, 1) * 2.2 * m * (arch > 0.4) * smoothstep(0.2, 0.6, foc)
         p.emit = p.emit + fx.heat(groove * 0.8, FURNACE) * smoothstep(0.02, 0.2, groove)[..., None]
-        if name == "minimap":                                     # a bold White Hand crowns the top
-            top = np.radians(270.0) * ctx.mid
-            hx, hy = ctx.t - top, (ctx.s - 0.42) * float(np.median(ctx.bw))
-            plate = sd_box(hx, hy, 0.75 * w, 0.62 * w, 0.15 * w)
-            pc = fill(plate) * (ctx.s > 0.12) * (ctx.s < 0.74)
-            p.over(pc, 0.9 + 0.2 * dome(plate, 0.5), D)
-            p.emit = p.emit * (1 - fill(plate - 1.2))[..., None]
-            rim2 = np.abs(plate) - 0.35
-            p.over(fill(rim2) * (ctx.s > 0.1), 1.2 + 0.3 * dome(rim2, 0.3), S)
-            hd = prof.white_hand(hx, hy + 0.1 * w, 1.15 * w)
-            p.over(fill(hd), 1.1 + 0.5 * dome(hd, 0.4), W)
-            p.glow(fill(hd) * 0.25, (1, 1, 1))
         prof.chamfer(p, 0.68, 0.74, S, 0.9, flat=0.4)
         # silver spikes along the outer edge over black iron, as on the citadel's walls
         u, w, m = band(ctx, 0.74, 1.0)
@@ -90,18 +78,6 @@ class Isengard(Faction):
         p.put(m & ~spike, 0.5 + 0.1 * u, I)
         p.put(spike, 0.9 + 0.9 * (1 - np.abs(lx) / np.maximum(half, 1e-3)), S)
         return p
-
-    def protrude(self, x, y):
-        """Orthanc's horns past the frame: a needle and two hooked horns over the joint, a needle off
-        the top left; black iron, honed silver edges."""
-        out = []
-        for x0, y0, ang, L, W, cv in ((241, 45, -90, 34, 6.0, 0.0), (232, 47, -100, 26, 7.0, -0.32),
-                                      (251, 49, -80, 26, 7.0, 0.32), (42, 41, -135, 26, 5.5, 0.0)):
-            d, t, a = fx.spike(x, y, x0, y0, ang, L, W, cv)
-            cov = fill(d)
-            edge = (np.abs(a) > 0.62).astype(np.float32)
-            out.append(fx.layer(fx.ridge(a, t, 0.9, 1.6), np.where(edge > 0.5, self.SILVER, self.IRON), cov))
-        return out
 
     def medal(self, lx, ly, R):
         h, mat, cov = disc(lx, ly, R, self.SILVER, self.DARK, rim_w=1.3, field_h=0.6)

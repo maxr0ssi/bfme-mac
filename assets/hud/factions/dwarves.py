@@ -86,16 +86,6 @@ class Dwarves(Faction):
             p.over(fill(ch) * cov, 1.0 + 0.2 * dome(ch, 0.25), self.ENAMEL)
         return m, u
 
-    def gems(self, p, ctx, m, u, w):
-        """Sapphires and Arkenstone-white gems in gold bezels on the granite at the focal points."""
-        lx, ly, idx, L = local(ctx, u, w, 2.0 * w, 0.5)
-        on = (fx.focus(ctx) > 0.3) & m
-        bez = sd_circle(lx, ly, 0.36 * w)
-        gem = sd_circle(lx, ly, 0.25 * w)
-        p.over(fill(bez) * on, 1.1 + 0.3 * dome(bez, 0.5), self.GOLD)
-        kind = np.where(idx % 2 == 0, self.SAPPHIRE, self.ARKEN)
-        p.over(fill(gem) * on, 1.3 + 0.9 * dome(gem, 0.25 * w), kind)
-
     def ring(self, ctx, name):
         G, Gr, E, S, D = range(5)
         p = prof.P(ctx)
@@ -113,35 +103,9 @@ class Dwarves(Faction):
         self.frieze(p, "rune", 0.16, 0.56, aspect=1.15)         # the citadel's rune frieze
         prof.bead(p, 0.56, 0.6, G, 0.8, base=0.5)
         m, u = self.granite(p, 0.6, 0.94)                        # honey granite, chevron shields
-        self.gems(p, ctx, m, u, 0.34 * float(np.median(ctx.bw)))
         prof.bead(p, 0.94, 1.02, G, 0.9)
         prof.turned(p, 0.02)
         return p
-
-    def protrude(self, x, y):
-        """A stepped gold crest with the Arkenstone over the joint, a gem-capped pinnacle off the top left,
-        sapphires on the bar's end caps."""
-        out = []
-        steps = [(-11, 0, 11, 8), (-8, 8, 8, 15), (-5, 15, 5, 22)]            # a stepped pyramid, 1x px
-        cx, base = 243.0, 58.0
-        d = np.full(x.shape, 9.0, np.float32)
-        h = np.zeros(x.shape, np.float32)
-        for k, (x0, y0, x1, y1) in enumerate(steps):
-            box = np.maximum(np.maximum(x0 - (x - cx), (x - cx) - x1), np.maximum(y0 - (base - y), (base - y) - y1))
-            d = np.minimum(d, box)
-            h = np.where(box < 0, 0.8 + 0.35 * k + 0.4 * dome(box, 0.8), h)
-        out.append(fx.layer(h, self.GOLD, fill(d)))
-        for gx, gy, r, kind in ((243, 31, 4.2, self.ARKEN), (31, 218, 3.2, self.SAPPHIRE), (222, 218, 3.2, self.SAPPHIRE)):
-            bez = sd_circle(x - gx, y - gy, r + 1.1)
-            gem = sd_circle(x - gx, y - gy, r)
-            out.append(fx.layer(1.2 + 0.4 * dome(bez, 0.6), self.GOLD, fill(bez)))
-            out.append(fx.layer(1.6 + 1.2 * dome(gem, r), kind, fill(gem), (fill(gem) * 0.25)[..., None] *
-                                np.array((0.5, 0.7, 1.0), np.float32)))
-        dp, t, a = fx.spike(x, y, 42, 41, -135, 20, 7.0, 0.0, p=1.0)
-        out.append(fx.layer(fx.ridge(a, t, 0.9, 1.2), self.GOLD, fill(dp)))
-        gem = sd_circle(x - 30.0, y - 29.0, 2.4)
-        out.append(fx.layer(1.8 + 1.0 * dome(gem, 2.4), self.SAPPHIRE, fill(gem)))
-        return out
 
     def medal(self, lx, ly, R):
         """The tower shield: gold, a blue field, the gilded double chevron."""

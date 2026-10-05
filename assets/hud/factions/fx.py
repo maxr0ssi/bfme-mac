@@ -71,19 +71,9 @@ def flames(ctx, s0, s1, every, seed=0, lean=0.0):
     return np.clip(core * lick, 0, 1) * (u <= 1)
 
 
-def crystal_glass(lum, facet, cold=(0.62, 0.86, 1.0)):
-    """Translucent ice: a pale blue body, brighter facets."""
-    c = np.array(cold, np.float32)
-    return np.clip(c * (0.55 + 0.45 * facet[..., None]) + 0.25 * lum[..., None], 0, 1)
-
-
 def ring_mask(env, lo=0.5):
     """Where a band of ours is drawn (not EA's ornament), opaque."""
     return (env["ring"] > lo) & (env["a4"] > 0.97)
-
-
-def smooth_mask(m, r=2):
-    return smoothstep(0.2, 0.8, blur(m.astype(np.float32), r, 2))
 
 
 # the frames' focal points (1x page px): the joint between the rings, the bar's end caps, the top
@@ -99,33 +89,6 @@ def focus(ctx):
     for fx_, fy, sg in FOCUS[kind]:
         f = np.maximum(f, np.exp(-((x - fx_) ** 2 + (y - fy) ** 2) / (2 * sg * sg)))
     return f
-
-
-def spike(x, y, x0, y0, ang, length, width, curve=0.0, p=0.8):
-    """A tapering spike, blade, horn or icicle from (x0, y0) (1x page px) towards ang degrees (0 right,
-    90 down), bending by curve x length at its tip. Returns (sdf, t along 0..1, a across -1..1)."""
-    c, s = np.cos(np.radians(ang)), np.sin(np.radians(ang))
-    dx, dy = x - x0, y - y0
-    al, ac = dx * c + dy * s, -dx * s + dy * c
-    t = np.clip(al / length, 0, 1)
-    ac = ac - curve * length * t * t
-    half = 0.5 * width * (1 - t) ** p + 0.05
-    d = np.where((al >= -0.5 * width) & (al <= length), np.abs(ac) - half, 9.0)
-    d = np.where(al < 0, np.hypot(np.maximum(np.abs(ac) - 0.5 * width, 0), al), d)
-    return d, t, np.clip(ac / half, -1, 1)
-
-
-def layer(h, mat, cov, emit=None, alb=None, aw=None):
-    """A protrusion layer for the painter: (height, material, coverage, emission, albedo, its weight)."""
-    z3 = np.zeros(h.shape + (3,), np.float32)
-    return (h.astype(np.float32), np.asarray(mat).astype(np.int16) * np.ones(h.shape, np.int16),
-            np.clip(cov, 0, 1).astype(np.float32), z3 if emit is None else emit,
-            z3 if alb is None else alb, np.zeros(h.shape, np.float32) if aw is None else aw)
-
-
-def ridge(a, t, base=0.8, top=1.4):
-    """A blade's or horn's height across it (a -1..1), lower towards the tip."""
-    return base + top * np.sqrt(np.clip(1 - a * a, 0, 1)) * (1 - 0.35 * t)
 
 
 def sparks(x, y, centres, count, radius, seed=5):
