@@ -1,13 +1,20 @@
-"""Men's palantir: Gondor's polished silver and white Minas Tirith stone, a narrow sable channel of
-stars, white-stone cartouches carrying the White Tree; the White Tree on sable as the medallion.
-Black is an accent only (the channel and the medallion's field), never the whole band."""
+"""Men's palantir, cut from the Gondor citadel: white Minas Tirith ashlar under a corbelled
+battlement, the citadel's sable band of white stars round the glass between steel fillets, white
+stone mouldings; the White Tree on a royal blue banner (the citadel's banners) as the medallion.
+Ashlar, corbels and the star band are the citadel's own sheet (assets/hud/factions/swatches.py).
+Bold at the focal points (the joint, the bar's ends, the top): bright polished silver, the White
+Tree glowing softly on a blue plaque at the top, stars that glint; past the frame a white stone
+pinnacle with a silver star rises over the joint, and a silver spear point off the top left."""
 import numpy as np
 
 from sagekit.paint.palantir import prof
-from sagekit.paint.palantir.core import Mat, dome, fbm, fill, sd_box, sd_seg, sd_star, smoothstep
-from sagekit.paint.palantir.prof import band, local
+from sagekit.paint.palantir.core import Mat, dome, fill, sd_box, sd_circle, sd_poly, sd_seg, sd_star, smoothstep
+from sagekit.paint.palantir.prof import local
 
-from .base import Faction, disc
+from . import fx
+from .base import Faction
+
+TREE_GLOW = (0.55, 0.72, 1.0)
 
 
 def white_tree(lx, ly, k):
@@ -24,79 +31,103 @@ def white_tree(lx, ly, k):
 class Men(Faction):
     name = "men"
     side = "good"
-    SILVER, STONE, SABLE, MITHRIL, DARK, STEEL = range(6)
-    mats = [Mat((0.90, 0.91, 0.94), rough=0.14, edge=(1, 1, 1)),
-            Mat((0.93, 0.92, 0.88), metal=0, rough=0.42),
-            Mat((0.012, 0.015, 0.02), metal=0, rough=0.06),
-            Mat((0.78, 0.84, 0.92), rough=0.1, edge=(1, 1, 1)),
-            Mat((0.16, 0.17, 0.19), metal=0.5, rough=0.55),
-            Mat((0.56, 0.59, 0.64), rough=0.28)]
-    orn_mat = 0
-    orn_stops = [(0, (0.10, 0.10, 0.11)), (0.3, (0.46, 0.47, 0.50)), (0.65, (0.84, 0.85, 0.87)), (1, (1, 1, 0.98))]
+    STEEL, STONE, SABLE, SILVER, DARK, BLUE = range(6)
+    mats = [Mat((0.62, 0.65, 0.70), rough=0.24, edge=(1, 1, 1)),
+            Mat((0.92, 0.91, 0.88), metal=0, rough=0.5),
+            Mat((0.02, 0.025, 0.03), metal=0, rough=0.1),
+            Mat((0.93, 0.95, 0.99), rough=0.05, edge=(1, 1, 1)),
+            Mat((0.20, 0.20, 0.21), metal=0, rough=0.8),
+            Mat((0.10, 0.22, 0.55), metal=0, rough=0.45)]
+    orn_mat = 1
+    orn_stops = [(0, (0.12, 0.12, 0.12)), (0.3, (0.50, 0.50, 0.49)), (0.65, (0.86, 0.86, 0.84)), (1, (1, 1, 0.98))]
     glass_col = (0.015, 0.018, 0.025)
     tick_col = (0.88, 0.9, 0.94)
     rim_glow = ((0.16, 0.18, 0.22), 2.5)
     sky_col = (0.97, 0.98, 1.0)
     ground_col = (0.16, 0.16, 0.17)
-    patina = 0.12
-    medals = [("minimap", 180, 8.6)]
+    patina = 0.08
+    medals = [("minimap", 180, 9.0)]
+    bloom = (1.0, (3, 10))
+    shine = (0.78, 1.0, 4, (0.95, 0.97, 1.0))
+    glint = (60, 0.86, (0.95, 0.97, 1.0), (9, 22))
 
     def ring(self, ctx, name):
-        S, St, Sa, Mi, D, Se = range(6)
+        S, St, Sa, Si, D, B = range(6)
         p = prof.P(ctx)
-        prof.lip(p, 0.05, Se)
-        prof.bead(p, 0.05, 0.16, S, 1.4)
-        prof.groove(p, 0.16, 0.19, D)
-        prof.bead(p, 0.19, 0.29, St, 1.0, base=0.4)           # a white stone torus
-        prof.groove(p, 0.29, 0.32, D)
-        # the broad band: silver plate, a narrow sable channel of stars down its middle
-        u, w, m = band(ctx, 0.32, 0.83)
-        p.put(m, 0.95 + 0.12 * prof.half_round(u), S)
-        ch = m & (u > 0.27) & (u < 0.73)
-        cu = (u - 0.27) / 0.46
-        p.put(ch, 0.45 + 0.03 * cu, Sa)
-        for e in (0.27, 0.73):                                   # mithril fillets either side
-            fil = m & (np.abs(u - e) < 0.05)
-            p.put(fil, 1.0 + 0.2 * prof.half_round((u - e + 0.05) / 0.1), Mi)
-        lx, ly, idx, L = local(ctx, u, w, 1.4 * w)
-        st = sd_star(lx, ly, 0.2 * w, 6, 0.42)
-        p.over(fill(st) * ch, 0.55 + 0.7 * dome(st, 0.5), Mi)
-        # engraved silver either side of the channel: a fine running line
-        for c0 in (0.15, 0.85):
-            ln = np.abs(u - c0) * w - 0.12
-            p.h = p.h - 0.25 * fill(ln) * m * ~ch
-        # every sixth cell a white-stone cartouche with the White Tree in silver
-        cx, cy, cidx, CL = local(ctx, u, w, 1.4 * w * 6, 0.5)
-        cart = sd_box(cx, cy, 0.72 * w, 0.5 * w, 0.2 * w)
-        inc = (cart < 0) & m
-        p.over(fill(cart) * m, 1.05 + 0.15 * dome(cart, 0.6), St)
-        tree = white_tree(cx, cy, 0.092 * w)                    # crown outward
-        p.over(fill(tree) * inc, 1.15 + 0.35 * dome(tree, 0.35), S)
-        prof.groove(p, 0.83, 0.86, D)
-        prof.bead(p, 0.86, 0.97, St, 1.1)
-        prof.bead(p, 0.97, 1.02, Se, 0.3)
-        prof.turned(p, 0.025)
+        if name == "bar":
+            prof.lip(p, 0.08, S)
+            prof.bead(p, 0.08, 0.26, St, 1.0, base=0.4)
+            prof.groove(p, 0.26, 0.3, D)
+            self.skin(p, "stars", 0.3, 0.86, Sa, base=0.5, carve=0.5, lift=0.6, v0=0.0, v1=0.86, gain=1.1)
+            prof.bead(p, 0.86, 1.02, St, 0.9)
+            return p
+        prof.lip(p, 0.04, S)
+        prof.bead(p, 0.04, 0.12, St, 1.2, base=0.4)              # a white stone torus
+        prof.bead(p, 0.12, 0.16, S, 0.6, base=0.4)               # steel fillet
+        rgb, lum, m, u = self.skin(p, "stars", 0.16, 0.42, Sa, base=0.5, carve=0.4, lift=0.6, v0=0.0, v1=0.86,
+                                   aspect=1.0, gain=1.1)
+        p.mat = np.where(m & (lum > 0.4), Si, p.mat)              # the stars: silver
+        prof.bead(p, 0.42, 0.46, S, 0.6, base=0.4)
+        rgb, lum, m, u = self.skin(p, "ashlar", 0.46, 0.8, St, base=0.85, carve=1.4, v0=0.05, v1=0.7,
+                                   aspect=1.0, wrap="mirror", gain=1.15)
+        # every so often a white-stone cartouche carrying the White Tree, as over the citadel's gate
+        w = 0.34 * float(np.median(ctx.bw))
+        cx, cy, cidx, CL = local(ctx, u, w, 9.0 * w, 0.5)
+        tree = white_tree(cx, cy, 0.085 * w)
+        p.over(fill(tree) * m * (np.abs(cx) < w), 1.15 + 0.35 * dome(tree, 0.35), Si)
+        p.glow(fill(tree) * m * (np.abs(cx) < w) * 0.35, TREE_GLOW)
+        self.skin(p, "corbel", 0.8, 0.97, St, base=0.8, carve=1.2, lift=0.3, aspect=1.0, gain=1.15)
+        prof.bead(p, 0.97, 1.02, S, 0.3)
+        if name == "minimap":                                     # the White Tree glowing at the top
+            bw = float(np.median(ctx.bw))
+            hx, hy = ctx.t - np.radians(270.0) * ctx.mid, (ctx.s - 0.5) * bw
+            plate = sd_box(hx, hy, 0.78 * bw, 0.46 * bw, 0.12 * bw)
+            on = fill(plate) * (ctx.s > 0.04) * (ctx.s < 0.97)
+            p.over(on, 0.8 + 0.2 * dome(plate, 0.5), B)
+            p.emit = p.emit * (1 - on[..., None])
+            rim = np.abs(plate) - 0.4
+            p.over(fill(rim) * (ctx.s > 0.02), 1.2 + 0.3 * dome(rim, 0.3), Si)
+            tree = white_tree(hx, hy, 0.085 * bw)
+            p.over(fill(tree) * on, 1.0 + 0.4 * dome(tree, 0.35), St)
+            p.glow(fill(tree) * on * 1.0 + fill(tree - 1.5) * on * 0.25, TREE_GLOW)
+            for sx_ in (-0.5, 0.5):
+                st = sd_star(hx - sx_ * bw, hy - 0.1 * bw, 0.13 * bw, 6, 0.42)
+                p.over(fill(st) * on, 1.2 + 0.4 * dome(st, 0.4), Si)
         return p
 
-    def post(self, col, env):
-        """White stone: a faint cool veining so it reads as marble, not as grey paint."""
-        c = env["ctx"]["minimap"]
-        vein = np.abs(fbm(c.x * 0.5, c.yy * 0.5, 4, 2) - 0.5)
-        stone = (env["mat"] == self.STONE)[..., None]
-        v = (1 - smoothstep(0.0, 0.05, vein))[..., None] * 0.12
-        return col * (1 - stone * v) + stone * v * np.array((0.55, 0.6, 0.68), np.float32)
+    def protrude(self, x, y):
+        """A white stone pinnacle with a silver star over the joint; a silver spear point off the top left."""
+        out = []
+        d, t, a = fx.spike(x, y, 243, 56, -90, 30, 13.0, 0.0, p=1.0)
+        out.append(fx.layer(fx.ridge(a, t, 0.9, 1.3), self.STONE, fill(d)))
+        band = fill(np.abs(y - 47) - 1.2) * fill(d)
+        out.append(fx.layer(np.full(x.shape, 1.5, np.float32), self.SILVER, band))
+        st = sd_star(x - 243, -(y - 22), 5.5, 6, 0.42)
+        out.append(fx.layer(1.8 + 0.8 * dome(st, 1.0), self.SILVER, fill(st), (fill(st) * 0.9)[..., None] *
+                            np.array(TREE_GLOW, np.float32)))
+        d, t, a = fx.spike(x, y, 42, 41, -135, 22, 5.0, 0.0, p=1.0)
+        out.append(fx.layer(fx.ridge(a, t, 1.0, 1.4), self.SILVER, fill(d)))
+        return out
 
     def medal(self, lx, ly, R):
-        h, mat, cov = disc(lx, ly, R, self.SILVER, self.SABLE, rim_w=1.5, field_h=0.5)
-        k = R / 8.3
-        d = white_tree(lx, ly, k)
-        h = np.where(d < 0, 0.5 + 0.8 * dome(d, 0.4), h)
-        mat = np.where(d < 0, self.STONE, mat)
-        for sx_, sy_ in ((-2.9, 5.0), (0, 6.1), (2.9, 5.0)):
-            st = sd_star(lx - sx_ * k * 0.9, ly - sy_ * k * 0.9 + 1.2 * k, 0.75 * k, 6, 0.45)
-            h = np.where(st < 0, 0.5 + 0.6 * dome(st, 0.3), h)
-            mat = np.where(st < 0, self.MITHRIL, mat)
-        return h, mat.astype(np.int16), cov, np.zeros(lx.shape + (3,), np.float32)
+        """The citadel's banner: royal blue, swallow-tailed, the White Tree in white."""
+        tail = 0.55 * R
+        body = sd_poly(lx, ly, [(-R * 0.72, R * 1.0), (R * 0.72, R * 1.0), (R * 0.72, -R * 1.0),
+                                (0.0, -R * 1.0 + tail), (-R * 0.72, -R * 1.0)])
+        cov = fill(body)
+        rim = body + 1.1
+        h = np.where(rim > 0, 0.5 + 1.1 * dome(body, 1.1), 0.55)
+        mat = np.where(rim > 0, self.SILVER, self.BLUE)
+        k = R / 8.0
+        d = white_tree(lx, ly - 0.05 * R, k * 0.95)
+        h = np.where((d < 0) & (rim < 0), 0.6 + 0.6 * dome(d, 0.35), h)
+        glow = (fill(d) * (rim < 0) * 0.6)[..., None] * np.array(TREE_GLOW, np.float32)
+        mat = np.where((d < 0) & (rim < 0), self.STONE, mat)
+        for sx_, sy_ in ((-2.6, 4.6), (0, 5.6), (2.6, 4.6)):
+            st = sd_star(lx - sx_ * k * 0.9, ly - sy_ * k * 0.9 + 1.0 * k, 0.65 * k, 6, 0.45)
+            h = np.where((st < 0) & (rim < 0), 0.55 + 0.5 * dome(st, 0.3), h)
+            mat = np.where((st < 0) & (rim < 0), self.SILVER, mat)
+        return h.astype(np.float32), mat.astype(np.int16), cov, glow
 
 
 LOOK = Men

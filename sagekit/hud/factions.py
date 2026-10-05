@@ -2,6 +2,7 @@
 (docs/HUD.md, "One palantir per faction").
 
 build/assets/_hud/factions/
+    swatch/<look>/<name>.png           the look's materials cut from its citadel's sheets (sagekit/hud/swatch.py)
     paint/<look>_<kind>_4.png, _2.png  each look's double and single frame at 4x (review) and 2x (ships)
     files/...                          what the archive adds to the 2x pack: palantir.apt/.const,
                                        palantirexport.apt/.dat, the new shapes' .ru (matrices doubled)
@@ -37,7 +38,10 @@ def factions():
 
 def paint(names, mockups=True):
     from .sheet import ABOVE, PLACE
+    from .swatch import cut
+    print("swatches cut from the citadels: %d new" % cut(names))
     job = dict(hud=root(), out=os.path.dirname(froot("paint", "x")), factions=list(names),
+               swatch=os.path.dirname(froot("swatch", "x")),
                backdrop=os.path.join(root(), "backdrop.png") if mockups else "", place=list(PLACE),
                keep=ABOVE, mock_out=os.path.dirname(froot("sheet", "x")))
     path = froot("paint", "job.json")
