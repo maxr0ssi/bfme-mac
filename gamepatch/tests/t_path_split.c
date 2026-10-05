@@ -12,6 +12,9 @@
  *   - a parked request whose unit is gone, whose request was cancelled, or that a map reset ends
  *     is dropped with clean lists; one whose unit asked again is finished and stays waiting; one
  *     parked inside the approach branch or a search for another unit is not split;
+ *   - infos that keep an earlier search's parent (as the game leaves units', obstacles' and open
+ *     cells' infos; the world here resets them after each search) come back as they were, and no
+ *     restore anomaly in all of [8];
  *   - time per run without and with splitting, packed-horde searches among ordinary ones. */
 #include "orig.h"
 #include "gp_logic.h"
@@ -21,6 +24,8 @@
 #include <string.h>
 
 extern uint32_t OFF;
+extern volatile LONG gp_ps_anom[8];      /* p_path3.c: restore anomalies by case */
+static LONG anoms(void) { LONG a = 0; for (int i = 0; i < 8; i++) a += gp_ps_anom[i]; return a; }
 typedef struct { pw_t *w; pw_query q; pw_result r; int other, start, end; } req_t;
 static int cur_run;
 
@@ -407,6 +412,34 @@ int pw_split_test(const pw_cfg *cfg0, int nq)
                ok ? "not split, results identical" : "WRONG", st.pops[0]);
         fails += !ok;
 
+        /* infos that keep an earlier search's parent: in the game the units' and obstacles' infos, and
+         * the open cells' an earlier search left, keep the parent (+0x8) that search gave them, an info
+         * released since. A blocked neighbour is closed with it as it is (0x6f9c08). Planted here: a
+         * released info (not closed) whose cell has none. Whole: the same results as without (never
+         * read). Split: the same results, the same planted parents left at the end, no anomaly. */
+        static uint8_t gone[0x40] __attribute__((aligned(4)));
+        uint8_t *spot = NULL;
+        for (int k = 0; k < I32(pf, 0x1c) && !spot; k++) if (!PTR(cellp(pf, k, 0), 0)) spot = cellp(pf, k, 0);
+        U32(gone, 0x30) = (uint32_t)(uintptr_t)spot;
+        pw_plant(w, (uint32_t)(uintptr_t)gone);
+        req_t *pl = calloc(n, sizeof *pl), *ps = calloc(n, sizeof *ps);
+        memcpy(pl, ref, sizeof *pl * n);
+        queue(w, pl, n, 0, 0, &st);
+        int bad_w = 0, bad_s = 0, kept_s = 0; LONG kept = 0, a0 = anoms(), k0 = gp_ps_stats[13];
+        for (int i = 0; i < n; i++) { bad_w += !same(&pl[i].r, &ref[i].r); kept += pl[i].r.kept; }
+        memcpy(ps, ref, sizeof *ps * n);
+        gp_ps_budget = 1000;
+        queue(w, ps, n, 1, 1, &st);
+        for (int i = 0; i < n; i++) { bad_s += !same(&ps[i].r, &pl[i].r); kept_s += ps[i].r.kept != pl[i].r.kept; }
+        LONG an = anoms() - a0, ks = gp_ps_stats[13] - k0;
+        pw_plant(w, 0);
+        ok = spot && bad_w == 0 && bad_s == 0 && kept_s == 0 && an == 0 && ks > 0 && st.parks > 0;
+        printf("    earlier searches' parents (%ld planted parents left after the requests, %ld kept by %d parks): "
+               "%s (whole: %d of %d differ from unplanted; split: %d differ, %d with other parents, %ld anomalies)\n",
+               kept, ks, st.parks, ok ? "as expected" : "WRONG", bad_w, n, bad_s, kept_s, an);
+        fails += !ok;
+        free(pl); free(ps);
+
         /* time per run: the original queue against splitting, packed-horde searches among the others */
         LONG hs = 0, hc = 0;
         for (int i = nq; i < n; i++) { hs += ref[i].r.steps; hc += ref[i].r.cells; }
@@ -434,6 +467,10 @@ int pw_split_test(const pw_cfg *cfg0, int nq)
               && hres[0] == hres[1];
     printf("    results and per-run pop counts in the two memory layouts: %s\n", det ? "identical" : "DIFFER");
     fails += !det;
+    printf("    restore anomalies in all of [8]: %ld (via %ld, zones %ld, lists not empty %ld, closed cell flagged %ld / "
+           "linked %ld, open cell flagged %ld / linked %ld, parent without info %ld)\n", anoms(), gp_ps_anom[0],
+           gp_ps_anom[1], gp_ps_anom[2], gp_ps_anom[3], gp_ps_anom[4], gp_ps_anom[5], gp_ps_anom[6], gp_ps_anom[7]);
+    fails += anoms() != 0;
     gp_ps_budget = 1000;
     free(ref); free(rq);
     return fails == 0;

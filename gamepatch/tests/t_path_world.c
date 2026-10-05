@@ -342,6 +342,13 @@ typedef void (TC *release_t)(void *cell);                               /* 0x934
 void *pw_moveaway_pop;
 uint64_t pw_scan_us;
 uint8_t *(*pw_split_pop)(uint8_t *pf, uint8_t *obj, uint8_t *goal);
+uint32_t pw_stale;
+void pw_plant(pw_t *w, uint32_t parent)
+{
+    for (size_t o = 0; o + 0x3c <= w->uinfo_size; o += 0x3c)
+        if (U32(w->uinfo0, o + 0x30)) U32(w->uinfo, o + 8) = U32(w->uinfo0, o + 8) = parent;
+    pw_stale = parent;
+}
 uint8_t *pw_pf(pw_t *w) { return w->pf; }
 uint8_t *pw_mover(pw_t *w, int m) { return w->mover[m]; }
 void pw_center(pw_t *w, int b, int *x, int *y) { *x = w->cx[b]; *y = w->cy[b]; }
@@ -423,6 +430,8 @@ void pw_search(pw_t *w, const pw_query *q, pw_result *r)
         if (in >= w->pool && in < w->pool + 0x3c * (size_t)NINFO) { FN(release_t, 0x9347c6)(c); left++; }
     }
     r->leftover = left;
+    if (pw_stale)
+        for (size_t o = 0; o + 0x3c <= w->uinfo_size; o += 0x3c) r->kept += U32(w->uinfo, o + 8) == pw_stale;
     pw_scan_us += now_us() - t1;
     /* the infos that stay (units' and obstacles') keep the costs, parent and flags this search
      * left, and the next search reads some of them (in the game too: its searches depend on the

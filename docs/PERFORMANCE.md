@@ -1539,6 +1539,7 @@ counter, pf+0x38 and pf+0x48 scrambled.
 | request fields changed while parked | finished, identical, the unit stays waiting |
 | inside the approach marker; another unit's search on the fiber first | not split (the other unit's 3,771 pops run whole), results identical |
 | the game-side entries (both pop stubs with stand-in frames, run start, resume point, reset, approach marker, request call) | the right frame fields and registers (xmm0-7 kept across parks too: the pop's call tree never touches them), same pops whole and parked |
+| infos keeping an earlier search's parent (21.6), planted in every unit's and obstacle's info | whole: the same results as unplanted; split: identical, the same parents left, 0 restore anomalies in all of [8] |
 
 ### 21.4 Time per frame, and the budget
 
@@ -1570,7 +1571,44 @@ alike).
 - LAN: changes the game logic; every player needs the same `pathsplit` and `pathsplit_cells`
   (the shared bundle has them). Replays recorded with it need it on.
 
+### 21.6 First game: 10 restore anomalies, from parents of earlier searches (2026-10-05, static + t_path)
+
+Max's first game with it (build af69a0b, a ~6 min skirmish), exit log: 12,586 requests, 168 parks,
+168 resumes, 0 drops, 132 finished after parking, at most 5 runs for one request, at most 45,982
+fiber pops in one run, **10 restore anomalies** (0 in every offline test).
+
+- **Which case.** Not the via points (that vector only shrinks by erase 0x8e6731, grows by push_back
+  0x6e0a42), not the zone grid (allocated once per map, 0x939226 called only from 0x6ea2d6; a map reset
+  drops the parked search). The one with a mechanism: **a parent whose cell has no info.** A blocked
+  neighbour goes on the closed list with the info it already had, only +0xc cleared (0x6f9c08), so it
+  keeps the parent (+0x8) an earlier search gave it, an info released since. In the game such infos are
+  everywhere: units' and obstacles' infos stay, and so do the open cells' infos every search leaves
+  (0x6f4b1a). The park turned that stale pointer into a cell (read through the old info) and the
+  resume found no info there. The test world reset every info after each search, so it never had one.
+- **Harm: none to paths or state.** The pointer is never followed (paths and the turn cost go through
+  popped cells only; a blocked cell is never popped). The patch read it through pool memory, which is
+  never freed during a game (0x934538 never frees a block), into a cell of the current map: no crash.
+  It only put NULL or another info into that never-read field, the same on every machine.
+- **Fix** (p_path3.c): a parent is the search's own when its info is open or closed at the park (every
+  cell opened gets a listed cell as parent: the popped cell, or the previous cell of a straight run,
+  which is open); otherwise the pointer is put back exactly as it was and never dereferenced. Found on
+  the way: the open bits must be cleared after all cells are saved (a run's open parent), else the
+  restore breaks parent chains (the test hung on a loop before that order was fixed).
+- **Reproduced:** t_path [8] plants such a parent (a released info, its cell without one) in every
+  unit's and obstacle's info. Old code: 1,457 anomalies, all "parent without info", the same paths, 25
+  of 32 requests leaving other parents behind. Fixed: 0 anomalies, identical results and parents,
+  3,641 stale parents kept over 95 parks.
+- **The other counts.** Parks and resumes count every park, "finished after parking" every split
+  request once: 132 requests were split, the other 36 parks were their second to fifth, none was
+  dropped or still parked (parks = resumes). 45,982 pops in one run is under the budget of a game's
+  first 5 s (25 logic frames, 5 x [0xd9f608] = 5: the queue's own budget and ours are x100 there,
+  100,000); outside it a run passes the budget only by searches that never park (attack paths, path
+  patches, the approach branch, move-away floods). This log cannot tell which; the exit log now
+  keeps the two apart.
+
 Install: `scripts/game-patch.sh` (with `pathsplit=1`, `pathsplit_cells=1000` in `gamepatch.ini`);
 off: `pathsplit=0`; revert all: `scripts/game-patch.sh --revert`. Exit log line `pathsplit`:
-requests, parks, resumes, drops by cause, most phases for one request, most pops in one phase,
-restore anomalies (expected 0).
+requests, parks, resumes, drops by cause, requests still parked, most phases for one request, most
+pops in one phase (and in a game's first 5 s, budget x100), earlier searches' parents kept, restore
+anomalies by case: via points, zone grid, lists not empty at a resume, closed / open cell already
+flagged or linked, parent without info (each expected 0).

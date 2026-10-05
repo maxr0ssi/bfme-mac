@@ -15,7 +15,8 @@
  * outside the queue meanwhile (and the move-away floods) find clean lists, and the parked search
  * gets its own state back exactly:
  *   - open heap (pf+0x1d1f0) and closed list (pf+0x34) emptied; each cell's search fields (parent as
- *     a cell, +0xc, costs, flag bits 0/3/4) saved by cell. Closed infos are released the way the
+ *     a cell when it is this search's, else the pointer as it was; +0xc, costs, flag bits 0/3/4)
+ *     saved by cell. Closed infos are released the way the
  *     game's clean-up does (0x934806), open ones stay on their cells as the game leaves them;
  *   - saved: start-blocked flag (pf+0x38), ignored obstacle (pf+0x48, set to 0 as doPathfind leaves
  *     it), jump-ahead counter (0xde4b14), via points (pf+0x1c1cc), the zone blocks' corridor flags;
@@ -74,6 +75,7 @@ typedef void (TC *dopf_t)(void *ai, void *pf);                /* doPathfind, vt+
 uint32_t gp_ps_budget = 1000;          /* popped cells per queue run for the fiber's work */
 volatile LONG gp_ps_pops;              /* every pop of every search (0x6f4af2 entry) */
 volatile LONG gp_ps_stats[14];
+volatile LONG gp_ps_anom[8];           /* restore anomalies by case (ANOM_*), their sum in gp_ps_stats[10] */
 uint32_t gp_ps_pop_cont, gp_ps_loop, gp_ps_exit, gp_ps_reset_cont, gp_ps_approach, gp_ps_ai_ret = 1;
 volatile LONG gp_ps_unsafe;            /* > 0 inside doPathfind's approach/attack branch */
 volatile uint32_t gp_ps_stack_top;     /* the fiber's stack base (p_stall.c samples it too), 0: none */
@@ -94,11 +96,19 @@ static int in_work, broken;
 static LONG run_pops, sw_c0;           /* fiber pops in this run; gp_ps_pops when the fiber was entered */
 static uint32_t run_budget;
 
-typedef struct { uint8_t *cell, *par; uint32_t c, cost, fl; int32_t x, y; } ent_t;
+/* par: the parent's cell when the parent is this search's (a closed cell); otherwise raw is the
+ * info's +0x8 as it was, put back verbatim (below) */
+typedef struct { uint8_t *cell, *par; uint32_t raw, c, cost, fl; int32_t x, y; } ent_t;
 static ent_t *eo, *ec;                 /* parked open (heap order) and closed (list order) cells */
 static uint32_t no, nc, cap_o, cap_c;
 static uint8_t s_blocked, *via, *pass;
 static uint32_t s_ignore, s_jump, nvia, cap_via, npass, cap_pass, s_zcols, s_zw, s_zh;
+
+/* restore anomalies, each expected 0: via vector too small, zone grid changed, lists not empty at a
+ * resume, a restored closed / open cell's info already flagged open or closed, or already linked in a
+ * list (+0x38), a parent of this search whose cell has no info */
+enum { ANOM_VIA, ANOM_ZONES, ANOM_DIRTY, ANOM_CFLAG, ANOM_CLINK, ANOM_OFLAG, ANOM_OLINK, ANOM_PARENT, ANOM_N };
+static void anom(int k) { gp_ps_anom[k]++; gp_ps_stats[10]++; }
 
 static void *grow(void *p, uint32_t *cap, uint32_t need, uint32_t size)
 {
@@ -113,10 +123,20 @@ static void *grow(void *p, uint32_t *cap, uint32_t need, uint32_t size)
 
 static LONG used(void) { return run_pops + (in_work ? gp_ps_pops - sw_c0 : 0); }
 
+/* A cell's parent is this search's when the parent info is open or closed: every cell the search
+ * opens gets a cell of its lists as parent (the popped cell, closed before its neighbours are
+ * examined, 0x93442f / 0x93443d; on a straight run toward the goal the run's previous cell, open). A
+ * neighbour that is blocked is put on the closed list with the info it already had and only +0xc
+ * cleared (0x6f9c08), so a unit's, an obstacle's or an earlier search's info keeps the parent that
+ * search gave it: an info released since, free in the pool (no flags) or reused. That pointer is
+ * never followed (paths are built through popped cells only); it is put back as it was and never
+ * dereferenced. Called before the park clears any open or closed bit. */
 static ent_t save(uint8_t *cell, uint8_t *in)
 {
-    ent_t e = {cell, NULL, U32(in, 0xc), U32(in, 0x10), U32(in, 0x2c) & FL_SEARCH, I32(in, 0), I32(in, 4)};
-    if (U32(in, 8)) e.par = PTR(PTR(in, 8), 0x30);           /* parent info -> its cell */
+    uint8_t *p = PTR(in, 8);
+    ent_t e = {cell, NULL, U32(in, 8), U32(in, 0xc), U32(in, 0x10), U32(in, 0x2c) & FL_SEARCH, I32(in, 0), I32(in, 4)};
+    if (p && (U32(p, 0x2c) & 0x18)) e.par = PTR(p, 0x30);      /* parent info -> its cell */
+    else if (p) gp_ps_stats[13]++;
     return e;
 }
 
@@ -139,18 +159,14 @@ static void park(uint8_t *pf)
     uint32_t *b = (uint32_t *)PTR(pf, PF_OPEN), *e = (uint32_t *)PTR(pf, PF_OPEN + 4);
     no = (uint32_t)(e - b);
     eo = grow(eo, &cap_o, no + 1, sizeof *eo);
-    for (uint32_t i = 0; i < no; i++) {                      /* as 0x6f4b1a: open bit cleared, info kept */
-        uint8_t *cell = (uint8_t *)(uintptr_t)b[i];
-        in = PTR(cell, 0);
-        eo[i] = save(cell, in);
-        U32(in, 0x2c) &= ~8u;
-    }
-    U32(pf, PF_OPEN + 4) = U32(pf, PF_OPEN);
+    for (uint32_t i = 0; i < no; i++) eo[i] = save((uint8_t *)(uintptr_t)b[i], PTR((uintptr_t)b[i], 0));
     nc = 0;
     for (in = PTR(pf, PF_CLOSED); in; in = PTR(in, 0x34)) {
         ec = grow(ec, &cap_c, nc + 1, sizeof *ec);
         ec[nc++] = save(PTR(in, 0x30), in);
     }
+    for (uint32_t i = 0; i < no; i++) U32(PTR((uintptr_t)b[i], 0), 0x2c) &= ~8u;   /* as 0x6f4b1a: info kept */
+    U32(pf, PF_OPEN + 4) = U32(pf, PF_OPEN);
     for (in = PTR(pf, PF_CLOSED); in; ) {                   /* as 0x934806 */
         uint8_t *next = PTR(in, 0x34), *cell = PTR(in, 0x30);
         GFN(unlink_t, 0x6e8074)(in);
@@ -181,23 +197,26 @@ static uint8_t *ensure(uint8_t *cell, int x, int y)
 static void unpark(uint8_t *pf)
 {
     U8(pf, PF_BLOCKED) = s_blocked; U32(pf, PF_IGNORE) = s_ignore; DAT(JUMP_CTR) = s_jump;
+    if (U32(pf, PF_CLOSED) || U32(pf, PF_OPEN) != U32(pf, PF_OPEN + 4)) anom(ANOM_DIRTY);
     if ((U32(pf, PF_VIA + 8) - U32(pf, PF_VIA)) / 12 >= nvia) {
         memcpy(PTR(pf, PF_VIA), via, 12 * nvia);
         U32(pf, PF_VIA + 4) = U32(pf, PF_VIA) + 12 * nvia;
-    } else gp_ps_stats[10]++;
+    } else anom(ANOM_VIA);
     if (U32(pf, PF_ZONES) == s_zcols && U32(pf, PF_ZONES + 4) == s_zw && U32(pf, PF_ZONES + 8) == s_zh) {
         for (uint32_t i = 0; i < npass; i++) U8(PTR(s_zcols, 4 * (i / s_zh)), 0x44 * (i % s_zh) + 0x34) = pass[i];
-    } else gp_ps_stats[10]++;
+    } else anom(ANOM_ZONES);
     for (uint32_t i = nc; i-- > 0; ) {                      /* head insertion: the list in its old order */
         uint8_t *in = ensure(ec[i].cell, ec[i].x, ec[i].y);
-        if (U32(in, 0x2c) & 0x18 || U32(in, 0x38)) gp_ps_stats[10]++;
+        if (U32(in, 0x2c) & 0x18) anom(ANOM_CFLAG);
+        if (U32(in, 0x38)) anom(ANOM_CLINK);
         U32(in, 0xc) = ec[i].c; U32(in, 0x10) = ec[i].cost;
         U32(in, 0x2c) = (U32(in, 0x2c) & ~FL_SEARCH) | (ec[i].fl & 1);
         GFN(close_t, 0x934594)(ec[i].cell, pf + PF_CLOSED);
     }
     for (uint32_t i = 0; i < no; i++) {                      /* the heap array exactly as it was */
         uint8_t *in = ensure(eo[i].cell, eo[i].x, eo[i].y);
-        if (U32(in, 0x2c) & 0x18 || U32(in, 0x38)) gp_ps_stats[10]++;
+        if (U32(in, 0x2c) & 0x18) anom(ANOM_OFLAG);
+        if (U32(in, 0x38)) anom(ANOM_OLINK);
         U32(in, 0xc) = eo[i].c; U32(in, 0x10) = eo[i].cost;
         U32(in, 0x2c) = (U32(in, 0x2c) & ~FL_SEARCH) | (eo[i].fl & 9);
         GFN(pushb_t, 0x90be00)(pf + PF_OPEN, (void *const *)&eo[i].cell);
@@ -205,8 +224,8 @@ static void unpark(uint8_t *pf)
     for (int k = 0; k < 2; k++)
         for (uint32_t i = 0, n = k ? no : nc; i < n; i++) {
             ent_t *e = k ? &eo[i] : &ec[i];
-            uint8_t *pin = e->par ? PTR(e->par, 0) : NULL;
-            if (e->par && !pin) gp_ps_stats[10]++;
+            uint8_t *pin = e->par ? PTR(e->par, 0) : (uint8_t *)(uintptr_t)e->raw;
+            if (e->par && !pin) anom(ANOM_PARENT);
             U32(PTR(e->cell, 0), 8) = (uint32_t)(uintptr_t)pin;
         }
     if (job.goal && !PTR(job.goal, 0)) ensure(job.goal, job.gx, job.gy);
@@ -218,7 +237,8 @@ static void enter(void)
     in_work = 1; sw_c0 = gp_ps_pops;
     SwitchToFiber(f_work);
     run_pops += gp_ps_pops - sw_c0; in_work = 0;
-    if (run_pops > gp_ps_stats[7]) gp_ps_stats[7] = run_pops;
+    volatile LONG *most = &gp_ps_stats[run_budget > gp_ps_budget ? 12 : 7];   /* 12: a game's first 5 s */
+    if (run_pops > *most) *most = run_pops;
 }
 
 static void WINAPI FA fiber_proc(void *unused)
@@ -438,12 +458,20 @@ int gp_patch_pathsplit(void)
     return 1;
 }
 
+/* parks and resumes count every park (a request parked 3 times counts 3); a split request ends as
+ * finished after parking, dropped, or still parked at exit */
 void gp_ps_exit_log(void)
 {
     if (gp_ps_stats[0])
         gp_log("exit: pathsplit requests %ld, parked %ld, resumed %ld, dropped (unit gone %ld, cancelled %ld, map "
-               "reset %ld), asked again while parked %ld, finished after parking %ld, most runs for one "
-               "request %ld, most fiber pops in one run %ld, run whole %ld, restore anomalies %ld",
+               "reset %ld), asked again while parked %ld, finished after parking %ld, still parked %d, most runs "
+               "for one request %ld, most fiber pops in one run %ld (in a game's first 5 s, budget x100: %ld), run "
+               "whole %ld, earlier searches' parents kept %ld, restore anomalies %ld (via points %ld, zone grid %ld, "
+               "lists not empty %ld, closed cell flagged %ld / linked %ld, open cell flagged %ld / linked %ld, "
+               "parent without info %ld)",
                gp_ps_stats[0], gp_ps_stats[1], gp_ps_stats[2], gp_ps_stats[3], gp_ps_stats[4], gp_ps_stats[11],
-               gp_ps_stats[5], gp_ps_stats[8], gp_ps_stats[6], gp_ps_stats[7], gp_ps_stats[9], gp_ps_stats[10]);
+               gp_ps_stats[5], gp_ps_stats[8], job.state == J_PARKED, gp_ps_stats[6], gp_ps_stats[7], gp_ps_stats[12],
+               gp_ps_stats[9], gp_ps_stats[13], gp_ps_stats[10], gp_ps_anom[ANOM_VIA], gp_ps_anom[ANOM_ZONES],
+               gp_ps_anom[ANOM_DIRTY], gp_ps_anom[ANOM_CFLAG], gp_ps_anom[ANOM_CLINK], gp_ps_anom[ANOM_OFLAG],
+               gp_ps_anom[ANOM_OLINK], gp_ps_anom[ANOM_PARENT]);
 }

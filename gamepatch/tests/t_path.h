@@ -39,6 +39,7 @@ typedef struct {
     uint64_t lists;                      /* hash of the open and closed lists' cells and costs at the end */
     uint64_t us;                         /* time of the search and its clean-up */
     int leftover;                        /* infos left on cells outside any list (released afterwards) */
+    int kept;                            /* units' and obstacles' infos whose parent is pw_stale at the end */
 } pw_result;
 
 int    pw_init(const char *exe);         /* map the image, imports, stand-ins; 0 = ok */
@@ -61,4 +62,6 @@ uint8_t *pw_pf(pw_t *w);
 uint8_t *pw_mover(pw_t *w, int m);
 void   pw_center(pw_t *w, int battle, int *x, int *y);    /* battle 0: the packed block; 3: the closed base */
 int    pw_split_test(const pw_cfg *cfg, int nq);           /* 1 = pass */
+extern uint32_t pw_stale;                /* parent (+0x8) planted in the units' and obstacles' infos, 0: none */
+void   pw_plant(pw_t *w, uint32_t parent);   /* as an earlier search leaves them (the game does not reset) */
 #endif
