@@ -78,11 +78,22 @@ what the game does, read from RotWK's `game.dat` (2.01):
 So a texture twice the size alone would draw its top-left quarter. Doubled together with every
 matrix that samples it, the game divides twice the pixels by twice the size: the same UVs, the
 same shape on screen, twice the texels. `sagekit/hud/apt.py` doubles exactly the styles whose image
-lives on one of our textures (117 files: 61 of Palantir, including the two the 2.02 patch
-overrides, 52 of libInGameImagesMain, 4 of PalantirExport) and keeps every other byte. The checks
-compare every matrix of every movie with EA's (doubled for ours, untouched for the rest) and keep
-every sampled texel inside the texture. Not yet seen in game: if the 2x draws wrong, `--install
---1x` ships the repaint at EA's sizes with no geometry.
+lives on one of our textures (114 files: 58 of Palantir, including the two the 2.02 patch
+overrides, 52 of libInGameImagesMain, 4 of PalantirExport; RotWK's own files only, not BFME2's
+.ru files for characters RotWK's movies lack) and keeps every other byte. The checks compare
+every matrix of every movie with EA's (doubled for ours, untouched for the rest) and keep every
+sampled texel inside the texture. If the 2x ever draws wrong, `--install --1x` ships the repaint
+at EA's sizes with no geometry.
+
+**Alpha bits (fixed 2026-10-04).** The game (`0x531049`) copies a 32-bit TGA straight into an
+A8R8G8B8 texture only when D3DX accepts it at the file's own size; otherwise
+D3DXCreateTextureFromFileInMemoryEx loads it, and D3DX reads a TGA that declares 0 alpha bits as
+X8R8G8B8. EA's two atlases declare 0 and always took the copy at 1024x512; our 2048x1024 copies
+went to D3DX and lost their alpha (the power button's highlight drew as an opaque square). Every
+TGA we write now declares 8 alpha bits (`sagekit/hud/tga.py`), and the 2x alpha is held within
+EA's 3x3 neighbourhood (no Lanczos ringing into texels EA keeps clear). `sagekit/hud/spritecheck.py`
+checks every sprite (118) that samples one of our 2x textures: the header's alpha bits, its
+sampled alpha against EA's, and that what EA keeps clear or solid stays so.
 
 The archive sorts before `apt/*.big` and `__patch202.big` (the game mounts the apt/ folder with the
 rest, first provider wins; the 2.02 patch overrides `palantir.apt` and two `.ru` files the same way).
@@ -173,8 +184,25 @@ shape is the whole 512x256 page), and `frame.safe()` keeps them outside both gla
 clear of the buttons and the resource numbers. The frame is not a click target, so the protrusions
 are only visual.
 
+**Ornaments in 3D** (Max, after seeing them in game: "a little gimmicky, focus on the details"). The
+protrusions and focal pieces are modelled and rendered in Blender, not painted:
+`assets/hud/factions/pieces.py` lists a few large pieces per faction (bones, skulls, tusks, horns,
+blades, ice crystals, icicles, gems in bezels, a stepped crest, a spire with leaves, the White Tree
+plaque, the White Hand plaque) and a material library (bone with subsurface and grime, blood, iron
+with edge wear, polished gold and silver, ice, gems). `sagekit/hud/pieces.py` renders them through
+`sagekit/blender/hudpieces.py` (Cycles, one `blender_slot()`, cached by a hash of the spec and the
+script) at the painter's 4x. The pieces are lit from the top left like EA's frame, metals reflect
+three hidden studio panels, and a shadow catcher adds contact and drop shadows to the alpha. The
+painter composites the render over the frame inside a feathered `frame.safe()`. The repeated
+stamps on the rings (the Goblins' skulls and ribs, Angmar's crystals and tines, the Dwarves' gems)
+are gone, and the ring surfaces are calmer (`soft`: a coarser mip of the swatch). The portrait's
+button rings (`libInGameImagesMain_1`, one sheet for every side) are toned from the pack's bronze to
+a neutral gunmetal in this archive (`paint/sockets_2.png`). The shapes for each side's buttons
+are not split in EA's movie.
+
 Review: `build/assets/_review_finish/hud_citadel/all.jpg` (per faction: the citadel, the new frame
-over the in-game crop at 3024x1964, the previous version, three 2x close-ups). The frames before are kept as
+at 100% over the in-game crop at 3024x1964, the previous version, a 2x zoom, three close-ups of the
+texture; then the button rings before and after). The frames before are kept as
 mock-ups in `build/assets/_hud/factions/sheet/prev/`. Same APT edit, same texture names and sizes:
 `--factions --stage`, then `--factions --install` (revert: `--factions --revert`).
 
