@@ -144,16 +144,27 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 
 ## Measuring
 
-- `scripts/monitor.sh last|report [dir]|list|bench [args]|start <pid> <log> <dir>` — the session
+- `scripts/monitor.sh last|report [dir]|list|bench [args]|stalltest|start <pid> <log> <dir>` — the session
   monitor, on in every `play-rotwk.sh` game (`BFME_MONITOR=0` turns it off): per-frame times from
   wined3d (`+timestamp,+frametime`), thread CPU / memory / GPU sampled from outside by
   `tools/monitor_rec.py` (libproc, every 0.25 s), the game patch's frame records (`monitor`: D3DX
   loads per frame, objects, 32-bit address space); when the game exits `tools/monitor_report.py` (+
   `tools/monitor_chart.py`) writes `logs/sessions/<date-time>/report.html` and `summary.txt`. `last`
   prints and opens the newest; `bench` proves the pipeline on `tools/d3d9bench.c` (`--hitch N:MS[:sleep]`
-  injects known slow frames). PERFORMANCE.md §16.
+  injects known slow frames); `stalltest` proves the stall sampler: the report must name the bench's
+  `bench_hitch()` as the function of its 400 ms frames. PERFORMANCE.md §16.
+- `tools/monitor_stalls.py <game.txt> [--top 5]` — the report's stall section: for every frame over
+  150 ms the game patch's stall sampler (`gamepatch/src/p_stall.c`) caught, histograms of the main
+  thread's functions (innermost exe function, call chain, leaf, logic phase), named from
+  `build/rotwk-re/` (or a bench's COFF symbols); chains with `tools/callstacks.py`'s `Chainer`.
 - `tools/monitor_rec.py --pid P --dir D --log L [--any] [--no-report]` — the monitor's sampler (above).
 - `tools/monitor_report.py <session dir> [--spike-ms 50]` — rebuilds a session's report and summary.
+- `tools/obfme_map.py <rotwk addr>... | --name <regex> | build` — names RotWK code from Open-BFME-2
+  (byte-exact C++ of BFME2 1.06, GPLv3, read only from its git-ignored clone in `build/ext/`, never
+  copied here): their function, source file and line, and match confidence for an address; for an
+  unmapped one, its 1.06 address, the mapped functions it calls and its mapped neighbours. `build`
+  writes `build/ext/rotwk_map.tsv` (needs `git clone --depth 1 https://github.com/Open-BFME/Open-BFME-2
+  build/ext/Open-BFME-2`).
 - `scripts/measure-session.sh on|sample [label]|summary [since]|off` — one measuring session played by
   you: `on` turns the game patch's diagnostics on (passtimers, renderstats, particlestats, logicstats; ~2 ms/frame),
   `sample` takes a 20 s read-only stack sample of the main thread during a fight and writes the
@@ -242,12 +253,16 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   game. `sagekit validate` caps each object at EA's draws x 1.10 + 2 and EA's render objects + 2.
   `docs/PERFORMANCE.md` §14.
 - `python3 -m sagekit.fire_budget [faction/building ...]` (`sagekit/fire_budget.py`, `fire_lean.py`) — each
-  burning recipe's fire in live particles against the budget of 60 (BurstCount / BurstDelay x Lifetime
-  per system, over its points); `sagekit validate` and the check suite fail one over it. docs/ART.md "Fire budget".
+  burning recipe's fire in live particles against its budget: 20 for the buildings whose fire is their
+  identity (`IDENTITY`), 6 for the rest (BurstCount / BurstDelay x Lifetime per system, over its points);
+  `sagekit validate` and the check suite fail one over it. docs/ART.md "Fire budget".
 - `python3 -m sagekit.fire_review --snapshot <out.json> | [--before <json>] <faction/building> ...`
   (`sagekit/fire_review.py`, `sagekit/paint/fire_composite.py` on Blender's Python) — the fire before and
   after drawn over the build's renders, healthy and damaged, in-game camera and close-up, live counts on
   each tile: `build/assets/_review_finish/fire_budget/`.
+- `python3 -m sagekit.fire_grid [--before <snapshot.json>] [faction ...]` (`sagekit/fire_grid.py`) — per
+  faction, every building with our fire before and after at the in-game camera (1:1 crop, healthy), live
+  counts on each tile: `build/assets/_review_finish/fire_reduce/<faction>.jpg` (the fire reduction).
 - `tools/d3dx9fxbench.c` — replays the game's per-batch / per-mesh `ID3DXEffect` calls (shadow-map
   pass + main view) on the real `.fxo` effects against any `d3dx9_27.dll` build, without the game;
   `--hash` checksums every device call the effects make, so two builds can be proven identical.

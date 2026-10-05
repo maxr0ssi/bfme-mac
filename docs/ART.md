@@ -126,6 +126,8 @@ buildings or props):
 | torch | SagekitLeanFireTorch (3.0) | the brazier's flame without its smoke |
 | coals | SagekitLeanForgeCoal (3.0) | the grate's glow without its embers |
 | flame | SagekitLeanFurnaceFire (7.2) | the hearth's or furnace's fire alone |
+| witchtorch | SagekitWitchTorch (3.0) | ours: EA's FireTorch in Morgul green, lean (the Mordor crowns' small flames) |
+| coldtorch | SagekitColdTorch (3.0) | ours: EA's FireTorch ice-blue to white, lean (Angmar's small cold flames) |
 
 EA burns no green or cold blue fire in place (its green and ice systems are spells, hits, arrows
 and mists; the Angmar citadel's blue torch is a flame card, `EXFireTorchSeqBlue`), so a kind may
@@ -149,8 +151,8 @@ system to the game's INIs; `renders/fire/compare_<view>.png` marks the points ov
 
 Our fire once cost ~7,600 live particles over eight late-game bases (EA's buildings: 809), past the
 game's 4,000 cap, above which the engine drops the oldest particles of everything, combat effects
-included (`docs/PERFORMANCE.md` §15). Now **a building's fire is at most 60 live particles** in its
-worst state (it burns the same in healthy, damaged and snow; night lights are meshes). Live particles
+included (`docs/PERFORMANCE.md` §15). Then **a building's fire was at most 60 live particles** (since
+2026-10-05 20 or 6, below) in its worst state (it burns the same in healthy, damaged and snow; night lights are meshes). Live particles
 are counted, not measured: BurstCount / BurstDelay x Lifetime per system (`sagekit/drawcost.py`
 Rates), summed over the fire points (`python3 -m sagekit.fire_budget` lists every building).
 `sagekit validate` fails a recipe or a staged object over it, the check suite a building over it.
@@ -175,6 +177,24 @@ Two levers, both keeping the look:
 
 A citadel's add-ons are recipes of their own on the same object, each within 60: the Isengard citadel
 with every add-on burns 209 (was ~1,140), the Mordor one 104, the Angmar one 92.
+
+**The fire reduction (Max, 2026-10-05: "I think fires we should reduce on most buildings").** The
+budget is now per building (`sagekit/fire_budget.py`):
+
+- **20 live particles** where the fire is the building's identity (`IDENTITY`): the forges, furnaces and
+  smithies (Isengard furnace, siege works, armoury, Burning Forges; Mordor siege works; the Elven forge),
+  the lava (Mordor's lava moat, magma cauldrons), the Isengard and Mordor citadel crowns and Angmar's
+  cold fire on its key buildings (citadel, sanctum, Hall of Twilight). 20 is about two of EA's single fires
+  made lean: one bold point (a furnace 9.7, a chimney 13.1) and a second, small one beside it.
+- **6 everywhere else**: one lean brazier (flame and smoke), two torches or one forge glow, only where a
+  light matters at night (a gate's or tower crown's braziers); most buildings burn none. Economy buildings
+  (mines, lumber mills, the slaughterhouse), walls and wall hubs, which repeat across a base, burn nothing.
+
+Small flames for Mordor and Angmar: `witchtorch` and `coldtorch`, EA's torch flame (FireTorch, made lean
+as `torch`) in the witch-fire's green and the cold fire's blue. Our fire over every recipe 1,534 -> 324 live
+particles; 64 burning recipes -> 38. Each recipe's `fire_points` carries a comment with the old and new
+count and what stays. Review: `python3 -m sagekit.fire_grid` (`build/assets/_review_finish/fire_reduce/`).
+Install and revert exactly as below (the FX archive first: it defines the two new systems).
 
 Review: `python3 -m sagekit.fire_review --snapshot <before.json>` saves the fire as it stands;
 `python3 -m sagekit.fire_review [--before <before.json>] <faction/building> ...` draws the fire

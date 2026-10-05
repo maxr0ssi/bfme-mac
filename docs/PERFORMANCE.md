@@ -841,6 +841,7 @@ and twelve subsystems; phase 6 runs list 3. From the memory probe of the 2026-09
 
 So one frame in six carries most of the logic. With 8 players that frame is the one that drops.
 Which subsystem or module class owns phase 5 is not known. A leaf profile spreads it thin (§10.5).
+(2026-10-05: what phase 5 runs is now known from the code, §17; its time split still needs logicstats.)
 
 **Synthetic frame at large counts** (`scripts/bench-d3d9.sh engine`, 2026-10-04 21:45, load 5-8,
 median of 3 x 5 s):
@@ -973,11 +974,27 @@ objects (the Elven bases' 425). A citadel with every add-on burns more than one 
 209, Mordor 104, Angmar 92, damaged state); the scene counts the healthy citadels. Not measured in
 game yet.
 
+**Built (2026-10-05, Max: "I think fires we should reduce on most buildings"; docs/ART.md "Fire budget"):**
+a budget per building, 20 live particles where the fire is the building's identity (forges, furnaces,
+lava, the citadel crowns, Angmar's key buildings; `sagekit/fire_budget.py` IDENTITY), 6 elsewhere, most
+of them none; two small coloured torch systems (SagekitWitchTorch, SagekitColdTorch, 3.0 live each). Our
+fire over all recipes 1,534 -> 324 live particles, burning recipes 64 -> 38. Same scene, packs restaged
+2026-10-05 (`build/assets/_review_finish/fire_reduce/drawcost_after.txt`):
+
+| 8 bases | EA | 2026-10-04 (budget 60) | 2026-10-05 (20 / 6) |
+|---|---|---|---|
+| render objects | 332 | 421 | 388 (33 fire rigs fewer) |
+| particle systems / live particles | 35 / 809 | 433 / 2,428 | 114 / 1,094 |
+| particle render, map-wide (model) | 0.46 ms | 1.91 ms | 0.73 ms |
+| a base in view | 2.10 ms | 2.33 ms | 2.27 ms |
+
+1,094 includes EA's own effects on our objects (the Elven bases' 425). Not measured in game yet.
+
 **The check.** `sagekit validate` holds every staged object's healthy state to EA's main-view draws
 x 1.10 + 2 and EA's render objects + 2 (a house model and a fire rig). It warned where a building's
 fire passed EA's heaviest standing one (330 live particles: Isengard citadel 538, Mordor citadel 421,
 Isengard furnace 368); since the fire budget it fails any recipe, and any staged object's fire rig in
-any state, over 60 (`sagekit/fire_budget.py`). All 326 objects pass.
+any state, over 60 (`sagekit/fire_budget.py`); since 2026-10-05 over its building's budget (20 or 6). All 326 objects pass.
 
 ## 16. Session monitor: hard data from every game (2026-10-04)
 
@@ -1041,4 +1058,78 @@ Limits: GPU utilisation is the whole Mac's (other programs count); a thread's CP
 its 0.25 s sample, so a lone 60 ms stall shows diluted (the cause rule then says "waiting");
 the map and players come from `Skirmish.ini` (skirmish only); the frame line costs ~45 bytes, so a
 game log grows ~5 MB an hour.
+
+
+### 16.1 Stall sampler: the code of every long frame (2026-10-05)
+
+The 2026-10-05 session (8 players, Mordor spells) had 13 freezes of 472-1362 ms with the main thread at
+100 %, the render thread idle and no texture loads, creations or effect compiles in the frame
+(`logs/sessions/20261005-084422`). Nothing logged could name the code. Now the game patch's monitor
+has a stall sampler (`gamepatch/src/p_stall.c`, `[patches] stalls=1`, on with the monitor): when no
+frame has come for 150 ms (`GAMEPATCH_STALL_MS`), a watchdog thread samples the main thread every
+2 ms until the frame ends, for at most 4 s. Each sample is SuspendThread, GetThreadContext, a copy
+of the top 32 KB of the stack and ResumeThread. After that, the watchdog keeps the return addresses
+into the exe. The report (`tools/monitor_stalls.py`) groups the samples by stall and names, for each
+stall, the innermost exe function, the call chain (`tools/callstacks.py` Chainer with
+`build/rotwk-re/funcs.txt` and the names files), the leaf and the logic phase. `play-rotwk.sh` now
+turns logicstats on in monitored sessions, so each sample also carries the GameLogic::update phase.
+That costs 16-22 ns per update-module call (t_lstats), an estimated 0.3 % of a core at 1,500
+objects. This is logicstats' first use in the game; `GAMEPATCH_LOGICSTATS=0` turns it off.
+
+Measured without the game (engine w10):
+
+| test | result |
+|---|---|
+| `t_stall`, frames every 5 ms for 0.6 s | 0 samples |
+| `t_stall`, a 600 ms spin | 177 samples (one per ~2.5 ms after the first 150 ms), all with EIP in the spinning function and its return address in the stack scan |
+| `t_stall`, a 600 ms Sleep | 176 samples in ntdll.dll (an M line), the caller's return address in every one |
+| main thread held per sample | 69 us mean, 278 max (t_stall); 62 / 336 (t_monitor); 81-95 (bench) |
+| `scripts/monitor.sh stalltest` (d3d9bench, 400 objects, a 400 ms spin in `bench_hitch()` every 90th frame) | 16 hitches, 16 stalls, 1557 samples; innermost exe function 99 % `bench_hitch`, chain `__tmainCRTStartup` > `main` > `begin_frame` > `bench_hitch` |
+
+Cost: while frames come, the watchdog wakes every 10 ms to compare two clocks. During a stall,
+each sample stretches it by the hold time, about 3-4 % at ~2.5 ms a sample.
+
+## 17. Logic phase 5: what it runs, and two exact speed-ups (2026-10-05, static + standalone tests)
+
+No logicstats data yet: it was off in the 2026-10-05 08:44 session (`logs/sessions/20261005-084422`,
+`logicstats: off` in `logs/gamepatch.log`), so the split below is from the code, not measured.
+
+**What phase 5 is** (GameLogic::update 0x62e4e8, the phase-5 branch 0x62e98b-0x62ec0d; list index =
+the module's `getUpdatePhase()`, vtable slot 0x30, the BFME/Zero Hour SleepyUpdatePhase, confirmed by
+Open-BFME-2's UpdateModule::getUpdatePhase):
+- update list 1 = PHASE_PHYSICS (HordeContain, HorseHordeContain) and list 2 = PHASE_NORMAL, the
+  default: ~180 module classes, among them PhysicsBehavior (update 0x79350e), the weapon, spawn,
+  stealth, contain and slow-death modules. List 0 (PHASE_INITIAL, phases 3-4) holds the AI update
+  modules (AIUpdateInterface 0x66e58f and its subclasses); list 3 (PHASE_FINAL) is phase 6.
+- TheAI (0xde4b40) update 0x6fec63: the pathfinder queue 0x6f2364 (a cell budget per step from
+  GlobalData+0x11e8, so its work per step is fixed and its speed-up deterministic), then 0xde4928's update.
+- 0x629da6 (every phase), TheShroudManager, 0xde435c, TheBuildAssistant, TheLargeGroupAudio, 0x62a2c9,
+  TheWeaponStore, TheLocomotorStore, TheVictoryConditions, TheDelayedExperienceLevelGrantSystem,
+  0x80f4d3, TheSkirmishAIManager, TheMineshaftPortalNetworkManager, TheTeamFactory
+  (names from the subsystem-init strings next to each global).
+So phase 5 runs most of the per-object module updates of every object, which is why it is the big one.
+
+**Ranking, Rosetta cost** (leaf profiles `logs/battle-msync2`, `battle-ai1`; standalone per-call cost):
+the remaining logic leaves in both profiles are Wine's CRT `sqrt` (the `fsqrt` at msvcr71+0x7054:
+1.4 % / 1.3 % of the main thread; 104 call sites incl. pathfinder, HordeContain, physics and AI),
+the path-segment cost 0x7658c3 (region 0x765900: 0.6 %; summed per path by 0x765972 for the AI
+modules and HordeContain), then the already patched worldcell / distcalc / mat2quat. The x87
+fallbacks of the logicmath patches do not matter: in the 10-05 session 0.08 % of mat2quat calls and
+0.7 % of worldcell calls ran x87 (1,121 of 1.44 M and 16,536 of 2.30 M in a minute), ~4 ms a minute.
+CRT `fabs` costs the same as an inline equivalent (21.9 ns both), so it is not worth replacing.
+
+**Implemented** (`gamepatch/src/p_lmath2.c/.S`, test `t_lmath2`, switches `crtsqrt`, `octile`;
+`lmath2:` log line every 60 s and at exit). Only under Wine (msvcr71 must be Wine's builtin: its
+results and registers are what is reproduced), else skipped; the game's FPU mode only, else the original.
+
+| patch | site | what | proof (t_lmath2, w10) | per call |
+|---|---|---|---|---|
+| crtsqrt | IAT 0xbd06a0 (thunk 0xa3cf96 and the direct calls) | Wine's sqrt (fsqrt at 24 bits) as sqrtsd + integer round-to-nearest-even to 24 bits; a 53-bit result exactly on a 24-bit midpoint (where rounding twice can differ: a first version without this check failed 139 k of 2 M test doubles, half of them built near midpoints) runs Wine's sqrt. eax/ecx/edx/xmm0 as Wine's code leaves them. Install-time self-test, 4096 inputs | all 2^32 floats as arguments; 20 M doubles (any exponent, subnormals, exact 24-bit ties and their neighbours, specials); 1 M with the full machine state; 7 other FPU modes all fall back: 0 mismatches | 241 -> 31 ns |
+| octile | hash 0x7658c3+0x82; `jmp` at 0x7658c3 (7 B) | max + 0.25 * min of the float \|dx\|, \|dy\| in SSE; argument slots, ecx and Wine-fabs's eax/edx as the original leaves them; overflow, underflow or NaN -> the original | 20 M segments (map positions, cell centres, \|dx\| = \|dy\|, any bits, wide exponents, specials) with the full machine state and both points: 0 mismatches; a deliberate tie-branch bug is caught at once | 402 -> 62 ns |
+
+Expected gain, from the profiles (no phase split yet): sqrt ~2,800 calls per drawn frame (0.67 ms /
+241 ns in `battle-msync2`), so ~0.6 ms a frame or ~3.5 ms per logic step across all phases; octile
+~700-1,200 calls a frame, ~0.3 ms a frame or ~2 ms per logic step. The AI callers run in phases 3-4,
+HordeContain and the pathfinder in phase 5. The next session's `lmath2:` line gives the real call counts,
+and logicstats (`scripts/measure-session.sh on`) the per-phase time.
 

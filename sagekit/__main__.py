@@ -67,7 +67,7 @@ def cmd_validate(a):
                 game[0](b)
             from .fire import points as fire_points
             fire_points(b)                      # (x, y, z, kind) with a kind sagekit/fire.py knows
-            if fire_rates is not None:          # at most 60 live particles of fire (sagekit/fire_budget.py)
+            if fire_rates is not None:          # within its fire budget (sagekit/fire_budget.py)
                 from .fire_budget import problem
                 over = problem(b, fire_rates)
                 if over:
