@@ -30,6 +30,9 @@
  *                     animated UI), each followed by a quad drawn with it
  *        --cpu-ms F   spin F ms per frame on the application thread before drawing: the game's own
  *                     work (~20 ms in a battle), which gives the render thread time to catch up
+ *        --hitch N:MS[:sleep]  every Nth frame, MS ms more on the application thread (spinning, or
+ *                     with :sleep waiting in Sleep); each prints "HITCH frame=.. unix_ms=.. ms=..",
+ *                     the known answer for scripts/monitor.sh bench
  * Shader warm-up instead of the frame loop:
  *        --programs N N new vertex/pixel shader pairs, created up front followed by a 2 s pause (a
  *                     loading screen), then each drawn once and waited for with an event query:
@@ -63,6 +66,7 @@ static struct {
     int radar, text, relock, dyntex;
     double cpu_ms;
     int programs;
+    int hitch_every; double hitch_ms; int hitch_sleep;
 } cfg = { 10, 2, 0.15, 0.5, 2000, 0, 24, 32, 256, 32, 2, 0, 0, 1, 0, NULL, NULL, 0, 0, 0, 0, 0, 0 };
 
 static IDirect3DDevice9 *dev;
@@ -571,6 +575,17 @@ static void begin_frame(int frame)
         do QueryPerformanceCounter(&b); while ((b.QuadPart - a.QuadPart) * 1000.0 < cfg.cpu_ms * f.QuadPart);
         T1(P_CPU);
     }
+    if (cfg.hitch_every > 0 && frame > 0 && frame % cfg.hitch_every == 0)
+    {
+        LARGE_INTEGER f, a, b; FILETIME ft;
+        GetSystemTimeAsFileTime(&ft);
+        QueryPerformanceFrequency(&f); QueryPerformanceCounter(&a);
+        if (cfg.hitch_sleep) Sleep((DWORD)cfg.hitch_ms);
+        else do QueryPerformanceCounter(&b); while ((b.QuadPart - a.QuadPart) * 1000.0 < cfg.hitch_ms * f.QuadPart);
+        printf("HITCH frame=%d unix_ms=%llu ms=%.0f %s\n", frame,
+               ((unsigned long long)ft.dwHighDateTime << 32 | ft.dwLowDateTime) / 10000 - 11644473600000ull,
+               cfg.hitch_ms, cfg.hitch_sleep ? "sleep" : "spin");
+    }
     while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) { TranslateMessage(&msg); DispatchMessageA(&msg); }
     dyn_off_v = dyn_off_i = 0;                    /* DynamicVBAccessClass::_Reset(frame_changed) */
     CK(IDirect3DDevice9_Clear(dev, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 0xff203040, 1.0f, 0));
@@ -720,6 +735,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--dyntex")) cfg.dyntex = atoi(v);
         else if (!strcmp(a, "--cpu-ms")) cfg.cpu_ms = atof(v);
         else if (!strcmp(a, "--programs")) cfg.programs = atoi(v);
+        else if (!strcmp(a, "--hitch")) { cfg.hitch_every = atoi(v); const char *c = strchr(v, ':');
+            cfg.hitch_ms = c ? atof(c + 1) : 100; cfg.hitch_sleep = c && strstr(c + 1, ":sleep") != NULL; }
         else { printf("unknown argument %s (see the header of tools/d3d9bench.c)\n", a); return 1; }
     }
     if (cfg.objects < 1 || cfg.textures < 1 || cfg.bones < 1 || cfg.bones > 80 || cfg.dyn_verts < 4
