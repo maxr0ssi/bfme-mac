@@ -70,7 +70,9 @@ class LumberMill(Building):
     facet_islands = 8                       # EA's unwrap overlaps (the Goblins' and Isengard's mills): seams at its islands
     bake_hidden = ("V2", "N_WINDOW", "N_FIRE", "FIRE01", "ORC", "ORCN")
     lifecycle = {"MBLumMill_A": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none: an economy building. 0.0 live (was 23.6).
+    fire_points = []
     views = {
         "rts": ((-6.9, 0.4, 20.6), 381, 50, -38, 50),
         "close": ((-6.9, 0.4, 20.6), 225, 24, -30, 45),

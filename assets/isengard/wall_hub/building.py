@@ -29,6 +29,10 @@ HUB_CROWN = "A"
 BONE_Z = 25.47                      # the mesh hangs on a bone this high: fire points are in model space
 HUB_FIRE = {"pair": [], "A": [(0.0, 0.0, 39.8, "brazier")], "B": [(0.0, 0.0, 37.1, "grate")],
             "C": [(0.0, 0.0, 45.0, "hearth")]}         # mesh coordinates, from the design's fire log
+# The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+# at most 6 live particles): none on any crown; hubs repeat along every wall (and the citadel's, which take
+# these). 0 live (was 6.0).
+HUB_FIRE = {crown: [] for crown in HUB_FIRE}
 
 
 def crown():

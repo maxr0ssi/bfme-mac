@@ -51,6 +51,13 @@ OWN = {
     "SagekitColdSmoke": ("SmokeChimney", {("System", "Size"): "8 10", ("Update", "SizeRate"): "0.4 0.8"},
                          ("Color1 = R:30 G:34 B:44 0", "ColorScale = -16 16"),
                          "EA's SmokeChimney, twice as broad, blue-black"),
+    # the fire reduction (appended 2026-10-05; the systems above are unchanged): EA's FireTorch, a small
+    # short-lived flame (Color1 at its birth, black by frame 5), in the witch-fire's green and the cold
+    # fire's ice-blue; made lean like SagekitLeanFireTorch (sagekit/fire_lean.py)
+    "SagekitWitchTorch": ("FireTorch", {}, ("Color1 = R:120 G:220 B:60 0", "Color2 = R:0 G:0 B:0 5"),
+                          "EA's FireTorch, its flame Morgul green"),
+    "SagekitColdTorch": ("FireTorch", {}, ("Color1 = R:140 G:186 B:240 0", "Color2 = R:0 G:0 B:0 5"),
+                         "EA's FireTorch, its flame ice-blue to white"),
 }
 # the fire budget (appended 2026-10-04): lean copies of EA's systems, and the four above made lean the
 # same way (sagekit/fire_lean.py: fewer, slightly larger, longer-lived particles over the same volume)

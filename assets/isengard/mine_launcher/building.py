@@ -29,7 +29,9 @@ FIRE_POINTS = [
 
 class MineLauncher(Building):
     style = IsengardStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 15.7).
+    fire_points = []
     source = "IBFMLaunch"
     target = "IBFMLAUNCH"
     sheet = "IBFortress.tga"

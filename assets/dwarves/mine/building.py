@@ -126,7 +126,9 @@ class Mine(Building):
     bake_hidden = ("N_WINDOW", "N_GLOW")      # the night windows and their glow cards
     # braziers on the two gate pylons' bowls: (32.3, 11.2, 46.5), (32.3, -18.1, 46.5); nothing in
     # the tunnel mouth (units use it)
-    fire_points = _fire_points()
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none: mines are built many to a base. 0.0 live (was 11.9).
+    fire_points = []
     # the hall is not what sets the building's height - the watch tower (V2) stands 72.9 high, the
     # hall 37.8 - so its gate crown may rise 30 % (to 48.6) and stay far under the tower
     max_z_growth = 0.30

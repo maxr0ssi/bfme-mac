@@ -59,7 +59,9 @@ class WallGate(Building):
     facet_islands = 8                       # the unwrap overlapped (0.05%): seams at EA's islands and 8-degree turns
     HOUSE_DRAW = "ModuleTag_Draw_HCWallGate"
     house_tags = ()
-    fire_points = _fire_points()
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the pylons' braziers a small cold flame each. 6.0 live (was 14.4).
+    fire_points = [(0.0, 52.4, 90.0, 'coldtorch'), (0.0, -52.4, 90.0, 'coldtorch')]
     # EA's gate rises through the ground; it stands whole on it at frame 466
     lifecycle = {"KBAngwGN_A": {"match": 466}}
     views = {

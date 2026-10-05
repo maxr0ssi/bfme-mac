@@ -79,7 +79,9 @@ class OrcPit(Building):
     facet_islands = 8                       # the unwrap overlapped (0.73%): seams at EA's islands and 8-degree turns
     # EA's night torch cards, the level 3 banners and the orc: out of the bakes and review renders
     bake_hidden = ("N_FIRE", "N_WINDOW", "V2", "ORC")
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): one forge. 5.8 live (was 39.1).
+    fire_points = [(9.6, 14.7, 15.8, 'forge')]
     views = {
         "rts": ((-1.8, 7.4, 16.4), 340, 50, -38, 50),
         "close": ((-1.8, 7.4, 16.4), 201, 24, -30, 45),

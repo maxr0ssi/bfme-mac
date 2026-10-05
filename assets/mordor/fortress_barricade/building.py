@@ -32,7 +32,9 @@ FIRE_POINTS = [(-19.2, 0.0, 112.9, 'brazier')]
 
 class FortressBarricade(Building):
     style = MordorStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 6.0).
+    fire_points = []
     source = "MBFBarric"
     target = "MBFBARRIC"
     sheet = "MBFortress.tga"

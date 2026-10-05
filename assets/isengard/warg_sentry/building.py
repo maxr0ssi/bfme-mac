@@ -30,7 +30,9 @@ FIRE_POINTS = [
 
 class WargSentry(Building):
     style = IsengardStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 29.7).
+    fire_points = []
     source = "IBWargSent"
     target = "IBWARGSENT"
     sheet = "IBWargSent.tga"

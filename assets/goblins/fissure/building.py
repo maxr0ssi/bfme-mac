@@ -53,7 +53,9 @@ class Fissure(Building):
     style = GoblinStyle()
     source = "WBFissure"
     target = "CYLINDER01"
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): its brazier a torch flame. 3.0 live (was 6.0).
+    fire_points = [(-1.4, -21.4, 36.4, 'torch')]
     sheet = "WBStone.tga"
     sheet_normal = "WBStone_NRM.tga"
     own_textures = {"WBStone.tga": "WBStonH.tga"}      # free in EA's files and every recipe (sagekit/names.py)

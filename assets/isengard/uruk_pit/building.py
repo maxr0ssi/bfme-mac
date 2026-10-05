@@ -62,7 +62,9 @@ class UrukPit(Building):
     # EA's dent 0.6 below the healthy floor, under the ground
     lifecycle = {"IBUrukPit_D2": {"fill": True, "deep": (0.7, "one post foot at (-3, -19) rides EA's dent to "
                                                               "z -1.1, under the ground; EA's lowest -0.5")}}
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the pit's grate alone. 5.9 live (was 52.0).
+    fire_points = [(-2.0, 3.0, 40.0, 'grate')]
     views = {
         "rts": ((12.0, 5.8, 32.2), 368, 50, -38, 50),
         "close": ((8.0, 2.0, 34.0), 230, 26, -30, 45),

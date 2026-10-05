@@ -57,7 +57,9 @@ class Tavern(Building):
     # EA's build-up is a remodel: cut, our shell kept scraps and 6% open backs (sagekit/lifecycle.py `fill`)
     lifecycle = {"MBTavern_ASKN": {"fill": True}}
     bake_hidden = ("MUCORSAIR", "FXGLOWCARDS", "FXFIRE02", "V1")
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the chimney's fire a brazier. 6.0 live (was 38.1).
+    fire_points = [(-24.0, -32.0, 74.2, 'brazier')]
     views = {
         "rts": ((-0.3, -3.9, 36.0), 328, 50, -38, 50),
         "close": ((-0.3, -3.9, 36.0), 194, 24, -30, 45),

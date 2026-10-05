@@ -214,7 +214,10 @@ def _ini_checks(b, ws, r, have):
     from ..game import Install
     g = Install()
     every = {n for names in have.values() for n in names}
+    from ..fire_systems import MEMBER as FIRE_SYSTEMS
     for member in b.ini_ops(g, ws.variants):
+        if member == FIRE_SYSTEMS:                  # the fire's particle INI (sagekit/fire.py) holds no Draws
+            continue
         path = ws.out(member)
         text = open(path, encoding="latin-1").read() if os.path.exists(path) else ""
         for f, names in sorted(have.items()):

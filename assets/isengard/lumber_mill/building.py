@@ -73,7 +73,9 @@ class LumberMill(Building):
     facet_islands = 8                       # the unwrap overlapped a little: seams at EA's islands and 8-degree turns
     sheet_normal = "MBLumberMill_NRM.tga"
     own_textures = {"MBLumberMill.tga": "MBLumberMilX.tga"}      # free in EA's files and every recipe (sagekit/names.py)
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none: an economy building. 0.0 live (was 45.1).
+    fire_points = []
     lifecycle = {"MBLumMill_A": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
     views = {
         "rts": ((-6.9, 0.4, 20.6), 381, 50, -38, 50),

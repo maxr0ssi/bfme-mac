@@ -71,6 +71,11 @@ CITADEL_FIRE["D2"] = [
 ]
 
 
+# The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": an identity building, at most 20 live
+# particles): the point crown's fire-pot a torch flame, each forge walk one flame at its furnace's mouth;
+# the sparks, smoke, torches and the hanging crucible go (crucibles there barely read at the in-game
+# camera). 17.4 live (was 57.8).
+CITADEL_FIRE["D2"] = [(-56.6, 56.8, 94.3, 'torch'), (-10.0, 57.5, 49.6, 'flame'), (0.0, -53.6, 49.5, 'flame')]
 CITADEL = "D2"
 
 

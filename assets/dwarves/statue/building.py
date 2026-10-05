@@ -51,7 +51,9 @@ class Statue(Building):
     sheet = "dbstatue.tga"                    # lower case, as the model names it (see README)
     sheet_normal = None                       # EA's statue sheet has no normal map
     own_textures = {"dbstatue.tga": "DBStatuH.tga"}
-    fire_points = _fire_points()      # braziers on the front piers' bowls: (10.3, +-8.3, 26.5)
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the two gold braziers a torch flame each, no smoke. 6.0 live (was 11.9).
+    fire_points = [(10.3, 8.3, 26.5, 'torch'), (10.3, -8.3, 26.5, 'torch')]
     tri_budget = 4000
     max_z_growth = 0.35
     views = {

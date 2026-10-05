@@ -30,7 +30,9 @@ FIRE_POINTS = [(-48.0, 0.0, 37.3, 'brazier'), (-36.5, 0.0, 37.3, 'brazier')]
 
 class GateWatchers(Building):
     style = MordorStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the two braziers a torch flame each. 6.0 live (was 11.9).
+    fire_points = [(-48.0, 0.0, 37.3, 'torch'), (-36.5, 0.0, 37.3, 'torch')]
     source = "GWatchers"
     target = "GWATCHERS"
     sheet = "MBFortress.tga"

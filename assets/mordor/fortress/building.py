@@ -85,7 +85,13 @@ class Fortress(Building):
     source = "MBFortress"
     target = "MBFORTRESS"
     tier = Tier.HERO
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": an identity building, at most 20 live
+    # particles): the back crown the green flame, the other three a small green flame each. 16.2 live (was
+    # 56.2).
+    fire_points = [
+        (-40.2, 41.0, 135.0, 'witchflame'), (-40.2, -44.0, 134.5, 'witchtorch'),
+        (43.2, -44.0, 134.5, 'witchtorch'), (43.2, 41.0, 134.5, 'witchtorch')
+    ]
     max_z_growth = 0.08                 # the back crown's spikes to z 150 (+7.0 %): a claw inside EA's crown
     # EA's pyres and their flame cards: kept in game, left out of bakes and review renders. The game hides all
     # three until the Doom Pyres upgrade (EA's SubObjectsUpgrade ModuleTag_HidePyres / _ShowPyres), so the

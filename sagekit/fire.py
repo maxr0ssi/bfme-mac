@@ -68,6 +68,9 @@ KINDS = {
     "torch": ("SagekitLeanFireTorch",),                 # the brazier's flame without its smoke
     "coals": ("SagekitLeanForgeCoal",),                 # the grate's glow without its embers
     "flame": ("SagekitLeanFurnaceFire",),               # the hearth's / furnace's fire alone
+    # appended with the fire reduction (2026-10-05): the torch's small flame in the green and the cold colours
+    "witchtorch": ("SagekitWitchTorch",),               # a small Morgul-green flame (the Mordor crowns)
+    "coldtorch": ("SagekitColdTorch",),                 # a small ice-blue flame (Angmar's crown and braziers)
 }
 NO_FIRE = {State.CONSTRUCTION, State.PLACEMENT, State.EDITOR, State.RUBBLE}
 LIKE = "obbfoundationx.w3d"             # EA's meshless model whose asset.dat record the rig copies

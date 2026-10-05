@@ -38,7 +38,9 @@ class FortressWallHub(Building):
     HOUSE_DRAW = "ModuleTag_Draw_HCFortressWallHub"
     bake_hidden = ("ICEWALL",)        # the Ice Walls shell: shown in game with its upgrade, out of the bakes
     house_tags = ()
-    fire_points = HUB_FIRE
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none: hubs repeat along every wall. 0.0 live (was 7.2).
+    fire_points = []
     views = {
         "rts": ((-7.3, -5.0, 48.1), 288, 50, -38, 50),
         "close": ((-7.3, -5.0, 48.1), 170, 24, -30, 45),

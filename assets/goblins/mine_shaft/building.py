@@ -63,7 +63,9 @@ class MineShaft(Building):
     style = GoblinStyle()
     source = "WBPit_SKN"
     target = "WBPITMETAL"
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none: an economy building. 0.0 live (was 6.0).
+    fire_points = []
     sheet = "wbpit2.tga"
     sheet_normal = "wbpit2_nrm.tga"
     own_textures = {"wbpit2.tga": "wbpitH.tga"}      # free in EA's files and every recipe (sagekit/names.py)

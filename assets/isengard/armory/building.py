@@ -58,7 +58,9 @@ class Armory(Building):
     facet_islands = 8                       # the unwrap overlapped a little: seams at EA's islands and 8-degree turns
     sheet_normal = "IBArmory_NRM.tga"
     own_textures = {"IBArmory.tga": "IBArmorH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": an identity building, at most 20 live
+    # particles): the furnace and the crucible. 15.2 live (was 46.0).
+    fire_points = [(21.9, 35.0, 1.3, 'furnace'), (29.5, 22.9, 4.0, 'crucible')]
     lifecycle = {"IBArmory_A": {"fill": True}}     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
     views = {
         "rts": ((8.0, 4.0, 24.0), 330, 50, -38, 50),

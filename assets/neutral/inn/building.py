@@ -44,9 +44,9 @@ class Inn(Capturable, Building):
     own_textures = {"NBInn.tga": "NBInH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     lifecycle = {"GBGenRubble": {"skip": "EA's generic rubble pile after the collapse (six factions' camp keeps draw "
                                          "it): none of our body is in it"}}
-    fire_points = [(-14.0, -12.0, 0.6, "hearth"),          # the yard's open hearth
-                   (-21.7, -4.0, 120.5, "smoke"),          # the hall chimney's outer flues
-                   (-14.3, -4.0, 120.5, "smoke")]
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the yard's open hearth a coal glow. 3.0 live (was 20.3).
+    fire_points = [(-14.0, -12.0, 0.6, 'coals')]
     views = {
         "rts": ((-1.4, -2.1, 51.8), 507, 50, -68, 50),        # the front (-y, where units leave) to the camera
         "close": ((-1.4, -12.0, 45.0), 300, 24, -58, 45),

@@ -60,7 +60,9 @@ class SlaughterHouse(Building):
     sheet_normal = "MBSltrHs_NRM.tga"
     own_textures = {"MBSltrHs.tga": "MBSltrHH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     bake_hidden = ("N_FIRE", "N_WINDOW", "V2", "ORCPORTER", "ORCPORTER_STR", "RHYNOE_STR")
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none: an economy building. 0.0 live (was 33.0).
+    fire_points = []
     views = {
         "rts": ((-7.9, -10.0, 30.2), 367, 50, -38, 50),
         "close": ((-7.9, -10.0, 30.2), 217, 24, -30, 45),

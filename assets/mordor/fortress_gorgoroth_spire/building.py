@@ -32,7 +32,9 @@ FIRE_POINTS = [(-13.6, -13.6, 77.2, 'brazier'), (-13.6, 13.6, 77.2, 'brazier'), 
 
 class FortressGorgorothSpire(Building):
     style = MordorStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 23.9).
+    fire_points = []
     source = "MBFEWEye"
     target = "MBFEWEYE"
     sheet = "MBFortress.tga"

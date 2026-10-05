@@ -97,7 +97,13 @@ class Fortress(Building):
         "keep": ((0.0, 0.0, 96.0), 270, 28, -38, 50),            # the keep's four spires and the walls behind
         "crown": ((0.0, 0.0, 80.0), 300, 42, -38, 50),            # the crown in the well
     }
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": an identity building, at most 20 live
+    # particles): a small cold flame in each of the crown's four craters and the two braziers on the front walk.
+    # 18.0 live (was 57.6).
+    fire_points = [
+        (20.5, 20.5, 51.5, 'coldtorch'), (-20.5, 20.5, 51.5, 'coldtorch'), (-20.5, -20.5, 51.5, 'coldtorch'),
+        (20.5, -20.5, 51.5, 'coldtorch'), (27.7, -52.1, 57.1, 'coldtorch'), (-27.7, -52.1, 57.1, 'coldtorch')
+    ]
 
     # EA's Ice Walls and Ice Munitions meshes and the Banners upgrade's blue torch cards: kept in game,
     # left out of bakes and review renders (the game shows them only with their upgrades)

@@ -68,7 +68,9 @@ class Tower(Building):
     sheet_normal = "IBFortress_NRM.tga"
     own_textures = {"IBFortress.tga": "IBFortresQ.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCTower"
-    fire_points = _fire_points()
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the crown's fire-pot a brazier. 6.0 live (was 37.0).
+    fire_points = [(0.8, 0.0, 116.4, 'brazier')]
     views = {
         "rts": ((-8.2, -0.0, 80.0), 350, 50, -38, 50),
         "close": ((-8.2, -0.0, 85.0), 250, 24, -30, 45),

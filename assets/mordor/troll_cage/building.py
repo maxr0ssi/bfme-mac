@@ -65,7 +65,9 @@ class TrollCage(Building):
     world_space = True                  # the body's bone is moved (-18.5, -2.1, 0.2): design and fire share world axes
     facet_islands = 8                       # the unwrap overlapped (0.26%): seams at EA's islands and 8-degree turns
     bake_hidden = ("V2", "N_WINDOW", "N_FIRE", "TROLL_MESH", "ORC")
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 30.8).
+    fire_points = []
     views = {
         "rts": ((1.4, -1.0, 27.9), 375, 50, -38, 50),
         "close": ((1.4, -1.0, 27.9), 221, 24, -30, 45),

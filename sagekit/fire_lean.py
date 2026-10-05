@@ -42,6 +42,10 @@ LEAN = {
     "SagekitColdFire": ("furnaceFire", "1 1", "2 3", 1.2, 1.4),
     "SagekitWitchSmoke": ("SmokeChimney", "1 1", "20 25", 1.15, 1.25),
     "SagekitColdSmoke": ("SmokeChimney", "1 1", "20 25", 1.15, 1.25),
+    # the fire reduction (2026-10-05): EA's torch flame in Morgul green and in Angmar's cold blue, lean like
+    # SagekitLeanFireTorch (5 -> 3 live): the small crown and brazier flames of the two factions
+    "SagekitWitchTorch": ("FireTorch", "1 1", "2 2", 1.2, 1.3),
+    "SagekitColdTorch": ("FireTorch", "1 1", "2 2", 1.2, 1.3),
 }
 NUM = re.compile(r"-?\d+(?:\.\d+)?")
 

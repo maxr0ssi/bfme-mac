@@ -56,7 +56,9 @@ def blooms(kit):
 
 class FortressSanctum(Building):
     style = AngmarStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": an identity building, at most 20 live
+    # particles): a small cold flame in each of the three big blooms' craters. 9.0 live (was 21.6).
+    fire_points = [(13.1, 0.0, 101.9, 'coldtorch'), (-6.5, 11.3, 101.9, 'coldtorch'), (-6.5, -11.3, 101.9, 'coldtorch')]
     source = "KBFSanctum"
     target = "KBFSANCTUM"
     sheet = "KBFortressB.tga"

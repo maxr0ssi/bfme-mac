@@ -53,7 +53,9 @@ def lament(kit):
 
 class FortressHouseOfHealing(Building):
     style = AngmarStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): one small cold flame on the drum. 3.0 live (was 12.3).
+    fire_points = [(55.0, 0.0, 113.0, 'coldtorch')]
     source = "KBFHoLa"
     target = "KBFHOLA"
     sheet = "KBFortressX.tga"

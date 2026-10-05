@@ -31,7 +31,9 @@ FIRE_POINTS = [
 
 class FortressBurningForgesDescrutbiles(Building):
     style = IsengardStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": an identity building, at most 20 live
+    # particles): the forges' chimney and the crucible. 18.6 live (was 37.5).
+    fire_points = [(-37.7, -13.0, 84.8, 'chimney'), (-28.4, 9.4, 41.8, 'crucible')]
     source = "IBFBForgB"
     target = "IBFBFORGES"
     sheet = "IBFortress.tga"

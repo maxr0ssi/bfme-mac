@@ -58,7 +58,9 @@ class WargPit(Building):
     sheet_normal = "IBWargPit_NRM.tga"
     own_textures = {"IBWargPit.tga": "IBWargPiH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     parts = ("ModuleTag_Draw",)
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the gate's two braziers a torch flame each. 6.0 live (was 23.9).
+    fire_points = [(21.0, -47.3, 45.7, 'torch'), (21.0, -26.6, 45.7, 'torch')]
     views = {
         "rts": ((-3.6, -0.5, 22.2), 309, 50, -38, 50),
         "close": ((0.0, 0.0, 20.0), 200, 26, -30, 45),

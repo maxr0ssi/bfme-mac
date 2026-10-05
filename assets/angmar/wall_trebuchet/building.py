@@ -70,7 +70,9 @@ class WallTrebuchet(Building):
     HOUSE_DRAW = "ModuleTag_Draw_HCWallTrebuchet"
     bake_hidden = ("ICEWALL",)        # the Ice Walls shell: shown in game with its upgrade, out of the bakes
     house_tags = ()
-    fire_points = _fire_points()
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 14.4).
+    fire_points = []
     views = {
         "rts": ((-0.7, 0.5, 30.9), 252, 50, -38, 50),
         "close": ((-0.7, 0.5, 30.9), 149, 24, -30, 45),

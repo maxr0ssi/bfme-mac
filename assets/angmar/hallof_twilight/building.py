@@ -56,7 +56,9 @@ class HallofTwilight(Building):
         "ingame": ((-1.1, -5.7, 16.3), 877, 53, -62, 50),
     }
 
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": an identity building, at most 20 live
+    # particles): the altar's cold fire without its plume. 7.2 live (was 12.3).
+    fire_points = [(13.2, -24.8, 16.1, 'coldflame')]
     # level 1 in the bakes and review renders: the level pieces V1 and V2 (and V2's rune glow) are drawn later
     bake_hidden = ("V1", "V2", "RUNEGLOWV2", "N_WINDOW")
 

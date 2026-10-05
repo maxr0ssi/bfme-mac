@@ -70,7 +70,9 @@ class Barracks(Building):
         "ingame": ((0.0, -3.8, 46.9), 821, 53, -62, 50),
     }
 
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the two braziers a small cold flame each. 6.0 live (was 14.4).
+    fire_points = [(-31.0, -52.8, 8.9, 'coldtorch'), (31.0, -52.8, 8.9, 'coldtorch')]
     bake_hidden = ("V1", "V2", "N_WINDOW")      # level 1: the level-up meshes are drawn later
 
     def design(self, kit):

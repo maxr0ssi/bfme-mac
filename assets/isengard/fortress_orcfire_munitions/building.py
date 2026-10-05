@@ -30,7 +30,9 @@ FIRE_POINTS = [
 
 class FortressOrcfireMunitions(Building):
     style = IsengardStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the front brazier alone. 6.0 live (was 29.8).
+    fire_points = [(61.0, 0.0, 66.9, 'brazier')]
     source = "IBFOrcfire"
     target = "IBFORCFIRE"
     sheet = "IBFortress.tga"

@@ -29,7 +29,9 @@ class FortressThrone(Building):
     style = GoblinStyle()
     source = "WBFGThrone"
     target = "WBFGTHRONE"
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none (the citadel's gate braziers burn). 0.0 live (was 11.9).
+    fire_points = []
     sheet = "WBFortress.tga"
     sheet_normal = "WBFortress_NRM.tga"
     own_textures = {"WBFortress.tga": "WBFortresC.tga"}      # free in EA's files and every recipe (sagekit/names.py)

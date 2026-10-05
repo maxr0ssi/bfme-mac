@@ -44,7 +44,9 @@ class WallHub(Building):
     own_textures = {"KBFortressB.tga": "KBFortressC.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCWallHub"
     house_tags = ()                 # no banners: hubs repeat along every wall
-    fire_points = HUB_FIRE         # model space
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none: hubs repeat along every wall. 0.0 live (was 7.2).
+    fire_points = []
     views = {
         "rts": ((-0.1, -5.0, 48.1), 272, 50, -38, 50),
         "close": ((-0.1, -5.0, 48.1), 161, 24, -30, 45),

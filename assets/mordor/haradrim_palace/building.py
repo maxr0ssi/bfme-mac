@@ -35,7 +35,9 @@ FIRE_POINTS = [
 
 class HaradrimPalace(Building):
     style = MordorStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the roof's fire a brazier. 6.0 live (was 54.5).
+    fire_points = [(0.0, 0.0, 52.9, 'brazier')]
     source = "MBHrdPlc_SKN"
     target = "MBHRDPLC"
     sheet = "MBHrdPlc.tga"

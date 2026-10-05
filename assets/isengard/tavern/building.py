@@ -54,7 +54,9 @@ class Tavern(Building):
     sheet = "ibwildbuilding.tga"
     sheet_normal = "ibwildbuilding_NRM.tga"
     own_textures = {"ibwildbuilding.tga": "ibwildbuildinH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the hearth a coal glow. 3.0 live (was 10.0).
+    fire_points = [(-38.5, -9.0, 1.0, 'coals')]
     views = {
         "rts": ((0.0, 1.6, 27.5), 291, 50, -38, 50),
         "close": ((0.0, 0.0, 30.0), 190, 24, -30, 45),

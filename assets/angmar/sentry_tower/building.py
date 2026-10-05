@@ -39,7 +39,9 @@ def crown(kit):
 
 class SentryTower(Building):
     style = AngmarStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): one small cold flame on the crown. 3.0 live (was 12.3).
+    fire_points = [(0.0, 0.0, 93.6, 'coldtorch')]
     source = "KBBtlTwr"
     target = "BASE"
     sheet = "KBBtlTwr.tga"

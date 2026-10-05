@@ -61,7 +61,9 @@ class Den(Building):
         "cave": ((32.0, 34.0, 14.0), 170, 28, -15, 45),           # the cave mouth (+X)
     }
 
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 7.2).
+    fire_points = []
     bake_hidden = ("V1", "V2")                  # level 1: the level-up meshes are drawn later
     facet_islands = 8                       # the unwrap overlapped: seams at EA's islands and 8-degree turns
 

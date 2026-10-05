@@ -47,7 +47,9 @@ class Cave(Building):
     style = GoblinStyle()
     source = "WBCave_SKN"
     target = "WBCAVE"
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the mouth's two braziers a torch flame each. 6.0 live (was 11.9).
+    fire_points = [(50.4, 13.3, 21.6, 'torch'), (50.4, -13.3, 21.6, 'torch')]
     sheet = "wbcave.tga"
     sheet_normal = "wbcave_nrm.tga"
     own_textures = {"wbcave.tga": "wbcavH.tga"}      # free in EA's files and every recipe (sagekit/names.py)

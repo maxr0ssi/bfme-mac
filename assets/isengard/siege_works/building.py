@@ -74,10 +74,13 @@ class SiegeWorks(Building):
                                                      "4.4% past EA's; no hole in the RTS renders")},
         "IBSeigeW_D2": {"fill": True, "backs": (0.12, "the collapse's last frames, the cut posts' ends: 11.2% "
                                                      "past EA's; no hole in the RTS renders")},
-        "IBSeigeW_D3": {"fill": True, "backs": (0.12, "mid-collapse, the tarp and posts' cut ends: 11.5% past "
-                                                     "EA's; no hole in the RTS renders")}})
+        "IBSeigeW_D3": {"fill": True, "backs": (0.13, "mid-collapse, the tarp and posts' cut ends: 12.4% past "
+                                                     "EA's with the blended poses (11.5% before them, the model "
+                                                     "unchanged since 2026-10-01); no hole in the RTS renders")}})
     world_space = True                   # IBSEIGEFRAME's bone is moved (20.3, -0.3, 0.7): design and fire share world axes
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": an identity building, at most 20 live
+    # particles): the two forge furnaces. 19.4 live (was 55.8).
+    fire_points = [(49.4, -39.1, 1.3, 'furnace'), (49.4, 39.1, 1.3, 'furnace')]
     views = {
         "rts": ((0.0, 0.0, 29.3), 368, 50, -38, 50),
         "close": ((10.0, 0.0, 30.0), 230, 24, -30, 45),

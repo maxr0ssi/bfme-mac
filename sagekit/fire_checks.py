@@ -24,7 +24,8 @@ from .taxonomy import states_of
 COLOURS = {"chimney": "#ff5a1f", "furnace": "#ff2d2d", "forge": "#ffb000", "hearth": "#ff8c00",
            "crucible": "#ffe14a", "brazier": "#ff6ec7", "grate": "#c0ff3a", "embers": "#6ae0ff",
            "pyre": "#ff0080", "smoke": "#b0b0b0", "witchfire": "#7dff3a", "witchflame": "#3aff9a", "plume": "#6a6a6a",
-           "coldfire": "#9fe8ff", "coldflame": "#4fb0ff", "torch": "#ff9ad8", "coals": "#e0ff80", "flame": "#ffa040"}
+           "coldfire": "#9fe8ff", "coldflame": "#4fb0ff", "torch": "#ff9ad8", "coals": "#e0ff80", "flame": "#ffa040",
+           "witchtorch": "#b0ff60", "coldtorch": "#c8f0ff"}
 AUTO_VIEWS = {"rts": (2.2, 50, -38, 50), "close": (1.3, 24, -30, 45), "ingame": (5.0, 53, -62, 50)}  # blender/render.py's
 EA_FIRE_BONES = ("FIRE", "SMOKE", "EMBER", "GLOW", "CHIMNEY", "FLAME", "TORCH")
 
@@ -118,11 +119,11 @@ def checks(b, ws, r):
             all(s.lower() in known for s in ea), ", ".join(s for s in ea if s.lower() not in known))
     if used - ea:
         own_checks(g, ws, r, sorted(used - ea), known)
-    from .fire_budget import BUDGET, per_point, rates
-    pp = per_point(b, rates(g))
+    from .fire_budget import budget, per_point, rates
+    pp, cap = per_point(b, rates(g)), budget(b.id)
     n = sum(x for _, _, x in pp)
-    r.check("the fire budget: %.1f live particles of %d at most (%d points; sagekit/fire_budget.py)" % (n, BUDGET, len(pp)),
-            n <= BUDGET, ", ".join("%s %s %.1f" % x for x in pp) if n > BUDGET else "")
+    r.check("the fire budget: %.1f live particles of %d at most (%d points; sagekit/fire_budget.py)" % (n, cap, len(pp)),
+            n <= cap + 1e-6, ", ".join("%s %s %.1f" % x for x in pp) if n > cap + 1e-6 else "")
     ops = b.ini_ops(g, ws.variants)
     for d in plan(b, g):
         member = d["file"]

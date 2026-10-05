@@ -29,7 +29,9 @@ FIRE_POINTS = [
 
 class FortressWizardsTower(Building):
     style = IsengardStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the upper pair a torch flame each. 6.0 live (was 35.8).
+    fire_points = [(14.0, -3.4, 97.5, 'torch'), (14.0, 3.4, 97.5, 'torch')]
     source = "IBFWTower"
     target = "IBFWTOWER"
     sheet = "IBFortress.tga"

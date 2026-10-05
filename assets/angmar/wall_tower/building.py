@@ -62,7 +62,9 @@ class WallTower(Building):
                                         "not in EA's files, so the tower stands at rest, wholly under the ground (z -120..-8)"}}
     HOUSE_DRAW = "ModuleTag_Draw_HCWallTower"
     house_tags = ()
-    fire_points = _fire_points()
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 14.4).
+    fire_points = []
     views = {
         "rts": ((0.1, -0.0, 55.8), 274, 50, -38, 50),
         "close": ((0.1, -0.0, 55.8), 162, 24, -30, 45),

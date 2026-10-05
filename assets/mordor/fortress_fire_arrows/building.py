@@ -35,7 +35,9 @@ FIRE_POINTS = [(42.1, 0.0, 82.0, 'brazier')]
 
 class FortressFireArrows(Building):
     style = MordorStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): its brazier a torch flame. 3.0 live (was 6.0).
+    fire_points = [(42.1, 0.0, 82.0, 'torch')]
     bake_hidden = ("FLAMES", "FIREGLOW")        # EA's flame cards: kept in game, left out of bakes and renders
     source = "MBFFArrows"
     target = "MBFFARROWS"

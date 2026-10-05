@@ -61,7 +61,9 @@ class SiegeWorks(Building):
     sheet_normal = "MBSeigeWork2_NRM.tga"
     own_textures = {"MBSeigeWork2.tga": "MBSeigeWorkH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     bake_hidden = ("V2", "N_WINDOW", "N_FIRE")
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": an identity building, at most 20 live
+    # particles): the furnace and the middle forge. 15.5 live (was 52.1).
+    fire_points = [(-44.0, 24.0, 46.2, 'furnace'), (-35.3, 20.8, 3.5, 'forge')]
     lifecycle = {"MBSeigeWork_A": {"fill": True},     # EA's build model is a remodel, not a cut (sagekit/lifecycle.py)
                  "MBSeigeW_D2": {"fill": True}}       # and its really damaged pieces: cut, 10.3% open backs
     # EA's damaged body is its healthy one dented (667 triangles, box within 0.8): cut along it, EA's

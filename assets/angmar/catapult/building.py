@@ -59,7 +59,9 @@ class Catapult(Building):
                                                "insides, 10.6% past EA's; the RTS renders show no hole and "
                                                "every piece is under the ground at its end")}}
     HOUSE_DRAW = "ModuleTag_Draw_HCCatapult"
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 7.2).
+    fire_points = []
     views = {
         "rts": ((0.6, -0.0, 30.9), 288, 50, -38, 50),
         "close": ((0.6, -0.0, 30.9), 170, 24, -30, 45),

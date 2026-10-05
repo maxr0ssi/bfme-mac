@@ -29,7 +29,9 @@ FIRE_POINTS = [(-1.2, -17.7, 58.3, 'brazier'), (-1.2, 17.7, 58.3, 'brazier'), (4
 
 class WallCatapult(Building):
     style = MordorStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 17.6).
+    fire_points = []
     source = "MBFWCTow"
     target = "MBFWCTOW"
     sheet = "MBFortress.tga"

@@ -70,7 +70,10 @@ class Furnace(Building):
     sheet_normal = "MBFurnace_NRM.tga"
     own_textures = {"MBFurnace.tga": "MBFurnacH.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     world_space = True                   # FURNACE's bone is moved (3.5, -0.2, 0.3): design and fire share world axes
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": an identity building, at most 20 live
+    # particles): the smelter stack's fire and smoke, a coal glow in the furnace mouth and the forge hearth.
+    # 19.2 live (was 56.8).
+    fire_points = [(2.5, -4.0, 109.2, 'chimney'), (15.0, 8.0, 42.0, 'coals'), (50.0, 24.0, 7.2, 'coals')]
     views = {
         "rts": ((18.1, -8.4, 50.2), 372, 50, -38, 50),
         "close": ((14.0, -2.0, 58.0), 300, 24, -30, 45),

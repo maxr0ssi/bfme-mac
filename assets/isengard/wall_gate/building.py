@@ -59,7 +59,9 @@ class WallGate(Building):
     sheet_normal = "IBFortress_NRM.tga"
     own_textures = {"IBFortress.tga": "IBFortresE.tga"}      # free in EA's files and every recipe (sagekit/names.py)
     HOUSE_DRAW = "ModuleTag_Draw_HCWallGate"
-    fire_points = _fire_points()
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the outer pair of braziers a torch flame each. 6.0 live (was 23.9).
+    fire_points = [(18.9, 50.9, 51.8, 'torch'), (18.9, -50.9, 51.8, 'torch')]
     views = {
         "rts": ((-0.0, -0.0, 38.4), 330, 50, -38, 50),
         "close": ((-0.0, -0.0, 38.4), 195, 24, -30, 45),

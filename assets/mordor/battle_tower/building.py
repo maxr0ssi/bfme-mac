@@ -27,7 +27,9 @@ FIRE_POINTS = [
 
 class BattleTower(Building):
     style = MordorStyle()
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): the top's fire a brazier. 6.0 live (was 26.1).
+    fire_points = [(0.1, 0.1, 122.3, 'brazier')]
     source = "MBSentry"
     target = "CYLINDER01"
     sheet = "DolGolGate.tga"

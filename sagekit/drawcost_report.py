@@ -14,7 +14,7 @@ import sys
 
 from .drawcost import STATES, Ini, ModelCost, object_cost
 from .formats.big import Archive
-from .fire_budget import BUDGET
+from .fire_budget import BUDGET, rig_budgets
 from .game import Install
 
 # ours <= EA's main-view draws x 1.10 + 2, and EA's render objects + 2: a building may add its house-colour
@@ -151,11 +151,11 @@ def validate():
     for r in bad:
         print("FAIL draw cost %s (%s): %s" % (r["object"], r["archive"].strip("!"), over_cap(r)))
     hot = over_budget(rows)                         # the fire budget (sagekit/fire_budget.py, Max 2026-10-04)
-    for obj, archive, rig, n, st in hot:
+    for obj, archive, rig, n, st, cap in hot:
         print("FAIL fire budget %s (%s): its fire %s burns %.1f live particles in the %s state, over %d" % (
-            obj, archive.strip("!"), rig, n, st, BUDGET))
+            obj, archive.strip("!"), rig, n, st, cap))
     if not hot:
-        print("ok   fire budget: every staged building's fire within %d live particles in every state" % BUDGET)
+        print("ok   fire budget: every staged building's fire within its budget in every state (sagekit/fire_budget.py)")
     if not bad:
         print("ok   draw cost: %d objects within EA's draws x %.2f + %d and EA's render objects + %d" % (
             len(rows), CAP["ratio"], CAP["main"], CAP["objects"]))
@@ -163,15 +163,19 @@ def validate():
 
 
 def over_budget(rows):
-    """[(object, archive, fire rig, live particles, state)] of our fire over the budget in its worst state."""
-    out = []
+    """[(object, archive, fire rig, live particles, state, budget)] of our fire over its building's budget in
+    its worst state (a rig no recipe makes any more: the general budget)."""
+    out, caps = [], rig_budgets()
     for r in rows:
         worst = {}
         for st in STATES:
             for rig, n in (((r.get(st) or {}).get("ours") or {}).get("fire") or {}).items():
                 if n > worst.get(rig, (0.0, None))[0]:
                     worst[rig] = (n, st)
-        out += [(r["object"], r["archive"], rig, n, st) for rig, (n, st) in sorted(worst.items()) if n > BUDGET + 1e-6]
+        for rig, (n, st) in sorted(worst.items()):
+            cap = caps.get(rig.lower(), BUDGET)
+            if n > cap + 1e-6:
+                out.append((r["object"], r["archive"], rig, n, st, cap))
     return out
 
 

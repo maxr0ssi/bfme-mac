@@ -75,7 +75,9 @@ class Mill(Building):
         "back": ((1.5, 0.7, 16.0), 200, 30, 140, 45),
     }
     anim_views = ("rts", "close")      # the RTS camera, and the capstan close (renders/anim/)
-    fire_points = FIRE_POINTS
+    # The fire reduction (Max, 2026-10-05, docs/ART.md "Fire budget": a building whose fire is not its identity,
+    # at most 6 live particles): none. 0.0 live (was 14.4).
+    fire_points = []
     lifecycle = {"KBMill_A": {"fill": True}}           # the build-up: cut along EA's pieces, the merlons kept slivers
     bake_hidden = ("V1", "V2", "N_WINDOW", "BASE_INVISIBLE_",    # level 1: the level-up meshes come later;
                    "PICK_BOX")          # a closed box round the shed's walls: it would black out their bake
