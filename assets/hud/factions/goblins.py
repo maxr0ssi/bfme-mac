@@ -1,87 +1,140 @@
-"""Goblins' palantir: crude hammered bronze, bone fangs, skulls and leather lashings."""
+"""Goblins' palantir, cut from the Goblin citadel: blood-red horn plates streaked white (the
+citadel's spiked roofs and beams), bound by black iron bands, bone tusks biting in round the glass,
+skulls and ribs on the plates as on the citadel's poles, dried blood over all of it and wet blood
+running at the focal points (the joint, the bar's ends, the top); EA's spikes in the citadel's red
+and bone; past the frame a bloodied bone juts over the joint, a tusk off the top left and a skull
+hangs under the bar. A skull with red horns as the medallion. Horn, hide and bone are the citadel's own sheet
+(assets/hud/factions/swatches.py)."""
 import numpy as np
 
 from sagekit.paint.palantir import prof
-from sagekit.paint.palantir.core import (Mat, blur, cells, dome, fbm, fill, noise, sd_box, sd_circle, sd_poly,
-                                         sd_seg, sd_star, smoothstep)
+from sagekit.paint.palantir.core import Mat, dome, fbm, fill, noise, ramp, sd_circle, sd_seg, smoothstep
 from sagekit.paint.palantir.prof import band, local
 
-from .base import Faction, disc, zero3
+from . import fx
+from .base import Faction, zero3
+
 
 class Goblins(Faction):
     name = "goblins"
     side = "evil"
-    BRONZE, BONE, IRON, LEATHER, DARK, BLOOD = range(6)
-    mats = [Mat((0.62, 0.41, 0.18), rough=0.34, edge=(0.95, 0.75, 0.45)),
-            Mat((0.84, 0.80, 0.68), metal=0, rough=0.5),
-            Mat((0.16, 0.16, 0.17), rough=0.6),
-            Mat((0.22, 0.11, 0.05), metal=0, rough=0.75),
-            Mat((0.03, 0.02, 0.015), metal=0.2, rough=0.9),
-            Mat((0.32, 0.03, 0.03), metal=0, rough=0.35)]
+    HORN, BONE, IRON, DARK, RED, WET = range(6)
+    mats = [Mat((0.55, 0.06, 0.05), metal=0, rough=0.35),
+            Mat((0.86, 0.83, 0.76), metal=0, rough=0.45),
+            Mat((0.20, 0.20, 0.21), rough=0.45, edge=(0.7, 0.7, 0.72)),
+            Mat((0.03, 0.02, 0.02), metal=0.2, rough=0.9),
+            Mat((0.45, 0.03, 0.03), metal=0, rough=0.3),
+            Mat((0.55, 0.0, 0.02), metal=0, rough=0.03, edge=(1, 0.7, 0.7))]
     orn_mat = 0
-    orn_stops = [(0, (0.02, 0.012, 0.006)), (0.35, (0.20, 0.12, 0.05)), (0.7, (0.55, 0.38, 0.18)), (1, (0.92, 0.80, 0.58))]
-    glass_col = (0.025, 0.012, 0.008)
-    tick_col = (0.75, 0.68, 0.55)
-    rim_glow = ((0.25, 0.02, 0.02), 2.0)
-    sky_col = (1.0, 0.9, 0.78)
-    ember = ((0.9, 0.2, 0.12), 0.12)
+    orn_stops = [(0, (0.03, 0.005, 0.005)), (0.3, (0.30, 0.03, 0.03)), (0.62, (0.62, 0.07, 0.06)),
+                 (0.82, (0.80, 0.55, 0.50)), (1, (0.97, 0.95, 0.92))]
+    glass_col = (0.025, 0.01, 0.008)
+    tick_col = (0.8, 0.72, 0.65)
+    rim_glow = ((0.30, 0.02, 0.02), 2.0)
+    sky_col = (1.0, 0.92, 0.88)
+    rim_col = (1.0, 0.75, 0.7)
+    ember = ((0.9, 0.15, 0.08), 0.10)
+    patina = 0.1
     medals = [("minimap", 180, 8.6)]
+    shine = (0.8, 0.5, 3, (1.0, 0.9, 0.85))
+    glint = (26, 0.86, (1.0, 0.97, 0.92), (6, 14))
+    bloom = (0.9, (3, 9))
 
     def ring(self, ctx, name):
-        Br, Bo, I, Le, D, Bl = range(6)
+        H, Bo, I, D, R = range(5)
         p = prof.P(ctx)
-        # crude: the band's s wobbles with the hammer
         s0 = ctx.s
-        ctx.s = s0 + prof.wobble(ctx, 0.07)
+        ctx.s = s0 + prof.wobble(ctx, 0.05)                      # crude: the band wobbles
         if name == "bar":
-            prof.lip(p, 0.08, Br)
-            prof.bead(p, 0.08, 0.35, Br, 1.1)
-            u, w, m = prof.flat(p, 0.38, 1.0, Br, 0.8, 0.3)
-            lx, ly, idx, L = local(ctx, u, w, 4.0 * w)
-            lash = (np.abs(lx) < 0.7 * w)
-            st = ((lx + ly * 0.7) / (0.45 * w)) % 1.0
-            p.over(lash * m * (st < 0.62), 1.0 + 0.3 * prof.half_round(st / 0.62), Le)
-            prof.hammer(p, 0.4, 0.5)
+            prof.lip(p, 0.08, I)
+            prof.chamfer(p, 0.08, 0.3, I, 1.0, flat=0.4)
+            self.skin(p, "beam", 0.3, 1.0, H, base=0.7, carve=1.2, lift=0.4, gain=1.1, v0=0.1, v1=1.0)
+            prof.hammer(p, 0.2, 0.5)
             ctx.s = s0
             return p
-        prof.lip(p, 0.04, Br)
-        prof.bead(p, 0.04, 0.16, Br, 1.3)
-        # fangs pointing into the glass
-        u, w, m = band(ctx, 0.16, 0.46)
-        lx, ly, idx, L = local(ctx, u, w, 0.85 * w)
+        prof.lip(p, 0.04, I)
+        prof.chamfer(p, 0.04, 0.13, I, 1.2, flat=0.3)            # a black iron band round the glass
+        # bone tusks biting into the glass
+        u, w, m = band(ctx, 0.13, 0.4)
+        lx, ly, idx, L = local(ctx, u, w, 1.0 * w)
         size = 0.75 + 0.25 * noise(idx * 3.1, 0.0 * idx, 6)
         tipu = 1 - size
-        half = 0.46 * L * np.clip((u - tipu) / (1 - tipu), 0, 1) ** 0.75
-        inside = (np.abs(lx) < half) & (u > tipu)
+        half = 0.42 * L * np.clip((u - tipu) / (1 - tipu), 0, 1) ** 0.8
+        inside = (np.abs(lx + 0.15 * L * (1 - u)) < half) & (u > tipu)
         fang = 0.35 + 1.1 * np.sqrt(np.clip(1 - (lx / np.maximum(half, 1e-3)) ** 2, 0, 1)) * (0.5 + 0.5 * u)
         p.put(m, 0.1 + 0.0 * u, D)
         p.put(m & inside, fang, Bo)
-        stain = m & inside & (u > 0.8)
-        p.mat = np.where(stain & (noise(ctx.t, ctx.y, 2) > 0.55), Bl, p.mat)
-        # a crude bronze strap with leather lashings and bone skulls
-        u, w, m = prof.flat(p, 0.48, 0.97, Br, 0.8, 0.3)
-        lx, ly, idx, L = local(ctx, u, w, 2.2 * w)
-        kind = idx % 3
-        lash = (np.abs(lx) < 0.45 * w) & (kind != 0)
-        st = ((lx + ly * 0.7) / (0.36 * w)) % 1.0
-        p.over(lash * m * (st < 0.62), 1.0 + 0.3 * prof.half_round(st / 0.62), Le)
-        sk, holes = prof.skull(lx, ly - 0.02 * w, 1.05 * w)
+        bone = self.tex["bone"].sample(np.clip((1 - u) * 130, 0, 135), np.clip(lx / L + 0.5, 0, 1) * 21, 1.0)
+        p.tint((m & inside).astype(np.float32), np.clip(bone * 1.05, 0, 1))
+        # the blood-red horn plates, black iron straps every few, a skull now and then
+        rgb, lum, m, u = self.skin(p, "hide", 0.4, 0.94, H, base=0.8, carve=1.6, lift=0.3, gain=1.1,
+                                   v0=0.15, v1=0.45, aspect=1.0, wrap="mirror")
+        w = 0.54 * float(np.median(ctx.bw))
+        lx, ly, idx, L = local(ctx, u, w, 2.4 * w)
+        kind = idx % 4
+        strap = (np.abs(lx) < 0.16 * w) & (kind == 2) & m
+        p.put(strap, 1.05 + 0.15 * prof.half_round(lx / (0.32 * w) + 0.5), I)
+        nail = sd_circle(np.abs(lx) - 0.0, np.abs(ly) - 0.3 * w, 0.09 * w)
+        p.over(fill(nail) * strap, 1.25 + 0.2 * dome(nail, 0.3), I)
+        sk, holes = prof.skull(lx, ly - 0.02 * w, 0.95 * w)
         isk = (kind == 0) & m
         p.over(fill(sk) * isk, 0.9 + 0.7 * dome(sk, 0.9), Bo)
         p.over(fill(holes) * isk * (sk < 0), np.full(u.shape, 0.4, np.float32), D)
-        nail = sd_circle(np.abs(lx) - 0.78 * L * 0.5, ly, 0.5)
-        p.over(fill(nail) * m * (kind != 0), 1.0 + 0.4 * dome(nail, 0.4), I)
-        prof.hammer(p, 0.35, 0.45)
+        for sg in (-1, 1):                                        # a pair of ribs curving across the plate
+            rib = np.abs(lx - sg * 0.32 * w - sg * 0.5 * w * (u - 0.5) ** 2 * 2) - 0.11 * w
+            ir = ((kind == 1) | (kind == 3)) & m
+            p.over(fill(rib) * ir, 1.0 + 0.6 * np.sqrt(np.clip(-rib / (0.11 * w), 0, 1)), Bo)
+        prof.chamfer(p, 0.94, 1.02, I, 0.8, flat=0.4)
+        self.blood(p, ctx, fx.focus(ctx))
+        prof.hammer(p, 0.25, 0.45)
         ctx.s = s0
         return p
 
-    def post(self, col, env):
-        col = Faction.post(self, col, env)
-        c = env["ctx"]["minimap"]
-        patch = smoothstep(0.5, 0.68, fbm(c.x * 0.15, c.yy * 0.15, 4, 3))
-        v = np.clip(env["cav"] * 2.0, 0, 1) * patch * (env["mat"] == self.BRONZE) * 0.8
-        verd = np.array((0.20, 0.36, 0.28), np.float32) * (0.6 + 0.6 * fbm(c.x * 0.8, c.yy * 0.8, 3, 4))[..., None]
-        return col * (1 - 0.7 * v[..., None]) + verd * 0.7 * v[..., None]
+    def blood(self, p, ctx, foc):
+        """Dried blood in patches over bone and iron; wet blood running down at the focal points."""
+        dried = smoothstep(0.55, 0.72, fbm(ctx.x * 0.3, ctx.yy * 0.3, 4, 12)) * ((p.mat == self.BONE) | (p.mat == self.IRON))
+        p.tint(dried * 0.75, np.full(dried.shape + (3,), 0.0, np.float32) + np.array((0.28, 0.03, 0.02), np.float32))
+        col = np.floor(ctx.x / 1.6)
+        start = noise(col * 0.9, 0.3 + 0 * col, 13)
+        drip = (np.abs(ctx.x - (col + 0.5) * 1.6) < 0.32 + 0.2 * noise(ctx.yy * 0.5, col, 14))
+        drip = drip & (noise(col * 0.37, 0.8 + 0 * col, 15) > 0.62)
+        length = 3 + 7 * noise(col * 1.3, 0.1 + 0 * col, 16)
+        top = np.floor(ctx.yy / 9) * 9 + 9 * start
+        wet = drip & (ctx.yy > top) & (ctx.yy < top + length) & (foc > 0.35)
+        wet = wet & (ctx.s > 0.1) & (ctx.s < 1.0)
+        p.over(wet.astype(np.float32), p.h + 0.3, self.WET)
+
+    def orn_colour(self, lum, x4):
+        """EA's spikes and joint as the citadel's: blood red, white-streaked at the ridges."""
+        return ramp(self.orn_stops, lum * 1.08)
+
+    def protrude(self, x, y):
+        """A bloodied bone jutting over the joint, a tusk off the top left, a skull hanging under the bar."""
+        bone = np.full(x.shape + (3,), 0.0, np.float32) + np.array((0.88, 0.85, 0.78), np.float32)
+        out = []
+        ax, ay, bx, by = 230, 50, 256, 12
+        shaft = sd_seg(x, y, ax, ay, bx, by, 2.9)
+        knob = np.minimum(np.minimum(sd_circle(x - bx - 2.2, y - by + 0.8, 3.6), sd_circle(x - bx + 2.4, y - by - 1.8, 3.4)),
+                          np.minimum(sd_circle(x - ax - 2.0, y - ay + 2.4, 3.6), sd_circle(x - ax + 2.4, y - ay - 0.8, 3.4)))
+        d = np.minimum(shaft, knob)
+        cov = fill(d)
+        h = 0.9 + 1.4 * np.sqrt(np.clip(-d / 3.2, 0, 1))
+        gore = smoothstep(0.5, 0.62, fbm(x * 0.22, y * 0.22, 3, 17)) * cov
+        wet = (gore > 0.5) & (noise(x * 0.8, y * 0.2, 18) > 0.55)
+        out.append(fx.layer(h, np.where(wet, self.WET, self.BONE), cov, None,
+                            bone * (1 - 0.8 * gore[..., None]) + gore[..., None] * np.array((0.3, 0.02, 0.02)), cov * (1 - wet)))
+        d, t, a = fx.spike(x, y, 42, 41, -136, 30, 8.5, 0.3)
+        cov = fill(d)
+        tip = smoothstep(0.6, 0.9, t) * cov
+        out.append(fx.layer(fx.ridge(a, t, 0.9, 1.4), np.where(tip > 0.5, self.WET, self.BONE), cov, None, bone, cov * (1 - tip)))
+        sk, holes = prof.skull(x - 27, -(y - 243.5), 12.0)
+        cord = sd_seg(x, y, 27, 231, 27, 238, 0.6)
+        out.append(fx.layer(np.full(x.shape, 0.9, np.float32), self.DARK, fill(cord)))
+        cov = fill(sk) * (y > 233)
+        h = 0.8 + 1.0 * dome(sk, 1.5)
+        out.append(fx.layer(np.where(holes < 0, 0.4, h), np.where(holes < 0, self.DARK, self.BONE), cov, None, bone,
+                            cov * (holes > 0)))
+        return out
 
     def medal(self, lx, ly, R):
         sk, holes = prof.skull(lx, ly + 0.3, R * 1.9)
@@ -89,12 +142,11 @@ class Goblins(Faction):
         h = 0.6 + 1.1 * dome(sk, 1.6)
         h = np.where(holes < 0, 0.35, h)
         mat = np.where(holes < 0, self.DARK, self.BONE)
-        # crude bronze horns behind it
-        for s_ in (1, -1):
+        for s_ in (1, -1):                                         # blood-red horns behind it
             hd = sd_seg(lx, ly, s_ * 3.5, 4.0, s_ * 6.5, 7.2, 1.0)
             c2 = fill(hd) * (sk > 0)
             h = h * (1 - c2) + (0.8 + 0.6 * dome(hd, 0.8)) * c2
-            mat = np.where(c2 > 0.5, self.BONE, mat)
+            mat = np.where(c2 > 0.5, self.RED, mat)
             cov = np.maximum(cov, c2)
         return h.astype(np.float32), mat.astype(np.int16), cov, zero3(lx.shape)
 
