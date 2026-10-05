@@ -79,6 +79,15 @@ in a full game.
   it moves (a `re-pin` line in `ahk/edgescroll.log`); Ctrl+Alt+R does it too. `mac` lines in the same
   log show where macOS really has the window. Set `keepPinned := false` at the top of the script to
   turn it off.
+- **Cursor turns into the Mac arrow, or the game drops away.** Not Wine, the game or AutoHotkey
+  (2026-10-04, `scripts/cursor-test.sh` and the logs: every RotWK cursor converts, the game
+  always sets its own, and every focus loss in that session was a Cmd-Tab). macOS does it: a
+  quick shake of the mouse swaps any cursor for a big arrow (System Settings → Accessibility →
+  Display → Pointer → *Shake mouse pointer to locate*), and a hot corner opens over the game
+  (Desktop & Dock → Hot Corners; bottom right is Quick Note by default, and edge scrolling
+  takes the pointer into corners). macOS 26 also logs `Cursor disabled: failed
+  set_cursor_surface` about five times a minute while the game has focus. Turning the two
+  settings off is your choice; the scripts don't change them.
 - **No exclusive full-screen.** Under Wine's Mac driver it minimises and turns black on focus loss;
   the borderless window is the replacement.
 - **30 FPS ceiling** (engine design), and big battles still drop below it

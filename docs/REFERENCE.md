@@ -94,6 +94,10 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `engines/$WINE_BUILD`: address space, top-down allocations, exceptions and callbacks on a stack
   above 2 GB, D3D9 locks above 2 GB drawn and read back, the games' DLLs; `--fill-low` first uses
   up the low 2 GB. Throwaway prefix `build/prefix-laa`, no game. Findings: `docs/MEMORY-4GB.md`.
+- `scripts/cursor-test.sh` + `tools/cursortest.c` — every RotWK cursor (`data/cursors`, 81 .ani/.cur)
+  through the engine's Mac driver, set the way the game sets them (WM_SETCURSOR always handled);
+  fails on any cursor winemac turns into the macOS arrow. Throwaway prefix `build/prefix-cursor`,
+  no game; moves the pointer once and puts it back. 2026-10-04, w10: 81 of 81 convert.
 - `tools/bigtool.py` (list/extract/replace inside `.big` archives, BIGF and BIG4),
   `tools/neuter_gamelod.py` (the pre-menu crash fix), `tools/parse_minidump.py`.
 - `scripts/game-patch.sh [--revert|--test|--status|--bundle]` — the game-side performance patch for
@@ -189,6 +193,16 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   walks the 2 GB with VirtualQuery (committed, reserved, largest free block, bytes per payload
   byte, ms per step); `--batches B` loads until CreateTexture fails, `--vb N --vbpool` does buffers;
   `CRC` lines checksum the drawn textures. i686 mingw, run in a throwaway prefix. `docs/MEMORY-2GB.md`.
+- `tools/texupload.c` — what the first use of one texture costs the game thread under the Wine in use:
+  per spec (`dxt5:512:512:0`, `tga32:2048:1024:1`, or `dx:<file>:mips`, a real file through the game's
+  own `D3DXCreateTextureFromFileInMemoryEx` call with `WINEDLLOVERRIDES=d3dx9_27=b`) the median ms to
+  load, create and fill, draw, and wait for the upload, against the same frame without it. i686
+  mingw, run in a throwaway prefix. `docs/PERFORMANCE.md` §13.
+- `tools/texbake.c` + `python3 -m sagekit.texbake [archive.big...|--selfcheck]` (`sagekit/texbake.py`) —
+  our TGA model textures (normal maps, house-colour masks) rewritten as the DDS the game's d3dx9 builds
+  from them, checked identical level by level, so the game skips its mip generation (40-170 ms per
+  texture); `sagekit install` and `sagekit unit --stage` apply it, `sagekit validate` checks the
+  staged archives. The module alone lists what still ships as such a TGA. `docs/PERFORMANCE.md` §13.
 - `tools/d3dx9fxbench.c` — replays the game's per-batch / per-mesh `ID3DXEffect` calls (shadow-map
   pass + main view) on the real `.fxo` effects against any `d3dx9_27.dll` build, without the game;
   `--hash` checksums every device call the effects make, so two builds can be proven identical.
@@ -212,8 +226,10 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 
 ## Art
 
-- `python3 -m sagekit install <faction> [--check|--revert]` — installs a faction's built art into the
-  game (`--check` stages without installing, `--revert` restores the last backup);
+- `python3 -m sagekit install <faction> [--check|--revert [--dry-run]]` — installs a faction's built art into the
+  game (`--check` stages without installing, `--revert` restores the last backup; an asset.dat a
+  later install changed gets only the pack's own records put back, from `_install/installed-ops.json`,
+  every other record untouched);
   `python3 -m sagekit.install` runs its self-checks on temporary files.
 - `python3 -m sagekit.pack build|install|revert|status` (`sagekit/pack.py`, `sagekit/packbuild.py`) —
   the building packs players install without Blender, holding none of EA's files: `build` turns a
@@ -245,6 +261,8 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `paint.py`, `models.py`, `ini.py`); the pack composes every class into one
   `!!!!!!!!!!!sagekit-cah.big`. `python3 -m assets.cah.kit.survey [--markdown]` maps EA's subclasses;
   `python3 -m assets.cah.kit.render <class>` renders the overview (`sagekit/blender/cah_pose.py`).
+  `python3 -m assets.cah.kit.attach <class> [--review]` builds a class's parts as models of our own on the hero's
+  bones (`kit/attach.py`, `kit/attach_review.py`; the redesign, docs/CAH.md); `--stage` takes only classes built this way.
   The evil classes use `python3 -m assets.cah.evil.render <class>` and `python3 -m assets.cah.evil.contents <class>`.
   How: `docs/CAH.md`.
 - `python3 -m assets.heroes.build [--skip-art]`, `python3 -m sagekit.units.heroes --stage|--install|--revert [--dry-run]`
@@ -267,8 +285,9 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `build/assets/_review_finish/hud/`. How: `docs/HUD.md`.
 - `python3 -m sagekit hud --factions [--sheet|--stage|--install|--revert] [--dry-run]`
   (`sagekit/hud/factions.py`, `factionapt.py`, `factioncheck.py`, `aptfile.py`, `factionsheet.py`,
-  `swatch.py`, `sagekit/paint/palantir/`, `assets/hud/factions/`) — one palantir frame per faction
-  (Arnor shares Men's), each cut from its citadel's sheets (`swatches.py`), over the 2x pack, chosen by an APT edit from the side the game passes to SetPlayerFaction;
+  `swatch.py`, `pieces.py`, `sagekit/blender/hudpieces.py`, `sagekit/paint/palantir/`, `assets/hud/factions/`)
+  — one palantir frame per faction (Arnor shares Men's), each cut from its citadel's sheets
+  (`swatches.py`) with its ornaments rendered in 3D (`pieces.py`), over the 2x pack, chosen by an APT edit from the side the game passes to SetPlayerFaction;
   checks, a bytecode dry trace per side; the same archive; `--revert` puts the Good/Evil 2x pack back.
   Review sheets: `build/assets/_review_finish/hud_faction/`, `hud_citadel/all.jpg`. How: `docs/HUD.md`.
 - `python3 -m sagekit ui2x [--stage|--install|--revert|--sheet] [--dry-run]` (`sagekit/ui2x/`,
