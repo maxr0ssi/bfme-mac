@@ -40,7 +40,7 @@ the map's castle walls), so the table decides.
 | pages | `icons/pages.py`, `icons/cli.py` | EA's page with our crops pasted; EA's format, size and 9 mips; every block no rect of ours touches is EA's bytes; ImageMagick writes no DXT3, so a DXT3 page keeps its colour blocks and stores the DXT5 alpha as DXT3's 4 bits |
 | checks | `icons/pages.py` | format, size and mips EA's; pixels outside our rects EA's (exactly away from shared blocks); our rects the intended pixels within DXT error; alpha EA's within the 4-bit step |
 | sheet | `icons/sheet.py` | `build/assets/<faction>/_review/icons_v1.jpg`: EA against ours at 1x and 2x, every page before and after |
-| archive | `icons/install.py` | `!!!!!!!!!!!!!!sagekit-icons.big`, one for every faction (pages serve several), rebuilt from every installed faction's crops on each install and revert; no asset.dat records (EA's names and sizes) |
+| archive | `icons/install.py` | `!!!!!!!!!!!!!!sagekit-icons.big`, one for every faction (pages serve several), rebuilt from every installed faction's crops on each install and revert; no asset.dat records (EA's names; a texture's record holds no size), checked on every build and write |
 | 2x | `icons/install.py` `rescale()`, `ui2x/icons.py` | `python3 -m sagekit ui2x --install` rebuilds this archive at twice EA's page size: our crops box-filtered from the 4x renders, EA's other images on the page upscaled ([UI2X.md](UI2X.md)); the receipt records the scale and later installs keep it; `ui2x --revert` rebuilds it at 1x |
 | release | `icons/install.py` `release()`, `packbuild.py` | each faction's pack carries `!!!!!!!!!!!!!!sagekit-icons-<faction>.big`, its own pages as deltas against EA's; refused while a page holds two factions' icons (none does today) |
 

@@ -7,7 +7,9 @@
 Pages serve several factions (87 of EA's 332 building pages do), so no faction ships a page of its
 own: each faction's run leaves its crops and their rects (build/assets/<faction>/_icons/icons.json),
 and this archive composes each page from EA's and every installed faction's crops, refusing a rect
-two factions claim. The pages keep EA's names, sizes and formats, so asset.dat needs no record.
+two factions claim. The pages keep EA's names (at 2x, twice EA's size: sagekit/ui2x), so asset.dat
+files them already: a texture's record holds no size or format (sagekit/texrecords.py). Every write
+checks the live caches file every page it ships.
 build/assets/_icons/shared.json records the archive's digest and its factions; revert takes one
 faction out (the archive goes when none is left), refusing an archive it did not write.
 """
@@ -15,7 +17,7 @@ import json
 import os
 from pathlib import Path
 
-from .. import paths
+from .. import paths, texrecords
 from ..formats.big import Archive, pack
 from ..formats.textures import compiled_path
 from ..game import Install
@@ -94,6 +96,9 @@ def build(factions, scale=1, out=None):
     if not factions:
         return None
     files = members(factions, scale)
+    ok, line = texrecords.check(list(files), SHARED)
+    if not ok:
+        raise SystemExit(line)
     out = Path(out or Path(shared_root()) / "_install" / SHARED)
     pack(sorted(files.items()), str(out))
     staged = Archive(str(out))
@@ -121,6 +126,8 @@ def put(staged, want, scale, dry, verb):
     else:
         receipt().write_text(json.dumps(dict(sha256=digest(data), factions=want, scale=scale), indent=1) + "\n")
     print("%s; the icon archive carries %s at %dx." % (verb, ", ".join(want) or "nothing (removed)", scale))
+    if data is not None:
+        print(texrecords.verify(list(Archive(str(dest)).index()), texrecords.live_caches(), SHARED))
     return 0
 
 

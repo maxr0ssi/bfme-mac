@@ -14,7 +14,7 @@ import json
 import os
 import subprocess
 
-from .. import paths
+from .. import paths, texrecords
 from ..icons import pixels
 from ..pipeline import REALESRGAN
 from . import root, table, tga
@@ -173,6 +173,8 @@ def check(apt):
                         say(False, "%s %s: samples texels (%.0f, %.0f)-(%.0f, %.0f) of a %dx%d texture" % (
                             mv, member, lo_u, lo_v, hi_u, hi_v, 2 * w, 2 * h))
         say(True, "%s: every texture matrix sampling %s checked" % (mv, sorted(ours)))
+    for res in ("1x", "2x"):
+        say(*texrecords.check(list(files(res)), "the %s pack" % res))
     with open(d("checks.txt"), "w") as fh:
         fh.write("\n".join(lines) + "\n")
     return lines, bad

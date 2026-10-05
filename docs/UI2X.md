@@ -85,6 +85,8 @@ ember. An iron frame for Evil would need the movie to know the side: not done.
   +1.5 MB: +88 MB if every page were drawn at once. A match draws the pages of the factions in it,
   a fraction of that; the game runs with 4 GB of address space (docs/MEMORY-4GB.md). Measured
   2026-10-04 from the staged archives.
-- No INI change, no upgrades, no asset.dat records.
+- No INI change, no upgrades, no asset.dat records: every page keeps EA's name and EA's record (a
+  texture's record has no size or format; the DXT5 pages too). The stage and the install check that
+  asset.dat files every texture both archives ship (`sagekit/texrecords.py`).
 - Everyone in a LAN game should run the same files (MULTIPLAYER.md); nothing here changes game data.
 - Not yet seen in game. If a 2x page draws wrong, `--revert` puts EA's sizes back.

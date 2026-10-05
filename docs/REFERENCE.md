@@ -225,6 +225,10 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `revert` restores it. The installer is standard library only.
 - `python3 -m sagekit.delta` (`sagekit/delta.py`) — the packs' copy/insert delta format and the check
   for EA runs in the inserted bytes; run alone, its self-checks.
+- `python3 -m sagekit.texrecords` (`sagekit/texrecords.py`) — asset.dat records for the textures the HUD,
+  ui2x and icon archives ship: a new texture name gets a copy of its family's record (without one the
+  game draws it magenta), taken back on revert; every install verifies its textures are filed. Run
+  alone, its self-check.
 - `python3 -m sagekit unit <faction>/<unit> [--render|--check|--stage|--install|--revert]`
   (`sagekit/units/`, `sagekit/blender/unit_pose.py`) — unit recipes, `assets/<faction>/porter/design.py`
   (every faction's builder, installed) and `assets/<faction>/worker/design.py` (the construction

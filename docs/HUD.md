@@ -98,7 +98,9 @@ shrunk 1.8x with bilinear filtering and no mips; the mock-up shows it holds up.
 ## Cost and LAN
 
 - Texture memory: 2x is about 22 MB against EA's 5.5 MB (+16.5 MB; the two atlases are 2048x1024).
-- No INI, no upgrades, no asset.dat records (EA's names; TGAs need no record).
+- No INI, no upgrades, no asset.dat records: EA's names keep EA's records (a texture's record is its
+  name and a timestamp, no size or format). The check suite and the install check that asset.dat
+  files every texture the archive ships.
 - The archive changes textures and APT geometry only. Everyone in a LAN game should still run the
   same files (MULTIPLAYER.md); it ships in the archive like every other pack.
 
@@ -182,11 +184,21 @@ reader decodes all 152 of EA's); our opcodes, flags, constants and branches are 
 import resolves to an export, every label to EA's transform, every image to a shipped texture at
 twice EA's size with the 2x pack's matrix; then a small interpreter runs our bytecode with EA's
 originals as stubs, replays the game's calls per side (side first, state first, re-shown) and follows
-the label to the texture (`trace.txt`). No external APT tool was available to cross-check the file.
+the label to the texture (`trace.txt`); and asset.dat files every texture the archive ships once the
+installer's records are written. No external APT tool was available to cross-check the file.
+
+**asset.dat.** The game draws a texture only when asset.dat files it; without a record it draws the
+missing-texture magenta. The first install (2026-10-04) shipped the 14 frames under new names with no
+record, and in game the whole frame quad drew magenta over the minimap and portrait, while the 2x
+sockets and buttons (EA's names, EA's records, twice EA's size) drew. `--factions --install` now files
+each new frame in RotWK's asset.dat as a copy of `apt_palantirexport_1.tga`'s record
+(`sagekit/texrecords.py`), records the records in `installed.json`, and checks the live caches file
+every texture afterwards; `--factions --revert` and `--revert` take exactly those records out, every
+other record byte for byte, refusing records another install changed since.
 
 **Risk.** A malformed APT file would fail when the palantir loads at match start. If a match does not
 load, `--factions --revert` (or plain `--revert`) and it is gone. Cost: 14 more frame textures at
-2x, 2 MB per double and 1 MB per single (21 MB). No INI, no upgrades, no asset.dat records.
+2x, 2 MB per double and 1 MB per single (21 MB). No INI, no upgrades; 14 asset.dat texture records.
 
 Review sheets: `build/assets/_review_finish/hud_faction/hud_factions.jpg` (the fallback and each
 faction over the in-game crop at 3024x1964, and details), `hud_factions_single.jpg`, `trace.txt`.

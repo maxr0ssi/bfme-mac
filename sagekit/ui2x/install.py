@@ -7,7 +7,8 @@
                                             rebuilds it at 1x
 
 build/assets/_ui2x/installed.json records what is in the game; revert refuses an archive it did not
-write. Every page lives in exactly one archive of ours: `dupes()` scans every staged and installed
+write. Every page and texture keeps EA's name, so asset.dat files it already (a record holds no size or
+format, sagekit/texrecords.py); the stage checks that, and the install checks the live caches after. Every page lives in exactly one archive of ours: `dupes()` scans every staged and installed
 *sagekit-*.big and the stage refuses a member ours shares with another.
 """
 import glob
@@ -15,7 +16,7 @@ import json
 import os
 from pathlib import Path
 
-from .. import paths
+from .. import paths, texrecords
 from ..formats.big import Archive, norm, pack
 from ..formats.textures import compiled_path
 from ..game import Install
@@ -112,6 +113,11 @@ def stage():
     arcs[ARCHIVE] = str(out)
     if icons_out:
         arcs[icons.SHARED] = str(icons_out)
+    for name, ship in ((ARCHIVE, files), (icons.SHARED, Archive(str(icons_out)).index() if icons_out else {})):
+        ok, line = texrecords.check(list(ship), name)
+        lines.append(("" if ok else "FAIL ") + line)
+        if not ok:
+            raise SystemExit(line)
     dup = dupes(arcs)
     ours = {m: v for m, v in dup.items() if ARCHIVE in v or icons.SHARED in v}
     lines.append("duplicate scan: %d archives, %d members in two or more (%d involve ui2x or icons)" % (
@@ -156,4 +162,5 @@ def main(action, dry=False):
     receipt().write_text(json.dumps(dict(sha256=digest(data)), indent=1) + "\n")
     icons.rescale(2)
     print("Installed: %s, and the icon pages at 2x." % dest)
+    print(texrecords.verify(list(Archive(str(dest)).index()), texrecords.live_caches(), ARCHIVE))
     return 0

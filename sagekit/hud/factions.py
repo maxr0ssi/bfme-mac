@@ -14,7 +14,7 @@ import json
 import os
 import subprocess
 
-from .. import paths
+from .. import paths, texrecords
 from ..icons import pixels
 from . import root, tga
 from .apt import Apt, matrices, scale
@@ -143,6 +143,7 @@ def check(apt):
         same = len(shape) == 1 and len(base) == 1 and first[shape[0]][0][1] == first[base[0]][0][1]
         say(same, "%s %s: %s draws image %d with the 2x pack's doubled matrix of EA's %s" % (
             look, kind, shape[0].split("\\")[-1] if shape else "?", i, base[0].split("\\")[-1] if base else "?"))
+    say(*texrecords.check(members, "the faction palantir"))     # new names need asset.dat records
     tl = trace(members, apt.read, act, factions(), images, say)
     with open(froot("trace.txt"), "w") as fh:
         fh.write("\n".join(tl) + "\n")
