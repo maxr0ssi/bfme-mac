@@ -116,7 +116,8 @@ def members(u, b):
         if files[member] == text:
             raise SystemExit("%s: %s draws no %s in %s %s" % (u.id, obj, u.model, member, tag))
     from ..texbake import bake          # the house-colour mask ships with its mips built (sagekit/texbake.py)
-    return bake(files, log=lambda s: None)
+    from ..texslim import slim          # opaque DXT5 ships as the identical DXT1 (sagekit/texslim.py)
+    return slim(bake(files, log=lambda s: None), log=lambda s: None)
 
 
 def named(objects, files):

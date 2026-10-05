@@ -252,7 +252,9 @@ def install_faction(faction, log=print, check=False):
     files, updates = prepare(faction, ops)
     from .texbake import bake                       # TGAs ship with their mips built (sagekit/texbake.py)
     files = bake(files, log)
-    from .inherit import clashes                    # one INI, two packs: the first would hide the other
+    from .texslim import slim                       # opaque DXT5 sheets ship as the identical DXT1 (sagekit/texslim.py)
+    files = slim(files, log)
+    from .inherit import clashes                   # one INI, two packs: the first would hide the other
     for member, other in clashes(archive_name(faction), files):
         raise SystemExit("%s ships %s, which %s ships otherwise; nothing staged" % (faction, member, other))
     stage = Path(paths.BUILD)/faction/"_install"

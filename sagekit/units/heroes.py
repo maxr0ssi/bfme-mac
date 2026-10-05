@@ -57,7 +57,8 @@ def built():
             raise SystemExit("heroes: %s twice" % m)
         files[m] = Path(p).read_bytes()
     from ..texbake import bake          # house-colour masks ship with their mips built (sagekit/texbake.py)
-    return bake(files, log=lambda s: None), (out / "lotr.str").read_bytes()
+    from ..texslim import slim          # opaque DXT5 ships as the identical DXT1 (sagekit/texslim.py)
+    return slim(bake(files, log=lambda s: None), log=lambda s: None), (out / "lotr.str").read_bytes()
 
 
 def cache_ops(files):

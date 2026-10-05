@@ -125,7 +125,8 @@ def members(specs, b):
             raise SystemExit("cah: %s twice" % member)
         files[member] = (b.work / "ini" / member.replace("\\", "/")).read_bytes()
     from ..texbake import bake          # house-colour masks ship with their mips built (sagekit/texbake.py)
-    return bake(files, log=lambda s: None)
+    from ..texslim import slim          # opaque DXT5 ships as the identical DXT1 (sagekit/texslim.py)
+    return slim(bake(files, log=lambda s: None), log=lambda s: None)
 
 
 def cache_ops(specs):
