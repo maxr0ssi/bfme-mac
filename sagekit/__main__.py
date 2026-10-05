@@ -107,6 +107,8 @@ def cmd_validate(a):
     bad += texture_memory()                     # staged archives: texture memory within the per-archive cap
     from .texreach import validate as texture_reach
     bad += texture_reach()                      # staged packs: no texture level the closest camera never samples
+    from .housecheck import validate as house_colour
+    bad += house_colour()                       # our housecolor lines filed in asset.dat, masks colourable
     bad += cmd_budget(a)
     return 1 if bad else 0
 

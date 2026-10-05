@@ -312,6 +312,11 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   ui2x and icon archives ship: a new texture name gets a copy of its family's record (without one the
   game draws it magenta), taken back on revert; every install verifies its textures are filed. Run
   alone, its self-check.
+- `python3 -m sagekit.housecheck [--tint archive.big|--selfcheck]` (`sagekit/housecheck.py`) — house
+  colour as the exe resolves it: every housecolor.ini line of ours whose texture is shipped must have
+  its BaseTexture filed in asset.dat (else the engine keys it -1 and never colours it) and a mask the
+  colouring handles (A8R8G8B8/A4R4G4B4 DDS, 32-bit TGA); in `sagekit validate`. `--tint`: per part
+  mesh, the share of its surface the Hair (R), Skin (G) and Paint (B) pickers colour. docs/CAH.md.
 - `python3 -m sagekit unit <faction>/<unit> [--render|--check|--stage|--install|--revert]`
   (`sagekit/units/`, `sagekit/blender/unit_pose.py`) — unit recipes, `assets/<faction>/porter/design.py`
   (every faction's builder, installed) and `assets/<faction>/worker/design.py` (the construction

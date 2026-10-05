@@ -425,6 +425,76 @@ found in the static path, and no fix is made.** Two candidates, one test session
 So candidate 2 (our attached modules), or a cause outside this path, is what the test session in
 step 1 has to settle.
 
+**Offline checks 2, 2026-10-05 (no game run).** Every candidate left above is now traced in game.dat
+or measured in the installed files. None breaks a colour. What the pickers reach is the answer.
+
+- *Which picker drives which channel.* The handlers 0x9c3c22 / 0x9c3c4c / 0x9c3c76 are registered
+  with `OnHairColor` / `OnSkinColor` / `OnPaintColor` (0x9c43dd / 0x9c439c / 0x9c435b). They set
+  `MyHero` +0x2c / +0x30 / +0x34, which the colouring multiplies by mask **R / G / B**. So
+  **Hair → R, Skin → G, Paint → B.**
+- *EA's own parts take no hero colour.* The Dwarf's housecolor.ini lines cover only its body sheets
+  (`CHDW_TM*`, `CHDW_SG*`, `CH_Dwarf_03`). Across every EA CaH skin, the meshes whose texture has a
+  line are: helmets 6 of 198, shoulders 0 of 153, shields 0 of 35, swords, hammers and bows 0. The
+  pickers colour EA's bodies (cloth, skin, hair), not their armour.
+- *Our parts take a little, on Hair and Skin.* `python3 -m sagekit.housecheck --tint <archive>`
+  measures the share of each part's surface where the mask's alpha and a channel are set (image row
+  = (1 − V)·height; this V convention lands the Erebor helm on its intended tiles: gold, bronze dome,
+  cheek, crest, rune band).
+  - The pilot: Erebor helm 5.3 % (rune band, G = **Skin**), plus 0.3 % gems (B) on the creation-screen
+    fit. Erebor axe 8.5 % (leather wraps, R = **Hair**). **Paint** changes neither.
+  - The staged pack: 98 of 161 parts take no colour. 43 parts have 10 % or more, and 22 have 25 % or
+    more. By channel, Hair reaches 29 parts, Skin 37 and Paint 7. That follows `kit/paint.py`'s
+    rule (G cloth and enamel, R leather, B gems; metal stays metal).
+- *The mask lookup* (housecolor.ini parser 0x828365 → 0x536643). Each `BaseTexture` is resolved through
+  the asset manager (0xa32ee0, the textures asset.dat files at startup) to an id. The mask name is
+  stored under that id (map 0xdd83f4).
+  - A name that asset.dat does not file gets id **-1**, so its line never matches a mesh. A texture
+    created later gets an id of its own (0x532875).
+  - The mesh path (0x54bde0 → 0x54c49e: legacy material, one pass, no per-polygon stage-1 array) looks
+    up its stage-0 texture's id (0x535e86), names `#<mask>#<key>` (`%d&%d&%d&%d`, 0xbe8998) and
+    loads the mask by file name, `.dds` before `.tga` (0x530d29). The format is the file's own
+    (`D3DXCreateTextureFromFileInMemoryEx`, format 0, 0x53117e). A 24/32-bit TGA loads as
+    X8R8G8B8/A8R8G8B8 (0x5310ad).
+  - Our part meshes have the same shader, one pass and one stage as EA's body meshes (the chunks
+    compared), so they take the same path.
+  - `SKCAH_DWGEAR.tga` and `HC_SKCAH_DWGEAR.tga` are filed in RotWK's asset.dat. The mask is an
+    A8R8G8B8 DDS with 10 levels.
+- *Rebuild and timing.* Create-a-Hero module colours are "rebuildable" (bit 30, from 0x4b4a30) only
+  while `[0xde3d84]+0x18c` is set; the picker broadcast's colour (0x80959a) never is.
+  - A mesh first coloured with a rebuildable colour gets flag +0x320 (0x54c68d). Every later broadcast
+    then rebuilds the shared `#mask#-1&0&0&0` texture in place (0x532563 → vtable +0x3c = 0x5321ba →
+    0x531c77).
+  - A mesh without the flag makes a new `#mask#3&c1&c2&c3` texture at each broadcast, coloured at
+    load.
+  - Either way, a mesh in a render object that exists at the broadcast follows the pickers. The HLOD
+    forwards to every sub-object, hidden ones included (0x59b1a0).
+  - The applier gives the row upgrades (bit 4) and the subclass (bits 1|2) before it broadcasts
+    (bit 8), and the broadcast (0x6727b0 → slot 0x7c, 0x4b877d) needs only a render object. Our modules
+    have one from the subclass state on.
+- *asset.dat.* No texture record changed in either cache against `.orig` (0 changed, 0 removed).
+  No CaH or `HC_` record is left over from the reverted pack. A texture record has no format or size
+  (name, timestamp, one `TEX` entry). RotWK's run order is unchanged (the same 53 joins as EA's);
+  BFME2's is sorted. 26 BFME2 records name `_fx` models no archive ships any more; these are
+  harmless, and not CaH.
+- *Our archives.* The house-colour line set is EA's 2.02 lines plus 38 of ours.
+  - Of ours, 17 name cah sheets the pilot does not ship. They are inert: they all land on id -1.
+  - The mask providers for EA's lines are identical with and without our archives (53 EA lines have
+    no mask in EA's files either).
+  - Every hero texture in sagekit-heroes.big has its line, a filed record and an A8R8G8B8 mask.
+  - Our only other CaH-adjacent member is `playertemplate.ini`, which adds three heroes to the
+    buildable lists.
+- *Lint.* `sagekit validate` now runs `sagekit/housecheck.py`. Every housecolor line of ours whose
+  texture is shipped must have its `BaseTexture` filed in asset.dat and a mask the colouring handles.
+  No archive of ours may serve a mask that it cannot colour. Its self-check has an unfiled base, a
+  DXT mask, a 24-bit TGA mask and a missing mask, and each must fail.
+
+**For Max to decide:** our armour can take more colour, and on the Paint picker. Today the Erebor
+helm and axe change only a thin band or grip, and only with Skin or Hair, which is EA's rule. The
+options are more tinted area, Paint (B) for armour enamel, or leaving armour fixed like EA's. Any of
+these is an art change to `kit/paint.py` and the masks: rebuild, review, then install. If an EA body
+(cloth, skin, hair) does not change with a picker either, that is the one in-game observation that
+would still point at the engine path, and none of the above explains it.
+
 ## EA's subclasses
 
 From `python3 -m assets.cah.kit.survey --markdown` (2.02). Lists are the current lengths per row,
