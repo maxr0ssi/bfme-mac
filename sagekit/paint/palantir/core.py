@@ -157,14 +157,17 @@ RIM = nrm(np.array([0.65, 0.55, 0.5], np.float32))
 
 
 def shade(h, mat, mats, k=K, rim_col=(0.6, 0.65, 0.75), ao_r=6, ao_gain=0.9, edge_gain=0.5,
-          sky_col=(1.0, 0.97, 0.92), ground_col=(0.08, 0.07, 0.06)):
-    """Shade a height field (1x px units) with per-pixel material indices."""
+          sky_col=(1.0, 0.97, 0.92), ground_col=(0.08, 0.07, 0.06), alb=None, aw=None):
+    """Shade a height field (1x px units) with per-pixel material indices; where aw > 0 the albedo
+    is a swatch's colour (alb) instead of the material's."""
     gy, gx = np.gradient(h, 1.0 / k)
     n = np.stack([-gx, -gy, np.ones_like(h)], -1)
     n /= np.linalg.norm(n, axis=-1, keepdims=True)
     nx, ny, nz = n[..., 0], n[..., 1], n[..., 2]
     rx, ry, rz = 2 * nz * nx, 2 * nz * ny, 2 * nz * nz - 1
     A = np.stack([m.albedo for m in mats])[mat]
+    if alb is not None:
+        A = A * (1 - aw[..., None]) + alb * aw[..., None]
     metal = np.array([m.metal for m in mats], np.float32)[mat]
     rough = np.array([m.rough for m in mats], np.float32)[mat]
     edgec = np.stack([m.edge for m in mats])[mat]

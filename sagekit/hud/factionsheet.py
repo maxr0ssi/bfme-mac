@@ -7,6 +7,10 @@
                              and a detail of each 2x texture magnified 2x
     hud_factions_single.jpg  every faction's single frame (minimap alone), its 2x texture
     trace.txt                per side and state, the label and texture the frame draws (dry trace)
+
+build/assets/_review_finish/hud_citadel/all.jpg: per faction, a crop of its citadel's close render,
+the frame cut from it over the in-game crop at 3024x1964, and the frame before (sheet/prev/, the
+mock-ups of the frames installed before the redesign, when kept).
 """
 import os
 import shutil
@@ -18,17 +22,18 @@ from . import root
 from .factions import factions, froot
 
 OUT = os.path.join(paths.BUILD, "_review_finish", "hud_faction")
+CIT = os.path.join(paths.BUILD, "_review_finish", "hud_citadel")
 BG = "#1e1e1e"
 TW = 600
 
 
-def tile(src, text, out, crop=None, flat=None):
+def tile(src, text, out, crop=None, flat=None, tw=TW):
     cmd = [MAGICK, src]
     if flat:
         cmd += ["-background", flat, "-flatten"]
     if crop:
         cmd += ["-crop", crop, "+repage"]
-    cmd += ["-resize", "%dx" % TW, "(", "-size", "%dx30" % TW, "xc:" + BG, "-font", paths.FONT, "-pointsize",
+    cmd += ["-resize", "%dx" % tw, "(", "-size", "%dx30" % tw, "xc:" + BG, "-font", paths.FONT, "-pointsize",
             "17", "-fill", "#eadfc8", "-gravity", "west", "-annotate", "+6+0", text, ")", "+swap",
             "-background", BG, "-append", "-bordercolor", BG, "-border", "5", out]
     subprocess.check_call(cmd)
@@ -41,6 +46,35 @@ def sheet(rows, out):
         args += ["("] + r + ["-background", BG, "+append", ")"]
     subprocess.check_call(args + ["-background", BG, "-gravity", "northwest", "-append", "-quality", "90", out])
     return out
+
+
+def citadels():
+    """all.jpg: each faction's citadel beside its frame (and the frame before)."""
+    from .swatch import spec
+    os.makedirs(CIT, exist_ok=True)
+    t = os.path.dirname(froot("sheet", "tiles", "x"))
+    rows = []
+    for n, f in factions().items():
+        render, crop = spec().CITADEL[n]
+        src = os.path.join(paths.BUILD, n, "fortress", "renders", render)
+        mock = froot("sheet", "mock_%s.png" % n)
+        if not (os.path.exists(src) and os.path.exists(mock)):
+            continue
+        cut = os.path.join(t, n + "_cit_src.png")
+        subprocess.check_call([MAGICK, src, "-crop", crop, "+repage",
+                               "-resize", "%dx%d" % (900, 660), "-background", "#7a6f5e",
+                               "-gravity", "center", "-extent", "%dx%d" % (900, 660), cut])
+        row = [tile(cut, "%s: the citadel" % n.capitalize(), os.path.join(t, n + "_cit.png"), tw=900),
+               tile(mock, "New: %s (in-game size, 3024x1964)" % f["what"], os.path.join(t, n + "_new.png"), tw=900)]
+        prev = froot("sheet", "prev", "mock_%s.png" % n)
+        if os.path.exists(prev):
+            row.append(tile(prev, "Previous", os.path.join(t, n + "_prev.png"), tw=900))
+        for k, (crop2, what) in enumerate((("380x262+300+0", "the joint"), ("380x262+0+0", "the top left"),
+                                            ("380x262+0+250", "the bar's left end"))):
+            row.append(tile(froot("paint", "%s_double_2.png" % n), "New: %s (2x texture, magnified 2.4x)" % what,
+                            os.path.join(t, "%s_newd%d.png" % (n, k)), crop=crop2, flat="#4a4038", tw=900))
+        rows.append(row)
+    return sheet(rows, os.path.join(CIT, "all.jpg"))
 
 
 def review():
@@ -70,6 +104,7 @@ def review():
         rows += [ts, ds]
     out = [sheet(rows, os.path.join(OUT, "hud_factions.jpg"))]
     out.append(sheet([singles[:4], singles[4:]], os.path.join(OUT, "hud_factions_single.jpg")))
+    out.append(citadels())
     if os.path.exists(froot("trace.txt")):
         shutil.copy(froot("trace.txt"), os.path.join(OUT, "trace.txt"))
         out.append(os.path.join(OUT, "trace.txt"))

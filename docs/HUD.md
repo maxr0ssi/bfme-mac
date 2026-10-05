@@ -141,6 +141,41 @@ faction's cross-section, the scroll joint and spikes recoloured. The round butto
 `apt_palantir_1` and `apt_libingameimagesmain_1`) are one sheet for every side in EA's movie (no
 side labels on the button clips), so they stay the pack's for every faction.
 
+**Cut from the citadel** (2026-10-04, Max: "re-look at all the citadels and redesign them that way").
+Each frame is built from its faction's citadel: `assets/hud/factions/swatches.py` names crops of the
+sheets the citadel is painted with (the faction atlas as our painter recoloured it; the Men's own
+`GBFortressH`), `sagekit/hud/swatch.py` cuts them into `build/assets/_hud/factions/swatch/<faction>/`
+(again when the sheet or the list changes), and `sagekit/paint/palantir/tex.py` lays them along the
+rings: a swatch's colour becomes the albedo, its luminance a relief, so it is lit with the rest.
+Friezes repeat a whole number of times round a ring, stone mirrors in pairs, so no seam at 0 degrees.
+
+| Faction | The citadel | The frame |
+|---|---|---|
+| Dwarves | honey granite, gold coping, blue rune and triangle friezes, gold chevron shields | rune frieze round the glass, granite ashlar with chevron shields, gold beads; triangle frieze on the bar; a tower shield as medallion |
+| Elves | ivory ashlar, teal lancet windows, slate scale roofs edged in mallorn gold | ivory ashlar pierced by teal lancets in gold, slate scales outside, gold beads; the arcade frieze on the bar; a lancet window medallion |
+| Men | white ashlar, corbelled battlements, sable band of stars, White Tree banners | star band round the glass, white ashlar with White Tree cartouches, the corbel table outside; a blue White Tree banner medallion |
+| Isengard | black fluted walls, silver-edged lancet panels, spikes | fluted black wall with silver lancet panels, silver spikes outside; the White Hand |
+| Mordor | black fluted towers, fire-rimmed crown windows, green witch-fire, lava, blade crowns | lava channel, fluted iron with crown windows (two in three green), crown of blades; the Eye |
+| Goblins | blood-red horn streaked white, black iron bands, bone tusks, skulls | bone tusks round the glass, red horn plates with iron straps and skulls; EA's spikes red and bone |
+| Angmar | timber walk, blue-black stone, steel scale roofs, black horn tines with frost | timber walk round the glass, stone, scale coping, horn tines across it; the crown of tines medallion |
+
+**Bold at the focal points** (Max, 2026-10-04: "be bolder"). The citadel materials stay the calm
+base. Each look's signature is strong only near the joint between the rings, the bar's end caps and
+the top (`assets/hud/factions/fx.py` `focus`): Mordor's lava seams, flames and embers with a fleck of
+green; Angmar's ice crystals, frost and icicles; the Elves' polished gold and silver with filigree and
+glints; the Dwarves' glowing blue runes and gems; the Men's glowing White Tree and star glints;
+Isengard's furnace glow and a bold White Hand; the Goblins' ribs, skulls and blood. Painted bloom,
+shine and glints are in the texture. **Past the silhouette** (`protrude`): blades, icicles, horns,
+bones, a crest or a spire grow EA's alpha outward. They stay inside the frame's quad (its `.ru`
+shape is the whole 512x256 page), and `frame.safe()` keeps them outside both glasses and 6 screen px
+clear of the buttons and the resource numbers. The frame is not a click target, so the protrusions
+are only visual.
+
+Review: `build/assets/_review_finish/hud_citadel/all.jpg` (per faction: the citadel, the new frame
+over the in-game crop at 3024x1964, the previous version, three 2x close-ups). The frames before are kept as
+mock-ups in `build/assets/_hud/factions/sheet/prev/`. Same APT edit, same texture names and sizes:
+`--factions --stage`, then `--factions --install` (revert: `--factions --revert`).
+
 **Checks without the game** (`sagekit/hud/factioncheck.py`, `build/assets/_hud/factions/checks.txt`):
 EA's bytes kept but the header words; every action of the movie decodes to its End (`aptfile.py`'s
 reader decodes all 152 of EA's); our opcodes, flags, constants and branches are EA's kinds; every

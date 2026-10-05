@@ -1,7 +1,8 @@
 """python -m sagekit.paint.palantir <job.json> (Blender's Python; sagekit/hud/factions.py writes the job).
 
 job: hud (the Good/Evil pack's build dir), out (where <faction>_<kind>_4/_2.png go), factions (names
-in assets/hud/factions), backdrop/place/keep (the mock-up; backdrop may be missing), mock_out.
+in assets/hud/factions), swatch (the looks' citadel swatches, <swatch>/<faction>/<name>.png),
+backdrop/place/keep (the mock-up; backdrop may be missing), mock_out.
 """
 import json
 import os
@@ -10,6 +11,7 @@ import time
 
 from assets.hud.factions import look
 from .frame import mockup, paint
+from .tex import load_all
 
 
 def main(path):
@@ -18,6 +20,8 @@ def main(path):
     for name in job["factions"]:
         t = time.time()
         F = look(name)
+        F.tex = load_all(os.path.join(job.get("swatch", ""), name))
+        F.keep, F.place = job.get("keep"), job.get("place")     # what protrusions must stay clear of
         for kind in ("double", "single"):
             col4, a4, ea = paint(F, job["hud"], kind, os.path.join(job["out"], "%s_%s" % (name, kind)))
             if kind == "double" and os.path.exists(job.get("backdrop", "")):

@@ -12,18 +12,28 @@ class P:
         self.h = np.zeros(shp, np.float32)
         self.mat = np.zeros(shp, np.int16)
         self.emit = np.zeros(shp + (3,), np.float32)
+        self.alb = np.zeros(shp + (3,), np.float32)    # a swatch's colour (tex.skin) where aw > 0
+        self.aw = np.zeros(shp, np.float32)
 
     def put(self, mask, h, mat):
         self.h = np.where(mask, h, self.h)
         self.mat = np.where(mask, mat, self.mat)
+        self.aw = np.where(mask, 0, self.aw)
 
     def over(self, cov, h, mat, thresh=0.5):
         """Blend a relief on top with coverage cov (0..1)."""
         self.h = self.h * (1 - cov) + h * cov
+        self.aw = self.aw * (1 - cov)
         if np.isscalar(mat):
             self.mat = np.where(cov > thresh, mat, self.mat)
         else:
             self.mat = np.where(cov > thresh, mat, self.mat)
+
+    def tint(self, cov, rgb):
+        """Colour the surface with a swatch's rgb (the material's albedo gives way) at coverage cov."""
+        c = cov[..., None]
+        self.alb = self.alb * (1 - c) + rgb * c
+        self.aw = self.aw * (1 - cov) + cov
 
     def glow(self, amount, colour):
         self.emit += amount[..., None] * np.array(colour, np.float32)

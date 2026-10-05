@@ -263,10 +263,10 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `build/assets/_review_finish/hud/`. How: `docs/HUD.md`.
 - `python3 -m sagekit hud --factions [--sheet|--stage|--install|--revert] [--dry-run]`
   (`sagekit/hud/factions.py`, `factionapt.py`, `factioncheck.py`, `aptfile.py`, `factionsheet.py`,
-  `sagekit/paint/palantir/`, `assets/hud/factions/`) — one palantir frame per faction (Arnor shares
-  Men's) over the 2x pack, chosen by an APT edit from the side the game passes to SetPlayerFaction;
+  `swatch.py`, `sagekit/paint/palantir/`, `assets/hud/factions/`) — one palantir frame per faction
+  (Arnor shares Men's), each cut from its citadel's sheets (`swatches.py`), over the 2x pack, chosen by an APT edit from the side the game passes to SetPlayerFaction;
   checks, a bytecode dry trace per side; the same archive; `--revert` puts the Good/Evil 2x pack back.
-  Review sheets: `build/assets/_review_finish/hud_faction/`. How: `docs/HUD.md`.
+  Review sheets: `build/assets/_review_finish/hud_faction/`, `hud_citadel/all.jpg`. How: `docs/HUD.md`.
 - `python3 -m sagekit ui2x [--stage|--install|--revert|--sheet] [--dry-run]` (`sagekit/ui2x/`,
   `sagekit/paint/ui2x.py`) — Retina 2x MappedImage pages: unit and hero portraits, unit command,
   ability, hero bar and spell book buttons (EA's paintings upscaled by Real-ESRGAN with EA's grain put
