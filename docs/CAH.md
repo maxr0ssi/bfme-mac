@@ -13,6 +13,10 @@ screen's rows, for every class. The Dwarf (`assets/cah/dwarf`) is the first clas
   the Dwarf's helmet row is now 20.
 - `MyHero.dat` saves each row as an **index** into the subclass's list. Entries are therefore only
   ever **appended**. The lint fails if any of EA's lists stops being a prefix of ours.
+  The engine sorts each row by the upgrades' `GroupOrder` as it parses it (comparator 0x61aa91,
+  called from the bling adder 0x61e66f; a stable insertion sort for rows of 16 or fewer), so the
+  index is a position in the *sorted* row. Ours sort after EA's because their `GroupOrder` starts
+  past every EA row. EA's wizard helmet row is already reordered by this sort (`CorruptedMan_1_CHH08`, order 6, sorts before `WIZ_CHH07`).
 - Other limits: 3 colours with a free picker, 8 class slots, 5 subclasses per class, 64 weapon-set
   flags (EA uses 40).
 - **1152 upgrades in all.** The engine's upgrade mask is 1152 bits (exe 0x444db3); each Upgrade
@@ -139,6 +143,149 @@ Alpha marks what takes a colour; G is EA's tunic channel, R its second cloth, B 
 - The **body** row: EA swaps the body texture there (`UpgradeTexture`); the kit adds sub-objects only.
 - Per-entry names.
 - New rows.
+
+## Known issue / redesign (2026-10-04)
+
+Max tested the full pack (archive sha256 `89e08134…`, the staged build) after the crash fix:
+"customisation now doesn't really work? It seems you put permanent stuff on them. You shouldn't
+have edited the base stuff." A part stays on after he picks another option, in every row. The pack
+is reverted. Nothing below is installed.
+
+### What the pack replaces today
+
+- **Art: nothing under EA's names.** 34 model copies `art\w3d\sk\sk*_skn.w3d`, 18 sheets and 18
+  masks, all ours. The new asset.dat records are ours. EA's records are untouched.
+- **INI: 11 members under EA's names**, each EA's 2.02 file with our text appended:
+  `createaheroupgrades.inc`, `createaherosystemappearancebling.inc`, `createaherosystemweapons.inc`,
+  `createaherosystem{menofthewest,archer,wizard,dwarf,servantsofsauron,corruptedman,ologhai}.inc`
+  (rows appended), and `object\createahero\createahero{weaponupgrades,removeupgradeupgrades,models}.inc`.
+- **The real "edit of the base stuff" is `createaheromodels.inc`.** It points every
+  `Model = CH…_SKN` line (34 states, every subclass, game/creation/mounted) at our `SK…` copy. Every
+  Create-a-Hero hero then draws our copy, including saved heroes and heroes that pick only EA parts.
+  The copy keeps EA's chunks byte for byte and adds 12-24 meshes (EA's largest skin has 45
+  sub-objects; ours go up to 61).
+
+### What the engine does with the rows (exe, checked against our data)
+
+- `RemoveUpgradeUpgrade` (0x8bc1b3): it removes every upgrade on the object whose `GroupName` is in
+  `UpgradeGroupsToRemove`, except the module's own `TriggeredBy` upgrades. `GroupOrder` plays no
+  part. Our `SKH_Remove_*` modules are the same as EA's, one per upgrade.
+- `GroupOrder` only sorts the rows (see above). With +2 for helmets and +3 for shields, EA's sorted
+  order is unchanged in all 16 subclasses (checked with the composed files).
+- `Object::removeUpgrade` (0x691438) resets each upgrade module the bit triggered (0x8d2901). For a
+  `SubObjectsUpgrade` with `HideSubObjectsOnRemove`, that hides its `ShowSubObjects` (0x8b928e). The
+  hide goes to every Draw module of the drawable (0x672823). `W3DModelDraw` keeps it by name in
+  an unbounded vector (0x4c3b25) and applies it with `Get_Sub_Object_By_Name` (0x4ba74f).
+- The applier (0x80ace3) gives each row's upgrade at its saved index (0x619b87). It removes nothing
+  itself: the old part goes only through the new upgrade's `RemoveUpgradeUpgrade`.
+- Default visibility: no CaH mesh, EA's or ours, has the W3D hidden flag (all `0x20000` skin), and no
+  INI line hides them. `SubObjectsUpgrade` has no hide-on-create: its drawable-bound hook (0x8b8e86)
+  only re-shows an executed upgrade.
+- **What hides EA's parts is Lua, by name.** `data\scripts\scriptevents.xml` binds the CaH object's
+  `AILuaEventsList = CreateAHeroFunctions` events `OnCreated` (`OnCreateAHeroFunctions`) and
+  `OnGenericEvent` to `CreateAHeroHideEverything` in `data\scripts\scripts.lua` (2.02,
+  `__patch202.big`). That function calls `ObjectHideSubObjectPermanently(self, "<name>", true)` for 153
+  of EA's names (`HLMT_06`, `SLDR_06`, `AXE_01`, `SHIELD_01` …). None of ours is in the list.
+
+Walking the switches through these rules (dwarf helmet: EA `DWARF_CHH01` → ours `SKH_CHH01` → EA
+`DWARF_CHH03` → ours `SKH_CHH01` → ours `SKH_CHH02`; shoulders `SKH_CHSP01` ↔ `DWARF_CHSP02`; shield
+`SKH_CHS01` ↔ `CAPG_CHS01`; weapon `SKH_CHW43` ↔ `CHW01`): every step removes the old row upgrade
+and hides its part, for EA's parts and ours alike. Sharing row upgrades across classes adds up to 10
+show/hide modules per upgrade, all by name, and one remove module. That changes nothing on a dwarf.
+**So the INI data does not explain the stuck parts. The Lua list does.** Every hero drew our copy,
+and the copy's 12-24 parts of ours started visible because the Lua list does not name them. A part
+shown and then removed hides correctly, but every other part of ours stays on from spawn: the
+"permanent stuff" in every row.
+
+Defects found on the way:
+- `SKH_FUN_PINKCAPE` (dwarf) was 16 characters. W3D mesh names hold 15 plus a terminator, so the
+  name ran into the container field and the part could never be found by name. It is now
+  `SKH_FUN_PINKCAP`. `kit/ini.py` lints every shown name (≤15, with a broken copy that must fail),
+  and `kit/models.py` and `kit/attach.py` refuse longer mesh and model names.
+- Editing `scripts.lua` to list our names would also work, but it replaces an EA file for everyone.
+  Not done.
+
+### Redesign: leave EA's heroes alone
+
+Goal: no `createaheromodels.inc`, no copies of EA's skins. An EA-only hero draws byte for byte
+what EA's game draws.
+
+**A (recommended): part models attached to bones.** Each part is rigid already: every vertex rides
+one bone (`kit/models.py`). A pauldron pair spans `BAT_UARML`+`BAT_UARMR`, so split each part per
+bone. That loses nothing. For each subclass and bone, build one small model under our name (e.g.
+`SKDW_TMU_HEAD`) that holds all of that subclass's pieces for that bone as separate meshes, each
+with the W3D hidden flag (0x1000) set, so it starts hidden at load whatever the runtime does.
+Add a Draw module per (subclass skeleton, bone) to `CreateAHero`. It has
+`DefaultModelConditionState Model = None`, a `ModelConditionState = CREATE_A_HERO_nn` for that
+subclass's _U/_C/_M states, `AttachToBoneInAnotherModule = <bone>` and `OkToChangeModelColor = Yes`.
+This is EA's own pattern: `HeroOfTheWestShield` in `createaherodrawmodules.inc`, and EA's commented-out CaH weapons.
+Only that subclass then instantiates them, about 5-9 per hero.
+The upgrades, rows, `SubObjectsUpgrade` and `RemoveUpgradeUpgrade` stay as they are; the show and
+hide reach the attached modules through the same broadcast (0x672823). Ship no `createaheromodels.inc`
+and no asset.dat records for EA models; only records for the new part models.
+- EA-named INI cannot be avoided. The rows live in EA's class files, and outside a map.ini there is
+  no add-only override. The rule becomes: EA's lines byte for byte, ours appended only (already
+  linted). That leaves 10 members, down from 11.
+- Upgrades unchanged (43, headroom 82). LAN: INI and new archive members.
+- Risk, low to medium. If something misbehaves, only our parts can; EA's options and saved EA-only
+  heroes keep EA's own models. Open points for the pilot:
+  - un-hiding a W3D-hidden mesh through `ShowSubObjects` (EA never does it: 0 of the hidden meshes
+    in a third of EA's models are named in a `ShowSubObjects`);
+  - bone names per skeleton (`B_HEAD`/`BAT_HEAD`/`TROLL HEAD`/`BIP HEAD`);
+  - attachments on the mounted models.
+- Effort: about 2 days for the kit (split per bone and emit part models in `kit/models.py`, Draw
+  modules in `kit/ini.py`, records in `sagekit/units/cah.py`, lint for name length and hidden
+  flags). Then about a day to rebuild every class and the review renders.
+
+**B: our copy under a new name, only for heroes that pick a part of ours.** A `ModelConditionUpgrade`
+on every upgrade of ours sets a spare flag, and the states with that flag draw the `SK` copy. This
+needs a free model-condition flag; EA clears all of `CREATE_A_HERO_00-65` on every subclass switch.
+It swaps the model mid-game and still depends on the runtime hide inside the copy. Medium-high risk.
+
+**C: a copy under EA's name with EA's parts byte for byte and ours hidden.** This overrides EA's art
+for every hero, which is exactly what Max rejected. Not proposed.
+
+### The pilot (built and staged 2026-10-04, not installed)
+
+The Dwarf's Erebor helm (`SKH_HLMT_ER`, `Upgrade_SKH_CHH01`) and Erebor war axe (`SKH_AXE_ER`,
+`Upgrade_SKH_CHW43`): `ATTACH` in `assets/cah/dwarf/design.py`, built by `assets/cah/kit/attach.py`.
+
+- 8 part models of ours, one per EA model and bone: `SKDW{TM,SG}{U,C}_HEAD` and `…_HANDR`. Each
+  model has a root pivot plus one pivot per part, rigid meshes and an HLOD, like EA's `CUWestronSword`.
+  Every part mesh has the W3D hidden flag. Each EA model gets its own fit, because the creation-screen
+  Taskmaster and Sage differ slightly.
+- 8 Draw modules appended to `createaherodrawmodules.inc` (`SKH_Att_<model>`). Each has
+  `Model = None`, our model only in that EA model's own `CREATE_A_HERO_20/21/22/23` state, and
+  `AttachToBoneInAnotherModule = B_HEAD / B_HAND_R / B_HANDR`.
+- Shipped: 8 models, `SKCAH_DWGEAR` and its mask, and 7 INI files under EA's names, each EA's text
+  byte for byte with ours after it (the class file: our entry at the end of each row).
+  `createaheromodels.inc`, EA's skins and EA's asset.dat records are not shipped or touched.
+  Records for our models list their own sub-objects (`add_model(..., own=True)`, EA's layout).
+- Upgrades: 2 (EA 1027 + 2 = 1029, headroom 123).
+- Checks (`kit/attach.py` `lint`, each with a broken copy that must fail): createaheromodels.inc is
+  EA's; EA's text comes first in every shipped INI; every part is hidden and rigid; every model has its
+  Draw module on a bone its skeleton has; names ≤15. Parts stay at their bone through EA's animation.
+- Review: `build/assets/_review_finish/cah_attach/dwarf_sheet.jpg` (EA helmet, ours, EA again; the
+  same for the axe; in game). The render puts each part on its bone exactly as the attachment does.
+
+```sh
+python3 -m assets.cah.kit.attach dwarf [--review]   # part models, INI fragment, checks, review sheet
+python3 -m sagekit.units.cah --stage --classes dwarf
+python3 -m sagekit.units.cah --install --classes dwarf
+python3 -m sagekit.units.cah --revert
+```
+
+A class not converted yet (still on copies) is refused by `--stage`/`--install`.
+
+**What Max tests:** a dwarf (Taskmaster, then Sage) in the creation screen. Check:
+1. No new part shows until it is picked.
+2. Helmet row: EA helmet → Erebor helm → EA helmet: one helmet at a time.
+3. The same in the weapon row with the Erebor axe.
+4. A saved hero that uses only EA parts looks as before.
+5. In a skirmish, the picked helm and axe stay on the dwarf and the house colour tints them.
+
+If (1) fails, the engine ignores the W3D hidden flag. If (2) fails because a part never shows, it
+ignores the show on a hidden-flag mesh. Either would need our Lua names, so ask Max first.
 
 ## EA's subclasses
 
