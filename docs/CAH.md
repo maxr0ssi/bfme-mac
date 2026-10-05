@@ -386,6 +386,45 @@ found in the static path, and no fix is made.** Two candidates, one test session
 2. If EA's changes and ours do not, it is the attached modules: note whether ours change after a
    picker is moved *after* the part was picked (render object alive at the broadcast) or never.
 
+**Offline checks, 2026-10-05 (no game run).** Both suspects of candidate 1 are cleared offline.
+
+- *The texture sequence (game.dat).* The coloured texture is the mask texture itself. The mesh
+  (0x54c2a1) names it `#<mask>#<colour key>` and creates a loader if no texture has that name
+  (0x5326f8 → 0x531c0b). For a rebuildable colour the key is a fixed `-1,0,0,0`, so every CaH mesh
+  with that mask shares one texture. Loading (0x53101b) has two paths, both MANAGED with usage 0:
+  - a 24/32-bit TGA: `D3DXCreateTexture`, level 0 `LockRect(NULL, NOSYSLOCK)` and copy,
+    `D3DXFilterTexture(BOX)` (skipped when the texture has one level);
+  - anything else: `D3DXCreateTextureFromFileInMemoryEx`.
+
+  Right after loading, 0x532847 → 0x531c77 copies level 0 to the heap (`GetSurfaceLevel(0)`,
+  `LockRect(NULL, D3DLOCK_NOSYSLOCK)` from 0x516030, then unlock). This only happens for a rebuildable
+  colour, and nothing is coloured yet. On each picker change, 0x5321ba (only if that copy exists) →
+  0x531c77:
+  1. the same lock;
+  2. the copy, coloured, written into level 0;
+  3. `UnlockRect`;
+  4. `D3DXFilterTexture(tex, NULL, 0, D3DX_DEFAULT)` (0x532198) rebuilds the other levels.
+
+  There is no UpdateTexture, AddDirtyRect, READONLY or DISCARD.
+- *Wine 0022.* `scripts/cahrecolor.sh` (`tools/cahrecolor.c`) replays exactly that sequence: 16
+  masks, both load paths, the first colour before or after the first draw, EvictManagedResources
+  between colours, the copy taken only after a draw, and a one-level mask. After each of 3 colour
+  changes it draws levels 0–2 and reads them back, and reads level 0 with a lock. On engines/w10
+  (0022 installed) every check is ok with `WINED3D_STASH_MANAGED=1` (384 stashes and 384 restores in
+  the trace) and with `=0`. A texture whose copy was taken is pinned in 32-bit memory after its first
+  restore, so 0022 never stashes it again. **0022 is not the cause** as far as this sequence goes;
+  the game's own run with `=0` remains the final word.
+- *Our data.* No archive of ours ships a file with an EA `HC_CH*` name. EA's 65 CaH masks come only
+  from EA's `Textures2.big`, as 32-bit TGAs. The HD Edition overrides `hc_mumnttroll.tga`, still a
+  32-bit TGA. All our HC_ masks are A8R8G8B8 DDS with full mips, none DXT. sagekit-units.big's
+  housecolor.ini is EA's live one (`__patch202.big`) with 38 blocks appended: no EA line is changed,
+  and it has the same BOM and CRLF and ends in `End`. Our parts' 17 `SKCAH_*` entries name masks
+  that are not shipped. The colour-picker UI files are EA's. **The packs do not touch EA's CaH
+  colouring.**
+
+So candidate 2 (our attached modules), or a cause outside this path, is what the test session in
+step 1 has to settle.
+
 ## EA's subclasses
 
 From `python3 -m assets.cah.kit.survey --markdown` (2.02). Lists are the current lengths per row,

@@ -198,6 +198,11 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   256 MB, first failure, upload and frame times, eviction, relock, GetDC and Reset, and a CRC of every
   texture drawn, compared between the two; `--reserve 1300` takes the game's own share of the address
   space first. Throwaway prefix build/prefix-texstash. `docs/MEMORY-4GB.md`.
+- `scripts/cahrecolor.sh [--engine DIR] [--n N]` + `tools/cahrecolor.c` — the Create-a-Hero colour
+  rebuild without the game: house-colour masks loaded both ways the game loads them (TGA via
+  D3DXCreateTexture, DDS via D3DX), saved, drawn, then relocked, recoloured and mip-filtered as game.dat
+  0x531c77 does, drawn at levels 0-2 and read back; with Wine 0022's stash on and off, counting its
+  stash traces. Throwaway prefix build/prefix-texstash. `docs/CAH.md` "Hero colours".
 - `scripts/bench-d3d9.sh <variant> [args]` + `tools/d3d9bench.c` — compares wined3d builds without the
   game (a 640x480 window for ~15 s per run, 3 runs, median; refuses to run beside a game). The bench
   replays WW3D2's per-frame D3D9 pattern (EA's Generals source, `dx8wrapper.cpp`): per-object state
