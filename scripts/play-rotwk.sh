@@ -25,6 +25,18 @@ if [[ -f "$GAMEDIR/gamepatch.ini" ]]; then
   export GAMEPATCH_LOG="${GAMEPATCH_LOG:-Z:${LOGDIR//\//\\}\\gamepatch.log}"
 fi
 
+# Session monitor (scripts/monitor.sh, docs/PERFORMANCE.md §16), on unless BFME_MONITOR=0: wined3d
+# writes each frame's time to the log (+frametime, one line a frame, +timestamp for the clock), a
+# sampler reads thread CPU, memory and GPU from outside, the game patch (if installed) writes its
+# frame records; when the game exits, logs/sessions/<date-time>/report.html. Overhead: docs §16.
+if [[ "${BFME_MONITOR:-1}" != 0 ]]; then
+  SESSION="$LOGDIR/sessions/$(date +%Y%m%d-%H%M%S)"; mkdir -p "$SESSION"
+  if [[ "$WINEDEBUG" == -all ]]; then export WINEDEBUG="-all,+timestamp,+frametime"
+  else export WINEDEBUG="$WINEDEBUG,+timestamp,+frametime"; fi
+  [[ -f "$GAMEDIR/gamepatch.ini" ]] && export GAMEPATCH_MONITOR="Z:${SESSION//\//\\}\\game.txt"
+  "$BFME_ROOT/scripts/monitor.sh" start $$ "$LOG" "$SESSION" >"$SESSION/recorder.out" 2>&1 &
+  echo "monitor: $SESSION"
+fi
 cd "$GAMEDIR"
 echo "log: $LOG"
 # -win: exclusive fullscreen minimizes on focus loss and returns black under the Mac driver.
@@ -37,4 +49,8 @@ echo "log: $LOG"
 # The game window's real macOS frame, logged beside edgescroll's Wine rect (docs/PLAYING.md,
 # "Picture shifted down"). $$ becomes the game's pid at the exec below.
 "$BFME_ROOT/scripts/window-watch.sh" $$ >/dev/null 2>&1 &
+# CURSORPROBE=<seconds>: log which pointer macOS shows (tools/cursorprobe.swift, built by
+# scripts/cursor-test.sh) to logs/cursorprobe-*.log; read-only, off unless set.
+[[ -n "${CURSORPROBE:-}" && -x "$BFME_ROOT/build/cursorprobe" ]] &&
+  "$BFME_ROOT/build/cursorprobe" "$CURSORPROBE" game >"$LOGDIR/cursorprobe-$(date +%Y%m%d-%H%M%S).log" 2>&1 &
 exec wine lotrbfme2ep1.exe -win "$@" >"$LOG" 2>&1

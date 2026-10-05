@@ -1,6 +1,6 @@
 #!/bin/zsh
 # scripts/measure-session.sh on|sample [label]|summary|off — one measuring session of RotWK, played by you.
-#   on        diagnostics on in the installed gamepatch.ini (passtimers, renderstats, particlestats);
+#   on        diagnostics on in the installed gamepatch.ini (passtimers, renderstats, particlestats, logicstats);
 #             they cost ~2 ms/frame, so judge smoothness in a normal session, not this one
 #   sample    during a heavy fight: 20 s read-only sample of the game's main thread with stack scan
 #             (build/eipsample.exe, pauses the thread ~80 us every 5 ms; never attaches a debugger),
@@ -23,9 +23,9 @@ case "${1:-}" in
 on|off)
   [[ -f "$INI" ]] || { echo "gamepatch is not installed (scripts/game-patch.sh)"; exit 1; }
   v=$([[ $1 == on ]] && echo 1 || echo 0)
-  for k in passtimers renderstats particlestats; do setkey $k $v; done
+  for k in passtimers renderstats particlestats logicstats; do setkey $k $v; done
   game_running && echo "note: the game is running; this applies from its next start"
-  grep -E '^(passtimers|renderstats|particlestats)=' "$INI" ;;
+  grep -E '^(passtimers|renderstats|particlestats|logicstats)=' "$INI" ;;
 sample)
   game_running || { echo "the game is not running"; exit 1; }
   label=${2:-$(date +%Y%m%d-%H%M%S)}; out=logs/incl-$label.txt
