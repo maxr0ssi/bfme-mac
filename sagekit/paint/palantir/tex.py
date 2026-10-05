@@ -52,7 +52,7 @@ def load_all(folder):
     return out
 
 
-def skin(ctx, tex, s0, s1, v0=0.0, v1=1.0, aspect=1.0, wrap="repeat", flip=True, offset=0.0):
+def skin(ctx, tex, s0, s1, v0=0.0, v1=1.0, aspect=1.0, wrap="repeat", flip=True, offset=0.0, soft=0):
     """Lay rows v0..v1 of `tex` across band [s0, s1] of a ring (or the bar), its top row outward
     (flip) so a frieze reads upright at the top of the ring. aspect stretches it along the ring.
     Returns (rgb, luminance, mask, u)."""
@@ -68,7 +68,7 @@ def skin(ctx, tex, s0, s1, v0=0.0, v1=1.0, aspect=1.0, wrap="repeat", flip=True,
     along = (ctx.t / (ctx.C / n) + offset) * tex.w
     vv = (1 - np.clip(u, 0, 1)) if flip else np.clip(u, 0, 1)
     y = (v0 + vv * (v1 - v0)) * tex.h
-    rgb = tex.sample(along, y, scale / K, wrap)
+    rgb = tex.sample(along, y, scale / K * 2 ** soft, wrap)          # soft: a coarser mip, calmer
     return rgb, rgb @ LUMA, m, u
 
 

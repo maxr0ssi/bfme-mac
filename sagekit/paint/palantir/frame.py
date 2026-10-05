@@ -129,23 +129,6 @@ def paint(F, hud, kind, out):
         alb = alb * (1 - cov[..., None]) + ma * cov[..., None]
         aw = aw * (1 - cov) + mw * cov
         wsum = np.maximum(wsum, cov)
-    if kind == "double" and hasattr(F, "protrude"):
-        # accents past the ring's silhouette: alpha grows only where EA's page is empty inside the
-        # quad, outside both glasses and clear of the buttons and the numbers drawn over the frame
-        ok = safe(ctx, getattr(F, "keep", None), getattr(F, "place", None))
-        grown = np.zeros(a4.shape, np.float32)
-        for hp, mp, cov, em, ma, mw in F.protrude(ctx["minimap"].x, ctx["minimap"].yy):
-            cov = cov * ok
-            h = h * (1 - cov) + hp * cov
-            mat = np.where(cov > 0.5, mp, mat)
-            emit = emit * (1 - cov[..., None]) + em * cov[..., None]
-            alb = alb * (1 - cov[..., None]) + ma * cov[..., None]
-            aw = aw * (1 - cov) + mw * cov
-            wsum = np.maximum(wsum, cov)
-            grown = np.maximum(grown, cov * (a4 < 0.5))
-        shadow = blur(np.roll(np.roll(grown, 3 * K, 0), 2 * K, 1), 3 * K // 2, 2) * 0.6 * ok
-        a4 = np.maximum(a4, np.maximum(grown, shadow))
-        a2 = np.maximum(a2, downsample(np.maximum(grown, shadow), 2))
     col, cav, n = shade(h, mat, F.mats, rim_col=F.rim_col, sky_col=F.sky_col, ground_col=F.ground_col,
                         alb=alb, aw=aw)
     c0 = ctx["minimap"]
@@ -158,6 +141,15 @@ def paint(F, hud, kind, out):
     col = F.post(col, env)
     op = smoothstep(0.62, 0.93, a4)[..., None]
     col = np.clip(col * op + F.glass(x4, lum, a4, ctx) * (1 - op), 0, 1)
+    pieces = getattr(F, "pieces", {}).get(kind)
+    if pieces is not None:
+        # the 3D ornaments (sagekit/hud/pieces.py) and their shadows, over the frame and past it, only
+        # where safe(): outside both glasses, clear of the buttons and the numbers; feathered edges
+        ok = blur(safe(ctx, getattr(F, "keep", None), getattr(F, "place", None)).astype(np.float32), K // 2, 2)
+        pa = pieces[..., 3] * ok
+        col = col * (1 - pa[..., None]) + pieces[..., :3] * pa[..., None]
+        a4 = np.maximum(a4, pa)
+        a2 = np.maximum(a2, downsample(pa, 2))
     save(out + "_4.png", np.concatenate([col, a4[..., None]], -1))
     save(out + "_2.png", np.concatenate([unsharp(downsample(col, 2), 0.3), a2[..., None]], -1))
     return col, a4, ea

@@ -47,6 +47,17 @@ def unsharp(img, amount, radius=1):
     return np.clip(img + amount * (img - box(img, radius)), 0, 1)
 
 
+def bounded(alpha2, ea_alpha):
+    """The Lanczos 2x alpha held between the least and the most of EA's alpha round each texel (its
+    3 x 3 neighbourhood): no ringing, so a texel clear (or solid) all round in EA's stays exactly
+    clear (or solid) in ours, and a glow or a masked button never grows a faint square round it."""
+    h, w = ea_alpha.shape
+    pad = np.pad(ea_alpha, 1, mode="edge")
+    near = np.stack([pad[y:y + h, x:x + w] for y in range(3) for x in range(3)])
+    lo, hi = (np.repeat(np.repeat(v, 2, 0), 2, 1) for v in (near.min(0), near.max(0)))
+    return np.clip(alpha2, lo, hi)
+
+
 def ember(col, opaque, look, k):
     """The look's faint forge-glow in the metal's crevices: wherever a pixel is darker than the
     metal round it (grooves, plate seams, between rivets, the cuts of EA's spikes), by how much."""
@@ -115,7 +126,7 @@ def paint(job, tex):
     os.makedirs(os.path.dirname(tex["out4"]), exist_ok=True)
     save(tex["out4"], np.concatenate([col, alpha4[..., None]], -1))
     two = unsharp(downsample(col, 2), 0.25)
-    alpha2 = load(tex["alpha2"])[..., 0]
+    alpha2 = bounded(load(tex["alpha2"])[..., 0], ea[..., 3])
     save(tex["out2"], np.concatenate([two, alpha2[..., None]], -1))
     one = unsharp(downsample(col, 4), 0.2)
     save(tex["out1"], np.concatenate([one, ea[..., 3:4]], -1))
