@@ -18,6 +18,9 @@
  *   [7] moveawayqueue: 7 orders for one mover in one queue run (2 given, 5 wait), a second mover,
  *       a vanished ally, then queue runs: the order log (ally, mover, position, queue run) must be
  *       the expected one, and the same when run again
+ *   [8] pathsplit (t_path_split.c): requests served as the patched queue serves them, parked and
+ *       resumed over runs with other searches and scrambled state in between: the same results as
+ *       whole, no run over the budget, the same in two memory layouts; drops; ms per run
  * usage: t_path.exe <path to lotrbfme2ep1.exe 2.02> [queries] [map cells per side] [units] */
 #include "orig.h"
 #include "gp_logic.h"
@@ -58,10 +61,11 @@ int main(int argc, char **argv)
     /* [1] */
     int ok = pw_patch(1);
     gp_va_offset = OFF;
-    int ok2 = gp_patch_moveawaycap();
+    int ok2 = gp_patch_moveawaycap(), ok3 = gp_patch_pathsplit();
     gp_va_offset = 0;
-    printf("[1] pathfind applied to the original bytes: %s; moveawaycap: %s\n", ok ? "yes" : "NO", ok2 ? "yes" : "NO");
-    if (!ok || !ok2) { printf("FAIL\n"); return 1; }
+    printf("[1] pathfind applied to the original bytes: %s; moveawaycap: %s; pathsplit: %s\n", ok ? "yes" : "NO",
+           ok2 ? "yes" : "NO", ok3 ? "yes" : "NO");
+    if (!ok || !ok2 || !ok3) { printf("FAIL\n"); return 1; }
 
     /* [2] */
     int bc, bw, nz = pw_direct(w, 7, 200000, &bc, &bw);
@@ -169,6 +173,12 @@ int main(int argc, char **argv)
     int r7 = pw_maq_test(w);
     printf("[7] moveawayqueue: %s\n", r7 ? "the expected orders at the expected queue runs, twice, identical" : "WRONG");
     fails += !r7;
+
+    /* [8] */
+    printf("[8] pathsplit:\n");
+    int r8 = pw_split_test(&cfg, nq);
+    printf("[8] pathsplit: %s\n", r8 ? "as expected" : "WRONG");
+    fails += !r8;
     printf("%s\n", fails ? "FAIL" : "PASS");
     return fails != 0;
 }

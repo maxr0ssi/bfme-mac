@@ -54,4 +54,11 @@ int    pw_patch(int on);                 /* 1: apply gp_patch_pathfind (first ti
 int    pw_direct(pw_t *w, uint32_t seed, int n, int *mismatch_cfm, int *mismatch_crowd);
 void   pw_stats(pw_t *w, int *units, int *blocked);
 int    pw_maq_test(pw_t *w);              /* [7]; 1 = as expected */
+/* [8] pathsplit (t_path_split.c) */
+extern uint64_t pw_scan_us;             /* time in pw_search's clean-up scans (not the game's) */
+extern uint8_t *(*pw_split_pop)(uint8_t *pf, uint8_t *obj, uint8_t *goal);   /* pop of non-move-away searches */
+uint8_t *pw_pf(pw_t *w);
+uint8_t *pw_mover(pw_t *w, int m);
+void   pw_center(pw_t *w, int battle, int *x, int *y);    /* battle 0: the packed block; 3: the closed base */
+int    pw_split_test(const pw_cfg *cfg, int nq);           /* 1 = pass */
 #endif

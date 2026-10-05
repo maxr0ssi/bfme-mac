@@ -340,6 +340,11 @@ typedef void (TC *release_t)(void *cell);                               /* 0x934
  * corridor): no other unit stands in or heads for the mover's footprint there, and the footprint
  * clears a horizontal corridor through the start (the blocked path) */
 void *pw_moveaway_pop;
+uint64_t pw_scan_us;
+uint8_t *(*pw_split_pop)(uint8_t *pf, uint8_t *obj, uint8_t *goal);
+uint8_t *pw_pf(pw_t *w) { return w->pf; }
+uint8_t *pw_mover(pw_t *w, int m) { return w->mover[m]; }
+void pw_center(pw_t *w, int b, int *x, int *y) { *x = w->cx[b]; *y = w->cy[b]; }
 static int free_spot(pw_t *w, int x, int y, int r, int c, int sy, uint8_t *obj)
 {
     if (abs(y - sy) <= r + 3) return 0;
@@ -374,7 +379,7 @@ void pw_search(pw_t *w, const pw_query *q, pw_result *r)
     uint64_t h = 0xcbf29ce484222325ull;
     uint8_t *c;
     pop_t pop = q->moveaway && pw_moveaway_pop ? (pop_t)pw_moveaway_pop : FN(pop_t, 0x6f4af2);
-    while ((c = pop(P))) {
+    while ((c = pw_split_pop && !q->moveaway ? pw_split_pop(P, obj, goal) : pop(P))) {
         uint8_t *in = PTR(c, 0);
         r->steps++;
         h = mix(mix(mix(h, I32(in, 0) << 16 | I32(in, 4)), U16(in, 0x10)), U16(in, 0x12) << 8 | (U32(in, 0x2c) & 0xff));
@@ -411,12 +416,14 @@ void pw_search(pw_t *w, const pw_query *q, pw_result *r)
     free(open);
     if (goal) FN(release_t, 0x9347c6)(goal);
     r->us = now_us() - t0;
+    uint64_t t1 = now_us();
     int left = 0;                                                      /* infos no list holds any more */
     for (size_t i = 0; i < (size_t)w->c.w * w->c.h; i++) {
         uint8_t *c = w->cells + 16 * i, *in = PTR(c, 0);
         if (in >= w->pool && in < w->pool + 0x3c * (size_t)NINFO) { FN(release_t, 0x9347c6)(c); left++; }
     }
     r->leftover = left;
+    pw_scan_us += now_us() - t1;
     /* the infos that stay (units' and obstacles') keep the costs, parent and flags this search
      * left, and the next search reads some of them (in the game too: its searches depend on the
      * ones before, the same way on every machine). Reset here so each search is independent. */
