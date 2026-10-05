@@ -80,4 +80,32 @@ void gp_lst_get(int kind, int ph, LONG *calls, uint64_t *ticks);   /* kind -1 lo
 LONG gp_lst_mod_calls(uint32_t vt);
 int  gp_lst_phase(void);               /* current phase 0-6, -1 when logicstats is off */
 
+/* p_path.c: pathfind (the search step's movement check and crowd cost, memoised per search) */
+#define GP_FNV_6F9850  0xf408f22b1d288853ull   /* search step (examineNeighboringCells), 0x721 bytes */
+#define GP_FNV_6EBAA0  0xde9bcb01ce4eebc1ull   /* checkForMovement, 0x3e9 bytes */
+#define GP_FNV_6ED21E  0x560290640b570b21ull   /* crowd cost, 0x24e bytes */
+#define GP_FNV_6E8200  0x029abeac3dde33b0ull   /* cell passable for locomotor surfaces, 0xb3 bytes */
+#define GP_FNV_5E2E9C  0xadf9a0eb609c09adull   /* getCell, 0x56 bytes */
+#define GP_FNV_6ED049  0x7a31266a0fbd808bull   /* cell -> world position wrapper, 0x28 bytes */
+#define GP_FNV_6E8E19  0xca2906a0a57c138aull   /* cell -> world position, 0xba bytes */
+#define GP_FNV_6FB231  0x41d67463d71979efull /* getMoveAwayFromPath, 0x449 bytes */
+int  gp_patch_pathfind(void);
+int  gp_patch_moveawaycap(void);
+extern uint32_t gp_pf_macap;             /* popped cells per move-away search */
+extern volatile LONG gp_pf_ma[3];        /* move-away searches, stopped at the cap, cells popped */
+uint8_t *__attribute__((thiscall)) gp_pf_ma_pop(uint8_t *pf);
+void gp_pf_exit_log(void);
+/* p_path2.c: moveawayqueue (at most gp_maq_limit move-away orders at once per path, the rest later) */
+#define GP_FNV_6F53AF  0x750d0026c4e93376ull   /* moveAllies' cell callback, 0x16a bytes */
+#define GP_FNV_66C66E  0x54957e62d64b7e83ull   /* aiMoveAwayFromUnit, first 0x40 bytes */
+#define GP_FNV_449681  0x7a62c420e47a4379ull   /* findObjectByID, 0x25 bytes */
+int  gp_patch_moveawayqueue(void);
+void gp_maq_exit_log(void);
+void gp_maq_run(void);                   /* the queue-run hook's C part (tests call it directly) */
+void __attribute__((thiscall)) gp_maq_order(uint8_t *cmd, uint8_t *mover, const float *pos, int source);
+extern uint32_t gp_maq_limit;
+extern volatile LONG gp_maq_stats[4];    /* orders, waited, given later, dropped */
+extern volatile LONG gp_pf_stats[6];
+extern uint32_t gp_pf_gen;
+
 #endif

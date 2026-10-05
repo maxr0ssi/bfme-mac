@@ -4,6 +4,8 @@
 MINGW   ?= /opt/homebrew/bin/i686-w64-mingw32-gcc
 CC      := $(MINGW)
 OUT     := ../build/gamepatch
+# dependency-only lines above `all:` would otherwise make the DLL the default goal
+.DEFAULT_GOAL := all
 CFLAGS  := -O2 -msse2 -mfpmath=sse -ffp-contract=off -fno-strict-aliasing -Wall -Wextra \
            -Wno-cast-function-type -fno-asynchronous-unwind-tables -Isrc
 PATCHES := src/patch.c src/p_dxlock.c src/p_hittest.c src/p_quat.c src/p_misc.c \
@@ -41,6 +43,14 @@ PATCHES += src/p_highmem.c
 PATCHES += src/p_lstats.c src/p_lstats.S
 TESTS   += $(OUT)/t_lstats.exe
 TESTS   += $(OUT)/t_highmem.exe
+# unit-count scaling: shroud span updaters (shroudspan) and the range-scan quadtree walk (scantree)
+PATCHES += src/p_shroud.c src/p_scan.c
+TESTS   += $(OUT)/t_shroud.exe $(OUT)/t_scan.exe
+$(DLL) $(TESTS): src/gp_scale.h
+# pathfinder: the search step's movement check and crowd cost memoised per search (pathfind), a cell
+# cap on the move-away search (moveawaycap), move-away orders spread over queue runs (moveawayqueue)
+PATCHES += src/p_path.c src/p_path2.c
+TESTS   += $(OUT)/t_path.exe
 
 all: $(DLL) $(TESTS)
 $(DLL) $(TESTS): src/gp_render.h src/gp_logic.h src/p_stall.h
@@ -73,6 +83,9 @@ $(OUT)/proxytest/t_proxy.exe: tests/t_proxy.c $(DLL) gamepatch.ini | $(OUT)
 $(DLL) $(TESTS): src/par_shadow.h ../parallel/pool/parallel.h
 $(OUT)/t_shadow.exe: tests/t_shadow.c tests/t_shadow_world.c tests/t_shadow.h tests/orig.c $(PATCHES) | $(OUT)
 	$(CC) $(TFLAGS) -o $@ tests/t_shadow.c tests/t_shadow_world.c tests/orig.c $(PATCHES) -lwinmm
+
+$(OUT)/t_path.exe: tests/t_path.c tests/t_path_world.c tests/t_path.h tests/orig.c $(PATCHES) | $(OUT)
+	$(CC) $(TFLAGS) -o $@ tests/t_path.c tests/t_path_world.c tests/orig.c $(PATCHES) -lwinmm
 
 clean:
 	rm -rf $(OUT)

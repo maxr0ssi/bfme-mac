@@ -6,7 +6,8 @@
  *
  * Switches: GAMEPATCH=0 disables every patch; GAMEPATCH_<NAME>=0/1 one patch (NAME = DXLOCK,
  * INVSQRT, NORMTAIL, HITTEST, QUATMAT, SHUTDOWN, LIMITER, FLOOR, PERFMARKER, PASSTIMERS, ANIMDEDUP,
- * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MONITOR, STALLS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2, CRTSQRT, OCTILE,
+ * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MONITOR, STALLS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2, CRTSQRT, OCTILE, SHROUDSPAN, SCANTREE,
+ * PATHFIND, MOVEAWAYCAP, MOVEAWAYQUEUE,
  * LOGICSTATS, HIGHMEM); otherwise [patches] <name>=0/1 in gamepatch.ini
  * next to the DLL; default on, except limiter, passtimers, shadowpar, logicstats and highmem (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
  * to the DLL. highmem (a diagnostic, not a patch) runs in any large-address-aware exe, before the RotWK check. */
@@ -14,6 +15,7 @@
 #include "gp_render.h"
 #include "par_shadow.h"
 #include "gp_logic.h"
+#include "gp_scale.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -132,6 +134,11 @@ static void attach(HMODULE self)
     run("ftol2", gp_patch_ftol2, &ok, 1);
     run("crtsqrt", gp_patch_crtsqrt, &ok, 1);
     run("octile", gp_patch_octile, &ok, 1);
+    run("shroudspan", gp_patch_shroudspan, &ok, 1);
+    run("scantree", gp_patch_scantree, &ok, 1);
+    run("pathfind", gp_patch_pathfind, &ok, 1);
+    run("moveawaycap", gp_patch_moveawaycap, &ok, 1);     /* changes behaviour: same on every LAN machine */
+    run("moveawayqueue", gp_patch_moveawayqueue, &ok, 1); /* changes behaviour: same on every LAN machine */
     /* last, so its call-site writes never meet another patch's byte checks */
     run("monitor", gp_patch_monitor, &ok, 1);       /* counters only; needs GAMEPATCH_MONITOR */
     run("logicstats", gp_patch_logicstats, &ok, 0); /* diagnostic, off unless asked for */
@@ -154,6 +161,10 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gp_mon_exit();
         gp_logic_exit_log();
         gp_l2_exit_log();
+        gp_shroud_exit_log();
+        gp_scan_exit_log();
+        gp_pf_exit_log();
+        gp_maq_exit_log();
         gp_lst_exit_log();
     }
     (void)reserved;
