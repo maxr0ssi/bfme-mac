@@ -29,9 +29,13 @@
  *   s us objects mode logic walk_us
  *   m us committed_mb reserved_mb free_mb largest_free_mb regions walk_us total_mb
  *   d dropped_frames                  (only if the writer fell behind)
+ *   X, M, e                           the stall sampler's lines (p_stall.c): where the main thread is
+ *                                     while a frame takes over 150 ms (GAMEPATCH_STALL_MS)
  * Test: gamepatch/tests/t_monitor.c. */
 #include "gp.h"
 #include "gp_render.h"
+#include "gp_logic.h"
+#include "p_stall.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -46,7 +50,7 @@ uint32_t gp_mon_fn[8];                  /* the thunks the patched sites called (
 int gp_mon_on, gp_mon_start_writer = 1;
 static LONGLONG freq, q0;
 static HANDLE out = INVALID_HANDLE_VALUE;
-static int vm_secs = 2;
+static int vm_secs = 2, stall_ms = 150, stalls_on;
 
 static LONGLONG qpc(void) { LARGE_INTEGER x; QueryPerformanceCounter(&x); return x.QuadPart; }
 static LONGLONG us(LONGLONG dq) { return dq * 1000000 / freq; }
@@ -137,6 +141,8 @@ void gp_mon_frame(void)
         r->t[k] = __atomic_load_n(&tim[k], __ATOMIC_RELAXED);
     }
     __atomic_store_n(&wpos, w + 1, __ATOMIC_RELEASE);
+    gp_stall_last_logic = r->logic;
+    __atomic_store_n(&gp_stall_last_q, q, __ATOMIC_RELAXED);
     if (q - last_os >= freq) { last_os = q; objects_sample(q); }
 }
 
@@ -195,6 +201,7 @@ void gp_mon_flush(int final)
         prev = *f; have_prev = 1;
     }
     __atomic_store_n(&rpos, r, __ATOMIC_RELEASE);
+    n += gp_stall_drain(buf + n, (int)sizeof buf - n - 200);
     LONG s = __atomic_load_n(&os_seq, __ATOMIC_ACQUIRE);
     if (s != seen_os) {
         seen_os = s;
@@ -233,6 +240,11 @@ void gp_mon_exit(void)
     gp_mon_flush(1);
     LONG k[K_N]; for (int i = 0; i < K_N; i++) k[i] = cnt[i];
     gp_log("exit: monitor: D3DX texture loads %ld, texture creations %ld, effects %ld", k[0], k[1], k[2]);
+    if (stalls_on) {
+        LONG st, sa, lo, hm, hx; gp_stall_stats(&st, &sa, &lo, &hm, &hx);
+        gp_log("exit: stalls: %ld frames over %d ms sampled, %ld samples (%ld lost), main thread held %ld us mean, %ld max",
+               st, stall_ms, sa, lo, hm, hx);
+    }
     if (out != INVALID_HANDLE_VALUE) CloseHandle(out);
     out = INVALID_HANDLE_VALUE;
 }
@@ -284,6 +296,15 @@ int gp_patch_monitor(void)
     }
     gp_mon_on = 1;
     name_thread(GetCurrentThread(), L"bfme_main");
+    if (gp_enabled("stalls")) {   /* on the main thread: the sampler takes this thread and its stack */
+        int every = 2, max_ms = 4000;
+        if (GetEnvironmentVariableA("GAMEPATCH_STALL_MS", v, sizeof v) && atoi(v) > 0) stall_ms = atoi(v);
+        if (GetEnvironmentVariableA("GAMEPATCH_STALL_EVERY_MS", v, sizeof v) && atoi(v) > 0) every = atoi(v);
+        gp_stall_phase = gp_lst_phase;
+        stalls_on = gp_stall_start(q0, freq, stall_ms, every, max_ms);
+        gp_log("stalls: %s (frames over %d ms: the main thread's EIP and stack every %d ms, at most %d ms a frame)",
+               stalls_on ? "on" : "failed", stall_ms, every, max_ms);
+    } else gp_log("stalls: off");
     if (gp_mon_start_writer) {
         HANDLE t = CreateThread(NULL, 0, writer, NULL, 0, NULL);
         if (t) CloseHandle(t);

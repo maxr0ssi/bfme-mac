@@ -6,7 +6,7 @@
  *
  * Switches: GAMEPATCH=0 disables every patch; GAMEPATCH_<NAME>=0/1 one patch (NAME = DXLOCK,
  * INVSQRT, NORMTAIL, HITTEST, QUATMAT, SHUTDOWN, LIMITER, FLOOR, PERFMARKER, PASSTIMERS, ANIMDEDUP,
- * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MONITOR, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2,
+ * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MONITOR, STALLS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2, CRTSQRT, OCTILE,
  * LOGICSTATS, HIGHMEM); otherwise [patches] <name>=0/1 in gamepatch.ini
  * next to the DLL; default on, except limiter, passtimers, shadowpar, logicstats and highmem (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
  * to the DLL. highmem (a diagnostic, not a patch) runs in any large-address-aware exe, before the RotWK check. */
@@ -130,6 +130,8 @@ static void attach(HMODULE self)
     run("bsphere", gp_patch_bsphere, &ok, 1);
     run("worldcell", gp_patch_worldcell, &ok, 1);
     run("ftol2", gp_patch_ftol2, &ok, 1);
+    run("crtsqrt", gp_patch_crtsqrt, &ok, 1);
+    run("octile", gp_patch_octile, &ok, 1);
     /* last, so its call-site writes never meet another patch's byte checks */
     run("monitor", gp_patch_monitor, &ok, 1);       /* counters only; needs GAMEPATCH_MONITOR */
     run("logicstats", gp_patch_logicstats, &ok, 0); /* diagnostic, off unless asked for */
@@ -151,6 +153,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gp_pst_exit_log();
         gp_mon_exit();
         gp_logic_exit_log();
+        gp_l2_exit_log();
         gp_lst_exit_log();
     }
     (void)reserved;

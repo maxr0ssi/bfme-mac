@@ -46,6 +46,21 @@ LONG gp_lm_count(int x87, int k);         /* summed over the per-thread counter 
 void gp_lm_periodic(void);               /* the 60 s log line; p_logic.S calls it every 64 k calls */
 extern DWORD gp_lm_period_ms;            /* 60000 (tests shorten it) */
 
+/* p_lmath2.c/.S: crtsqrt (msvcr71!sqrt import -> SSE with Wine's builtin sqrt's exact result) and
+ * octile (0x7658c3 path segment cost in SSE) */
+#define GP_FNV_7658C3  0xc94432aeca6288b1ull   /* path segment cost (octile), 0x82 bytes */
+int  gp_patch_crtsqrt(void);
+int  gp_patch_octile(void);
+void gp_l2_exit_log(void);
+void gp_octile(void);                    /* cdecl (const Coord2D *a, const Coord2D *b) -> st0 */
+extern uint32_t gp_oct_cont;             /* the x87 fallback continues at 0x7658ca */
+LONG gp_l2_count(int k);                 /* [0] sqrt calls, [1] sqrt fallbacks, [2] octile, [3] octile x87 */
+void gp_sqrt(void);                      /* cdecl double -> st0, replaces the IAT entry 0xbd06a0 */
+extern uint32_t gp_sqrt_orig;            /* Wine's sqrt: the fallback */
+LONG gp_sqrt_count(int fallback);        /* calls, or calls that ran Wine's sqrt */
+int  gp_sqrt_selftest(void *crt_sqrt);   /* the install-time check: 1 = agrees */
+extern DWORD gp_sqrt_period_ms;
+
 /* logicstats (p_lstats.c/.S): diagnostic timers of GameLogic::update per phase, its subsystems,
  * direct calls and update modules; no behaviour change, off by default */
 int  gp_patch_logicstats(void);
@@ -63,5 +78,6 @@ extern DWORD gp_lst_period_ms;
 void gp_lst_force_report(void);
 void gp_lst_get(int kind, int ph, LONG *calls, uint64_t *ticks);   /* kind -1 logic, -2 modules */
 LONG gp_lst_mod_calls(uint32_t vt);
+int  gp_lst_phase(void);               /* current phase 0-6, -1 when logicstats is off */
 
 #endif

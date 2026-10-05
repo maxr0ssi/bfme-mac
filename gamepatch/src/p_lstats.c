@@ -197,6 +197,9 @@ void gp_lst_mod(uint32_t vt, uint32_t t0lo, uint32_t t0hi, uint32_t t1lo, uint32
     }
 }
 
+/* the phase the logic is in (0 outside GameLogic::update), -1 when off; read by the stall sampler's thread */
+int gp_lst_phase(void) { return on ? phase : -1; }
+
 /* tests */
 void gp_lst_force_report(void) { tick_report = GetTickCount() - gp_lst_period_ms; gp_lst_end(0, 0, 0, 0); }
 void gp_lst_get(int kind, int ph, LONG *calls, uint64_t *ticks)
