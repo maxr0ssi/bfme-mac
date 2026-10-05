@@ -714,3 +714,79 @@ runs inside Flush, and renderstats' renderOneObject timers (0x47009f/0x47010c) s
 without drawable flags. At the 6–7 µs per object those timers measure, 5 ms is ~750–850 objects per pass.
 It is game code per object, not per draw; the draws it queues are the FX flush's. To confirm in the game:
 time the call at 0x470f7c and count renderOneObject from its six call sites (renderstats).
+
+## 13. First-use texture loads: what a click costs (2026-10-04)
+
+Max: "clicking buildings can cause the frames to drop", "clicking places on the HUD can cause frame
+issues", "frames are all jumpy". A texture is loaded on the game thread the first time something that
+uses it is created or drawn. All of them go through one call, game.dat 0x53117e:
+`D3DXCreateTextureFromFileInMemoryEx(dev, bytes, size, 0, 0, mips, 0, UNKNOWN, MANAGED, D3DX_DEFAULT,
+D3DX_FILTER_BOX | skip << 26, ...)`, d3dx9_27 being Wine's builtin since LOAD-TIME.md. The file opener
+0x530d29 tries `name.dds`, then `.tga`, `.jpg`, `.png` for every texture, APT ones included (0x477d1c
+routes `apt_*` to Art/Textures/, everything else to Art/CompiledTextures/xx/).
+
+**Measured without the game** (`tools/texupload.c`: our real files through that call on the w10
+engine, `d3dx9_27=b`, median of 11 new textures each, three runs at load 7-16 on the shared Mac; the
+cleanest run shown; `game` = the game thread's load + create + fill, `extra` = that frame against the
+same frame without the new texture):
+
+| texture | file | game ms | extra ms |
+|---|---|---|---|
+| unit portrait / button page, EA 64² / ours 128² DXT5 | 6 / 22 KB | 0.2 / 0.2 | 0.7 / 0.7 |
+| button / icon page, EA 256² / ours 512² DXT5 | 88 / 350 KB | 0.2 / 0.2-0.3 | 0.6-0.9 / 0.8-1.3 |
+| HUD atlas apt_palantir_1 (1 level), EA 1024x512 / ours 2048x1024 TGA32 | 2 / 8 MB | 1.3 / 4.7 | 2.7 / 8.9 |
+| the same as DXT5 / as uncompressed DDS | 2 / 8 MB | 0.7 / 2.9 | 1.9 / 9.0 |
+| HUD frame, EA 512x256 / ours 1024x512 TGA32 | 0.5 / 2 MB | 0.5 / 1.3 | 1.2 / 2.7 |
+| house-colour mask, EA porter 256² / our worker 2048x1024 TGA32 | 0.25 / 8 MB | 0.9 / 23.0 | 1.6 / 28.3 |
+| normal map 1024² TGA24 (EA's and ours alike) | 3 MB | 33.5-44.4 | 36.2-44.7 |
+| normal map 2048² TGA24 (ours) | 12 MB | 132.6 | 136.0 |
+| normal map 1024² TGA32 (ours) | 4 MB | 12.6-13.0 | 15.3-16.0 |
+| building sheet DXT5 2048² / 4096² | 5.3 / 21.3 MB | 1.7 / 5.4 | 4.3 / 10.9 |
+| **the TGA textures above, baked** (`tools/texbake.c`): mask / normal 1024² TGA24 / TGA32 | 10.7 / 5.3 / 5.3 MB | 3.0 / 1.7 / 1.6 | 7.9 / 4.8 / 4.8 |
+
+What it means:
+- The 2x portrait, button and icon pages (`sagekit ui2x`, `sagekit icons`) cost 0.1-0.4 ms more than
+  EA's on their first use: not a hitch. They are all DXT already (EA's two uncompressed pages became
+  DXT5).
+- The HUD's 2x TGAs cost 9 ms per atlas and 3 ms per frame once. EA ships every APT texture as an
+  uncompressed TGA; the palantir movie's .dat loop (0x4aacdd) creates all of them when the movie
+  loads. DXT5 would save ~7 ms per atlas but changes the picture (Max's call, not shipped).
+- A TGA with a mip chain is the expensive kind: d3dx9 converts and box-filters the chain on the game
+  thread, 12 ms per million pixels for 32-bit, 31-42 for 24-bit. Our packs ship 214 of them (normal
+  maps, house-colour masks): 0.7-1.8 s of game thread per faction pack. A building's first
+  appearance pays for its own: 40-50 ms per 1024² normal map, 130-170 ms per 2048² one. Objects
+  whose INI has no `KindOf PRELOAD` are created in the match, on a click: the fortress expansions
+  (moats, spikes), the Men's base defences, the Dwarven mine, the Mordor barricade, the neutral
+  inn/outpost/shipwright/signal-fire foundations, all carry 1024²-2048² TGA normal maps.
+- No eviction: RotWK has no time-based texture invalidation (WW3D's 20,000 ms `InactivationTime`
+  constant is absent from game.dat), every texture is `D3DPOOL_MANAGED`, and the only purge path in
+  WW3D is the out-of-video-memory retry. A loaded texture stays; no texture loads twice per match.
+- Frame logs (gamepatch passtimers, 5 s windows, matches only): frames lost to the 30 FPS cap
+  1.8-6.3 % on 2026-09-28..30 (one session 32 %), 6.2 % on 10-03, 4.2 / 5.8 % on 10-04; render passes, particles and
+  WW3D::Render per frame unchanged by the 10-04 installs (FX archive included): particle manager
+  0.1-0.6 ms, live particles 180-920. The windows that drop frames have no render pass to match, which
+  is what load stalls between frames look like; the logs cannot show single frames.
+
+**The fix** (`sagekit/texbake.py`, called by `sagekit install <faction>` and `sagekit unit <id>
+--stage`): each such TGA ships as the DDS d3dx9 would have built from it. `tools/texbake.c` makes the
+game's call on the TGA with the game's d3dx9, writes every level in the format it chose (X8R8G8B8
+for 24-bit, A8R8G8B8 for 32-bit; EA's HD edition ships 68 uncompressed DDS too), loads the DDS with the
+same call and compares every byte of every level: only identical bakes ship, so the texels on screen
+are the same. asset.dat keeps filing the `.tga` name. Cost: ~0.04 s instead of 0.7-1.8 s of game
+thread per faction; the archives grow by a third of each TGA (the stored mips; memory is unchanged,
+as d3dx9 built the same chain). Identical at texture reduction 0; with a reduction both versions
+drop whole top levels, d3dx9 resizing the TGA with its default filter instead (near-identical).
+`sagekit validate` fails a staged archive that still ships one, and UI pages that are not DXT or over
+1024 (APT textures over 2048x1024).
+
+**Memory (a):** our archives hold 3.55 GB of texture as loaded (DXT at file size, TGAs at 4/3 of
+32 bits a pixel): Men 625 MB, Angmar 507, Isengard 453, Elves 448, Dwarves 385, Mordor 374, Goblins
+262, neutral 101, UI 158 (ui2x 71, icons 44, HUD 43). A match loads only what it creates; Men and
+Angmar are at or over the 512 MB per-faction budget (`budget_mb`, MEMORY-2GB.md: 1.03 bytes of
+32-bit address space per texture byte with today's wined3d). Not a thrash risk (nothing is evicted);
+an address-space risk in a four-faction game, which patch 0022 (MEMORY-2GB.md) would remove.
+
+Still to see in game (needs the game): which of these loads land on a click at Max's settings, i.e.
+whether RotWK preloads a structure's assets at match load (Generals only does with `-preload`; RotWK
+has no such switch string, and no direct test of `PRELOAD`, KindOf bit 26, was found in game.dat). The fix
+helps either way: at match load it shortens the loading screen, on a click it removes the stall.

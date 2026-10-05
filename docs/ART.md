@@ -327,6 +327,14 @@ build/assets/<faction>/<building>/
   `sagekit sheets` recolours a TGA-only sheet some model draws and writes it back as TGA at EA's
   path, size and bit depth (the faction's archive loads first); a TGA-only image no model draws
   (a button) is left alone. No other faction's folder has a TGA-only sheet.
+- A TGA in an archive makes the game build its mip chain on its own thread when it first loads it
+  (40-50 ms for a 1024² normal map, 130-170 ms at 2048², docs/PERFORMANCE.md §13). The build keeps
+  writing TGAs; `sagekit install` and `sagekit unit --stage` ship each as the DDS the game's d3dx9
+  builds from it, checked identical level by level (`sagekit/texbake.py`, `tools/texbake.c`;
+  needs the w10 engine). The game reads the `.dds` first and asset.dat files the `.tga` name, so
+  nothing else changes. Revert is the usual `sagekit revert <faction>` / `unit <id> --revert`.
+  The heroes and Create-a-Hero stages bake their masks too; scenery and FX ship no TGA. Every
+  archive write (`sagekit/formats/big.py` `pack`) refuses such a TGA unless it is EA's own file.
 - EA's folders mix factions (`art\compiledtextures\eb` holds Elven and Erebor sheets); the
   ownership map decides, not the folder.
 - A variant sheet is reached only by name: a damaged model's meshes, a state's `Texture =` swap, or

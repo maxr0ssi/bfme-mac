@@ -115,7 +115,8 @@ def members(u, b):
         files[member] = set_model(text.decode("latin-1"), obj, tag, u.model, u.own_model).encode("latin-1")
         if files[member] == text:
             raise SystemExit("%s: %s draws no %s in %s %s" % (u.id, obj, u.model, member, tag))
-    return files
+    from ..texbake import bake          # the house-colour mask ships with its mips built (sagekit/texbake.py)
+    return bake(files, log=lambda s: None)
 
 
 def named(objects, files):
