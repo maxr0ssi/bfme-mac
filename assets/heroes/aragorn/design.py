@@ -138,7 +138,7 @@ def build():
     plates = G.draw(tmpl, sk, plates_fn, "guaragorn_rotk.tga", PLATES)
     trims = G.draw(tmpl, sk, trims_fn, "guaragorn_rotk.tga", SHEET, budget=BUDGET - len(plates.verts))
     sizes = [len(plates.verts), len(trims.verts)]
-    built = G.assemble(ea_bytes, EA_MODEL, MODEL, "GUARAGORN_SKN",
+    built = G.assemble(ea_bytes, EA_MODEL, MODEL, "GUARAGORN_SKN", sk,
                        extra=[(ARMOUR, G.chunk_of(plates, ARMOUR)), (TRIM, G.chunk_of(trims, TRIM))])
     out = work / (MODEL.lower() + ".w3d")
     out.write_bytes(built)

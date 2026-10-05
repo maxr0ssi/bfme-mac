@@ -137,7 +137,7 @@ def build():
                  budget=BUDGET["axe"])
     G.merge(helm, pauldrons)
     replace = {"HELMET": G.chunk_of(helm, "HELMET"), "SHIELD": G.chunk_of(shield, "SHIELD"), "REDAXE": G.chunk_of(axe, "REDAXE")}
-    built = G.assemble(ea_bytes, DONOR_MODEL, MODEL, "DUDAIN_SKN", replace=replace, retex={"COAT": [("dudain.tga", COAT_SHEET)]})
+    built = G.assemble(ea_bytes, DONOR_MODEL, MODEL, "DUDAIN_SKN", sk, replace=replace, retex={"COAT": [("dudain.tga", COAT_SHEET)]})
     out = work / (MODEL.lower() + ".w3d")
     out.write_bytes(built)
     anim = P.Animation((src / (CHECK_ANIM.lower() + ".w3d")).read_bytes())

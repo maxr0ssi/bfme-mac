@@ -27,7 +27,7 @@ from ..formats.big import Archive, pack
 from ..game import Install
 from ..install import apply, read, stage_ops
 from ..pipeline import game_running
-from . import Folder, load, records
+from . import Folder, load, pick, records
 from .build import sha
 from .install import SHARED, installed, live_dir, shared_receipt, shared_update
 
@@ -56,7 +56,8 @@ def built():
         if m in files:
             raise SystemExit("heroes: %s twice" % m)
         files[m] = Path(p).read_bytes()
-    return files, (out / "lotr.str").read_bytes()
+    from ..texbake import bake          # house-colour masks ship with their mips built (sagekit/texbake.py)
+    return bake(files, log=lambda s: None), (out / "lotr.str").read_bytes()
 
 
 def cache_ops(files):
@@ -91,9 +92,14 @@ def owned(u, b):
 
 
 def stage(u, b):
-    """Check the build, pack both archives into _install/, prove the asset.dat records come back
-    as they were on a copy of each cache. Nothing in the game changes."""
+    """Check the build (each model's HLOD resolves and has an oriented click box), pack both
+    archives into _install/, prove the asset.dat records come back as they were on a copy of each
+    cache. Nothing in the game changes."""
     files, table = built()
+    for member, data in files.items():                  # the click box (pick.py): built by assets/heroes/gear.py
+        if member.endswith(".w3d") and (pick.unresolved(data) or not (pick.pick_box(data) or [0, 0, 0])[2] & pick.ORIENTED):
+            raise SystemExit("heroes: %s: HLOD sub-objects the file does not define %s, or no oriented BOUNDINGBOX; "
+                             "rebuild (python3 -m assets.heroes.build)" % (member, pick.unresolved(data)))
     g, active, mine = Install(), Install(pristine=False), owned(u, b)
     for member in files:
         owner = active.owner(member)

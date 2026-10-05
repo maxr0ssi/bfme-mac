@@ -403,9 +403,9 @@ def splice_mesh(model, mesh_name, mesh_chunk, container):
 
 def rename_model(data, old, new):
     """The model's own name changed in every fixed-width field that carries it: the hierarchy, each
-    mesh's container, the HLOD's model and hierarchy names and its sub-objects ('OLD.MESH'), and an
-    embedded animation's name and hierarchy. For a copy of a model under another file name (the
-    file name is the model's name)."""
+    mesh's container, each box ('OLD.BOUNDINGBOX'), the HLOD's model and hierarchy names and its
+    sub-objects ('OLD.MESH'), and an embedded animation's name and hierarchy. For a copy of a model
+    under another file name (the file name is the model's name)."""
     if len(new) > 15:
         raise ValueError("model name %s longer than 15 characters" % new)
     d = bytearray(data)
@@ -421,6 +421,9 @@ def rename_model(data, old, new):
         elif v.upper().startswith(old_u + b"."):
             put(o, width, new_u + v[len(old_u):])
     for t, o, s, _ in chunks(d, 0, len(d)):
+        if t == BOX:                                    # no sub-chunks: version, flags, name[32] ('OLD.BOUNDINGBOX',
+            swap(o + 16, 32)                            # the HLOD's click box: unrenamed, the game drops it)
+            continue
         for t2, o2, s2, sub in chunks(d, o + 8, o + 8 + s):
             if t == HIERARCHY and t2 == HIERARCHY_HEADER:
                 swap(o2 + 12, 16)

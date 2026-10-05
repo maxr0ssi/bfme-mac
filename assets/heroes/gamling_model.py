@@ -6,6 +6,8 @@ triangles on B_SWORDBONE and B_SHIELD, with their UVs and sheet), as SKGamling_S
 
 EA's CH mesh stays byte for byte; the gear is one new sub-object, SKGAM_GEAR, on the same bones as
 in EA's model, so it sits in the hand and on the arm in every one of Boromir's animations.
+EA's CH model has no click box (the game would test the skin's bone-space vertices); ours carries
+RUGamling_SKN's BOUNDINGBOX, oriented and grown to hold the body and gear (gear.py, pick.py).
 
     python3 -m assets.heroes.gamling_model
 """
@@ -56,11 +58,12 @@ def build():
             G.surface_plate(m, old, sk, "RUROYALGUARD", lambda c, b, bones=bones: b <= bones, None, 0.0)
     draw.__name__ = "rohan_gear"
     gear = G.draw(old.meshes["RUROYALGUARD"], sk, draw, "RUGambling.tga", "RUGambling.tga")
-    built = G.assemble(ea_bytes, EA_MODEL, MODEL, "RUGAMLINGCH_SKN", extra=[(GEAR, G.chunk_of(gear, GEAR))])
+    built = G.assemble(ea_bytes, EA_MODEL, MODEL, "RUGAMLINGCH_SKN", sk, extra=[(GEAR, G.chunk_of(gear, GEAR))],
+                       box_from=old.data)                        # EA's CH model has no click box; RUGamling_SKN's
     out = work / (MODEL.lower() + ".w3d")
     out.write_bytes(built)
     report = G.check(ea_bytes, built, EA_MODEL, MODEL, sk, P.Animation((src / (CHECK_ANIM.lower() + ".w3d")).read_bytes()),
-                     added=[GEAR], sheets=["RUGambling.tga"], wrapped=[GEAR])
+                     added=[GEAR], sheets=["RUGambling.tga"], wrapped=[GEAR], clicked=old.data)
     report.update(sources=got, gear_vertices=len(gear.verts))
     (d / "report.json").write_text(json.dumps(report, indent=1) + "\n")
     (work / "textures.json").write_text(json.dumps(tex, indent=1))

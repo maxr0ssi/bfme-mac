@@ -15,6 +15,7 @@ from ..formats.textures import compiled_path, write_dds
 from ..formats.w3d import MESH, VERTEX_INFLUENCES, W3DFile, chunks, rename_model
 from ..game import Install
 from . import paint as PT
+from . import pick as PK
 
 
 def sha(data):
@@ -71,7 +72,8 @@ def build(u, b):
     model = WM.replace_meshes(w.data, {n: m.chunk() for n, m in meshes.items()})
     converted = {n: 0 for n, m in meshes.items() if getattr(m, "converted", False)}
     (b.work / "kept.json").write_text(json.dumps(sorted(n for n, m in meshes.items() if getattr(m, "kept", False))))
-    b.model().write_bytes(P.set_hlod_bones(model, converted) if converted else model)
+    model = P.set_hlod_bones(model, converted) if converted else model
+    b.model().write_bytes(PK.cover(model, sk))               # the click box holds what we draw
     textures = json.loads((b.dir / "textures.json").read_text())
     atlas = u.paint(b)
     if u.privates() and not atlas:
@@ -98,8 +100,9 @@ def check(u, b):
     # every chunk but the meshes is EA's; a rigid mesh made a skin hangs on bone 0 in the HLOD
     converted = {n: 0 for n, m in new.meshes.items() if m.skinned and not original.meshes[n].skinned}
     expect = W3DFile(P.set_hlod_bones(original.data, converted)) if converted else original
-    assert [c for t, c in expect.top() if t != MESH] == [c for t, c in new.top() if t != MESH], \
-        "a chunk other than the meshes changed"
+    assert [PK.without_volume(t, c) for t, c in expect.top() if t != MESH] == \
+        [PK.without_volume(t, c) for t, c in new.top() if t != MESH], "a chunk other than the meshes changed"
+    picking = PK.check(new.data, b.ea_model().read_bytes(), sk)   # the box: EA's, oriented, grown to hold ours
     privates = {t.lower() for t in u.privates()}
     kept = json.loads((b.work / "kept.json").read_text()) if (b.work / "kept.json").exists() else []
     rebuilt = []
@@ -136,10 +139,10 @@ def check(u, b):
     report = {"rebuilt": rebuilt, "unchanged": [n for n in new.meshes if n not in rebuilt],
               "source_triangles": sum(len(m.tris) for m in original.meshes.values()),
               "new_triangles": sum(len(m.tris) for m in new.meshes.values()),
-              "model_sha256": sha(new.data)}
+              "model_sha256": sha(new.data), "picking": picking}
     (b.work / "checks.json").write_text(json.dumps(report, indent=2))
     print("PASS %s: skeleton, HLOD and EA's unchanged meshes; kept bodies on EA's vertices, bones and skin weights; "
-          "mesh, UV and bone indices; animation hierarchies%s. %d -> %d triangles." % (
+          "mesh, UV and bone indices; animation hierarchies; the click box%s. %d -> %d triangles." % (
               u.id, "; the house mask" if u.mask else "", report["source_triangles"], report["new_triangles"]))
     return report
 

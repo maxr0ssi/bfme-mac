@@ -43,7 +43,8 @@ recipe checks. A stub (`design` returns `{}`) renders EA's unit against itself a
 - **Checks:** hierarchy and every non-mesh chunk EA's; kept bodies on EA's vertices and bones, their
   skin weights EA's byte for byte (two-bone vertices: both bones, weights, second-bone data);
   finite geometry, valid indices, UVs in the atlas, only private sheets on rebuilt meshes; bone
-  indices in the skeleton; animation hierarchies; the mask; then the recipe's own.
+  indices in the skeleton; animation hierarchies; the mask; the click box (`pick.py`, "Click picking"); then
+  the recipe's own.
 - **Renders** (`render.py`, `sagekit/blender/unit_pose.py`): one Blender process poses EA's model
   and ours from the animation bytes (OpenSAGE's decoder, every frame checked finite and moving) and
   renders both with one camera; `compare_<state>.png` side by side.
@@ -110,6 +111,50 @@ shared Evil sentry tower still call Mordor's workers.
 
 Review sheets: `build/assets/_review_finish/workers/<faction>.jpg` (EA's worker, ours and our
 builder: close, behind, building, and at the RTS camera; red simulates the player colour).
+
+## Click picking
+
+The game clicks a skinned unit on its `BOUNDINGBOX`, not on what it draws (read from game.dat,
+`sagekit/units/pick.py` has the addresses): the scene's ray test sets a pick flag, and with it the
+HLOD tests only its first *oriented* box. Without one it tests every sub-object: an axis-aligned
+box stays aligned to the world as the unit turns, and a skin tests its stored bone-space vertices,
+not the drawn body. A sub-object the file does not define is skipped silently.
+
+Every unit build now (`build.py`, `pick.cover`) makes the `BOUNDINGBOX` oriented and grows it, never
+shrinks it, to hold the whole rest pose: the cart, the load, the arms. `pick.check` fails the build
+when an HLOD sub-object does not resolve, the box is missing, not oriented, smaller than EA's, or
+anything we draw sticks out of it. `w3d.rename_model` now renames box chunks, so a copy under its
+own name (the four orc builders and workers) keeps its box. Before this fix those four builders
+had no click box at all, and the Dwarven and Elven builders' boxes (EA's, axis-aligned) missed
+about a third of the model unless it faced east.
+
+Verts inside the click box, rest pose, facing 0/90/180 degrees (2026-10-04):
+
+| Builder | EA | Ours before | Ours now |
+|---|---|---|---|
+| Dwarves | 91/25/25 % | 95/68/68 % | 100/100/100 % |
+| Elves | 88/45/44 % | 92/81/79 % | 100/100/100 % |
+| Men | 77 % | 73 % | 100 % |
+| Goblins, Isengard, Mordor, Angmar | 79 % | no box | 100 % |
+
+Only the box chunk changes (same file size). No INI data and no upgrades. To pick it up, reinstall
+each builder:
+
+```sh
+python3 -m sagekit unit <faction>/porter --revert && python3 -m sagekit unit <faction>/porter --install
+```
+
+The orc workers had the same lost box; three of them are selectable (MordorWorker, WildLaborer,
+AngmarWorker). Mordor's reinstalls like a builder. The Goblin and Angmar packs name their workers,
+so the pack comes out first and goes back last:
+
+```sh
+python3 -m sagekit unit mordor/worker --revert && python3 -m sagekit unit mordor/worker --install
+python3 -m sagekit install goblins --revert && python3 -m sagekit unit goblins/worker --revert \
+  && python3 -m sagekit unit goblins/worker --install && python3 -m sagekit install goblins   # same for angmar
+```
+
+The Men and Isengard workers are rebuilt and staged too (their boxes grew), but nobody clicks them.
 
 ## Not covered yet
 

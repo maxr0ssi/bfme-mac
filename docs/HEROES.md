@@ -75,6 +75,15 @@ sub-object on the same bones (`assets/heroes/gamling_model.py`, `SKGamling_SKN`)
   size; head, haft, reach). Every EA mesh the hero keeps is byte for byte EA's; each piece rides one
   bone (checked through an EA animation). Budgets: the Captain 4173 vertices (Dain 2552), Aragorn
   1613 + 1364 at level 8.
+- **Click box.** The game clicks a skinned hero only on its oriented `BOUNDINGBOX` and drops any
+  HLOD sub-object the file does not define (docs/UNITS.md, "Click picking"). Until 2026-10-04 all
+  three models lost theirs: Aragorn's and the Captain's box chunks kept EA's model name
+  (`rename_model` skipped boxes), and Gamling's gear mesh kept RUGamling_SKN as its container (the
+  Gear is drawn on that model's mesh), while EA's RUGamlingCH_SKN has no box at all. Now
+  `gear.assemble` gives every new mesh EA's container, borrows RUGamling_SKN's box for Gamling, and
+  makes the box oriented and grown to hold what we draw (`pick.cover`); `gear.check` runs
+  `pick.check` against the model each hero is clicked on in EA's game (Dain, Aragorn, RUGamling_SKN),
+  and `--stage` refuses a model with an unresolved sub-object or no oriented box.
 - **Player colour.** Dain's red coat is repainted Erebor blue through the Dwarven cloth ramp and
   takes the player's colour, as do the Erebor kit's enamel and Aragorn's White Tree roundels (unit
   house masks; the lines go into the shared `!!!!!!!!!!!!!sagekit-units.big`).

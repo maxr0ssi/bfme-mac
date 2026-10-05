@@ -6,6 +6,8 @@ Three edits, each leaving every other chunk EA's byte for byte:
   retex    an EA mesh kept, its texture name swapped for a recoloured private copy (same length);
   add      new skinned sub-objects after EA's last mesh, on bone 0 in the HLOD (Aragorn's level-8
            armour, hidden until its SubObjectsUpgrade shows it).
+Then the click box (sagekit/units/pick.py): EA's BOUNDINGBOX, or one borrowed from the model the
+hero draws today when EA's has none (Gamling), made oriented and grown to hold what we draw.
 
 Rig: the Create-a-Hero designs are drawn in another model's rest space (the CaH dwarf's for the
 Captain). A piece is stored in its bone's space of THAT rest pose and bound to the hero's bone of
@@ -17,7 +19,8 @@ import struct
 
 from sagekit.formats import w3dmesh as WM
 from sagekit.formats import w3dpose as P
-from sagekit.formats.w3d import HLOD, MESH, MESH_HEADER3, W3DFile, chunks, rename_model, rename_textures
+from sagekit.formats.w3d import BOX, HLOD, MESH, MESH_HEADER3, W3DFile, chunks, rename_model, rename_textures
+from sagekit.units import pick
 
 from assets.cah.kit.geom import Gear, add, cross, dot, mul, norm, sub
 from assets.cah.kit.models import add_meshes, rename_mesh
@@ -122,11 +125,32 @@ def chunk_of(gear, name):
     return rename_mesh(gear.chunk(), name)
 
 
-def assemble(ea_bytes, ea_name, ours, container, replace=None, retex=None, extra=None):
+def contained(chunk, container):
+    """A mesh chunk with its container name set: a Gear drawn on another model's mesh (Gamling's
+    gear on RUGamling_SKN's) carries that model's, which rename_model leaves, so the HLOD's
+    'MODEL.MESH' would name nothing in the file and the game would drop the mesh."""
+    d = bytearray(chunk)
+    for t, o, s, _ in chunks(d, 8, len(d)):
+        if t == MESH_HEADER3:
+            d[o + 32:o + 48] = container.encode().ljust(16, b"\0")
+            return bytes(d)
+    raise ValueError("no mesh header")
+
+
+def borrowed_box(donor, container):
+    """(BOUNDINGBOX, chunk) of `donor` (a model's bytes) named for `container`."""
+    at = pick.boxes(donor)[pick.pick_box(donor)[0]][0] - 8
+    c = bytearray(donor[at:at + 8 + (struct.unpack_from("<I", donor, at + 4)[0] & 0x7FFFFFFF)])
+    c[16:48] = (container + ".BOUNDINGBOX").encode().ljust(32, b"\0")
+    return "BOUNDINGBOX", bytes(c)
+
+
+def assemble(ea_bytes, ea_name, ours, container, sk, replace=None, retex=None, extra=None, box_from=None):
     """Our model's bytes: EA's with meshes replaced ({mesh: chunk}), retextured ({mesh: [(old, new)]}),
-    new meshes added ([(name, chunk)]), renamed `ours`."""
+    new meshes added ([(name, chunk)]), `box_from`'s BOUNDINGBOX added when EA's model has none,
+    renamed `ours`, the click box covering the rest pose on skeleton `sk`."""
     w = W3DFile(ea_bytes)
-    new = dict(replace or {})
+    new = {n: contained(c, container) for n, c in (replace or {}).items()}
     for mesh, pairs in (retex or {}).items():
         for old, newname in pairs:
             if len(old) != len(newname):
@@ -135,15 +159,26 @@ def assemble(ea_bytes, ea_name, ours, container, replace=None, retex=None, extra
         if new[mesh] == w.meshes[mesh].bytes:
             raise SystemExit("heroes: %s draws none of %s" % (mesh, pairs))
     data = WM.replace_meshes(ea_bytes, new)
+    extra = [(n, contained(c, container)) for n, c in extra or []]
+    if box_from is not None:
+        if pick.pick_box(ea_bytes):
+            raise SystemExit("heroes: %s has a BOUNDINGBOX of its own; borrow none" % ea_name)
+        extra.append(borrowed_box(box_from, container))
     if extra:
         data = add_meshes(data, extra, container)
-    return rename_model(data, ea_name, ours)
+    data = pick.cover(rename_model(data, ea_name, ours), sk)
+    if pick.unresolved(data):
+        raise SystemExit("heroes: %s: HLOD sub-objects the file does not define: %s" % (ours, pick.unresolved(data)))
+    return data
 
 
-def check(ea_bytes, built, ea_name, ours, sk, anim, replaced=(), retexed=(), added=(), sheets=(), wrapped=()):
-    """EA's chunks unchanged but ours; new and replaced meshes skinned on the rig, drawing only our
-    sheets, finite, and each vertex keeping its distance to its bone through EA's animation."""
+def check(ea_bytes, built, ea_name, ours, sk, anim, replaced=(), retexed=(), added=(), sheets=(), wrapped=(), clicked=None):
+    """EA's chunks unchanged but ours (the click box's volume aside); new and replaced meshes skinned
+    on the rig, drawing only our sheets, finite, and each vertex keeping its distance to its bone
+    through EA's animation; the click box (pick.check) against `clicked`, the EA model the hero
+    is clicked on today (EA's own by default)."""
     ea, w = W3DFile(rename_model(ea_bytes, ea_name, ours)), W3DFile(built)     # EA's as renamed (name fields keep EA's tail bytes)
+    picking = pick.check(built, clicked or ea_bytes, sk)
     assert list(w.meshes) == list(ea.meshes) + list(added), list(w.meshes)
     for n, m in ea.meshes.items():
         got = w.meshes[n].bytes
@@ -154,10 +189,13 @@ def check(ea_bytes, built, ea_name, ours, sk, anim, replaced=(), retexed=(), add
             continue
         assert got == m.bytes, "EA's %s changed" % n
     ours_chunks = {w.meshes[n].bytes for n in list(replaced) + list(added) + list(retexed)}
-    keep = [c for t, c in ea.top() if t not in (HLOD,) and not (t == MESH and WM.mesh_name(c) in set(replaced) | set(retexed))]
-    have = [c for t, c in w.top() if t not in (HLOD,) and not (t == MESH and c in ours_chunks)]
+    borrowed = None if pick.pick_box(ea_bytes) else (picking["box"] or "").encode()
+    keep = [pick.without_volume(t, c) for t, c in ea.top()
+            if t not in (HLOD,) and not (t == MESH and WM.mesh_name(c) in set(replaced) | set(retexed))]
+    have = [pick.without_volume(t, c) for t, c in w.top() if t not in (HLOD,) and not (t == MESH and c in ours_chunks)
+            and not (t == BOX and borrowed and c[16:48].rstrip(b"\0").upper() == borrowed)]
     assert keep == have, "an EA chunk changed"
-    if not added:
+    if not added and not borrowed:
         assert [c for t, c in ea.top() if t == HLOD] == [c for t, c in w.top() if t == HLOD], "HLOD changed"
     _, hier, bones = P.hlod(built)
     assert hier.upper() == sk.name.upper(), hier
@@ -182,7 +220,7 @@ def check(ea_bytes, built, ea_name, ours, sk, anim, replaced=(), retexed=(), add
                 worst = max(worst, abs(d1 - d0))
     assert worst < 1e-3, worst
     return dict(ea_sha256=sha(ea_bytes), sha256=sha(built), ea_bytes=len(ea_bytes), bytes=len(built),
-                new_vertices=verts, max_bone_drift=worst, meshes=list(w.meshes))
+                new_vertices=verts, max_bone_drift=worst, meshes=list(w.meshes), picking=picking)
 
 
 def mesh_flags(chunk):
