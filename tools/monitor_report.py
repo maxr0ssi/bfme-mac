@@ -6,7 +6,8 @@
 Reads the folder (meta.json and samples.jsonl from tools/monitor_rec.py, game.txt from the game
 patch's monitor when it is installed), the game log's per-frame lines (WINEDEBUG=+timestamp,
 +frametime: wined3d's time between two presents) and the session's part of logs/gamepatch.log, and
-writes report.html (graphs, tools/monitor_chart.py) and summary.txt, and prints the summary.
+writes report.html (graphs, tools/monitor_chart.py) and summary.txt, and prints the summary; the stall
+sampler's per-stall function histograms come from tools/monitor_stalls.py.
 Every number comes from those files; the "cause" of a slow frame is a fixed rule (see CAUSE_RULE).
 """
 import bisect
@@ -18,6 +19,10 @@ import sys
 import time
 
 import monitor_chart
+try:
+    import monitor_stalls
+except Exception:   # noqa: BLE001 - the report works without the stall section
+    monitor_stalls = None
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRAME_RE = re.compile(rb"^\s*(\d+)\.(\d{3}):[0-9a-f]+:trace:frametime:\S+ Frame duration (\d+)")
@@ -57,7 +62,7 @@ def load_game(path):
         return None
     off = statistics.median(t[1] / 1000.0 - t[0] / 1e6 for t in g["t"])
     g["tick_offset"] = statistics.median(t[1] / 1000.0 - t[2] / 1000.0 for t in g["t"])
-    out = {"dropped": g["dropped"], "tick_offset": g["tick_offset"]}
+    out = {"dropped": g["dropped"], "tick_offset": g["tick_offset"], "off": off}
     fr, prev = [], None
     for f in g["f"]:   # us logic load_n load_us create_n create_us fx_n fx_us
         t = f[0] / 1e6 + off
@@ -145,7 +150,7 @@ def gp_events(meta, t0, t1):
                 continue
             t = time.mktime(time.strptime(m.group(1)[:19], "%Y-%m-%d %H:%M:%S")) + int(m.group(1)[20:]) / 1000.0
             msg = m.group(2)
-            for k in ("passtimers", "renderstats", "particlestats", "shadowstats", "monitor", "highmem"):
+            for k in ("passtimers", "renderstats", "particlestats", "shadowstats", "monitor", "stalls", "logicstats", "highmem"):
                 if msg.startswith(k + ": off"):
                     diag[k] = "off"
                 elif msg.startswith(k + ":") and k not in diag:
@@ -338,6 +343,7 @@ def summary(r):
         L.append("Slowest moments:")
         for c in sorted(sp, key=lambda c: -c["ms"])[:10]:
             L.append("  " + moment(c))
+    L += stall_lines(r)
     if r["wins"]:
         L.append("Slowest 10 s stretches (FPS, mean / p95 ms, main / render thread %):")
         for w in sorted(r["wins"], key=lambda w: w["fps"])[:5]:
@@ -346,6 +352,17 @@ def summary(r):
     L.append("Recorder: %d samples, %.1f s of CPU on other cores (%.2f %% of one core)" % (m.get("samples", 0),
              m.get("recorder_cpu_s", 0), 100.0 * m.get("recorder_cpu_s", 0) / max(1, m.get("end", 1) - m["start"])))
     return L
+
+
+def stall_lines(r):
+    """the stall sampler's histograms (tools/monitor_stalls.py); a failure there never stops the report"""
+    p = os.path.join(r["dir"], "game.txt")
+    if not monitor_stalls or not r["game"] or not os.path.exists(p):
+        return []
+    try:
+        return monitor_stalls.lines(monitor_stalls.analyse(p), clock, r["game"]["off"])
+    except Exception as e:   # noqa: BLE001 - the rest of the report still matters
+        return ["Stalls: could not be analysed (%s: %s)" % (type(e).__name__, e)]
 
 
 def run(d, spike_ms=50.0):

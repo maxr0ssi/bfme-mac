@@ -34,6 +34,10 @@ if [[ "${BFME_MONITOR:-1}" != 0 ]]; then
   if [[ "$WINEDEBUG" == -all ]]; then export WINEDEBUG="-all,+timestamp,+frametime"
   else export WINEDEBUG="$WINEDEBUG,+timestamp,+frametime"; fi
   [[ -f "$GAMEDIR/gamepatch.ini" ]] && export GAMEPATCH_MONITOR="Z:${SESSION//\//\\}\\game.txt"
+  # With the monitor, the game patch's stall sampler (gamepatch.ini stalls) names the code of every frame
+  # over 150 ms, and logicstats (~20 ns per update-module call; est. under 0.3 % of a core at 1,500 objects)
+  # gives it the logic phase; GAMEPATCH_LOGICSTATS=0 turns that off.
+  export GAMEPATCH_LOGICSTATS="${GAMEPATCH_LOGICSTATS:-1}"
   "$BFME_ROOT/scripts/monitor.sh" start $$ "$LOG" "$SESSION" >"$SESSION/recorder.out" 2>&1 &
   echo "monitor: $SESSION"
 fi

@@ -29,6 +29,95 @@ def load_text(path):
     sys.exit('no code section in ' + path)
 
 
+class Chainer:
+    """Function starts, tail jumps and call-site decoding for one exe, and the stack-chain rule above.
+    Used by main() and by tools/monitor_stalls.py (the session report's stall histograms)."""
+    EXT = -1
+
+    def __init__(self, lo, code, starts, taken=(), thunks=(), tails=None):
+        self.lo, self.code, self.hi = lo, code, lo + len(code)
+        self.starts, self.taken, self.thunks = sorted(starts), set(taken), set(thunks)
+        self.tails = tails or collections.defaultdict(set)
+        self.reach_cache, self.site = {}, {}
+
+    @classmethod
+    def from_files(cls, exe, funcs):
+        lo, code = load_text(exe)
+        starts, taken, thunks, tails = [], set(), set(), collections.defaultdict(set)
+        for line in open(funcs):
+            f = line.split()
+            if not f: continue
+            if f[0] == 'F':
+                starts.append(int(f[1], 16))
+                if len(f) > 2: taken.add(starts[-1])
+            elif f[0] == 'T': tails[int(f[1], 16)].add(int(f[2], 16))
+            elif f[0] == 'I': thunks.add(int(f[1], 16))
+        return cls(lo, code, starts, taken, thunks, tails)
+
+    def fof(self, x):
+        i = bisect.bisect_right(self.starts, x) - 1
+        return self.starts[i] if i >= 0 else x   # before any known start: the address stands for itself
+
+    def reach(self, t, depth=3):   # t plus the functions it tail-jumps to
+        if t not in self.reach_cache:
+            out, fr = {t}, {t}
+            for _ in range(depth):
+                fr = {d for s in fr for d in self.tails.get(s, ())} - out
+                out |= fr
+            self.reach_cache[t] = out
+        return self.reach_cache[t]
+
+    def decode(self, r):           # (direct target or None, indirect form possible)
+        if r in self.site: return self.site[r]
+        o = r - self.lo; d = None; ind = False; code = self.code
+        if 5 <= o <= len(code) and code[o - 5] == 0xE8:
+            t = (r + struct.unpack_from('<i', code, o - 4)[0]) & 0xffffffff
+            if self.lo <= t < self.hi: d = t
+        for n in (2, 3, 4, 6, 7):
+            if n <= o <= len(code) and code[o - n] == 0xFF and (code[o - n + 1] & 0x38) == 0x10: ind = True
+        self.site[r] = (d, ind)
+        return d, ind
+
+    def link(self, callee, r):     # can the call before return address r have entered callee?
+        d, ind = self.decode(r)
+        if d is not None:
+            if d in self.thunks: return callee == self.EXT
+            if callee != self.EXT and callee in self.reach(d): return True
+        return ind and (callee == self.EXT or callee in self.taken)
+
+    def chain(self, eip, rets):
+        """(callers outermost first, leaf function or EXT, innermost caller linked to the leaf);
+        rets: return addresses into the exe, nearest ESP (innermost) first"""
+        lo, hi, fof, link = self.lo, self.hi, self.fof, self.link
+        rets = [r for r in rets if lo <= r < hi]
+        leaf = fof(eip) if lo <= eip < hi else self.EXT
+        # score = links verified; any site may start a chain (a tail call or a missed function
+        # start can hide the leaf's caller), a start that links to the leaf scores 1
+        k = len(rets); best = [0] * k; prev = [-1] * k
+        for j in range(k):
+            best[j] = 1 if link(leaf, rets[j]) else 0
+            for i in range(j):
+                if best[i] + 1 > best[j] and link(fof(rets[i] - 1), rets[j]):
+                    best[j] = best[i] + 1; prev[j] = i
+        chain, linked = [], True
+        if k:
+            j = max(range(k), key=lambda x: (best[x], x))
+            if best[j] == 0: j = -1
+            inner = j
+            while j >= 0: chain.append(fof(rets[j] - 1)); inner = j; j = prev[j]
+            if chain and not link(leaf, rets[inner]): linked = False
+        return chain, leaf, linked
+
+
+def load_names(paths):
+    names = {}
+    for nf in paths:
+        for line in open(nf):
+            f = line.split(None, 1)
+            if len(f) == 2 and not line.startswith('#'): names[int(f[0], 16)] = f[1].strip()
+    return names
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('profile'); ap.add_argument('--exe', required=True); ap.add_argument('--funcs', required=True)
@@ -39,55 +128,9 @@ def main():
     ap.add_argument('--depth', type=int, default=14, help='tree depth; deeper frames fold into the last node')
     a = ap.parse_args()
 
-    lo, code = load_text(a.exe); hi = lo + len(code)
-    starts, taken, thunks, tails = [], set(), set(), collections.defaultdict(set)
-    for line in open(a.funcs):
-        f = line.split()
-        if f[0] == 'F':
-            starts.append(int(f[1], 16))
-            if len(f) > 2: taken.add(starts[-1])
-        elif f[0] == 'T': tails[int(f[1], 16)].add(int(f[2], 16))
-        elif f[0] == 'I': thunks.add(int(f[1], 16))
-    starts.sort()
-    names = {}
-    for nf in a.names:
-        for line in open(nf):
-            f = line.split(None, 1)
-            if len(f) == 2 and not line.startswith('#'): names[int(f[0], 16)] = f[1].strip()
-
-    def fof(x):
-        i = bisect.bisect_right(starts, x) - 1
-        return starts[i] if i >= 0 else x   # before any known start: the address stands for itself
-
-    reach_cache = {}
-    def reach(t, depth=3):   # t plus the functions it tail-jumps to
-        if t not in reach_cache:
-            out, fr = {t}, {t}
-            for _ in range(depth):
-                fr = {d for s in fr for d in tails.get(s, ())} - out
-                out |= fr
-            reach_cache[t] = out
-        return reach_cache[t]
-
-    site = {}
-    def decode(r):           # (direct target or None, indirect form possible)
-        if r in site: return site[r]
-        o = r - lo; d = None; ind = False
-        if o >= 5 and code[o - 5] == 0xE8:
-            t = (r + struct.unpack_from('<i', code, o - 4)[0]) & 0xffffffff
-            if lo <= t < hi: d = t
-        for n in (2, 3, 4, 6, 7):
-            if o >= n and code[o - n] == 0xFF and (code[o - n + 1] & 0x38) == 0x10: ind = True
-        site[r] = (d, ind)
-        return d, ind
-
-    EXT = -1
-    def link(callee, r):     # can the call before return address r have entered callee?
-        d, ind = decode(r)
-        if d is not None:
-            if d in thunks: return callee == EXT
-            if callee != EXT and callee in reach(d): return True
-        return ind and (callee == EXT or callee in taken)
+    ch = Chainer.from_files(a.exe, a.funcs)
+    lo, hi, EXT = ch.lo, ch.hi, ch.EXT
+    names = load_names(a.names)
 
     mods, samples = [], []
     for line in open(a.profile):
@@ -111,23 +154,9 @@ def main():
     N = len(samples)
     unlinked = 0
     stacks = []              # per sample, outermost first; last = leaf function or '[module]'
-    for eip, rets in samples:        # rets: nearest ESP (innermost) first
-        leaf = fof(eip) if lo <= eip < hi else EXT
-        # score = links verified; any site may start a chain (a tail call or a missed function
-        # start can hide the leaf's caller), a start that links to the leaf scores 1
-        k = len(rets); best = [0] * k; prev = [-1] * k
-        for j in range(k):
-            best[j] = 1 if link(leaf, rets[j]) else 0
-            for i in range(j):
-                if best[i] + 1 > best[j] and link(fof(rets[i] - 1), rets[j]):
-                    best[j] = best[i] + 1; prev[j] = i
-        chain = []           # callers, outermost first
-        if k:
-            j = max(range(k), key=lambda x: (best[x], x))
-            if best[j] == 0: j = -1
-            inner = j
-            while j >= 0: chain.append(fof(rets[j] - 1)); inner = j; j = prev[j]
-            if chain and not link(leaf, rets[inner]): unlinked += 1
+    for eip, rets in samples:
+        chain, leaf, linked = ch.chain(eip, rets)
+        unlinked += not linked
         stacks.append(chain + ([leaf] if leaf != EXT else ['[%s]' % modname(eip)]))
 
     outer = collections.Counter(s[0] for s in stacks)

@@ -30,9 +30,11 @@
  *                     animated UI), each followed by a quad drawn with it
  *        --cpu-ms F   spin F ms per frame on the application thread before drawing: the game's own
  *                     work (~20 ms in a battle), which gives the render thread time to catch up
- *        --hitch N:MS[:sleep]  every Nth frame, MS ms more on the application thread (spinning, or
- *                     with :sleep waiting in Sleep); each prints "HITCH frame=.. unix_ms=.. ms=..",
- *                     the known answer for scripts/monitor.sh bench
+ *        --hitch N:MS[:sleep]  every Nth frame, MS ms more on the application thread (spinning in
+ *                     bench_hitch(), or with :sleep waiting in Sleep); each prints "HITCH frame=..
+ *                     unix_ms=.. ms=..", the known answer for scripts/monitor.sh bench / stalltest
+ *        --monitor FILE  write the game patch monitor's lines (t, one f per frame) and run its stall
+ *                     sampler (gamepatch/src/p_stall.c, compiled in): scripts/monitor.sh stalltest
  * Shader warm-up instead of the frame loop:
  *        --programs N N new vertex/pixel shader pairs, created up front followed by a 2 s pause (a
  *                     loading screen), then each drawn once and waited for with an event query:
@@ -46,6 +48,7 @@
 #include <string.h>
 #include <math.h>
 #include <x86intrin.h>
+#include "../gamepatch/src/p_stall.c"   /* --monitor: the game patch's stall sampler, the same code */
 
 #define DYN_SIZE 5000                 /* DEFAULT_VB_SIZE / DEFAULT_IB_SIZE in WW3D2 */
 #define FVF_DYN (D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_DIFFUSE | D3DFVF_TEX2)   /* dynamic_fvf_type */
@@ -67,7 +70,8 @@ static struct {
     double cpu_ms;
     int programs;
     int hitch_every; double hitch_ms; int hitch_sleep;
-} cfg = { 10, 2, 0.15, 0.5, 2000, 0, 24, 32, 256, 32, 2, 0, 0, 1, 0, NULL, NULL, 0, 0, 0, 0, 0, 0 };
+    const char *monitor;
+} cfg = { 10, 2, 0.15, 0.5, 2000, 0, 24, 32, 256, 32, 2, 0, 0, 1, 0, NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL };
 
 static IDirect3DDevice9 *dev;
 static IDirect3DVertexBuffer9 *dyn_vb, *mesh_vb[2];
@@ -562,6 +566,55 @@ static void draw_ui(int frame)
     T1(P_UI);
 }
 
+/* --monitor: game.txt lines as the game patch writes them (gamepatch/src/p_monitor.c), from this thread */
+static HANDLE mon_out = INVALID_HANDLE_VALUE;
+static LONGLONG mon_q0, mon_t, mon_w;
+static char mon_buf[1 << 20];
+static int mon_n;
+static void mon_start(const char *path)
+{
+    LARGE_INTEGER f; QueryPerformanceFrequency(&f);
+    char v[16]; int stall_ms = 150;
+    if (GetEnvironmentVariableA("GAMEPATCH_STALL_MS", v, sizeof v) && atoi(v) > 0) stall_ms = atoi(v);
+    mon_out = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (mon_out == INVALID_HANDLE_VALUE) { printf("FAIL --monitor: cannot create %s\n", path); ExitProcess(1); }
+    mon_q0 = qpc();
+    mon_n = snprintf(mon_buf, sizeof mon_buf, "# d3d9bench monitor 1, qpc %lld Hz\n", f.QuadPart);
+    if (!gp_stall_start(mon_q0, f.QuadPart, stall_ms, 2, 4000)) { printf("FAIL --monitor: no stall sampler\n"); ExitProcess(1); }
+}
+static void mon_frame(int frame)
+{
+    LONGLONG q = qpc();
+    DWORD wr;
+    if (mon_out == INVALID_HANDLE_VALUE) return;
+    gp_stall_last_logic = (uint32_t)frame;
+    __atomic_store_n(&gp_stall_last_q, q, __ATOMIC_RELAXED);
+    mon_n += snprintf(mon_buf + mon_n, sizeof mon_buf - mon_n, "f %lld %d 0 0 0 0 0 0\n", us(q - mon_q0), frame);
+    if (q - mon_t >= s_freq) {
+        FILETIME ft; GetSystemTimeAsFileTime(&ft);
+        mon_n += snprintf(mon_buf + mon_n, sizeof mon_buf - mon_n, "t %lld %llu %lu\n", us(q - mon_q0),
+                          ((unsigned long long)ft.dwHighDateTime << 32 | ft.dwLowDateTime) / 10000 - 11644473600000ull, GetTickCount());
+        mon_t = q;
+    }
+    if (q - mon_w >= s_freq / 4 || mon_n > (int)sizeof mon_buf / 2) {
+        mon_n += gp_stall_drain(mon_buf + mon_n, (int)sizeof mon_buf - mon_n);
+        WriteFile(mon_out, mon_buf, mon_n, &wr, NULL);
+        mon_n = 0; mon_w = q;
+    }
+}
+
+/* --hitch: the known function the stall sampler must name (arithmetic, so EIP stays in it) */
+static volatile unsigned int hitch_sink;
+__attribute__((noinline)) static void bench_hitch(double ms)
+{
+    LARGE_INTEGER f, a, b;
+    QueryPerformanceFrequency(&f); QueryPerformanceCounter(&a);
+    do {
+        for (int i = 0; i < 100000; i++) hitch_sink = hitch_sink * 1664525u + 1013904223u;
+        QueryPerformanceCounter(&b);
+    } while ((b.QuadPart - a.QuadPart) * 1000.0 < ms * f.QuadPart);
+}
+
 static void begin_frame(int frame)
 {
     static const float c4[4] = { 0.4f, 0.8f, -0.45f, 0 }, c5[4] = { 0.8f, 0.75f, 0.7f, 1 }, c6[4] = { 0.25f, 0.25f, 0.3f, 1 }, c7[4] = { 0, 1, 0, 0 };
@@ -577,11 +630,10 @@ static void begin_frame(int frame)
     }
     if (cfg.hitch_every > 0 && frame > 0 && frame % cfg.hitch_every == 0)
     {
-        LARGE_INTEGER f, a, b; FILETIME ft;
+        FILETIME ft;
         GetSystemTimeAsFileTime(&ft);
-        QueryPerformanceFrequency(&f); QueryPerformanceCounter(&a);
         if (cfg.hitch_sleep) Sleep((DWORD)cfg.hitch_ms);
-        else do QueryPerformanceCounter(&b); while ((b.QuadPart - a.QuadPart) * 1000.0 < cfg.hitch_ms * f.QuadPart);
+        else bench_hitch(cfg.hitch_ms);
         printf("HITCH frame=%d unix_ms=%llu ms=%.0f %s\n", frame,
                ((unsigned long long)ft.dwHighDateTime << 32 | ft.dwLowDateTime) / 10000 - 11644473600000ull,
                cfg.hitch_ms, cfg.hitch_sleep ? "sleep" : "spin");
@@ -607,6 +659,7 @@ static void end_frame(int frame)
     T0();
     CK(IDirect3DDevice9_EndScene(dev));
     IDirect3DDevice9_Present(dev, NULL, NULL, NULL, NULL);   /* WW3D ignores Present's result too */
+    mon_frame(frame);
     /* End_Scene: release the buffers and textures every frame */
     IDirect3DDevice9_SetStreamSource(dev, 0, NULL, 0, 0); IDirect3DDevice9_SetIndices(dev, NULL);
     IDirect3DDevice9_SetTexture(dev, 0, NULL);
@@ -735,6 +788,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--dyntex")) cfg.dyntex = atoi(v);
         else if (!strcmp(a, "--cpu-ms")) cfg.cpu_ms = atof(v);
         else if (!strcmp(a, "--programs")) cfg.programs = atoi(v);
+        else if (!strcmp(a, "--monitor")) cfg.monitor = v;
         else if (!strcmp(a, "--hitch")) { cfg.hitch_every = atoi(v); const char *c = strchr(v, ':');
             cfg.hitch_ms = c ? atof(c + 1) : 100; cfg.hitch_sleep = c && strstr(c + 1, ":sleep") != NULL; }
         else { printf("unknown argument %s (see the header of tools/d3d9bench.c)\n", a); return 1; }
@@ -749,6 +803,7 @@ int main(int argc, char **argv)
            cfg.ffp_frac, cfg.vs20 ? "2.0" : "1.1", cfg.bones, cfg.dyn_verts, cfg.mesh_verts, cfg.textures, cfg.redundant,
            cfg.clip, cfg.grouped ? "grouped" : "mix", cfg.radar, cfg.text, cfg.relock, cfg.dyntex, cfg.cpu_ms, cfg.crc ? " crc" : "");
     if (!report_wined3d()) { printf("FAIL the loaded wined3d.dll is not the expected file\n"); return 2; }
+    if (cfg.monitor) mon_start(cfg.monitor);   /* on this, the drawing thread: the sampler samples it */
 
     wc.lpfnWndProc = DefWindowProcA; wc.hInstance = GetModuleHandleA(NULL); wc.lpszClassName = "d3d9bench";
     wc.hCursor = LoadCursorA(NULL, (LPCSTR)IDC_ARROW);
