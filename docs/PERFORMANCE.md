@@ -12,7 +12,8 @@ with it (§8). Large battles are the open problem: the game's own code takes 25�
 Contents: 1 pipeline · 2 in-game measurements · 3 GL call costs · 4 synthetic frame ·
 5 d3d9 test suite · 6 Wine fixes · 7 Vulkan · 8 other levers · 9 crashes · 10 game patch
 (10.1 render side, 10.2 shadow volumes, 10.3 shadow-map pass, 10.4 particles, 10.5 game logic) ·
-11 d3dx9 effects · 12 per-draw FX cost.
+11 d3dx9 effects · 12 per-draw FX cost · 13 first-use texture loads · 14 eight-player games ·
+15 our art's draw cost against EA's · 16 session monitor.
 
 Machine: MacBook Pro, Apple M3 Max (12P+4E cores, 40-core GPU), 64 GB unified memory, macOS 26.3,
 `powermode 0`. Engine `engines/w10` (Sikarugir wine-staging 10.0, new-style WoW64, x86_64 under
@@ -785,8 +786,241 @@ drop whole top levels, d3dx9 resizing the TGA with its default filter instead (n
 Angmar are at or over the 512 MB per-faction budget (`budget_mb`, MEMORY-2GB.md: 1.03 bytes of
 32-bit address space per texture byte with today's wined3d). Not a thrash risk (nothing is evicted);
 an address-space risk in a four-faction game, which patch 0022 (MEMORY-2GB.md) would remove.
+Update 2026-10-04 (static count, MEMORY-2GB.md "Texture memory of our archives"): every structure,
+state and unit of all 7 factions is 3.2 GB of texture and 0.92 GB of W3D against EA's 0.45 / 0.29 GB;
+a full 8-player build would need ~5 GB of the 4 GB (the 09-28 memwatch: 1.3-1.5 GB used in a match
+before most art loads). No eviction or hitch from pressure before that wall. Opaque DXT5 sheets now
+ship as the DXT1 that draws the same texels: 3554 → 3287 MB staged over all packs; no texture has a
+top mip level the closest camera never samples at 3024x1964 (`sagekit/texreach.py`).
 
 Still to see in game (needs the game): which of these loads land on a click at Max's settings, i.e.
 whether RotWK preloads a structure's assets at match load (Generals only does with `-preload`; RotWK
 has no such switch string, and no direct test of `PRELOAD`, KindOf bit 26, was found in game.dat). The fix
 helps either way: at match load it shortens the loading screen, on a click it removes the stall.
+
+## 14. Eight-player games: the logic phases (2026-10-04)
+
+Max: "frames are dropping when I test 8 players, it struggles".
+
+**What is installed** (md5 of the engine against `wine/build-d3dx10`, 2026-10-04 21:45): wined3d.dll,
+wined3d.so and d3dx9_27.dll are the current builds (0001-0021, d3dx9 0001-0008). The game patch in
+the RotWK folder is the 2026-09-27 build; the only later change is a comment. Every speed patch is on
+(the log of each session lists them). Not installed: wined3d 0022 (memory, `unbuilt/`), and
+shadowpar and limiter, which are off by design. The RotWK folder's gamepatch.ini still has the
+measuring set on (passtimers, renderstats, particlestats, from `measure-session.sh on`). passtimers
+turns perfmarker's early return off, so every draw builds its marker name again (40-160 ns each, §10.1,
+400-1,500 markers a frame). That is an estimated 0.1-0.5 ms a frame, not measured in the game.
+
+**Rendering is not what drops the frames.** passtimers 5 s windows of the 10-03 and 10-04 matches
+(`logs/gamepatch.log`), frame time against the sum of the top-level passes (RenderViews +
+UpdateShadowMap + RenderUI):
+
+| session | windows ≥ 60 frames | median frame | median render | slow windows (> 36 ms) |
+|---|---|---|---|---|
+| 10-03 17:30-17:45 | 121 | 33.2 ms | 6.7 ms | 29; render 3.9-20.2 ms, outside rendering 20.1-64.1 ms |
+| 10-04 20:34-20:42 | 86 | 33.2 ms | 5.2 ms | 19; render 2.4-14.1 ms, outside 25.8-42.1 ms |
+| 10-04 21:37-21:41 | 40 | 33.8 ms | 8.9 ms | 16; render 5.8-27.3 ms, outside 13.1-41.8 ms |
+
+renderstats in the same minutes: 120-230 FX draws per pass, 660-920 live particles, particle
+manager 0.5-0.8 ms a frame. The particle cap (4000) is never reached, and the shadow-map pass is
+2-5 ms. Most of a slow window's time is spent outside the render passes (that time also holds the limiter's wait in the window's fast frames), which on the main thread means the
+game logic, the client update and stalls (§13).
+
+**The logic runs in uneven phases.** GameLogic::update 0x62e4e8 runs once per drawn frame with a phase
+1-6 (5 steps a second x 6). Phase 2 runs two subsystems (0xde4354, 0xde4360) and a per-object loop
+(0x6260e1). Phases 3 and 4 update the first and second half of update list 0. Phase 5 runs lists 1 and 2
+and twelve subsystems; phase 6 runs list 3. From the memory probe of the 2026-09-24 AI battles
+(`build/rotwk-re/probe-*/samples.csv`, `logic_phase`, ms per logic step):
+
+| run | phase 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| probe-msync2 | 1.5 | 5.3 | 11.2 | 16.1 | **29.7** | 0.3 |
+| probe-ai1 | 1.2 | 2.5 | 6.3 | 4.9 | **12.5** | 0.5 |
+
+So one frame in six carries most of the logic. With 8 players that frame is the one that drops.
+Which subsystem or module class owns phase 5 is not known. A leaf profile spreads it thin (§10.5).
+
+**Synthetic frame at large counts** (`scripts/bench-d3d9.sh engine`, 2026-10-04 21:45, load 5-8,
+median of 3 x 5 s):
+
+| scene | frame | where the app thread waits |
+|---|---|---|
+| 3,000 objects, 900 dynamic | 35.9 ms (27.9 FPS) | draw 17.7, Present 5.1 |
+| 4,500 objects, 1,350 dynamic | 53.3 ms (18.8 FPS) | draw 33.8, Present 0.04: the command queue is full |
+| same + `--cpu-ms 20` | 58.3 ms | draw 19.0 |
+
+At about 4,500 draws the render thread is the limit, at ~8 µs a draw (Apple's driver, §8). Max's
+matches draw far fewer, and the 2026-09-25 big battle drew ~3,000.
+
+**logicstats** (diagnostic, off by default; `gamepatch/src/p_lstats.c/.S`, test `t_lstats`). Every 30 s
+it logs:
+- ms per logic step in each phase, and the frame interval after each phase (mean, max, frames over
+  40 and 50 ms);
+- ms per step of each of the 19 subsystems GameLogic::update calls through vt+0x28 (hooked at the
+  first step that finds the object) and of six direct calls;
+- the 12 update-module classes (update function, vtable) that took the most time, from the list
+  call at 0x62ea97.
+
+It changes no game behaviour. The test checks that every stub hands the original the caller's
+registers, xmm0-7, arguments and stack, and gives back the original's (logic stub, 19 subsystem stubs,
+6 direct calls, module stub). A timed module call costs 17-22 ns more than the original sequence.
+`scripts/measure-session.sh on` turns it on along with the other diagnostics.
+
+**Next, ranked by gain against risk:**
+1. Play normally with the diagnostics off (`scripts/measure-session.sh off`). No risk; an estimated
+   0.1-0.5 ms a frame.
+2. One 8-player session with `measure-session.sh on` and the new game patch. logicstats names the
+   owner of phase 5, and `measure-session.sh sample` adds an inclusive call tree (with Max's OK).
+   Then do exact SSE or integer versions of its hot functions (the logicmath pattern, §10.5).
+   Estimated 1-5 ms on the spike frame. Low risk: proven by bit-exact tests.
+3. Even out the phases: run the tail of phase 5 (its subsystems after lists 1-2) at the start of
+   phase 6, which takes 0.3-0.5 ms now. The logic's own order stays the same; only the client
+   update and render in between see the state earlier. That could halve the spike frame. LAN risk:
+   it needs proof that nothing between the two phases reads or writes state those calls touch.
+   Decide after the logicstats numbers.
+4. Late-game rendering: renderOneObject from Flush (~5 ms a pass, §12) and pose evaluation in
+   parallel before UpdateShadowMap (§10.3). This only matters in big fights with ~3,000 draws.
+5. A setting, and Max's choice only because it changes the picture: shadow maps lower or off save
+   the shadow-map pass, 2-5 ms now and 15-18 ms in the 09-25 battle. A lower particle cap gains
+   nothing, because the cap is never reached.
+
+## 15. Our art's draw cost against EA's (2026-10-04, static)
+
+Question: does the redesigned art cost the main thread more per object than EA's, and how much in an
+8-player late game? `python3 -m sagekit.drawcost_report --rows --scene` (sagekit/drawcost*.py) reads
+every staged archive (2026-10-04 22:00: 7 faction packs, neutral, builders, workers, heroes) and EA's
+pristine archives, resolves each object's Draw modules per state (healthy, construction, damaged,
+really damaged, rubble, night; a ChildObject draws its parent's) and counts what the engine draws.
+Report: `build/assets/_review_finish/drawcost/report.txt`.
+
+**Cost model** (main thread, UltraHigh, both passes): a render object (one Draw module showing a model,
+meshless rigs included) 2 x 6.5 µs (Visibility_Check + renderOneObject, §12); an FX mesh 2.5 µs in
+the main view + 1.8 µs in the shadow-map pass, a DX8 mesh 1.4 µs (main view only), a material in view
+~11.5 µs (passtimers "Rendering mesh FXShader", "RenderFXShaderBatch" self, 2026-09-25 09:50 battle:
+2,261 / 3,174 meshes, 341 / 413 batches; every session since within 0.3 µs a mesh). Particle manager
+render, map-wide: 1.6 µs per system + 0.5 µs per live particle (least squares over the 114 particlestats
+minutes of 2026-09-28..10-04, r² 0.5). Particle simulation is not timed and not counted. Triangles cost
+only the GPU (11-16 % busy, §2).
+
+**Per object** (326 objects whose art we changed, healthy state, EA → ours):
+
+| | EA | ours |
+|---|---|---|
+| render objects | 449 | 560 (+64 fire rigs, +39 house-colour models, capture dress) |
+| main-view draws / shadow-pass draws | 1,770 / 516 | 1,820 / 521 |
+| meshes per body, materials, passes, HLOD levels | | the same: our bodies keep EA's meshes one for one (one FX material, one sheet each) |
+| triangles | 0.72 M | 1.85 M |
+| particle systems / live particles | 42 / 1,469 | 444 / 7,396 |
+
+Other states: construction, really damaged and rubble draw fewer objects than EA's (fire and house
+models are off there); damaged and night as healthy. Night windows are EA's names, shown at night only.
+LOD: EA's buildings carry one HLOD level, ours too. `StaticModelLODMode` is off on 119 of our Draws (111
+where EA has `<model>M` / `L` copies, the Angmar mill included): no effect at High or UltraHigh, where
+EA draws the full model too; at Medium and Low those players draw our full model instead of EA's lighter one.
+
+Top offenders by added µs a frame (fire, map-wide, plus the rig): Isengard citadel 33 → 383 (42 systems,
+538 particles), Mordor citadel 39 → 309 (29, 421), Isengard furnace 125 → 302, Mordor mumakil pen
+59 → 226, Isengard siege works 109 → 275, uruk pit 40 → 185, Angmar citadel 70 → 202. Walls and
+expansions add a house model each (Dwarven wall pieces 14 → 29 µs), and 10-46x EA's triangles.
+
+**8-player late game** (`--scene`; a base = citadel + 3 expansions, ~15 buildings, 6 wall pieces,
+2 builders, 4 workers; 7 factions + a second Men base; soldiers are EA's art and the same either way):
+
+| | EA | ours |
+|---|---|---|
+| render objects / draws (8 bases) | 332 / 1,773 | 421 / 1,845 |
+| materials per base | 80-100 | 80-105 |
+| triangles (8 bases) | 0.44 M | 1.48 M |
+| particle systems / live particles (8 bases) | 35 / 809 | 499 / 7,561 (cap 4,000) |
+| a base in view (objects, draws, materials) | 2.10 ms | 2.33 ms |
+| particle render, map-wide | 0.46 ms | 2.80 ms (at the cap) |
+
+So the buildings in view cost +0.1-0.5 ms a frame (+11 %), all of it the extra render objects; the
+draw calls are within 4 % of EA's. The fire costs +2.3 ms of particle render once every base burns,
+plus its untimed simulation, and fills the 4,000-particle cap, which then removes the oldest particles of
+everything, combat effects included. Max's measured matches so far (10-03, 10-04, §14) ran 660-1,170
+live particles and 0.5-0.8 ms of particle render: their bases had not reached this.
+
+**What can be cut without changing the picture: almost nothing.**
+- Merging meshes that share a material: 12 meshes in all packs share bone and material and no INI
+  name (by bone, material chunk bytes and flags); EA splits by bone and sheet. Not worth a model change.
+- Welding identical vertices: 2 % (the fortress body 16,700 → 16,423); our hard-edged solids need the rest.
+- House colour inside the body: EA never mixes `HC_` and other meshes in a Draw with
+  `OkToChangeModelColor` (0 of 2,784 models), so the cloth keeps its own render object.
+- The fire rig needs its own Draw (a default state copies its particles into every state, docs/ART.md "Fire").
+  It could ride our own house model's Draw where both burn and show in the same states (35 objects,
+  -13 µs each in view): same picture, but needs an in-game check. Not built.
+- No two fire points of one building share a system within 3 units.
+
+**Max's choices (they change the picture, so nothing is built):** a fire budget per building, e.g. at
+most 120 live particles (EA's own furnace has 111): 8 bases 499 → 342 systems, 7,561 → 5,223 particles;
+at most 60: 230 systems, 3,585 particles, under the cap.
+
+**The check.** `sagekit validate` holds every staged object's healthy state to EA's main-view draws
+x 1.10 + 2 and EA's render objects + 2 (a house model and a fire rig), and warns where a building's fire
+passes EA's heaviest standing one (330 live particles: Isengard citadel 538, Mordor citadel 421,
+Isengard furnace 368). All 326 objects pass.
+
+## 16. Session monitor: hard data from every game (2026-10-04)
+
+Max: "frames are dropping when I test 8 players". Until now the logs had 5 s and 60 s windows
+(passtimers, renderstats), so a single slow frame could not be seen or explained (§13). Now every
+game started with `scripts/play-rotwk.sh` is recorded, and gets a report when it exits:
+
+```sh
+scripts/play-rotwk.sh            # play as usual; BFME_MONITOR=0 scripts/play-rotwk.sh turns it off
+scripts/monitor.sh last          # afterwards: the summary, and logs/sessions/<date-time>/report.html opens
+```
+
+What is recorded (`logs/sessions/<date-time>/`):
+
+| signal | source | rate |
+|---|---|---|
+| frame time, every frame | wined3d's `+frametime` trace (time between two presents, QPC) with `+timestamp`, in `logs/rotwk-*.log` | per frame |
+| CPU of the main thread, the render thread (`wined3d_cs`) and the process | macOS libproc per-thread times, read from outside (`tools/monitor_rec.py`) | 4 Hz |
+| resident memory, physical footprint | libproc | 4 Hz |
+| GPU device / renderer utilisation (whole Mac) | `ioreg` IOAccelerator | 1 Hz |
+| D3DX texture loads, texture creations, effect creations, and the game-thread ms in them | game patch `monitor`: the 12 call sites of the 8 D3DX imports | per frame |
+| logic frame (match time), objects in the logic, game mode | game patch: TheGameLogic 0xde412c +0x40, list +0xac / Object +0x8c, +0x110 | 1 Hz |
+| 32-bit address space: committed, reserved, largest free block, of 2 or 4 GB | game patch: VirtualQuery walk on its own thread | 0.5 Hz |
+| map and players | the game's `Skirmish.ini`, if written during the session | once |
+| game-patch log events (display switch, LOD change, faults) | `logs/gamepatch.log` | as logged |
+
+The report lines every slow frame (over 50 ms) up against the other signals and names a cause by a
+fixed rule, in this order: **loads** (D3DX time in the frame is at least half of its time over
+33 ms), **game thread** (main thread at least 90 % of a core in its 0.25 s sample), **render thread**,
+**GPU** (at least 90 %), **memory** (resident +50 MB within 1 s), else **waiting**. It also lists the
+five slowest 10 s stretches with both threads' CPU, which is what tells a CPU-bound game thread
+from a render-side limit in a long 8-player fight. Example line:
+`22:06:34 (match minute 3), 171 ms, main thread 100 %, render thread 57 %, +0 MB resident, ... -> game thread`.
+
+The game-side rows need the rebuilt game patch (`scripts/game-patch.sh`, which installs the DLL into
+the game folder: Max's step); until then the report has frames, threads, memory and GPU, and picks
+the main thread as the busiest unnamed thread (the new patch names it `bfme_main`).
+
+**Proven without the game** (2026-10-04, engine w10, `tools/d3d9bench.c` at 640x480, msync,
+`scripts/monitor.sh bench --secs 20 --objects 2000 --cpu-ms 15 --hitch 90:150[:sleep]`):
+9 slow frames injected, 9 found, each 158-171 ms after its hitch began (150 ms of hitch plus the
+frame), so the clocks line up within ~20 ms; spinning hitches were classed "game thread" (main
+98-100 %), sleeping ones "waiting" (main 41-66 %). Report frame stats against the bench's own:
+41.7 vs 41.67 FPS. The game patch's part: `gamepatch/tests/t_monitor.c` (sites, the wrappers'
+arguments / stack / registers, frame and object records, a bad list pointer ends the walk at -2).
+
+**Overhead** (A/B on the bench, 6 interleaved rounds of 10 s each, mean app-thread frame ms,
+median of the 6; spread in brackets):
+
+| bench | off | trace only | trace + sampler | cost |
+|---|---|---|---|---|
+| `--objects 1500` (~62 FPS) | 16.25 (16.0-16.4) | 16.21 (15.8-16.7) | 16.16 (15.9-16.4) | none outside the spread |
+| `--objects 2500 --cpu-ms 20` (~33 FPS) | 30.68 (30.66-30.83) | 30.73 (30.68-30.85) | 30.71 (30.63-31.01) | +0.1 % (within the spread) |
+
+The sampler itself uses ~2 % of one *other* core (mostly `ioreg`). Game patch `monitor`
+(t_monitor, w10): 1.0 us per drawn frame, the object walk 0.16 ms per 3000 objects once a second,
+the address-space walk 0.15 ms per 200 regions every 2 s on its own thread: ~0.02 % of the main
+thread. All under the 1 % budget.
+
+Limits: GPU utilisation is the whole Mac's (other programs count); a thread's CPU is averaged over
+its 0.25 s sample, so a lone 60 ms stall shows diluted (the cause rule then says "waiting");
+the map and players come from `Skirmish.ini` (skirmish only); the frame line costs ~45 bytes, so a
+game log grows ~5 MB an hour.
+

@@ -79,15 +79,15 @@ in a full game.
   it moves (a `re-pin` line in `ahk/edgescroll.log`); Ctrl+Alt+R does it too. `mac` lines in the same
   log show where macOS really has the window. Set `keepPinned := false` at the top of the script to
   turn it off.
-- **Cursor turns into the Mac arrow, or the game drops away.** Not Wine, the game or AutoHotkey
-  (2026-10-04, `scripts/cursor-test.sh` and the logs: every RotWK cursor converts, the game
-  always sets its own, and every focus loss in that session was a Cmd-Tab). macOS does it: a
-  quick shake of the mouse swaps any cursor for a big arrow (System Settings → Accessibility →
-  Display → Pointer → *Shake mouse pointer to locate*), and a hot corner opens over the game
-  (Desktop & Dock → Hot Corners; bottom right is Quick Note by default, and edge scrolling
-  takes the pointer into corners). macOS 26 also logs `Cursor disabled: failed
-  set_cursor_surface` about five times a minute while the game has focus. Turning the two
-  settings off is your choice; the scripts don't change them.
+- **Cursor turns into the Mac arrow, or the game drops away.** Open (2026-10-04). Nothing on our
+  side changed the cursor path: the game loads `data\cursors` with `LoadCursorFromFile` (Win32
+  cursor mode; no INI sets `CursorMode`), and the engine, prefix registry, `Options.ini`, cursor
+  files, exe and game patch are unchanged since 22–27 September; `scripts/cursor-test.sh` converts
+  all 81 cursors. What did change: since a wake at 11:34 that day, WindowServer logs
+  `Cursor disabled: failed set_cursor_surface` in every app (never in the 12 days before) and draws
+  the pointer in software (a `[Cursor]` window). Restart the Mac, then play with
+  `WINEDEBUG=+cursor CURSORPROBE=300 scripts/play-rotwk.sh` to log what is shown. Shake-to-locate
+  and hot corners only cause short flickers.
 - **No exclusive full-screen.** Under Wine's Mac driver it minimises and turns black on focus loss;
   the borderless window is the replacement.
 - **30 FPS ceiling** (engine design), and big battles still drop below it

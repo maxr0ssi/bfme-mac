@@ -98,6 +98,10 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   through the engine's Mac driver, set the way the game sets them (WM_SETCURSOR always handled);
   fails on any cursor winemac turns into the macOS arrow. Throwaway prefix `build/prefix-cursor`,
   no game; moves the pointer once and puts it back. 2026-10-04, w10: 81 of 81 convert.
+- `tools/cursorprobe.swift` (built by `scripts/cursor-test.sh`) — read-only probe, every 50 ms: the
+  pointer macOS shows, whether WindowServer draws it in software, the frontmost app and the window
+  under the pointer (winemac's own hit test). `CURSORPROBE=<secs> scripts/play-rotwk.sh` logs it to
+  `logs/cursorprobe-*.log`; add `WINEDEBUG=+cursor` to see every cursor the game sets.
 - `tools/bigtool.py` (list/extract/replace inside `.big` archives, BIGF and BIG4),
   `tools/neuter_gamelod.py` (the pre-menu crash fix), `tools/parse_minidump.py`.
 - `scripts/game-patch.sh [--revert|--test|--status|--bundle]` — the game-side performance patch for
@@ -140,8 +144,18 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 
 ## Measuring
 
+- `scripts/monitor.sh last|report [dir]|list|bench [args]|start <pid> <log> <dir>` — the session
+  monitor, on in every `play-rotwk.sh` game (`BFME_MONITOR=0` turns it off): per-frame times from
+  wined3d (`+timestamp,+frametime`), thread CPU / memory / GPU sampled from outside by
+  `tools/monitor_rec.py` (libproc, every 0.25 s), the game patch's frame records (`monitor`: D3DX
+  loads per frame, objects, 32-bit address space); when the game exits `tools/monitor_report.py` (+
+  `tools/monitor_chart.py`) writes `logs/sessions/<date-time>/report.html` and `summary.txt`. `last`
+  prints and opens the newest; `bench` proves the pipeline on `tools/d3d9bench.c` (`--hitch N:MS[:sleep]`
+  injects known slow frames). PERFORMANCE.md §16.
+- `tools/monitor_rec.py --pid P --dir D --log L [--any] [--no-report]` — the monitor's sampler (above).
+- `tools/monitor_report.py <session dir> [--spike-ms 50]` — rebuilds a session's report and summary.
 - `scripts/measure-session.sh on|sample [label]|summary [since]|off` — one measuring session played by
-  you: `on` turns the game patch's diagnostics on (passtimers, renderstats, particlestats; ~2 ms/frame),
+  you: `on` turns the game patch's diagnostics on (passtimers, renderstats, particlestats, logicstats; ~2 ms/frame),
   `sample` takes a 20 s read-only stack sample of the main thread during a fight and writes the
   inclusive call tree to `logs/incl-<label>-tree.txt`, `summary` prints the frame-time distribution and
   the latest per-pass lines, `off` turns the diagnostics off again.
@@ -161,6 +175,15 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   sampler walks the frame-pointer chain (Wine's PE DLLs keep frame pointers), the script symbolizes it
   with `i686-w64-mingw32-addr2line` on the `-g` builds and prints inclusive/self time per function and
   the callees (`--children F`) or callers (`--parents F`) of a function.
+- `scripts/wine-0022.sh --stage|--install|--revert|--status` — wined3d patch 0022 (managed textures'
+  system memory out of the 32-bit address space) on top of the installed series: builds it in
+  wine/src-0022 + wine/build-0022, stages the DLL pair in build/wine-0022/ and an engine clone in
+  build/engine-0022; `--install` copies the pair into engines/w10 (old pair kept as `*.pre0022-w10.bak`).
+  `docs/MEMORY-4GB.md`.
+- `scripts/texstash.sh [--gb G] [args]` + `tools/texstash.c` — 4.5 GB of managed textures in our formats
+  in a large-address-aware 32-bit process, on engines/w10 and build/engine-0022: address space after each
+  256 MB, first failure, upload and frame times, eviction, relock, GetDC and Reset, and a CRC of every
+  texture drawn, compared between the two. Throwaway prefix build/prefix-texstash. `docs/MEMORY-4GB.md`.
 - `scripts/bench-d3d9.sh <variant> [args]` + `tools/d3d9bench.c` — compares wined3d builds without the
   game (a 640x480 window for ~15 s per run, 3 runs, median; refuses to run beside a game). The bench
   replays WW3D2's per-frame D3D9 pattern (EA's Generals source, `dx8wrapper.cpp`): per-object state
@@ -198,11 +221,25 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   own `D3DXCreateTextureFromFileInMemoryEx` call with `WINEDLLOVERRIDES=d3dx9_27=b`) the median ms to
   load, create and fill, draw, and wait for the upload, against the same frame without it. i686
   mingw, run in a throwaway prefix. `docs/PERFORMANCE.md` §13.
+- `tools/dxtslim.c` + `python3 -m sagekit.texslim [archive.big...|--selfcheck]` (`sagekit/texslim.py`) —
+  texture and model memory of each archive (default: our installed ones) and its cap; `sagekit install`
+  ships every opaque DXT5 sheet as the DXT1 that draws the same texels (half the memory), kept only
+  when every level draws byte-identically through the game's d3dx9 call; `sagekit validate` checks the
+  per-archive cap. i686 mingw, run in build/prefix-texbake. `docs/MEMORY-2GB.md`.
+- `python3 -m sagekit.texreach [archive.big...]` (`sagekit/texreach.py`) — the lowest mip level each
+  model texture can reach at the closest RTS camera (3024 px wide, 50° view, eye 120 up); `sagekit
+  validate` fails a staged texture whose top level is never sampled. `docs/MEMORY-2GB.md`.
 - `tools/texbake.c` + `python3 -m sagekit.texbake [archive.big...|--selfcheck]` (`sagekit/texbake.py`) —
   our TGA model textures (normal maps, house-colour masks) rewritten as the DDS the game's d3dx9 builds
   from them, checked identical level by level, so the game skips its mip generation (40-170 ms per
   texture); `sagekit install` and `sagekit unit --stage` apply it, `sagekit validate` checks the
   staged archives. The module alone lists what still ships as such a TGA. `docs/PERFORMANCE.md` §13.
+- `python3 -m sagekit.drawcost_report [archive part...] [--rows] [--scene] [--json out.json]`
+  (`sagekit/drawcost.py`, `drawcost_report.py`, `drawcost_scene.py`) — every staged object against EA's:
+  render objects, main-view and shadow-pass draws, materials, triangles, house-colour meshes, particle
+  systems and live particles per state, and the main-thread µs they cost; `--scene` the 8-player late
+  game. `sagekit validate` caps each object at EA's draws x 1.10 + 2 and EA's render objects + 2.
+  `docs/PERFORMANCE.md` §14.
 - `tools/d3dx9fxbench.c` — replays the game's per-batch / per-mesh `ID3DXEffect` calls (shadow-map
   pass + main view) on the real `.fxo` effects against any `d3dx9_27.dll` build, without the game;
   `--hash` checksums every device call the effects make, so two builds can be proven identical.

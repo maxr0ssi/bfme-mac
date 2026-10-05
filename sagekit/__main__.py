@@ -92,6 +92,12 @@ def cmd_validate(a):
     bad += upgrade_limit()                      # EA's upgrades + ours within the engine's 1152
     from .texbake import validate as texture_formats
     bad += texture_formats()                    # staged archives: no TGA left to build mips in game
+    from .drawcost_report import validate as draw_cost
+    bad += draw_cost()                          # staged archives: no object draws more than EA's + margin
+    from .texslim import validate as texture_memory
+    bad += texture_memory()                     # staged archives: texture memory within the per-archive cap
+    from .texreach import validate as texture_reach
+    bad += texture_reach()                      # staged packs: no texture level the closest camera never samples
     bad += cmd_budget(a)
     return 1 if bad else 0
 

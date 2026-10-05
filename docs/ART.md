@@ -335,6 +335,12 @@ build/assets/<faction>/<building>/
   nothing else changes. Revert is the usual `sagekit revert <faction>` / `unit <id> --revert`.
   The heroes and Create-a-Hero stages bake their masks too; scenery and FX ship no TGA. Every
   archive write (`sagekit/formats/big.py` `pack`) refuses such a TGA unless it is EA's own file.
+- A DXT5 sheet whose alpha is 255 everywhere ships from `sagekit install <faction>` as the DXT1 that
+  draws the same texels at half the memory, kept only when every level draws byte-identically
+  (`sagekit/texslim.py`, `tools/dxtslim.c`, docs/MEMORY-2GB.md). `sagekit validate` caps each staged
+  archive's texture memory (`CAP_MB`) and fails a texture whose top level the closest RTS camera
+  never samples (`sagekit/texreach.py`). Staged for every pack (3554 → 3287 MB); install with
+  `python3 -m sagekit install <faction>` (and `unit <id> --install`, `sagekit.units.heroes --install`).
 - EA's folders mix factions (`art\compiledtextures\eb` holds Elven and Erebor sheets); the
   ownership map decides, not the folder.
 - A variant sheet is reached only by name: a damaged model's meshes, a state's `Texture =` swap, or
@@ -408,6 +414,11 @@ build/assets/<faction>/<building>/
 - Night lights exist only where EA's model has night meshes; lanterns elsewhere stay dark.
 - Fire is checked in files and marker renders only; how it reads (size, smoke, cost of many
   systems on one building) is checked in game.
+- Draw cost: our bodies keep EA's meshes and materials one for one, so a building draws what EA's
+  did; a house model or fire rig adds a render object, and fire adds particle systems that cost every
+  frame wherever the building stands. `python3 -m sagekit.drawcost_report --rows --scene` compares
+  every staged object with EA's; `sagekit validate` caps each at EA's draws x 1.10 + 2 and EA's render
+  objects + 2, and warns past 330 live particles (docs/PERFORMANCE.md §15).
 - Four rubble collapses stay EA's (Angmar's wall trebuchet, Mordor's battle tower, fire-arrow
   tower and mumakil pen): the cut opens our solids 16-26% past EA's open backs, filled or not. Each
   recipe's `skip` says so; caps where the cut opens a solid would let them ship.

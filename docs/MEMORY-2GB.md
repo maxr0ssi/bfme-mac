@@ -100,3 +100,68 @@ Capping 0014 by bytes in flight would fix it for the rest.
   budget would then follow host RAM and load time, but only once 0022 has been played with (load a
   map, a long battle with an eviction, alt-tab; compare memory with `scripts/memwatch.sh`).
   Until then the budget stays at 512 MB per faction.
+
+## Texture memory of our archives (2026-10-04)
+
+Counted from the installed archives (`python3 -m sagekit.texslim`; a texture's texel data with its
+full mip chain, APT textures one level; ×1.03 for the 32-bit address space, as above). The faction
+packs: Men 625 MB, Angmar 507, Isengard 453, Elves 448, Dwarves 385, Mordor 374, Goblins 262;
+neutral 101, scenery 58, UI 158 (ui2x 71, icons 44, HUD 43), each builder or worker 12-15. Every
+structure of a faction loads 6-11× EA's texture memory for the same objects (Men 599 against 73 MB,
+Isengard 449 against 44) and 2-5× EA's model bytes. Uncompressed normal maps (X8R8G8B8, 4 bytes a
+pixel) are 1.36 GB of the 3.2 GB; DXT5 sheets 1.1 GB; snow variants 0.38 GB (snowy maps only).
+
+**An 8-player match with all 7 factions.** If every structure, damage state and unit of the 7
+factions appears: our art 3.2 GB of textures and 0.92 GB of W3D against EA's 0.45 and 0.29 GB.
+Calibration (`logs/memwatch-20260928-153726.csv`, a 5.5 min skirmish, no `highmem`): 0.88 GB
+committed at the first in-match sample, 1.17 GB at the end, 0.35-0.39 GB reserved (Wine and the
+game's reservations), 2.6 GB free of 4 GB. Without snow that full build needs ~1.3 + 2.9 + ~0.9 ≈
+5 GB: over the 4 GB wall, where EA's is ~1.9 GB. A match loads only what appears, so a shorter game
+stays under it; the real figure for an 8-player game needs `scripts/memwatch.sh` in that game.
+
+**Eviction.** None before the wall: the game never evicts (PERFORMANCE.md §13), and wined3d's
+video-memory accounting (`VideoMemorySize` 4096) is above what the 32-bit side can hold, so
+`D3DERR_OUTOFVIDEOMEMORY` (WW3D's free-and-retry path) is not reached first; the system-memory half
+fails to allocate instead (a crash or a missing texture, not a hitch). At UltraHigh
+`TextureReductionFactor` is 0 and nothing else sizes textures. Memory costs frame time only through
+first-use loads, which scale with bytes (PERFORMANCE.md §13).
+
+**DXT1 for opaque DXT5 (applied).** A DXT5 sheet whose alpha is 255 at every texel of every level
+ships as DXT1 at half the memory: same colour blocks, endpoints swapped (indices XOR 1) where
+colour0 < colour1, index 0 where they are equal. `tools/dxtslim.c` keeps a rewrite only when the
+game's d3dx9 call loads both and every level draws byte-identically on this Mac (point-sampled into a
+render target; at start-up a one-colour-per-level texture checks the level choice; without the swap,
+or with one block changed in level 1 or 6, the check fails). One Isengard snow sheet's 2x2 level
+drew differently and stays DXT5. `sagekit install <faction>` applies it (`sagekit/texslim.py`).
+Isengard pilot: 65 sheets, 453.5 → 360.1 MB in memory, archive 586 → 488 MB, every other member
+byte-identical. All packs: about 290 MB (Isengard 94, Mordor 79, Angmar 50, Elves 48, Men 11).
+
+`sagekit validate` fails a staged archive over its cap (`CAP_MB` in `sagekit/texslim.py`: 640 MB
+for faction packs, 96 for the rest; lower it as packs slim).
+
+**Rollout (2026-10-04, staged, not installed).** Every faction pack, neutral, the 14 builders and
+workers and the heroes restaged with the DXT1 rewrite: 3554 → 3287 MB in all (Isengard −93, Mordor
+−78, Angmar −47, Elves −31, Men −8, Dwarves −5, Goblins −3, heroes −0.7); 25 sheets kept DXT5 because
+a small level (2x2) drew differently. A full 8-player build is now ~2.9 GB of texture against EA's
+0.45, about 4.8 GB of address space: still over the wall.
+
+**Mip levels the camera never samples: none.** `sagekit/texreach.py` bounds the lowest mip level each
+texture can reach at the closest camera (eye 120 units up, 50° horizontal field of view from game.dat,
+3024 pixels, trilinear, facing the triangle, flat ground). Every one of the 724 model textures in the
+staged packs reaches its top level (highest bound LOD 0.66, Men's market; median about −5): towers
+come within a few units of the closest camera, and nearly every sheet has magnified UV islands. With
+the camera 4x farther and a 60° view, 4 MB could go. So dropping top levels is not exact at Max's
+resolution. `sagekit validate` fails a texture whose top level is never reached (cached in
+build/texreach/).
+
+**Normal maps have a visible effect.** Lit with a sun 50° up on a mid-grey face, 69-91 % of every
+normal map's texels (median 88 %, 193 maps) move more than one 8-bit step against a flat normal;
+the median texel is tilted 10°. None can go without a visible change
+(`build/assets/_review_finish/memory/normal-maps-effect.jpg`).
+
+**What would get under 3 GB without a visible change:** patch 0022 (above) moves each texture's
+system-memory copy out of the 32-bit space, leaving ~1.3 GB of game + ~0.9 GB of models + 2.7 KB per
+texture ≈ 2.3 GB for the same full build. It is written, not built or played. Exact but small:
+sharing byte-identical textures under one name (103 MB, 90 % Angmar's damage-state normals; needs W3D
+and asset.dat renames). Everything else (normal maps as DXT, −1 GB; smaller sheets) changes the
+picture and is Max's call.
