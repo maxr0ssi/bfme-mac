@@ -1,7 +1,8 @@
 """The Dwarf's two sheets: SKCAH_DWGEAR.tga (the serious Erebor gear, from the Dwarven palette
 of assets/dwarves) and SKCAH_DWFUN.tga (the fun choices), tile tables for the kit's painter
-(assets/cah/kit/paint.py). G is our blue enamel and cloth and the jester's red; R the blue leather
-wraps and the jester's yellow; B the gems.
+(assets/cah/kit/paint.py). Tinted areas (G our blue enamel and cloth, R the leather wraps, B the
+gems, and the "enamel" fields behind the friezes and runes) all follow the Paint picker (B) on the CaH
+sheets (docs/CAH.md); the jester's red follows it too, its yellow stays yellow.
 """
 import math
 from pathlib import Path
@@ -25,21 +26,26 @@ TILES = {
                                                    ["line %d,40 %d,200" % (32 * k + 16, 32 * k + 16) for k in range(8)], 2)}),
     14: ("bronze", .5, .3, "v", None, {}), 15: ("fur", .45, .5, "", None, {}),
     16: ("gold", .62, .3, "uv", None, {"engrave": (O.chevrons(6, 128, 50) + O.chevrons(6, 128, 20) + O.border(14), 4)}),
-    17: ("blacki", .55, .45, "uv", None, {"rivet": (O.rivets_row(14, 9) + O.rivets_row(242, 9), 2), "engrave": (O.border(26), 2)}),
+    17: ("blacki", .55, .45, "uv", None, {"rivet": (O.rivets_row(14, 9) + O.rivets_row(242, 9), 2), "engrave": (O.border(26), 2),
+                                          "enamel": (["rectangle 40,72 216,184"], 1)}),
     18: ("steel", .7, .25, "u", None, {"inlay": (O.knot(3), 3)}),
     19: ("horn", .55, .35, "", None, {"engrave": (["line 0,%d 256,%d" % (y, y + 6) for y in range(6, 256, 15)], 3)}),
     20: ("gold", .6, .2, "", None, {"engrave": (["line %d,0 %d,256" % (x, x + 40) for x in range(-40, 256, 12)], 2)}),
     21: ("bronze", .52, .3, "uv", None, {"engrave": (O.border(16) + O.border(30), 3), "inlay": (O.tri_frieze(100, 156, 4), 3),
+                                          "enamel": (["rectangle 30,96 226,160"], 1),
                                           "rivet": (["circle 20,20 26,20", "circle 236,20 242,20", "circle 20,236 26,236",
                                                      "circle 236,236 242,236"], 2)}),
     22: ("blacki", .55, .45, "v", None, {"engrave": (["line %d,0 %d,256" % (32 * k, 32 * k) for k in range(9)], 3),
                                          "rivet": (["circle %d,%d %d,%d" % (32 * k + 6, y, 32 * k + 10, y) for k in range(8)
                                                     for y in (24, 80, 136, 192)], 2)}),
     23: ("bronze", .5, .3, "v", None, {"inlay": (O.tri_frieze(205, 240, 16) + ["line 0,200 256,200", "line 0,246 256,246"], 3),
+                                       "enamel": (["rectangle 0,201 256,245"], 1),
                                        "engrave": (["line %d,0 %d,190" % (16 * k, 16 * k + 8) for k in range(17)], 1)}),
     24: ("leather", .5, .35, "", None, {"engrave": (O.border(10), 2)}),
-    25: ("mithril", .66, .25, "", None, {"inlay": (O.runes(16, 25, 60, 196) + ["line 0,30 256,30", "line 0,226 256,226"], 5)}),
-    26: ("bluesteel", .6, .3, "v", None, {"engrave": (["line %d,0 %d,256" % (64 * k, 64 * k) for k in range(5)], 2)}),
+    25: ("mithril", .66, .25, "", None, {"inlay": (O.runes(16, 25, 60, 196) + ["line 0,30 256,30", "line 0,226 256,226"], 5),
+                                         "enamel": (["rectangle 0,32 256,224"], 1)}),
+    26: ("bluesteel", .6, .3, "v", None, {"engrave": (["line %d,0 %d,256" % (64 * k, 64 * k) for k in range(5)], 2),
+                                          "enamel": (["rectangle %d,0 %d,256" % (64 * k - 12, 64 * k + 12) for k in range(5)], 1)}),
     27: ("bronze", .55, .3, "", None, {"engrave": (["line 128,0 128,256"] + ["line 128,%d %d,%d" % (y, x, y + 26)
                                                     for y in range(10, 240, 18) for x in (20, 236)], 2)}),
     28: ("wood", .45, .3, "", None, {"engrave": (["line 0,%d 256,%d" % (y, y) for y in range(0, 256, 36)], 3)}),
@@ -54,7 +60,7 @@ INLAY = {9: "gold", 10: "gold", 18: "gold", 21: "gold", 23: "gold", 25: "gold", 
 FUN_TILES = {
     0: ("gold", .64, .25, "v", None, {}), 1: ("blacki", .55, .45, "v", None, {}), 2: ("wood", .5, .25, "", None, {}),
     3: ("steel", .6, .3, "v", None, {}), 4: ("pink", .55, .2, "", None, {}), 5: ("white", .6, .15, "", None, {}),
-    6: ("pink", .6, .5, "", None, {}), 7: ("red", .55, .25, "", GREEN, {}), 8: ("yellow", .55, .25, "", RED, {}),
+    6: ("pink", .6, .5, "", None, {}), 7: ("red", .55, .25, "", GREEN, {}), 8: ("yellow", .55, .25, "", None, {}),
     9: ("red", .55, .2, "", GREEN, {}), 10: ("red", .55, .45, "", None, {}), 11: ("yellow", .58, .12, "", None, {}),
     12: ("orange", .55, .15, "", None, {}), 13: ("black", .45, .1, "", None, {}),
     14: ("hotpink", .58, .3, "v", None, {"inlay": (O.sparkles(14), 1)}),
@@ -115,5 +121,5 @@ def paint(work):
     """Both sheets and masks into `work`: {texture: (dds path, mask path)}."""
     work = Path(work)
     (work / "paint").mkdir(parents=True, exist_ok=True)
-    return {"skcah_dwgear": paint_sheet(work, "skcah_dwgear", TILES, INLAY, "gear", special),
-            "skcah_dwfun": paint_sheet(work, "skcah_dwfun", FUN_TILES, FUN_INLAY, "fun", special, fill={("fun", 15, "inlay")})}
+    return {"skcah_dwgear": paint_sheet(work, "skcah_dwgear", TILES, INLAY, "gear", special, to=BLUE),
+            "skcah_dwfun": paint_sheet(work, "skcah_dwfun", FUN_TILES, FUN_INLAY, "fun", special, fill={("fun", 15, "inlay")}, to=BLUE)}

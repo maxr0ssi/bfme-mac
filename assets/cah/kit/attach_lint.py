@@ -9,7 +9,12 @@ must fail (check()):
   attached to that bone that draws it in a state of its own EA model;
 - no Draw module of ours draws a part model in a state of another EA model (a mounted rider
   never shows the unmounted model's parts, the Sage never the Taskmaster's fit);
-- through EA's check animation every part vertex stays at its distance from its bone.
+- through EA's check animation every part vertex stays at its distance from its bone;
+- colours (paint_lint, docs/CAH.md "Serious and fun"): no part reacts to the Hair (R) or Skin (G)
+  picker; every serious part has at least MIN_PAINT of its surface on Paint (B) unless the class
+  lists it in ALL_METAL; a serious part with a tile remap (a gold-plated or hot-pink variant) keeps
+  its fixed colours and needs none; a fun part is tinted only if the class lists it in FUN_TINTED
+  (then on B), else it stays fixed.
 """
 import math
 import re
@@ -17,8 +22,13 @@ import re
 from sagekit.formats import w3dpose as P
 from sagekit.formats.w3d import VERTEX_INFLUENCES, W3DFile, chunks
 
+from sagekit.housecheck import shares
+
 from .attach import HIDDEN, NAME_MAX, SKIN_TYPE, _set_attrs, attrs, class_states, ea_models, module_tag, parts
 from .models import folder, skeleton
+
+MIN_PAINT = .03                 # a serious part's least share of surface on the Paint picker (B)
+MASK_W, MASK_H = 512, 256       # the kit's masks (kit/paint.py)
 
 
 def modules(text):
@@ -82,10 +92,84 @@ def lint(spec, ea, ours, built):
     return errs
 
 
+def masks(spec):
+    """{sheet texture (lower case .tga): raw RGBA mask bytes} of the class (kit/paint.py writes
+    <sheet>_mask.rgba next to the TGA)."""
+    work = folder(spec)[2]
+    return {s.lower(): (work / (s.lower()[:-4] + "_mask.rgba")).read_bytes() for s in spec.MASKS}
+
+
+def coverage(spec, built, mk):
+    """{part: [share on R, G, B]}: per EA model the part's pieces summed by area, the model with the
+    least Paint share kept."""
+    per = {}
+    for name, (ea_model, _, data) in built.items():
+        for part, m in W3DFile(data).meshes.items():
+            px = mk.get(m.textures[0].lower()) if m.textures else None
+            area, sh = shares(m, MASK_W, MASK_H, px, rgb=(0, 1, 2)) if px else (0.0, [0, 0, 0])
+            a = per.setdefault(part, {}).setdefault(ea_model, [0.0, 0.0, 0.0, 0.0])
+            a[0] += area
+            for c in range(3):
+                a[c + 1] += area * sh[c]
+    out = {}
+    for part, models in per.items():
+        got = [[x / a[0] for x in a[1:]] if a[0] else [0, 0, 0] for a in models.values()]
+        out[part] = [max(q[0] for q in got), max(q[1] for q in got), min(q[2] for q in got)]
+    return out
+
+
+def paint_lint(spec, cov):
+    """The colour rules over coverage(), as a list of problems."""
+    errs = []
+    fun_tinted, metal = set(getattr(spec, "FUN_TINTED", ())), set(getattr(spec, "ALL_METAL", ()))
+    names = {p[0] for p in parts(spec)}
+    for n in sorted((fun_tinted | metal) - names):
+        errs.append("%s: listed in FUN_TINTED/ALL_METAL but no part of the class" % n)
+    for p in parts(spec):
+        r, g, b = cov.get(p[0].upper(), [0, 0, 0])
+        if r > 0 or g > 0:
+            errs.append("%s: %.1f%% on Hair (R), %.1f%% on Skin (G); our parts follow Paint (B) only" % (p[0], 100 * r, 100 * g))
+        if p[5] == "fun":
+            if p[0] in fun_tinted and b <= 0:
+                errs.append("%s: listed in FUN_TINTED but takes no Paint colour" % p[0])
+            elif p[0] not in fun_tinted and b > 0:
+                errs.append("%s: a fun part with %.1f%% on Paint; fun parts keep their fixed colours" % (p[0], 100 * b))
+        elif p[6] is None and p[0] not in metal and b < MIN_PAINT:
+            errs.append("%s: %.1f%% on Paint (B), under %.0f%% (tint its enamel, cloth or leather, or list it in "
+                        "ALL_METAL)" % (p[0], 100 * b, 100 * MIN_PAINT))
+        elif p[0] in metal and b > 0:
+            errs.append("%s: listed in ALL_METAL but %.1f%% takes the Paint colour" % (p[0], 100 * b))
+    return errs
+
+
+def _moved(mk, f):
+    """The masks with f(r, g, b, a) -> (r, g, b, a) applied to every texel."""
+    out = {}
+    for k, d in mk.items():
+        b = bytearray(d)
+        for o in range(0, len(b), 4):
+            b[o:o + 4] = bytes(f(*b[o:o + 4]))
+        out[k] = bytes(b)
+    return out
+
+
+def paint_check(spec, built):
+    """paint_lint() clean, and its broken copies caught: Paint moved to Skin, no Paint at all, every
+    texel tinted (the fun parts too)."""
+    mk = masks(spec)
+    cov = coverage(spec, built, mk)
+    errs = paint_lint(spec, cov)
+    broken = {"paint_on_skin": paint_lint(spec, coverage(spec, built, _moved(mk, lambda r, g, b, a: (r, b, 0, a)))),
+              "no_paint": paint_lint(spec, coverage(spec, built, _moved(mk, lambda r, g, b, a: (r, g, 0, a)))),
+              "all_tinted": paint_lint(spec, coverage(spec, built, _moved(mk, lambda r, g, b, a: (0, 0, 200, 255))))}
+    return errs, broken, {k: [round(100 * x, 1) for x in v] for k, v in sorted(cov.items())}
+
+
 def check(spec, ea, ours, built):
-    """lint() clean, and each broken copy caught."""
+    """lint() and paint_lint() clean, and each broken copy caught."""
     errs = lint(spec, ea, ours, built)
-    broken = {}
+    paint_errs, broken, cov = paint_check(spec, built)
+    errs += paint_errs
     first_model = ea_models(spec)[0].upper()
     b = dict(ours)
     b["models"] = ours["models"].replace(first_model, "SK" + first_model[2:], 1) + " "
@@ -116,7 +200,7 @@ def check(spec, ea, ours, built):
     broken["wrong_state"] = lint(spec, ea, dict(ours, obj_createaherodrawmodules=text), built)
     if errs or not all(broken.values()):
         raise SystemExit("attach lint failed: %s" % (errs or {k: v for k, v in broken.items() if not v}))
-    return {"errors": errs, "broken": {k: v[:1] for k, v in broken.items()}}
+    return {"errors": errs, "broken": {k: v[:1] for k, v in broken.items()}, "paint": cov}
 
 
 def pose_check(spec, built):

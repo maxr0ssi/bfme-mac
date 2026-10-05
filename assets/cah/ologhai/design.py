@@ -89,6 +89,9 @@ budget = E.budget_of({"SKOLG_CAPE_MOR", "SKOLG_FUN_BANNR", "SKOLG_FUN_TUTU"})
 # every part rides the hero's bones in models of our own (assets/cah/kit/attach.py, docs/CAH.md); EA's
 # models are not copied. Staged with python3 -m sagekit.units.cah --stage.
 ATTACH, ATTACH_STEM = [p[0] for p in PARTS], "SKTL"
+# the fun parts whose hat cloth takes the Paint colour (kit/attach_lint.py paint_lint); every other fun
+# part keeps its fixed colours, and every serious part has its enamel, cloth or leather on Paint
+FUN_TINTED = ["SKOLG_FUN_PARTY"]
 
 
 def paint(work):
@@ -100,7 +103,7 @@ _BODY = {"chss_tl_u_skn": "DEFAULT", "chss_tl_c_skn": "DEFAULT", "chtl_st_u_skn"
          "chtl_ht_u_skn": "CHTL_HT_C_SKN", "chtl_ht_c_skn": "CHTL_HT_C_SKN"}
 _EA = {"chss_tl": ["GNLT_01", "BOOT_01"], "chtl_st": ["GNLT_10", "BOOT_01"], "chtl_ht": ["GNLT_10", "BOOT_01"]}
 _K = lambda m, label, parts, ea=False: (m, label, parts + _EA[m[:7]], ea)
-RENDER = {"body": _BODY, "colours": [(70, 62, 52), (150, 28, 22), (210, 160, 60)],
+RENDER = {"body": _BODY, "colours": [(70, 62, 52), (150, 28, 22), (150, 28, 22)],
           "anims": {s: s[:-4] + ("_idla" if s[8] == "u" else "_atnb") for s in SKELETONS.values()},
           "heads": ([("chss_tl_c_skn", "EA TROLL HLMT_02", ["HLMT_02"], True)] + [("chss_tl_c_skn", "TROLL " + h[6:], [h], False) for h in _HL] +
                     [("chtl_st_c_skn", "EA SNOW HLMT_08", ["HLMT_08"], True)] + [("chtl_st_c_skn", "SNOW " + h[6:], [h], False) for h in _HL] +

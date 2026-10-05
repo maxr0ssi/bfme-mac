@@ -16,7 +16,7 @@ from ..kit.geom import add, mul, norm
 from .shapes import T, band, brow, dome, edge, emblem, of, patch, ring, spike, tine
 
 (IRON, PLATE, STEEL, EMBER, EYE, CLOTH, WRAP, I_IRON, SILVER, HAND, A_IRON, ICE, TINE, CRIMSON, BONE, BRASS, TURBAN,
- RED, LAMELLAR, GOLD, MAIL, HAFT, GEM, BLADE, FUR, MORGUL, GRIP, BRASSORN, MASK, HOTPINK, PINKTIP, IRONORN) = range(32)
+ RED, LAMELLAR, GOLD, MAIL, HAFT, GEM, BLADE, FUR, MORGUL, ENAMEL, BRASSORN, MASK, HOTPINK, PINKTIP, IRONORN) = range(32)
 
 SALLET = [(1.04, -.32), (1.12, -.26), (1.15, .12), (1.08, .52), (.88, .86), (.52, 1.1), (.05, 1.2)]
 
@@ -103,13 +103,13 @@ def helm_isengard(m):
 
 
 def helm_angmar(m):
-    """Iron crown of Angmar: a blue-iron skullcap with a pointed brow, a crown band set with a cold
+    """Iron crown of Angmar: a blue-iron skullcap with a pointed brow, an enamelled crown band set with a cold
     blue gem and a ring of tall tines curling back, their tips frozen to rime."""
     A = of(m)
     s, H = A.head["s"], A.head_bone
     dome(m, A, [(1.04, -.25), (1.1, -.2), (1.12, .2), (1.02, .6), (.75, .95), (.3, 1.14), (.04, 1.18)], A_IRON, sides=18,
          rim=lambda t: brow(t, .25) + .22 * max(0, math.cos(t)) ** 12)
-    band(m, A, 1.15, -.2, .14, A_IRON, sides=20, rim=lambda t: brow(t, .25))
+    band(m, A, 1.15, -.2, .14, ENAMEL, sides=20, rim=lambda t: brow(t, .25))      # the crown band: cold enamel (Paint)
     edge(m, ring(A, 1.18, .14, n=20, rim=lambda t: brow(t, .25)), .045 * s, ICE, H)
     for k in range(11):
         t = (k - 5) * math.pi / 5.5

@@ -5,7 +5,7 @@ cape, a tutu). Each is drawn on the model's measured shoulders, back or hips (sh
 import math
 
 from ..kit.geom import add, mul, norm
-from .helms import (A_IRON, BONE, BRASS, BRASSORN, CLOTH, CRIMSON, EMBER, FUR, GEM, GOLD, HAND, I_IRON, ICE, IRON,
+from .helms import (A_IRON, BONE, BRASS, BRASSORN, CLOTH, CRIMSON, EMBER, ENAMEL, FUR, GEM, GOLD, HAND, I_IRON, ICE, IRON,
                     LAMELLAR, PLATE, RED, SILVER, STEEL, TINE, WRAP)
 from .shapes import T, cloak, edge, lame, of, pauldron, shoulder_frame, skirt
 
@@ -86,7 +86,7 @@ def pauldrons_isengard(m):
 
 def pauldrons_angmar(m):
     """Angmar frost-plates: blue iron caps with a rime rim, three tines rising and curving out,
-    their tips frozen white."""
+    their tips frozen white, and an enamelled lame below."""
     A = of(m)
     for s, _ in SIDES:
         bone = A.uarm[s]
@@ -99,7 +99,7 @@ def pauldrons_angmar(m):
             L = (1.9 + .7 * (k == 1)) * r
             pts = [add(add(base, mul(d, L * i / 6)), mul(Y, .35 * r * (i / 6) ** 2)) for i in range(7)]
             m.sweep(pts, [.15 * r * (1 - i / 6) ** .9 + .01 * r for i in range(7)], TINE, bone, sides=5)
-        lame(m, A, s, 0, A_IRON, ICE)
+        lame(m, A, s, 0, ENAMEL, ICE)                       # an enamelled lame (Paint)
         m.stud(_p(f, .55, .3, .55), f[3], .16 * f[4], GEM, bone, h=.1 * f[4], sides=6)
 
 

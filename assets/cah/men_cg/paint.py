@@ -3,14 +3,16 @@ SKCAH_HWCG*/SKCAH_HWSM*): the serious gear in Gondor's language (assets/men/styl
 steel, white, sable fields, sparing gold) plus Rohan's gilding and green, Dol Amroth's sea-blue and
 Arnor's night-blue; and the fun sheet, whose first tiles the Wizards' fun sheet shares.
 
-Tints: G is the cloth, the enamel and the heraldic fields (the White Tree's sable, Rohan's green),
-R the second cloth (the ranger's hood and mask, grip wraps), B the gems; horsehair stays as painted.
+Tints: the cloth, the enamel and the heraldic fields (the White Tree's sable, Rohan's green), the
+second cloth (the ranger's hood and mask, grip wraps), the gems, the crown band's enamel and the dyed
+horsehair crests all follow the Paint picker (B) on the CaH sheets (docs/CAH.md). The kind marks (G,
+R, B) stay for the heroes that paint these tiles (assets/heroes/aragorn: G only, unchanged).
 """
 import math
 from pathlib import Path
 
 from ..kit import ornament as O
-from ..kit.paint import BLUE, GREEN, RED, paint_sheet
+from ..kit.paint import BLUE, GREEN, PAINT, RED, paint_sheet
 from sagekit.units.paint import ramp_colour
 
 S = O.S
@@ -126,7 +128,8 @@ TILES = {
     STEEL: ("steel", .62, .25, "v", None, {}), GOLD: ("gold", .62, .25, "v", None, {}),
     ENAMEL: ("sable", .5, .25, "v", GREEN, {}), MITHRIL: ("mithril", .66, .25, "v", None, {}),
     GOLDBAND: ("gold", .6, .25, "", None, {"engrave": (O.border(26) + ["circle %d,128 %d,128" % (32 * k + 16, 32 * k + 26)
-                                                                     for k in range(8)], 3)}),
+                                                                     for k in range(8)], 3),
+                                           "enamel": (["rectangle 0,30 256,226"], 1)}),
     GEM: ("gem", .5, .1, "", BLUE, {}),
     WINGS: ("feather", .7, .2, "", None, {"engrave": (_feathers(), 2)}),
     HOODCLOTH: ("ground", .5, .25, "", RED, {}), MASK: ("ground", .36, .25, "", RED, {}),
@@ -136,10 +139,10 @@ TILES = {
     BLACKG: ("black", .3, .1, "", None, {}),
     STARBAND: ("night", .55, .2, "", GREEN, {"inlay": (_stars(), 4)}),
     WHITE: ("white", .78, .1, "", None, {}),
-    HORSEHAIR: ("hair", .55, .5, "", None, {}),
+    HORSEHAIR: ("hair", .55, .5, "", PAINT, {}),
     KNOTGOLD: ("gold", .6, .25, "uv", None, {"engrave": (_knot(), 5)}),
     GILT: ("gold", .62, .3, "v", None, {"engrave": (["line %d,0 %d,256" % (x, x + 30) for x in range(-30, 256, 14)], 1)}),
-    WHITEHAIR: ("white", .7, .5, "", None, {}),
+    WHITEHAIR: ("white", .7, .5, "", PAINT, {}),
     MAIL: ("steel", .55, .2, "", None, {}),
     CLOAK: ("cloth", .5, .2, "", GREEN, {}),
     TREE: ("sable", .5, .2, "", GREEN, {"inlay": (_tree(), 4)}),
@@ -288,5 +291,6 @@ def paint(work, prefix):
     work = Path(work)
     (work / "paint").mkdir(parents=True, exist_ok=True)
     ramps = dict(RAMPS, **FUN_RAMPS)
-    return {prefix + "gear": paint_sheet(work, prefix + "gear", TILES, INLAY, "gear", special, ramps=ramps, fill=FILL),
-            prefix + "fun": paint_sheet(work, prefix + "fun", FUN_TILES, FUN_INLAY, "fun", special, ramps=ramps, fill=FUN_FILL)}
+    return {prefix + "gear": paint_sheet(work, prefix + "gear", TILES, INLAY, "gear", special, ramps=ramps, fill=FILL, to=BLUE),
+            prefix + "fun": paint_sheet(work, prefix + "fun", FUN_TILES, FUN_INLAY, "fun", special, ramps=ramps, fill=FUN_FILL,
+                                        to=BLUE)}

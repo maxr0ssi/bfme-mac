@@ -85,10 +85,10 @@ HOOD = [(1.5, 1.52, -1.6), (1.68, 1.64, -.9), (1.84, 1.74, -.1), (1.86, 1.72, .7
 
 def hat_blue(m):
     """The Blue Wizards' cowl: a deep blue hood rising to a tall point bent back, a silver circlet
-    under it with a star-sapphire on the brow, the hood's edge hemmed in silver."""
+    under it with a star-sapphire on the brow, the hood's edge hemmed in a band of the Paint colour."""
     rows = m.shell(Hm.HEAD, HOOD, W.BLUEFELT, H, sides=26, arc=(1.0, TAU - 1.0), double=True, rim=None,
                    bump=lambda t, k: .04 * math.sin(7 * t) * (k < 3))
-    Hm.edge(m, [r[0] for r in rows] + [r[-1] for r in rows][::-1], .08, W.SILVER)
+    Hm.edge(m, [r[0] for r in rows] + [r[-1] for r in rows][::-1], .08, W.BAND)
     path = [(-.2, 0, 2.0), (-.45, 0, 2.8), (-.8, 0, 3.6), (-1.35, 0, 4.25), (-1.95, 0, 4.55)]
     crown(m, path, [1.05, .78, .5, .26, .04], W.BLUEFELT, squash=.9, sides=12)
     m.shell(Hm.HEAD, [(1.62, 1.5, .0), (1.64, 1.52, .06), (1.64, 1.52, .26), (1.62, 1.5, .32)], W.SILVER, H, sides=24, rim=None)

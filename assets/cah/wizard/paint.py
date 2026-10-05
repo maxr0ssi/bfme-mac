@@ -2,14 +2,15 @@
 Wizards' blue, silver, rune-carved wood and crystal, travelling cloth) and SKCAH_WZFUN.tga (the
 Men's fun tiles, assets/cah/men_cg/paint.py, so the cheese crown and the umbrella draw the same).
 
-Tints: G is the hat bands and the travelling cloak, R the cloak's lining and the staff's wraps,
-B the crystals; the felts stay their order's colour.
+Tints: the hat bands (the White's rune band in enamel, the Brown's leather band), the travelling
+cloak, its lining and leather, the star cloak's cloth, the staff's wraps and the crystals all follow
+the Paint picker (B) on the CaH sheets (docs/CAH.md); the felts stay their order's colour.
 """
 import math
 from pathlib import Path
 
 from ..kit import ornament as O
-from ..kit.paint import BLUE, GREEN, RED, paint_sheet
+from ..kit.paint import BLUE, GREEN, PAINT, RED, paint_sheet
 from ..men_cg import paint as MP
 
 S = O.S
@@ -45,9 +46,10 @@ TILES = {
     GEM: ("gem", .55, .1, "", BLUE, {}),
     WOOD: ("wood", .5, .35, "", None, {"engrave": (["line %d,0 %d,256" % (x, x + 8) for x in range(6, 256, 22)], 2)}),
     DARKWOOD: ("wood", .3, .35, "", None, {}),
-    RUNES: ("mithril", .55, .2, "", None, {"inlay": (O.runes(8, 50) + ["line 0,40 256,40", "line 0,216 256,216"], 5)}),
+    RUNES: ("mithril", .55, .2, "", None, {"inlay": (O.runes(8, 50) + ["line 0,40 256,40", "line 0,216 256,216"], 5),
+                                           "enamel": (["rectangle 0,42 256,214"], 1)}),
     CLOAK: ("cloth", .5, .2, "", GREEN, {}), LINING: ("cloth", .35, .2, "", RED, {}),
-    LEATHER: ("leather", .5, .35, "", None, {"engrave": (O.border(10), 2)}),
+    LEATHER: ("leather", .5, .35, "", PAINT, {"engrave": (O.border(10), 2)}),
     FEATHER: ("white", .6, .3, "", None, {"engrave": (MP._feathers(5), 2)}), NEST: ("nest", .5, .6, "", None, {}),
     EGG: ("egg", .65, .15, "", None, {}), BIRD: ("bird", .55, .2, "", None, {}),
     STARS: ("bluefelt", .45, .2, "", None, {"inlay": ([MP._star5(x, y, 11) for y in (64, 192) for x in range(16, 256, 64)] +
@@ -60,7 +62,7 @@ TILES = {
     HOTPINK: ("hotpink", .58, .3, "v", None, {"inlay": (O.sparkles(25), 1)}), GLITTER: ("white", .7, .2, "", None, {}),
     BLACK: ("black", .35, .1, "", None, {}), WHITE: ("white", .75, .1, "", None, {}), BEAK: ("orange", .6, .1, "", None, {}),
     ROPE: ("leather", .55, .3, "", None, {"engrave": (["line %d,0 %d,256" % (x, x + 30) for x in range(-30, 256, 12)], 3)}),
-    HEMSTARS: ("bluefelt", .45, .2, "", None, {"inlay": (_hemstars(), 1)}),
+    HEMSTARS: ("bluefelt", .45, .2, "", PAINT, {"inlay": (_hemstars(), 1)}),
 }
 INLAY = {RUNES: "white", STARS: "gold", PINKFELT: "white", SPANGLE: "gold", HOTPINK: "white", HEMSTARS: "white"}
 FILL = {("gear", STARS, "inlay"), ("gear", SPANGLE, "inlay"), ("gear", HEMSTARS, "inlay")}
@@ -91,6 +93,6 @@ def paint(work):
     (work / "paint").mkdir(parents=True, exist_ok=True)
     ramps = dict(MP.RAMPS, **MP.FUN_RAMPS)
     ramps.update(RAMPS)
-    return {"skcah_wzgear": paint_sheet(work, "skcah_wzgear", TILES, INLAY, "gear", special, ramps=ramps, fill=FILL),
+    return {"skcah_wzgear": paint_sheet(work, "skcah_wzgear", TILES, INLAY, "gear", special, ramps=ramps, fill=FILL, to=BLUE),
             "skcah_wzfun": paint_sheet(work, "skcah_wzfun", MP.FUN_TILES, MP.FUN_INLAY, "fun", special, ramps=ramps,
-                                       fill=MP.FUN_FILL)}
+                                       fill=MP.FUN_FILL, to=BLUE)}

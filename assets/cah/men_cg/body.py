@@ -52,9 +52,9 @@ def outer_arc(s):
 
 
 # ------------------------------------------------------------------ shoulders
-def pauldrons(m, A, plate=T.STEEL, trim=T.GOLD, boss=T.GEM, lames=3):
+def pauldrons(m, A, plate=T.STEEL, trim=T.GOLD, boss=T.GEM, lames=3, lame=None):
     """Gondor's pauldrons: a bright steel dome over each shoulder edged in rolled gold with a
-    sapphire boss, and riveted lames down the arm."""
+    sapphire boss, and riveted lames down the arm (in `lame`, default the plate's tile)."""
     K = A["pauldron"]
     for s, bone in ((1, "UARM_L"), (-1, "UARM_R")):
         f = shoulder_frame(A, s)
@@ -69,8 +69,8 @@ def pauldrons(m, A, plate=T.STEEL, trim=T.GOLD, boss=T.GEM, lames=3):
             fo, fX, fY, fZ = arm_frame(A, s, K * (.55 + .38 * k))
             r = K * (.86 - .07 * k)
             arc = outer_arc(s)
-            m.shell((fo, fX, fY, fZ), [(r, r * .95, 0), (r - .04, (r - .04) * .95, .4 * K)], plate, bone, sides=14, arc=arc,
-                    double=True)
+            m.shell((fo, fX, fY, fZ), [(r, r * .95, 0), (r - .04, (r - .04) * .95, .4 * K)], lame or plate, bone, sides=14,
+                    arc=arc, double=True)
             pts = [add(add(add(fo, mul(fX, (r + .02) * math.cos(t))), mul(fY, (r + .02) * .95 * math.sin(t))), mul(fZ, .4 * K))
                    for t in [arc[0] + (arc[1] - arc[0]) * i / 14 for i in range(15)]]
             edge(m, pts, .045, trim, bone)

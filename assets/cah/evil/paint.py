@@ -3,8 +3,10 @@ iron, silver and White Hand, Angmar's blue iron and frozen tips, Goblin crimson 
 brass and Easterling lacquer) and one fun table, painted by the kit's painter (kit/paint.py) into
 each class's own sheet pair. Ramps come from the factions' own palettes (assets/<faction>/style.py).
 
-The 3-colour mask: G is the cloth (war cloaks, turbans, sashes), R the leather wraps and second
-cloth, B the gems; metal, bone and fixed fun colours stay as painted.
+The 3-colour mask: the cloth (war cloaks, turbans, sashes), the leather wraps and second cloth, the
+gems, the Easterling lacquer, the Goblins' crimson war paint (not its chips) and Angmar's cold enamel
+all follow the Paint picker (B) on the CaH sheets (docs/CAH.md); metal, bone and fixed fun colours
+stay as painted.
 """
 import math
 
@@ -16,7 +18,7 @@ from sagekit import paths
 from sagekit.units.paint import ramp_colour
 
 from ..kit import ornament as O
-from ..kit.paint import BLUE, GREEN, RED, RAMPS as KR, paint_sheet
+from ..kit.paint import BLUE, GREEN, PAINT, RED, RAMPS as KR, paint_sheet
 
 RAMPS = {
     "m_iron": [(0, (.01, .01, .01)), (.3, (.06, .055, .05)), (.6, (.15, .14, .13)), (.85, (.30, .28, .26)), (1, (.48, .46, .43))],
@@ -77,12 +79,12 @@ TILES = {
     10: ("a_iron", .62, .35, "v", None, {}),
     11: ("a_ice", .72, .15, "", None, {}),
     12: ("a_iron", .55, .3, "", None, {}),
-    13: ("g_hide", .55, .35, "v", None, {}),
+    13: ("g_hide", .55, .35, "v", PAINT, {}),
     14: ("g_bone", .55, .3, "", None, {"engrave": (["line 40,30 70,110", "line 70,110 60,170", "line 190,60 170,140"], 2)}),
     15: ("brass", .6, .3, "v", None, {}),
     16: ("cloth", .55, .2, "", GREEN, {}),
     17: ("cloth", .42, .2, "", RED, {}),
-    18: ("blacki", .55, .3, "", None, {"inlay": (lamellae(), 2)}),
+    18: ("blacki", .55, .3, "", PAINT, {"inlay": (lamellae(), 2)}),
     19: ("gold", .62, .3, "v", None, {}),
     20: ("steel", .5, .2, "", None, {}),
     21: ("darkwood", .5, .35, "", None, {"engrave": (["line %d,0 %d,256" % (x, x + 8) for x in range(4, 256, 21)], 2)}),
@@ -90,7 +92,7 @@ TILES = {
     23: ("m_steel", .66, .25, "u", None, {"engrave": (["line 0,128 256,128"], 5)}),
     24: ("fur", .4, .5, "", None, {}),
     25: ("m_witch", .7, .2, "", None, {}),
-    26: ("leather", .4, .4, "", None, {"engrave": (["line %d,0 %d,256" % (x, x + 60) for x in range(-60, 256, 18)], 3)}),
+    26: ("enamel", .5, .2, "v", PAINT, {"engrave": (O.border(12), 2)}),          # Angmar's cold enamel (crown band, lame)
     27: ("brass", .58, .25, "uv", None, {"engrave": (O.border(14), 3), "inlay": (O.tri_frieze(96, 160, 8), 2)}),
     28: ("gold", .6, .25, "", None, {"engrave": (["line 128,20 128,236"] + O.chevrons(5, 60, 18) + O.chevrons(5, 200, 18), 3)}),
     29: ("hotpink", .55, .3, "v", None, {"inlay": (O.sparkles(29, 50), 1)}),
@@ -197,5 +199,5 @@ def special(sheet, tag, u, v, x, y, g, n1):
 def paint(work, gear, fun):
     """The class's two sheets and masks into `work` (gear and fun: sheet stems, lower case)."""
     work.joinpath("paint").mkdir(parents=True, exist_ok=True)
-    return {gear: paint_sheet(work, gear, TILES, INLAY, "gear", special, ramps=RAMPS, fill={("gear", 9, "inlay")}),
-            fun: paint_sheet(work, fun, FUN_TILES, FUN_INLAY, "fun", special, ramps=RAMPS, fill={("fun", 23, "inlay")})}
+    return {gear: paint_sheet(work, gear, TILES, INLAY, "gear", special, ramps=RAMPS, fill={("gear", 9, "inlay")}, to=BLUE),
+            fun: paint_sheet(work, fun, FUN_TILES, FUN_INLAY, "fun", special, ramps=RAMPS, fill={("fun", 23, "inlay")}, to=BLUE)}

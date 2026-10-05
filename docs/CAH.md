@@ -45,6 +45,7 @@ screen's rows, for every class. The Dwarf (`assets/cah/dwarf`) is the first clas
 python3 -m assets.cah.kit.survey --markdown        # EA's subclasses (the table below)
 python3 -m assets.cah.<class>.build [--skip-paint] # sources and sheets (and the old copies, never shipped)
 python3 -m assets.cah.kit.attach <class> [--review] # part models on bones, INI fragment, every check, review sheet
+python3 -m assets.cah.kit.attach_review --paint    # a few serious parts per class in three Paint colours
 python3 -m assets.cah.kit.render <class>           # build/assets/cah/<class>/renders/overview.png (one Blender)
 python3 -m sagekit.units.cah --stage               # compose all classes, lint, pack, asset.dat round trip
 python3 -m sagekit.units.cah --install [--dry-run] # one archive, records, shared house-colour INI
@@ -115,16 +116,42 @@ models take the _U caps. A part over its cap stops the pack (`--stage`).
 
 ## Serious and fun; fixed and tinted colours
 
-The 3 hero colours act through a mask per sheet (`kit/paint.py`, like EA's `HC_CHDW_TM.tga`).
-Alpha marks what takes a colour; G is EA's tunic channel, R its second cloth, B its studs.
+The 3 hero colours act through a mask per sheet (`kit/paint.py`, like EA's `HC_CHDW_TM.tga`). Alpha
+marks what takes a colour; the pickers drive **Hair → R, Skin → G, Paint → B** ("Hero colours" below).
+Max's rule (2026-10-05, option 1): **our parts follow the Paint picker only.**
 
-- **Serious** parts tint their cloth and enamel tiles. The Dwarf's blue enamel and cloak follow
-  colour G, its leather wraps R, its gems B. Metal stays metal.
-- **Fun** parts are mostly **fixed** colours on purpose: a pink cape stays pink. Their tiles have
-  tint `None`, or `special()` returns a fixed rgb. A few still tint: the jester and party hats.
-- **Colour variants** of a serious part (gold-plated, hot pink) reuse its design with a tile
-  `remap` onto fixed-colour tiles.
+- **Serious** parts: their coloured bits (enamel, cloth, trim, gems, leather wraps, cape and banner
+  cloth, lacquer, war paint, dyed crests) take Paint (B). Metal stays metal. Each has at least 3 % of
+  its surface on Paint, or is listed in the class's `ALL_METAL` (none is).
+- **Fun** parts keep their **fixed** colours (a pink cape stays pink): tint `None`, or `special()`
+  returns a fixed rgb. The hat cloth of the party hats, the top hats' band and the jester's red half
+  take Paint; the jester's yellow half stays yellow. The class lists them in `FUN_TINTED`.
+- **Colour variants** of a serious part (gold-plated, hot pink: a serious part with a tile `remap`)
+  keep their fixed colours and need no Paint area.
+- Nothing of ours takes Hair (R) or Skin (G); no part is hair or skin.
 - All parts must read at the RTS camera.
+
+How the tables say it (`kit/paint.py`): a tile's tint is the kind of area (G cloth and enamel, R
+leather and second cloth, B gems, `PAINT` areas new with this rule). The class's `paint()` passes
+`to=BLUE`, which writes every tint to B and turns on the `PAINT` tiles and the `"enamel"` layer
+(filled shapes of tinted enamel under the engraving and inlay: the Erebor friezes, rune bands, the
+Noldor circlet, the King's crown band, the Blue Mountains helm's ribs). The heroes that paint the same
+tables (`assets/heroes/captain`, `aragorn`) pass no `to`: their sheets and masks are byte for byte
+what they were (checked).
+
+What gained a Paint area (each had under 3 %):
+
+| Class | Parts | Now on Paint |
+|---|---|---|
+| dwarf | Iron Hills, Khazad, Ram, Blue Mountains helms; Erebor pauldrons | an enamel panel, enamel behind the runes, the friezes and the ribs |
+| archer_el / _fe | Rivendell circlet and helm; Mirkwood circlet; Ranger hood and cloak | enamel behind the vine; the autumn leaves; one of the five camo colours |
+| corruptedman | Easterling helm and pauldrons | the lacquered lamellae (the gold lacing stays gold) |
+| servantsofsauron | Goblin pauldrons (and helm); Angmar helm | the crimson war paint (the chips stay iron); an enamelled crown band |
+| ologhai | Angmar helm and frost-plates | the enamelled crown band and lame |
+| men_cg / men_sm | King's helm; Eorl and Guard helms; Gondor and Mark pauldrons | the crown band's enamel; the dyed horsehair crests; enamelled lames |
+| wizard | White, Brown and Blue hats; star cloak | the White's rune band in enamel; the Brown's leather band; the Blue's hood hem; the star cloak's cloth |
+
+The felts of the wizard hats keep their order's colour; the Rangers' camo keeps four of its five colours.
 
 ## Checks (all automatic)
 
@@ -138,6 +165,11 @@ Alpha marks what takes a colour; G is EA's tunic channel, R its second cloth, B 
   group and shows a sub-object our models carry; each weapon's set exists. Broken copies (inserted
   entry, missing label, no group clear, part missing from a model, missing weapon set, models not
   ours, over 1152 upgrades) must each fail.
+- **Colours (`kit/attach_lint.py` `paint_lint`, in every class build and `--stage`):** per part, the
+  share of its surface on each picker (16 samples per triangle, the least over the class's EA models):
+  no part on Hair or Skin; every serious part at least 3 % on Paint unless in `ALL_METAL`; a fun part
+  on Paint only if in `FUN_TINTED`. Broken copies (Paint moved to Skin, no Paint, every texel tinted)
+  must each fail.
 - **Pack (`--stage`):** no member another archive serves first; nothing filed twice; asset.dat
   staged and reverted on copies gives back today's records byte for byte.
 
@@ -494,6 +526,16 @@ options are more tinted area, Paint (B) for armour enamel, or leaving armour fix
 these is an art change to `kit/paint.py` and the masks: rebuild, review, then install. If an EA body
 (cloth, skin, hair) does not change with a picker either, that is the one in-game observation that
 would still point at the engine path, and none of the above explains it.
+
+**Max's decision (2026-10-05): option 1, Paint.** Every coloured bit of our serious parts follows the
+Paint picker (B); metal stays metal; fun parts keep their fixed colours ("Serious and fun" above). Built
+and staged, not installed: every class rebuilt, `paint_lint` clean. Per class, the least / median
+Paint share of a serious part: archer_el and archer_fe 4.7 / 22 %, corruptedman 12.9 / 32 %, dwarf
+4.0 / 8.5 %, men_cg 4.5 / 23 %, men_sm 5.4 / 8.3 %, ologhai 6.6 / 14 %, servantsofsauron 5.4 / 16 %,
+wizard 6.0 / 6.9 %. The Erebor helm went from 5.3 % on Skin to 11.9 % on Paint, the Erebor axe from
+8.5 % on Hair to 8.5 % on Paint. Review: the class sheets and `cah_attach/paint_sheet.jpg` (three
+parts per class in a red, a blue and a green Paint). The class sheets render with Paint set to the
+colour the class's cloth had before (the dwarf's blue, the evil classes' red; the wizard's blue).
 
 ## EA's subclasses
 

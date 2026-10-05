@@ -316,7 +316,8 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   colour as the exe resolves it: every housecolor.ini line of ours whose texture is shipped must have
   its BaseTexture filed in asset.dat (else the engine keys it -1 and never colours it) and a mask the
   colouring handles (A8R8G8B8/A4R4G4B4 DDS, 32-bit TGA); in `sagekit validate`. `--tint`: per part
-  mesh, the share of its surface the Hair (R), Skin (G) and Paint (B) pickers colour. docs/CAH.md.
+  mesh, the share of its surface the Hair (R), Skin (G) and Paint (B) pickers colour (16 samples per
+  triangle; the cah parts' Paint-only rules on it are `assets/cah/kit/attach_lint.py`). docs/CAH.md.
 - `python3 -m sagekit unit <faction>/<unit> [--render|--check|--stage|--install|--revert]`
   (`sagekit/units/`, `sagekit/blender/unit_pose.py`) — unit recipes, `assets/<faction>/porter/design.py`
   (every faction's builder, installed) and `assets/<faction>/worker/design.py` (the construction
@@ -336,6 +337,8 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `python3 -m assets.cah.kit.attach <class> [--review | --review-only]` builds a class's parts as models of our own on
   the hero's bones (`kit/attach.py`, checks in `kit/attach_lint.py`, review sheet `kit/attach_review.py`; docs/CAH.md);
   every class is built this way and `--stage` takes only classes built this way.
+  `python3 -m assets.cah.kit.attach_review --paint [class ...]` renders a few serious parts per class in three
+  Paint-picker colours (`build/assets/_review_finish/cah_attach/paint_sheet.jpg`).
   The evil classes use `python3 -m assets.cah.evil.render <class>` and `python3 -m assets.cah.evil.contents <class>`.
   How: `docs/CAH.md`.
 - `python3 -m assets.heroes.build [--skip-art]`, `python3 -m sagekit.units.heroes --stage|--install|--revert [--dry-run]`

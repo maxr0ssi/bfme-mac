@@ -83,8 +83,8 @@ ENTRIES = [   # (sub-object, group, design, name, description, sheet, remap) in 
      "A fluted mithril helm crowned with seven stars, the Elendilmir on the brow.", "serious", None),
     ("SKHWCG_HEORL", "CreateAHero_Helmet", Hm.helm_eorl, "Helm of the Eorlingas",
      "Gilded spangen, a golden horse on the brow and a long horsehair tail.", "serious", None),
-    ("SKHWCG_SPGN", "CreateAHero_ShoulderPlates", lambda m: B.pauldrons(m, A), "Pauldrons of Gondor",
-     "Bright steel shoulder domes edged in gold, with riveted lames.", "serious", None),
+    ("SKHWCG_SPGN", "CreateAHero_ShoulderPlates", lambda m: B.pauldrons(m, A, lame=T.ENAMEL), "Pauldrons of Gondor",
+     "Bright steel shoulder domes edged in gold, with enamelled lames.", "serious", None),
     ("SKHWCG_SPTREE", "CreateAHero_ShoulderPlates", lambda m: B.mantle_tree(m, A), "Mantle of the White Tree",
      "A sable cloak bearing the White Tree, with a fur collar.", "serious", None),
     ("SKHWCG_SHTWR", "CreateAHero_Shield", lambda m: B.shield_gondor(m, A), "Tower Shield of Minas Tirith",
@@ -122,5 +122,5 @@ RENDER = {"body": {"chhw_cg_u_skn": "CHHW_SMNL", "chhw_cg_c_skn": "CHHW_SMN", "c
                    ("WHITE TREE", ["SKHWCG_HKING", "SKHWCG_SPTREE", "SKHWCG_SHTWR", "SKHWCG_WSWORD", "GNLT_05", "BOOT_05"], False),
                    ("PINK", ["SKHWCG_FCHEESE", "SKHWCG_FPINK", "SKHWCG_FPIZZA", "SKHWCG_FPAN", "GNLT_04", "BOOT_04"], False),
                    ("RAINBOW", ["SKHWCG_FUMB", "SKHWCG_FRAINB", "SKHWCG_FPIZZA", "SKHWCG_FPAN", "GNLT_05", "BOOT_05"], False)],
-          "colours": [(52, 74, 40), (30, 34, 44), (70, 110, 200)],
+          "colours": [(52, 74, 40), (30, 34, 44), (30, 34, 44)],
           "anims": {"chhw_cg_u_skl": "chhw_cg_u_idla", "chhw_cg_c_skl": "chhw_cg_c_atnb", "chhw_mw_m_skl": "chhw_mw_m_idla"}}

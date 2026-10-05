@@ -20,6 +20,7 @@ What game.dat does (read from the exe, RotWK 2.02):
                    archive ships has its BaseTexture filed in asset.dat and a mask the colouring
                    handles; no archive of ours serves a mask it cannot colour
     tint(archive)  per part mesh of an archive: the share of its surface each picker colours
+                   (shares(); the CaH parts' rules on it: assets/cah/kit/attach_lint.py paint_lint)
     python3 -m sagekit.housecheck [--tint archive.big] [--selfcheck]
 """
 import math
@@ -121,10 +122,39 @@ def validate():
     return 1 if problems else 0
 
 
+SUB = 4                         # each triangle sampled at the centres of its SUB x SUB equal sub-triangles
+BARY = [((i + 1 / 3) / SUB, (j + 1 / 3) / SUB) for i in range(SUB) for j in range(SUB - i)] + \
+       [((i + 2 / 3) / SUB, (j + 2 / 3) / SUB) for i in range(SUB) for j in range(SUB - 1 - i)]
+
+
+def shares(mesh, w, h, px, rgb=(2, 1, 0)):
+    """(area, [share of the mesh's surface per picker R, G, B]) over a mask of w x h texels, 4 bytes
+    each, top row first, alpha the 4th byte; rgb: the byte offsets of R, G, B (a DDS A8R8G8B8 is
+    stored B, G, R, A; a raw RGBA file 0, 1, 2). Image row = (1 - V) x height, as the part kit lays
+    its tiles (assets/cah/kit/geom.py); a texel counts where alpha and the channel are over 16. A
+    triangle is sampled at SUB^2 points of equal area (one sample at its centre misses a band that
+    is narrower than the triangle)."""
+    area, hit = 0.0, [0.0, 0.0, 0.0]
+    for t in mesh.tris:
+        p = [mesh.verts[j] for j in t]
+        e1, e2 = [p[1][c] - p[0][c] for c in range(3)], [p[2][c] - p[0][c] for c in range(3)]
+        ar = math.sqrt(sum(x * x for x in (e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2],
+                                            e1[0] * e2[1] - e1[1] * e2[0]))) / 2
+        (u0, v0), (u1, v1), (u2, v2) = (mesh.uv[j] for j in t)
+        area += ar
+        for a, b in BARY:
+            u, v = u0 + a * (u1 - u0) + b * (u2 - u0), 1 - (v0 + a * (v1 - v0) + b * (v2 - v0))
+            o = ((int((v % 1) * h) % h) * w + int((u % 1) * w) % w) * 4
+            if px[o + 3] > 16:
+                for c in range(3):
+                    if px[o + rgb[c]] > 16:
+                        hit[c] += ar / len(BARY)
+    return area, [x / area if area else 0 for x in hit]
+
+
 def tint(archive):
     """{(model, mesh): (area, [share per picker])} for the models of `archive` whose texture has a
-    mask `hc_<texture>` in the same archive. Image row = (1 - V) x height, as the part kit lays its
-    tiles (assets/cah/kit/geom.py); a texel counts where mask alpha and the channel are over 16."""
+    mask `hc_<texture>` in the same archive (shares())."""
     from .formats.big import Archive
     from .formats.w3d import W3DFile
     a = Archive(archive)
@@ -140,20 +170,7 @@ def tint(archive):
                 d = a.read(key)
                 h, w = struct.unpack_from("<II", d, 12)
                 masks[key] = (w, h, d[128:128 + w * h * 4])
-            w, h, px = masks[key]
-            area, hit = 0.0, [0.0, 0.0, 0.0]
-            for t in m.tris:
-                p = [m.verts[j] for j in t]
-                e1, e2 = [p[1][c] - p[0][c] for c in range(3)], [p[2][c] - p[0][c] for c in range(3)]
-                ar = math.sqrt(sum(x * x for x in (e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2],
-                                                    e1[0] * e2[1] - e1[1] * e2[0]))) / 2
-                u, v = sum(m.uv[j][0] for j in t) / 3, 1 - sum(m.uv[j][1] for j in t) / 3
-                o = ((int((v % 1) * h) % h) * w + int((u % 1) * w) % w) * 4
-                b, g, r, al = px[o:o + 4]
-                area += ar
-                for c, val in enumerate((r, g, b)):
-                    hit[c] += ar if al > 16 and val > 16 else 0
-            out[(k.split("\\")[-1][:-4], name)] = (area, [x / area if area else 0 for x in hit])
+            out[(k.split("\\")[-1][:-4], name)] = shares(m, *masks[key])
     return out
 
 

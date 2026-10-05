@@ -65,6 +65,9 @@ budget = E.budget_of({"SKCMN_CAPE_MOR", "SKCMN_FUN_BANNR"})
 # every part rides the hero's bones in models of our own (assets/cah/kit/attach.py, docs/CAH.md); EA's
 # models are not copied. Staged with python3 -m sagekit.units.cah --stage.
 ATTACH, ATTACH_STEM = [p[0] for p in PARTS], "SKCM"
+# the fun parts whose hat cloth takes the Paint colour (kit/attach_lint.py paint_lint); every other fun
+# part keeps its fixed colours, and every serious part has its enamel, cloth or leather on Paint
+FUN_TINTED = ["SKCMN_FUN_TOP", "SKCMN_FUN_PARTY"]
 
 
 def paint(work):
@@ -75,7 +78,7 @@ _HL = [p[0] for p in PARTS if p[1] == H]
 _EA = ["GNLT_01", "BOOT_01"]
 RENDER = {"body": {"chcm_cm_u_skn": "CHCM_CM_H", "chcm_cm_c_skn": "CHCM_CM", "chcm_fn_u_skn": "CHCM_CM_H",
                    "chcm_fn_c_skn": "CHCM_FN"},
-          "colours": [(70, 62, 52), (150, 28, 22), (210, 160, 60)],
+          "colours": [(70, 62, 52), (150, 28, 22), (150, 28, 22)],
           "anims": {"chcm_cm_u_skl": "chcm_cm_u_idla", "chcm_cm_c_skl": "chcm_cm_c_atnb"},
           "heads": ([("chcm_cm_c_skn", "EA HLMT_08", ["HLMT_08", "HLMT_09"], True), ("chcm_cm_c_skn", "EA HLMT_02", ["HLMT_02"], True)] +
                     [("chcm_cm_c_skn", h[6:], [h], False) for h in _HL] +

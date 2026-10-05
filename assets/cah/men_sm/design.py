@@ -79,8 +79,8 @@ ENTRIES = [   # (sub-object, group, design, name, description, sheet, remap) in 
      "Silver on sea-blue, a white swan rising from the crown.", "serious", None),
     ("SKHWSM_HARN", "CreateAHero_Helmet", Hm.helm_arnor, "Star Crown of Arnor",
      "A fluted mithril helm crowned with seven stars, the Elendilmir on the brow.", "serious", None),
-    ("SKHWSM_SPMARK", "CreateAHero_ShoulderPlates", lambda m: B.pauldrons(m, A, plate=T.GILT, trim=T.STEEL), "Gilded Pauldrons",
-     "Engraved gilt shoulder plates of the Mark, edged in steel.", "serious", None),
+    ("SKHWSM_SPMARK", "CreateAHero_ShoulderPlates", lambda m: B.pauldrons(m, A, plate=T.GILT, trim=T.STEEL, lame=T.ENAMEL),
+     "Gilded Pauldrons", "Engraved gilt shoulder plates of the Mark, edged in steel, over enamelled lames.", "serious", None),
     ("SKHWSM_SPCLOAK", "CreateAHero_ShoulderPlates", lambda m: B.cloak_mark(m, A), "Cloak of the Mark",
      "A green riding cloak with a gold-braided hem.", "serious", None),
     ("SKHWSM_SHSUN", "CreateAHero_Shield", lambda m: B.shield_round(m, A), "Shield of the Mark",
@@ -117,5 +117,5 @@ RENDER = {"body": {"chhw_sm_u_skn": "CHHW_SM", "chhw_sm_c_skn": "CHHW_SM", "chhw
                    ("GOLDEN HALL", ["SKHWSM_HGUARD", "SKHWSM_SPMARK", "SKHWSM_SHSUN", "SKHWSM_WSWORD", "GNLT_05", "BOOT_05"], False),
                    ("PINK", ["SKHWSM_HEORLP", "SKHWSM_FPINK", "SKHWSM_FPIZZA", "SKHWSM_FLEG", "GNLT_04", "BOOT_04"], False),
                    ("RAINBOW", ["SKHWSM_FCHEESE", "SKHWSM_FRAINB", "SKHWSM_FPIZZA", "SKHWSM_FLEG", "GNLT_05", "BOOT_05"], False)],
-          "colours": [(150, 120, 60), (40, 84, 40), (70, 140, 90)],
+          "colours": [(150, 120, 60), (40, 84, 40), (40, 84, 40)],
           "anims": {"chhw_sm_u_skl": "chhw_sm_u_idla", "chhw_sm_c_skl": "chhw_sm_c_atnb", "chhw_sm_m_skl": "chhw_sm_m_idla"}}

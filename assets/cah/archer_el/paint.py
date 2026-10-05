@@ -3,8 +3,10 @@ serious gear in the Elven buildings' Moonsilver palette (assets/elves/style.py: 
 mallorn gold, pale birch, sea-glass and slate, the cloth the player's colour) plus the Rangers'
 fixed green-brown camo, and the fun sheet. Tile tables for the kit's painter (kit/paint.py).
 
-Tinting: G is the cloth (hoods, cloaks, the leaf shield), R the linings and leather (grips, the
-Mirkwood leaf-leather), B the crystal gems and the Noldor enamel. Metal stays metal, camo stays camo.
+Tinting: the cloth (hoods, cloaks, the leaf shield), the linings and leather (grips, the Mirkwood
+leaf-leather), the crystal gems, the Noldor enamel (behind the circlet's vine), the Mirkwood
+circlet's autumn leaves and one of the Rangers' five camo colours all follow the Paint picker (B) on
+the CaH sheets (docs/CAH.md). Metal stays metal; the camo keeps its other four colours.
 """
 import math
 from pathlib import Path
@@ -13,7 +15,7 @@ from assets.elves.style import GOLD as EGOLD, MITHRIL as EMITHRIL, PALETTE as EP
 from sagekit.units.paint import ramp_colour
 
 from ..kit import ornament as O
-from ..kit.paint import BLUE, GREEN, RED, paint_sheet
+from ..kit.paint import BLUE, GREEN, PAINT, RED, paint_sheet
 
 RAMPS = {
     "emithril": EMITHRIL, "egold": EGOLD, "slate": SLATE, "seaglass": VERDIGRIS,
@@ -34,6 +36,7 @@ RAMPS = {
     "twine": [(0, (.12, .08, .04)), (.5, (.55, .42, .25)), (1, (.85, .75, .55))],
 }
 CAMO = [(.17, .19, .11), (.30, .32, .17), (.36, .28, .17), (.22, .20, .13), (.42, .40, .26)]
+CAMO_PAINT = 2                          # the camo blotch that takes the Paint colour (the tile's ramp under it)
 
 
 def _star(cx=128, cy=128, r0=24, r1=104, n=8):
@@ -79,13 +82,14 @@ TILES = {
     2: ("cloth", .55, .18, "", GREEN, {}),
     3: ("cloth", .5, .15, "", GREEN, {"inlay": (_vine(110, 150, 5) + ["line 0,40 256,40", "line 0,216 256,216"], 4)}),
     4: ("egold", .62, .25, "", None, {"engrave": (_leaf_veins(), 4)}),
-    5: ("emithril", .64, .2, "", None, {"inlay": (_vine(70, 186, 4) + ["line 0,24 256,24", "line 0,232 256,232"], 6)}),
+    5: ("emithril", .64, .2, "", None, {"inlay": (_vine(70, 186, 4) + ["line 0,24 256,24", "line 0,232 256,232"], 6),
+                                        "enamel": (["rectangle 0,60 256,196"], 1)}),
     6: ("gem", .55, .1, "", BLUE, {}),
     7: ("leather", .5, .35, "", RED, {"engrave": (O.border(12), 3)}),
     8: ("antler", .58, .35, "", None, {"engrave": (["line 0,%d 256,%d" % (y, y + 10) for y in range(4, 256, 22)], 2)}),
     9: ("egold", .6, .25, "v", None, {"engrave": (["line %d,0 %d,256" % (x, x) for x in range(16, 256, 32)], 5)}),
     10: ("slate", .55, .15, "", BLUE, {"inlay": (O.sparkles(10, 14) + ["line 0,30 256,30", "line 0,226 256,226"], 5)}),
-    11: ("ground", .5, .3, "", None, {}), 12: ("ground", .35, .35, "", None, {"engrave": (O.border(14), 3)}),
+    11: ("ground", .5, .3, "", PAINT, {}), 12: ("ground", .35, .35, "", PAINT, {"engrave": (O.border(14), 3)}),
     13: ("emithril", .66, .2, "", None, {"engrave": (_star(), 7)}),
     14: ("birch", .6, .25, "", None, {"inlay": (_vine(90, 166, 3), 5)}),
     15: ("leather", .45, .3, "", RED, {"engrave": (["line %d,0 %d,256" % (x, x + 64) for x in range(-64, 256, 20)], 3)}),
@@ -97,7 +101,7 @@ TILES = {
     20: ("birch", .55, .3, "", None, {"engrave": (["line 0,%d 256,%d" % (y, y) for y in range(0, 256, 40)], 2)}),
     21: ("silk", .7, .1, "", None, {}), 22: ("slate", .45, .25, "v", None, {}),
     23: ("seaglass", .55, .2, "", None, {}), 24: ("darkwood", .5, .35, "", None, {}),
-    25: ("autumn", .55, .3, "", None, {"engrave": (_leaf_veins(), 3)}),
+    25: ("autumn", .55, .3, "", PAINT, {"engrave": (_leaf_veins(), 3)}),
     26: ("emithril", .62, .2, "", None, {"engrave": (O.border(10) + ["line 128,0 128,256"], 3)}),
     27: ("cloth", .38, .15, "", RED, {}),
 }
@@ -130,9 +134,11 @@ def special(sheet, tag, u, v, x, y, g, n1):
             return (fold if tag != 19 else 0), None
         if tag in (11, 12):                            # camo: four colours in blotches, leaf-dappled
             k = n1 * 3.2 + .8 * math.sin(x * .09 + 2 * math.sin(y * .07)) + .5 * math.sin(y * .13 - x * .05)
-            c = CAMO[int(abs(k) * 1.7) % len(CAMO)]
+            n = int(abs(k) * 1.7) % len(CAMO)
             f = 1 + g * 1.4 + (fold * .8 if tag == 11 else 0) - (.25 if tag == 12 else 0)
-            return 0, [max(0, min(1, q * f)) for q in c]
+            if n == CAMO_PAINT:                        # a fixed rgb is never tinted: this blotch takes the ramp
+                return (fold * .8 if tag == 11 else 0), None
+            return 0, [max(0, min(1, q * f)) for q in CAMO[n]]
         if tag == 6:
             return .5 * (v - .5), None
         if tag == 15:
@@ -176,5 +182,5 @@ def paint(work, gear, fun):
     """Both sheets and masks into `work` under the class's names (lower case, no extension)."""
     work = Path(work)
     (work / "paint").mkdir(parents=True, exist_ok=True)
-    return {gear: paint_sheet(work, gear, TILES, INLAY, "gear", special, ramps=RAMPS),
-            fun: paint_sheet(work, fun, FUN_TILES, FUN_INLAY, "fun", special, ramps=RAMPS, fill={("fun", 20, "inlay")})}
+    return {gear: paint_sheet(work, gear, TILES, INLAY, "gear", special, ramps=RAMPS, to=BLUE),
+            fun: paint_sheet(work, fun, FUN_TILES, FUN_INLAY, "fun", special, ramps=RAMPS, fill={("fun", 20, "inlay")}, to=BLUE)}

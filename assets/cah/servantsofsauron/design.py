@@ -82,6 +82,9 @@ budget = E.budget_of({"SKSOS_CAPE_MOR", "SKSOS_FUN_BANNR"})
 # every part rides the hero's bones in models of our own (assets/cah/kit/attach.py, docs/CAH.md); EA's
 # models are not copied. Staged with python3 -m sagekit.units.cah --stage.
 ATTACH, ATTACH_STEM = [p[0] for p in PARTS], "SKSS"
+# the fun parts whose hat cloth takes the Paint colour (kit/attach_lint.py paint_lint); every other fun
+# part keeps its fixed colours, and every serious part has its enamel, cloth or leather on Paint
+FUN_TINTED = ["SKSOS_FUN_PARTY", "SKSOS_FUN_TOP"]
 
 
 def paint(work):
@@ -110,7 +113,7 @@ RENDER["game"] = [("chss_or_u_skn", "EA ORC", ["HLMT_07", "SLDR_05", "AXE_02"] +
                   ("chss_uk_u_skn", "URUK: WHITE HAND", ["SKSOS_HLMT_ISE", "SKSOS_SLDR_ISE", "SKSOS_SHLD_WH", "SKSOS_WPN_CLEAV"] + _UK_EA, False),
                   ("chss_uk_u_skn", "URUK: PINK", ["SKSOS_FUN_PINK", "SKSOS_CAPE_MOR", "SKSOS_FUN_HUGME", "SKSOS_FUN_CHICK"] + _UK_EA, False),
                   ("chss_uk_u_skn", "URUK: GOBLIN", ["SKSOS_HLMT_GOB", "SKSOS_SLDR_GOB", "SKSOS_WPN_CLEAV"] + _UK_EA, False)]
-RENDER["colours"] = [(70, 62, 52), (150, 28, 22), (210, 160, 60)]
+RENDER["colours"] = [(70, 62, 52), (150, 28, 22), (150, 28, 22)]
 RENDER["close"] = [("chss_uk_c_skn", "SHIELD OF THE WHITE HAND", ["SKSOS_SHLD_WH"] + _UK_EA, False, ["SKSOS_SHLD_WH"], 0.9, 60),
                    ("chss_uk_c_skn", "HUG ME", ["SKSOS_FUN_HUGME"] + _UK_EA, False, ["SKSOS_FUN_HUGME"], 0.9, 60),
                    ("chss_or_c_skn", "ORC: BLACK GATE SHIELD", ["SKSOS_SHLD_MOR"] + _ORC_EA, False, ["SKSOS_SHLD_MOR"], 0.9, 60),

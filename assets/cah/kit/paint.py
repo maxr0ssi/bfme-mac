@@ -5,10 +5,14 @@ by seeded grain, scratches, worn bright edges ("u"/"v") and rim grime, with orna
 (ornament.py) bevelled in as "inlay" (a ramp per tile, `inlay`), "engrave" or raised "rivet". A
 class adds its own ramps and a special() for folds, rings, fluff and fixed colours.
 
-The mask (512 x 256 TGA) follows EA's CaH masks (HC_CHDW_TM.tga): alpha marks what takes the
-hero's colours; R, G and B carry the shading for the colour each stands for (G is EA's tunic
-channel, R its second cloth, B its studs). Tiles with tint None, inlay over half covered, and fixed
-colours stay as painted.
+The mask (512 x 256 TGA) follows EA's CaH masks (HC_CHDW_TM.tga): alpha marks what takes a
+colour; R, G and B carry the shading for the colour each stands for. The CaH pickers drive Hair -> R,
+Skin -> G, Paint -> B (docs/CAH.md "Hero colours"). A tile's tint says what kind of area it is (G
+cloth and enamel, R leather and second cloth, B gems, PAINT tinted on CaH sheets only); the Create-a-
+Hero sheets pass to=BLUE, so every tinted texel follows the Paint picker. The heroes' sheets
+(assets/heroes) paint the same tables without `to`: R/G/B stay where they are, PAINT tiles and
+"enamel" layers are left out, so their sheets do not change. Tiles with tint None, inlay over half
+covered, and fixed colours stay as painted.
 """
 import random
 
@@ -18,6 +22,7 @@ from sagekit.units.paint import ramp_colour
 from . import ornament as O
 
 GREEN, RED, BLUE = 1, 0, 2
+PAINT = 3                       # a tile tinted on the CaH sheets only (the Paint picker, B); untinted elsewhere
 S = O.S
 RAMPS = dict(PALETTE.ramps)
 RAMPS.update({
@@ -38,12 +43,17 @@ RAMPS.update({
     "white": [(0, (.55, .55, .58)), (.6, (.92, .92, .94)), (1, (1, 1, 1))],
     "scales": [(0, (.08, .14, .12)), (.45, (.38, .52, .46)), (.8, (.74, .82, .78)), (1, (.95, .98, .96))],
     "copper": [(0, (.12, .04, .02)), (.4, (.55, .22, .10)), (.75, (.86, .48, .28)), (1, (1, .82, .66))],
+    # champleve enamel under the Paint colour (the mask carries the shading; the base shows in previews)
+    "enamel": [(0, (.02, .04, .10)), (.45, (.08, .16, .38)), (.8, (.20, .32, .62)), (1, (.45, .58, .85))],
 })
 
-def paint_sheet(work, name, tiles, inlay, sheet, special, ramps=None, fill=()):
+def paint_sheet(work, name, tiles, inlay, sheet, special, ramps=None, fill=(), to=None, enamel=None):
     """Paint sheet `name` (tiles {tag: spec}) into `work`: its DDS and its mask TGA. special(sheet,
     tag, u, v, x, y, g, n1) -> (value offset, fixed rgb or None) adds a tile's own shading; a fixed
-    rgb is never tinted. fill: (sheet, tag, layer) whose strokes are filled shapes."""
+    rgb is never tinted. fill: (sheet, tag, layer) whose strokes are filled shapes.
+    to: the one mask channel every tint goes to (CaH sheets: BLUE, the Paint picker); it also turns
+    on PAINT tiles and the "enamel" layer (filled shapes of tinted enamel, ramp enamel.get(tag,
+    "enamel"), under the engraving, inlay and rivets). Without it both are left out."""
     R = dict(RAMPS, **(ramps or {}))
     W, H = 8 * S, 4 * S
     rgb = bytearray(W * H * 3)
@@ -52,7 +62,13 @@ def paint_sheet(work, name, tiles, inlay, sheet, special, ramps=None, fill=()):
     scr = O.scratches(work, 5)
     rng = random.Random(7)
     for tag, (ramp, mid, grain, edges, tint, orns) in tiles.items():
-        layers = {k: O.draw(work, "%s%d_%s" % (sheet, tag, k), c, width=w, fill=(k == "rivet" or (sheet, tag, k) in fill))
+        if to is None:
+            tint = None if tint == PAINT else tint
+            orns = {k: v for k, v in orns.items() if k != "enamel"}
+        elif tint is not None:
+            tint = to
+        layers = {k: O.draw(work, "%s%d_%s" % (sheet, tag, k), c, width=w,
+                            fill=(k in ("rivet", "enamel") or (sheet, tag, k) in fill))
                   for k, (c, w) in orns.items()}
         ox, oy = (tag % 8) * S, (tag // 8) * S
         for y in range(S):
@@ -73,6 +89,12 @@ def paint_sheet(work, name, tiles, inlay, sheet, special, ramps=None, fill=()):
                     val += .12 * scr[i] / 255
                 col = fixed or ramp_colour(R[ramp], val + rng.uniform(-.015, .015))
                 ch = tint
+                if "enamel" in layers:
+                    m0 = layers["enamel"][i] / 255
+                    if m0 > .05 and not fixed:
+                        en = ramp_colour(R[(enamel or {}).get(tag, "enamel")], .55 + g * .6 + .1 * (n1[i] / 255 - .5))
+                        col = [a * (1 - m0) + b * m0 for a, b in zip(col, en)]
+                        ch = to if m0 > .5 else ch
                 if "engrave" in layers:
                     m0 = layers["engrave"][i] / 255
                     m1 = layers["engrave"][min(i + S + 1, S * S - 1)] / 255

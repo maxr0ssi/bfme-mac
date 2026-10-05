@@ -72,6 +72,9 @@ PARTS = _parts()
 # every part rides the hero's bones in models of our own (assets/cah/kit/attach.py, docs/CAH.md; the
 # Erebor helm and axe were the pilot); EA's dwarf models are not copied.
 ATTACH, ATTACH_STEM = [p[0] for p in PARTS], "SKDW"
+# the fun parts whose hat cloth takes the Paint colour (kit/attach_lint.py paint_lint); every other fun
+# part keeps its fixed colours, and every serious part has its enamel, cloth or leather on Paint
+FUN_TINTED = ["SKH_FUN_PARTY", "SKH_FUN_JESTER"]
 
 
 def budget(name, group, kind):
@@ -87,5 +90,5 @@ RENDER = {"body": {"chdw_tm_u_skn": "CH_DWARF_04", "chdw_tm_c_skn": "CHDW_TM", "
                    ("EREBOR", ["SKH_HLMT_ER", "SKH_SLDR_ER", "SKH_SHLD_ER", "SKH_AXE_ER", "GNLT_04", "BOOT_04"], False),
                    ("PINK", ["SKH_FUN_DUCK", "SKH_FUN_PINKCAP", "SKH_FUN_PINKSH", "SKH_FUN_PAN", "GNLT_04", "BOOT_04"], False),
                    ("RAINBOW", ["SKH_FUN_JESTER", "SKH_FUN_RAINBOW", "SKH_FUN_SMILEY", "SKH_FUN_FISH", "GNLT_02", "BOOT_03"], False)],
-          "colours": [(70, 52, 38), (38, 66, 150), (196, 156, 72)],
+          "colours": [(70, 52, 38), (38, 66, 150), (38, 66, 150)],
           "anims": {"chdw_dw_u_skl": "chdw_dw_u_idla", "chdw_dw_c_skl": "chdw_dw_c_atnb"}}

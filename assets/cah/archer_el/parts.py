@@ -50,7 +50,7 @@ BONES = {HLM: {"B_HEAD", "BAT_HEAD"},
 # vertex caps (in game, creation screen); cloaks are large sheets (docs/CAH.md)
 BUDGET = {HLM: (650, 950), SH: (700, 1100), SD: (600, 900), WP: (540, 700)}
 OWN_BUDGET = {"CLOAKLO": (900, 1350), "CLOAKRG": (900, 1350), "CAPEPK": (900, 1350), "RAINBOW": (900, 1350)}
-COLOURS = [(40, 62, 38), (62, 74, 66), (60, 105, 175)]     # previews: leaf green, Lorien grey, crystal blue
+COLOURS = [(40, 62, 38), (62, 74, 66), (62, 74, 66)]      # previews: Hair, Skin, Paint (our parts: Lorien grey)
 
 
 def budget(name, group, kind):
