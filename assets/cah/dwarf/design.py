@@ -52,7 +52,7 @@ WEAPON_SETS = range(43, 46)                                        # WEAPONSET_C
 BUDGET = {"CreateAHero_Helmet": (650, 950), "CreateAHero_ShoulderPlates": (700, 1100),
           "CreateAHero_Shield": (600, 900), "CreateAHero_Weapon": (540, 700)}
 # a cloak is a large sheet; the spangenhelm's eight gilded strips stay visible from the RTS camera
-OWN_BUDGET = {"SKH_SLDR_MN": (900, 1350), "SKH_FUN_PINKCAPE": (900, 1350), "SKH_FUN_RAINBOW": (900, 1350),
+OWN_BUDGET = {"SKH_SLDR_MN": (900, 1350), "SKH_FUN_PINKCAP": (900, 1350), "SKH_FUN_RAINBOW": (900, 1350),
               "SKH_HLMT_KD": (700, 950)}
 
 
@@ -69,6 +69,9 @@ def _parts():
 
 
 PARTS = _parts()
+# the redesign's pilot (docs/CAH.md): these parts ride bones in models of our own (assets/cah/kit/attach.py);
+# EA's dwarf models are not copied. Staged with python3 -m sagekit.units.cah --stage --classes dwarf.
+ATTACH, ATTACH_STEM = ["SKH_HLMT_ER", "SKH_AXE_ER"], "SKDW"
 
 
 def budget(name, group, kind):
@@ -82,7 +85,7 @@ RENDER = {"body": {"chdw_tm_u_skn": "CH_DWARF_04", "chdw_tm_c_skn": "CHDW_TM", "
           "ea_heads": ["HLMT_01", "HLMT_03", "HLMT_05", "HLMT_06"],
           "kits": [("EA KIT", ["HLMT_06", "SLDR_06", "GNLT_04", "BOOT_04", "AXE_03"], True),
                    ("EREBOR", ["SKH_HLMT_ER", "SKH_SLDR_ER", "SKH_SHLD_ER", "SKH_AXE_ER", "GNLT_04", "BOOT_04"], False),
-                   ("PINK", ["SKH_FUN_DUCK", "SKH_FUN_PINKCAPE", "SKH_FUN_PINKSH", "SKH_FUN_PAN", "GNLT_04", "BOOT_04"], False),
+                   ("PINK", ["SKH_FUN_DUCK", "SKH_FUN_PINKCAP", "SKH_FUN_PINKSH", "SKH_FUN_PAN", "GNLT_04", "BOOT_04"], False),
                    ("RAINBOW", ["SKH_FUN_JESTER", "SKH_FUN_RAINBOW", "SKH_FUN_SMILEY", "SKH_FUN_FISH", "GNLT_02", "BOOT_03"], False)],
           "colours": [(70, 52, 38), (38, 66, 150), (196, 156, 72)],
           "anims": {"chdw_dw_u_skl": "chdw_dw_u_idla", "chdw_dw_c_skl": "chdw_dw_c_atnb"}}

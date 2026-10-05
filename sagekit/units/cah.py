@@ -8,13 +8,17 @@ ONE archive, composing their INI fragments onto EA's files in class-name order.
     ... --stage | --install --classes dwarf,men_cg     # only those classes (test one class at a time)
     python3 -m sagekit.units.cah --revert  [--dry-run]
 
-    RotWK/!!!!!!!!!!!sagekit-cah.big      every class's models (SK* copies of EA's CH* models with the
-                                          new hidden parts), sheets and masks, and EA's 2.02
-                                          Create-a-Hero INI with every class's entries appended
+    RotWK/!!!!!!!!!!!sagekit-cah.big      every class's part models (rigid, hidden until picked, on the
+                                          hero's bones: assets/cah/kit/attach.py), the sheets they draw
+                                          and their masks, and EA's 2.02 Create-a-Hero INI files that
+                                          change, EA's text first and ours appended
     RotWK/!!!!!!!!!!!!!sagekit-units.big  the shared housecolor.ini (sagekit/units/install.py): EA's
                                           plus every installed unit's lines, ours the two masks
     asset.dat                             our models filed under their own names, our textures
                                           registered; EA's records untouched
+
+A class still on the old design (copies of EA's skins under SK* names, drawn by every hero through
+createaheromodels.inc) is refused: Max's rule is that EA's heroes stay EA's (docs/CAH.md).
 
 Revert removes the archive, takes our records out of asset.dat (records.py; every other record
 byte for byte) and rebuilds the shared house-colour archive without our lines. EA's models, INI and
@@ -57,18 +61,44 @@ def class_dir(spec):
     return Path(paths.BUILD) / "cah" / spec.NAME
 
 
+def attached(spec):
+    """(built part models, fragment) of a class on the parts-on-bones design."""
+    from assets.cah.kit import attach
+    built, frag, _ = attach.load(spec)
+    return built, frag
+
+
+def check_design(specs):
+    old = [s.NAME for s in specs if not getattr(s, "ATTACH", None)]
+    if old:
+        raise SystemExit("cah: %s still copy EA's hero models (every hero would draw ours); convert them to parts on "
+                         "bones (ATTACH, assets/cah/kit/attach.py) or leave them out with --classes" % ", ".join(old))
+
+
+def shipped_models(spec):
+    """{our model name: its bytes} of a class."""
+    return {n: d for n, (_, _, d) in attached(spec)[0].items()}
+
+
+def shipped_sheets(spec):
+    """{sheet: mask} of the sheets the class's part models draw."""
+    from assets.cah.kit import attach
+    used = set(attach.sheets(attached(spec)[0]))
+    return {s: m for s, m in spec.MASKS.items() if s.lower() in used}
+
+
 def compose_ini(specs, b):
     """Every class's fragment composed onto EA's files, linted, written into the pack's work/ini."""
     from assets.cah.kit import ini
     from ..formats.w3d import W3DFile
+    from assets.cah.kit import attach
     ea = ini.read_all()
-    frags = [json.loads((class_dir(s) / "work" / "fragment.json").read_text()) for s in specs]
+    frags = [attached(s)[1] for s in specs]
     ours = ini.compose(ea, frags)
-    models = {}
+    models = {n.lower(): set(W3DFile(d).meshes) for s in specs for n, d in shipped_models(s).items()}
+    report = ini.check(ea, ours, models, [], frags)
     for s in specs:
-        for m in s.MODELS.values():
-            models[m.lower()] = set(W3DFile(str(class_dir(s) / "work" / (m.lower() + ".w3d"))).meshes)
-    report = ini.check(ea, ours, models, [m for s in specs for m in s.MODELS.values()], frags)
+        report["attach_" + s.NAME] = attach.check(s, ea, ours, attached(s)[0])
     written, changed = ini.write(ours, ea, b.work / "ini", frags)
     return written, report
 
@@ -78,14 +108,15 @@ def members(specs, b):
     if not specs:
         raise SystemExit("cah: no class folder under assets/cah")
     files = {}
+    from assets.cah.kit import attach
     for spec in specs:
-        report = json.loads((class_dir(spec) / "report.json").read_text())
+        report = attach.load(spec)[2]
         if report.get("over_budget"):
             raise SystemExit("cah: %s parts over their vertex budget: %s" % (spec.NAME, report["over_budget"]))
         work = class_dir(spec) / "work"
-        for ours in spec.MODELS.values():
-            files["art\\w3d\\%s\\%s.w3d" % (ours.lower()[:2], ours.lower())] = (work / (ours.lower() + ".w3d")).read_bytes()
-        for sheet, mask in spec.MASKS.items():
+        for ours, data in shipped_models(spec).items():
+            files["art\\w3d\\%s\\%s.w3d" % (ours.lower()[:2], ours.lower())] = data
+        for sheet, mask in shipped_sheets(spec).items():
             files[compiled_path(sheet, ".dds")] = (work / (sheet.lower()[:-4] + ".dds")).read_bytes()
             files[compiled_path(mask, ".tga")] = (work / mask.lower()).read_bytes()
     written, _ = compose_ini(specs, b)
@@ -93,13 +124,16 @@ def members(specs, b):
         if member in files:
             raise SystemExit("cah: %s twice" % member)
         files[member] = (b.work / "ini" / member.replace("\\", "/")).read_bytes()
-    return files
+    from ..texbake import bake          # house-colour masks ship with their mips built (sagekit/texbake.py)
+    return bake(files, log=lambda s: None)
 
 
 def cache_ops(specs):
-    ops = [("model", ours.lower() + ".w3d", ea.lower() + ".w3d") for s in specs for ea, ours in s.MODELS.items()]
+    """asset.dat ops: each part model filed like the class's design model (its timestamp and cache),
+    each sheet and mask registered like an EA CaH sheet and mask."""
+    ops = [("model", ours.lower() + ".w3d", s.DESIGN + ".w3d", "own") for s in specs for ours in shipped_models(s)]
     for s in specs:
-        for sheet, mask in s.MASKS.items():
+        for sheet, mask in shipped_sheets(s).items():
             ops += [("texture", sheet.lower(), TEXTURE_LIKE["sheet"], None, None),
                     ("texture", mask.lower(), TEXTURE_LIKE["mask"], None, None)]
     return ops
@@ -116,15 +150,17 @@ def owned(u, b):
 
 
 def model_source(specs):
-    by_name = {ours.lower() + ".w3d": str(class_dir(s) / "work" / (ours.lower() + ".w3d")) for s in specs for ours in s.MODELS.values()}
+    from assets.cah.kit import attach
+    by_name = {ours.lower() + ".w3d": str(attach.attach_dir(s) / (ours.lower() + ".w3d")) for s in specs for ours in shipped_models(s)}
     return lambda name: by_name[name.lower()]
 
 
 def stage(u, b, specs):
     """Check the build, pack the archive into _install/, and prove the asset.dat records come
     back as they were on a copy of each cache. Nothing in the game changes."""
-    names = [m.lower() for s in specs for m in s.MODELS.values()]
-    texts = [t.lower() for s in specs for kv in s.MASKS.items() for t in kv]
+    check_design(specs)
+    names = [m.lower() for s in specs for m in shipped_models(s)]
+    texts = [t.lower() for s in specs for kv in shipped_sheets(s).items() for t in kv]
     for kind, seen in (("model", names), ("texture", texts)):
         dup = {x for x in seen if seen.count(x) > 1}
         if dup:
@@ -217,11 +253,16 @@ def revert(dry=False):
     for name in shipped.index():
         if name.startswith("art\\w3d\\") and name.endswith(".w3d"):
             by_name[name.split("\\")[-1]] = shipped.read(name)
-    texs = [n.split("\\")[-1][:-4] + ".tga" for n in shipped.index() if n.startswith("art\\compiledtextures\\")]
-    ops = [("model", n, "ch" + n[2:]) for n in sorted(by_name)] + \
-          [("texture", t, TEXTURE_LIKE["mask" if t.startswith("hc_") else "sheet"], None, None) for t in sorted(texs)]
+    receipt = json.loads((b.stage / "unit.json").read_text())
+    if receipt.get("caches"):                       # the ops the install applied, per cache
+        routed = {live: [tuple(op) for op in ops] for live, ops in receipt["caches"].items()}
+    else:                                           # an install from before the receipt kept them: the copies design
+        texs = [n.split("\\")[-1][:-4] + ".tga" for n in shipped.index() if n.startswith("art\\compiledtextures\\")]
+        ops = [("model", n, "ch" + n[2:]) for n in sorted(by_name)] + \
+              [("texture", t, TEXTURE_LIKE["mask" if t.startswith("hc_") else "sheet"], None, None) for t in sorted(texs)]
+        routed = Install().route_cache_ops(ops)
     updates, expected = {dest: None}, {dest: read(dest), live_dir() / SHARED: read(live_dir() / SHARED)}
-    for live, ops in Install().route_cache_ops(ops).items():
+    for live, ops in routed.items():
         cache, pristine = AssetCache(live), AssetCache(live + ".orig")
         expected[Path(live)] = cache.data
         updates[Path(live)] = records.unstage(cache, pristine, ops, lambda m: by_name[m.lower()])

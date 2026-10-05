@@ -225,7 +225,7 @@ FUN = {   # sub-object: (group, design, name, description, sheet, tile remap)
     "SKH_HLMT_ERG": ("CreateAHero_Helmet", S.helm_erebor, "Crown-helm, Gold-plated", "Thrain's own, polished.",
                      "serious", GOLD_PLATED),
     "SKH_HLMT_ERP": ("CreateAHero_Helmet", S.helm_erebor, "Crown-helm, Hot Pink", "Fabulous.", "serious", HOT_PINK),
-    "SKH_FUN_PINKCAPE": ("CreateAHero_ShoulderPlates", cape_pink, "Pink Cape", "Bright pink, with a bow.", "fun", None),
+    "SKH_FUN_PINKCAP": ("CreateAHero_ShoulderPlates", cape_pink, "Pink Cape", "Bright pink, with a bow.", "fun", None),
     "SKH_FUN_RAINBOW": ("CreateAHero_ShoulderPlates", cape_rainbow, "Rainbow Cloak", "Every colour at once.", "fun", None),
     "SKH_FUN_BOA": ("CreateAHero_ShoulderPlates", boa, "Feather Boa", "Fluffy and pink.", "fun", None),
     "SKH_FUN_PAN": ("CreateAHero_Weapon", frying_pan, "Frying Pan", "Fights as a dwarven axe.", "fun", None),

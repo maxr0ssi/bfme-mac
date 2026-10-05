@@ -38,6 +38,7 @@ OBJECT_INCS = ["createaherodrawmodules", "createaherorespawn", "createaheromodel
                "createaheroattributemodifiers", "createaheroarmorupgrades", "createaheropowers", "createaheroaipowers",
                "createaheroreaction", "createaheroaudio", "createaherodesign"]
 NL = "\r\n"
+NAME_MAX = 15                                               # W3D mesh and model names: 16 bytes with the terminator
 HEAD = NL + "//---------------- sagekit cah pack (assets/cah): appended, never inserted (saved heroes index these lists)" + NL
 LABELS = {"CreateAHero_Helmet": ("CAH:HelmetMenuLabel", "CAH:HelmetMenuDesc"),
           "CreateAHero_ShoulderPlates": ("CAH:ShouldersMenuLabel", "CAH:ShouldersMenuDesc"),
@@ -70,8 +71,10 @@ def read_all():
 
 
 def members(f):
-    """{key: archive member} of every file a composition writes (shared plus the edited classes)."""
-    return {**SHARED, **{k: I + "createaherosystem%s.inc" % k[6:] for k in f if k.startswith("class_")}}
+    """{key: archive member} of every file a composition writes (shared plus the edited classes and
+    object includes)."""
+    return {**SHARED, **{k: I + "createaherosystem%s.inc" % k[6:] for k in f if k.startswith("class_")},
+            **{k: O + k[4:] + ".inc" for k in f if k.startswith("obj_")}}
 
 
 def upgrades(text):
@@ -329,6 +332,8 @@ def lint(f, models, known, ours_models=()):
                 errs.append("EA's %s shows our %s" % (u, o))
             if "SKH" in u:
                 owners.setdefault(o.upper(), set()).add(u)
+                if len(o) > NAME_MAX:
+                    errs.append("%s shows %s: a W3D sub-object name holds %d characters" % (u, o, NAME_MAX))
                 if not any(o.upper() in meshes for meshes in models.values()):
                     errs.append("%s shows %s, which no model of ours has" % (u, o))
     errs += ["sub-object %s is shown by %s" % (o, sorted(u)) for o, u in owners.items() if len(u) > 1 and o.startswith("SK")]
@@ -397,9 +402,13 @@ def check(ea, ours, models, ours_models, fragments):
         b = dict(ours)
         b["wupg"] = b["wupg"].replace("Conditions\t\t  =\t%s" % ws_flag(weapons[0]), "Conditions = NONE_SUCH")
         broken["weapon_set_missing"] = lint(b, models, known, ours_models)
+    if ours_models:                                         # the copies design; parts on bones draw EA's models
+        b = dict(ours)
+        b["models"] = ea["models"]
+        broken["models_not_ours"] = lint(b, models, known, ours_models)
     b = dict(ours)
-    b["models"] = ea["models"]
-    broken["models_not_ours"] = lint(b, models, known, ours_models)
+    b["wupg"] = b["wupg"].replace("ShowSubObjects\t\t   = %s" % frag["parts"][0], "ShowSubObjects\t\t   = %sXXXXXXXXXXXXXXX" % frag["parts"][0])
+    broken["name_too_long"] = lint(b, {m: v | {frag["parts"][0].upper() + "X" * 15} for m, v in models.items()}, known, ours_models)
     b = dict(ours)
     b["upgrades"] += "".join("Upgrade Upgrade_SKH_Spare%04d" % i + NL + "End" + NL for i in range(U.LIMIT - total + 1))
     broken["over_upgrade_limit"] = limit(b)[1]
@@ -413,6 +422,8 @@ def check(ea, ours, models, ours_models, fragments):
 def write(ours, ea, out, fragments):
     """The composed files into `out` (member paths); {key: member} of what it wrote."""
     keys = list(SHARED) + ["class_" + c for c in dict.fromkeys(fr["class_file"] for fr in fragments)]
+    keys += [k for fr in fragments for k in fr["append"] if k.startswith("obj_") and k not in keys]
+    keys = [k for k in keys if ours[k] != ea[k]]                # an unchanged EA file is never shipped
     allm = members({k: 1 for k in keys})
     for k in keys:
         dst = Path(out) / allm[k].replace("\\", "/")

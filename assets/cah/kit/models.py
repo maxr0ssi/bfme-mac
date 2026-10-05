@@ -88,6 +88,8 @@ def placements(spec, model):
 
 
 def rename_mesh(chunk, name):
+    if len(name) > 15:                                    # 16 bytes with the terminator (SKH_FUN_PINKCAPE was 16)
+        raise SystemExit("%s: a W3D mesh name holds 15 characters" % name)
     d = bytearray(chunk)
     for t, o, s, _ in chunks(d, 8, len(d)):
         if t == MESH_HEADER3:
