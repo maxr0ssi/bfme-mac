@@ -52,7 +52,7 @@ case "${1:-}" in
   }
   W11="$BFME_ROOT/wine/build-11.0/dlls/d3dx9_27/i386-windows/d3dx9_27.dll"   # t_terrainbox's reference, if built
   [[ -f "$W11" ]] && cp "$W11" "$OUT/d3dx9_27_w11.dll"
-  for t in t_regs t_misc t_dxlock t_quat t_hittest t_invsqrt t_shadow t_perf t_particle t_anim t_adecode t_rstats t_pstats t_monitor t_stall t_logic t_ftol2 t_lmath2 t_lstats t_shroud t_scan t_path t_flatlight t_mipfilter t_spellfire t_spell2fx t_terrainbox t_terrain32; do
+  for t in t_regs t_misc t_dxlock t_quat t_hittest t_invsqrt t_shadow t_perf t_particle t_anim t_adecode t_rstats t_pstats t_monitor t_stall t_logic t_ftol2 t_lmath2 t_lstats t_shroud t_scan t_aura t_path t_flatlight t_mipfilter t_spellfire t_spell2fx t_terrainbox t_terrain32; do
     runt $t "$OUT/$t.exe" "$EXE" || st=1
   done
   WINEDLLOVERRIDES="mscoree,mshtml=;dinput8=n,b" runt t_attach "$OUT/t_attach.exe" \
