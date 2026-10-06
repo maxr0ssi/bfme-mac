@@ -102,12 +102,16 @@ static IDirect3DTexture9Vtbl tvt = {
 
 gp_fake_tex *gp_fake_create(UINT w, UINT h, UINT levels, D3DFORMAT fmt, UINT bpp)
 {
+    return gp_fake_create_pad(w, h, levels, fmt, bpp, 4);
+}
+gp_fake_tex *gp_fake_create_pad(UINT w, UINT h, UINT levels, D3DFORMAT fmt, UINT bpp, UINT pad)
+{
     gp_fake_tex *t = calloc(1, sizeof *t);
     if (!t) return NULL;
     t->iface.lpVtbl = &tvt; t->fmt = fmt; t->bpp = bpp;
     for (UINT l = 0; l < levels && l < 16; l++) {
         flevel *v = &t->lv[l];
-        v->w = w; v->h = h; v->pitch = (w * bpp + 3) / 4 * 4 + 4;
+        v->w = w; v->h = h; v->pitch = (w * bpp + 3) / 4 * 4 + pad;
         v->bits = calloc((size_t)v->pitch * h + 16, 1);
         if (!v->bits) { gp_fake_free(t); return NULL; }
         v->s.iface.lpVtbl = &svt; v->s.t = t; v->s.level = l;

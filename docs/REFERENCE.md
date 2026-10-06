@@ -119,6 +119,11 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   `gamepatch.ini` is in the game folder; log in `logs/gamepatch.log`. `--test` runs the standalone
   bit-exactness tests (`gamepatch/tests/`) in a throwaway prefix; `--bundle` makes the two files
   another player copies into their RotWK folder. Record: `docs/PERFORMANCE.md` §10.
+- `make -C gamepatch shots` → `build/gamepatch/terrainshot.exe <exe> <scene> <out dir> [x0 y0]`
+  (`gamepatch/tests/t_terrainshot.c`) — before/after PNGs of the terrain picture switches
+  (`terrainbox`, `terrain32`, off by default), made with the game's own tile bake on a map's real
+  terrain; the scene file comes from a map and its TGA art (`build/terrain-preview/`). Not a test;
+  `docs/PERFORMANCE.md` §26.
 - `scripts/perf-install.sh [--revert|--status]` — every performance fix in one step: the Wine fixes
   (`wine-fixes.sh`) and the game patch (`game-patch.sh`); `--revert` removes both, `--status` says
   what is installed (and which wined3d build). Switches that need no reinstall are in its header.
@@ -167,10 +172,12 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   unmapped one, its 1.06 address, the mapped functions it calls and its mapped neighbours. `build`
   writes `build/ext/rotwk_map.tsv` (needs `git clone --depth 1 https://github.com/Open-BFME/Open-BFME-2
   build/ext/Open-BFME-2`).
-- `tools/spellsurvey.py [--all] [--spell NAME] [--ea] [--map SIDE]` — every special power (spell book,
+- `tools/spellsurvey.py [--all] [--spell NAME] [--ea] [--map SIDE] [--paths]` — every special power (spell book,
   heroes, units) from the installed effective INI: objects and map-wide grids it creates, particle
   systems and steady particles, scans over every object on the map, fire-logic cells, weather changes,
-  first-cast textures; estimated ms per cast and per frame, ranked (docs/PERFORMANCE.md §24).
+  first-cast textures; estimated ms per cast and per frame, ranked (docs/PERFORMANCE.md §24);
+  `--paths` lists every power under each engine code path it loads (fire-logic circle, model
+  particles, map-wide scans, object creation, particle systems, weather/vision; §25).
 - `scripts/measure-session.sh on|sample [label]|summary [since]|off` — one measuring session played by
   you: `on` turns the game patch's diagnostics on (passtimers, renderstats, particlestats, logicstats; ~2 ms/frame),
   `sample` takes a 20 s read-only stack sample of the main thread during a fight and writes the

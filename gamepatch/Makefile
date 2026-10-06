@@ -60,10 +60,26 @@ PATCHES += src/p_mipfilter.c src/p_mipfilter_fake.c
 TESTS   += $(OUT)/t_mipfilter.exe
 $(DLL) $(TESTS): src/p_mipfilter.h
 
+# terrain picture switches, off by default: box-filtered tile mip levels (terrainbox), 8-bit tiles
+# (terrain32); `make shots` builds terrainshot.exe, the before/after pictures (docs/PERFORMANCE.md §26)
+PATCHES += src/p_terrainbox.c src/p_terrain32.c
+TESTS   += $(OUT)/t_terrainbox.exe $(OUT)/t_terrain32.exe
+$(DLL) $(TESTS) $(OUT)/terrainshot.exe: src/p_terrain.h
+TSCENE  := tests/t_terrain_scene.c tests/t_terrain.h
+$(OUT)/t_terrain32.exe: tests/t_terrain32.c $(TSCENE) tests/orig.c $(PATCHES) | $(OUT)
+	$(CC) $(TFLAGS) -o $@ tests/t_terrain32.c tests/t_terrain_scene.c tests/orig.c $(PATCHES) -lwinmm
+$(OUT)/terrainshot.exe: tests/t_terrainshot.c $(TSCENE) tests/orig.c $(PATCHES) | $(OUT)
+	$(CC) $(TFLAGS) -o $@ tests/t_terrainshot.c tests/t_terrain_scene.c tests/orig.c $(PATCHES) -lwinmm
+shots: $(OUT)/terrainshot.exe
+
 # the weather spells' fire-damping circle: off-map rows and non-burning cells' terrain queries skipped (firecircle)
 PATCHES += src/p_spellfire.c
 TESTS   += $(OUT)/t_spellfire.exe
 $(DLL) $(TESTS): src/p_spell.h
+# material FX parameter blocks recorded without asking d3dx9 per parameter whether the technique uses it (fxparamused)
+PATCHES += src/p_spell2fx.c
+TESTS   += $(OUT)/t_spell2fx.exe
+$(DLL) $(TESTS): src/p_spell2.h
 
 all: $(DLL) $(TESTS)
 $(DLL) $(TESTS): src/gp_render.h src/gp_logic.h src/p_stall.h
@@ -103,4 +119,4 @@ $(OUT)/t_path.exe: tests/t_path.c tests/t_path_world.c tests/t_path_split.c test
 clean:
 	rm -rf $(OUT)
 
-.PHONY: all clean
+.PHONY: all clean shots

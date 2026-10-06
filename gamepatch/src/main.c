@@ -7,9 +7,9 @@
  * Switches: GAMEPATCH=0 disables every patch; GAMEPATCH_<NAME>=0/1 one patch (NAME = DXLOCK,
  * INVSQRT, NORMTAIL, HITTEST, QUATMAT, SHUTDOWN, LIMITER, FLOOR, PERFMARKER, PASSTIMERS, ANIMDEDUP,
  * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MONITOR, STALLS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2, CRTSQRT, OCTILE, SHROUDSPAN, SCANTREE,
- * PATHFIND, MOVEAWAYCAP, MOVEAWAYQUEUE, PATHSPLIT, FLATTENLIGHT,
+ * PATHFIND, MOVEAWAYCAP, MOVEAWAYQUEUE, PATHSPLIT, FLATTENLIGHT, TERRAINBOX, TERRAIN32,
  * LOGICSTATS, HIGHMEM); otherwise [patches] <name>=0/1 in gamepatch.ini
- * next to the DLL; default on, except limiter, passtimers, shadowpar, logicstats and highmem (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
+ * next to the DLL; default on, except limiter, passtimers, shadowpar, logicstats, highmem, terrainbox and terrain32 (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
  * to the DLL. highmem (a diagnostic, not a patch) runs in any large-address-aware exe, before the RotWK check. */
 #include "gp.h"
 #include "gp_render.h"
@@ -17,7 +17,9 @@
 #include "gp_logic.h"
 #include "gp_scale.h"
 #include "p_spell.h"
+#include "p_spell2.h"
 #include "p_mipfilter.h"
+#include "p_terrain.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -126,6 +128,10 @@ static void attach(HMODULE self)
     run("particlevtx", gp_patch_particlevtx, &ok, 1);
     run("flattenlight", gp_patch_flattenlight, &ok, 1);
     run("mipfilter", gp_patch_mipfilter, &ok, 1);
+    gp_tb_mode = setting("terrainbox", 0) == 2 ? 2 : 1;   /* 1 rounded average, 2 Wine 11 to the bit */
+    run("terrainbox", gp_patch_terrainbox, &ok, 0);  /* picture change, off unless chosen: after mipfilter */
+    gp_t32_level = setting("terrain32", 0) == 2 ? 2 : 1;   /* 1 near tiles, 2 also the far 16-bit ones */
+    run("terrain32", gp_patch_terrain32, &ok, 0);   /* picture change, off unless chosen */
     run("edgemap", gp_patch_edgemap, &ok, 1);
     run("shadowpar", gp_patch_shadowpar, &ok, 0);    /* off until tested in game: see gamepatch.ini */
     run("shadowstats", gp_patch_shadowstats, &ok, 1); /* counters only */
@@ -141,6 +147,7 @@ static void attach(HMODULE self)
     run("shroudspan", gp_patch_shroudspan, &ok, 1);
     run("scantree", gp_patch_scantree, &ok, 1);
     run("firecircle", gp_patch_firecircle, &ok, 1);
+    run("fxparamused", gp_patch_fxparamused, &ok, 1);
     run("pathfind", gp_patch_pathfind, &ok, 1);
     run("moveawaycap", gp_patch_moveawaycap, &ok, 1);     /* changes behaviour: same on every LAN machine */
     run("moveawayqueue", gp_patch_moveawayqueue, &ok, 1); /* changes behaviour: same on every LAN machine */
@@ -172,11 +179,14 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gp_shroud_exit_log();
         gp_scan_exit_log();
         gp_fc_exit_log();
+        gp_fxu_exit_log();
         gp_pf_exit_log();
         gp_maq_exit_log();
         gp_ps_exit_log();
         gp_fl_exit_log();
         gp_mf_exit_log();
+        gp_tb_exit_log();
+        gp_t32_exit_log();
         gp_lst_exit_log();
     }
     (void)reserved;

@@ -28,6 +28,7 @@ extern volatile LONG gp_mf_stats[7];
  * no device: never pass it the point or linear filter, which first try a StretchRect) */
 typedef struct gp_fake_tex gp_fake_tex;
 gp_fake_tex *gp_fake_create(UINT w, UINT h, UINT levels, D3DFORMAT fmt, UINT bpp);
+gp_fake_tex *gp_fake_create_pad(UINT w, UINT h, UINT levels, D3DFORMAT fmt, UINT bpp, UINT pad); /* pad 0: pitch = row */
 void  gp_fake_free(gp_fake_tex *t);
 IDirect3DBaseTexture9 *gp_fake_base(gp_fake_tex *t);
 uint8_t *gp_fake_bits(gp_fake_tex *t, UINT level, UINT *w, UINT *h, UINT *pitch);

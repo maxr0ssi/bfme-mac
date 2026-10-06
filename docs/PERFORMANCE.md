@@ -1827,7 +1827,10 @@ FX lists and particle systems. Counts are exact readings; the ms are estimates f
 
 Everything else (Angmar's Frozen Land, Chill Wind, Snowbind, Untamed Allegiance, Heirs/Summon Orcs,
 the Witch-king's, Thrall Master's and Morgomir's powers, every other hero power) is under ~3 ms at
-cast and ~1 ms a frame by this reading. **Our FX pack adds nothing:** every power's counts are the
+cast and ~1 ms a frame by this reading. **Correction (2026-10-06, §25):** this reading priced every particle
+alike; particles drawn as W3D models (Earthquake, Avalanche, Balrog, Wyrm, Citadel, Rallying Call, Army
+of the Dead, Taint ...) cost ~0.68 ms each a frame in the 10-05 session (two passes, a shader parameter
+block re-recorded per particle), frames of 100-130 ms while one played: §25.2 (fxparamused). **Our FX pack adds nothing:** every power's counts are the
 same with `--ea` (EA's INI only); each faction's copy (`ReplaceModule` in the faction spell books)
 replaces EA's module and starts the same number of systems, only tinted. First casts load 236
 textures over all spell-book powers (83 MB, nearly all DDS); 7 are EA TGAs with mips (4.9 MB: five
@@ -1910,3 +1913,304 @@ alternatives (an upper bound for Gambling/Wild Men style spells) and follows spa
   second; exact speed-ups belong to the scan path (scantree, §19), nothing spell-specific.
 - The 7 EA TGA textures above could ship baked (`sagekit/texbake.py`, identical texels) in a pack:
   ~10 ms once per texture per match; small.
+
+## 25. Spells, second round: every spell's engine path, and model particles re-recording their shaders (2026-10-06, the 10-05 session + static + standalone tests)
+
+Max: "these [Freezing Rain/Blizzard] are what happened in the game, but there are plenty of other spells
+with the same properties". So every special power (spell book, heroes, units, all factions, Angmar and
+Galadriel included) was grouped by the engine code path it loads (`tools/spellsurvey.py --paths`, the
+installed effective INI as in §24; two gaps of the §24 walker fixed: Flood's horses (`FloodUpdate
+MemberTemplateName`) and fire nuggets without a `OneShot` line, e.g. Frozen Land's ping), then each path
+was checked against what the 10-05 8-player session (`logs/sessions/20261005-182416`, 1,328 objects
+at peak) measured, and measured offline with the game's own code where it costs. One fix per path.
+
+### 25.1 The paths
+
+| path (code) | powers | the 10-05 session | offline, the game's code | status |
+|---|---|---|---|---|
+| fire-logic circle (FireLogicNugget 0x9120e6 → 0x6878d7 / 0x687059) | 38: Freezing Rain, Blizzard, Galadriel's Freezing Rain (r 999999 every 2 s); Frozen Land / Snowbind 250, Rain of Fire 150, Flood 100 (7 horses, every logic step), Avalanche 50, Balrog, Wyrm, drakes, catapult and citadel warheads (r ≤ 210) | logicstats: FireWeaponUpdate 13-15 ms per logic step for the Freezing Rain's 150 s (19:34-19:36), ~1.2 ms otherwise | t_spellfire (§24) | **firecircle** (§24); the small circles are ≤ 2,000 cells, ≤ 1 ms a shot, and the damping ones get the same skip |
+| model particles (RenderObject draw module 0x964c00 → colour setters 0x50e040 / 0x50e244 / 0x50e413 → FX material record 0x551f8f → d3dx9 IsParameterUsed) | 44: Avalanche, Earthquake, Balrog, Elven Wood, Wyrm, Citadel, Rallying Call (all four factions' copies), Corpse Rain, Shade of the Wolf, Army of the Dead / Oathbreakers, Call from the Deep, Taint, Devastation, Bombard, Gandalf's Istari Light, Galadriel's Elven Grace, Cloud Break rays ... (and the Mordor catapults' heads) | four stretches of 1.4-7.4 s in which **every** frame took 60-130 ms (logic frames 5383, 7254-7317, 10861, 13952-13989): passtimers RenderParticles 37-52 ms in the main view **and** 37-52 ms in the shadow-map pass (19:02:31, 19:08:58-19:09:08, 19:32:28-43); particlestats 0.34 ms per colour-setter call; 41 of the 48 stall samples under the module return to 0x552085, i.e. are inside IsParameterUsed | t_spell2fx: IsParameterUsed on DefaultW3D.fxo 6-8 µs mean, up to 33 µs ("Default" technique); one colour set 229-331 µs | **fxparamused (new, §25.2)** |
+| map-wide scan + per-object apply (AttributeModifierNugget 0x90ee10 → range query 0xa39300 → 0xa3c4e0 with distance type 3; DamageNugget 0x90def0; AutoHeal / aura / fear pulses) | 10 spell powers (Darkness, Freezing Rain, Blizzard, Cloud Break: 31.8 pulses a second for 15 s, Fuel the Fires, Chaos, Sunflare's and the weather spells' WeatherKiller) and the citadels' permanent auras | AttributeModifierAuraUpdate never among the 12 costliest module classes in any of the 162 30-s windows (so < ~0.05 ms per step); scantree's distances through the table (the 3D types) 400-1,600 a second, consistent with the Freezing Rain's ~650 a second while it ran | the game's 0xa3c4e0 on 1,300 objects of 16 players over 5,120 units (t_scan's mock world): r 999999, distance type 1 0.11-0.28 ms (scantree), **type 3 1.8-2.5 ms** (the 3D distance through the table, not inlined); the modifier store lookup 0x614470 (linear over the 1,573 ModifierLists) 0.03-0.08 µs per object for the spells' modifiers (index 76-193), 0.69 µs at index 1,500 | not patched: ~2-4 ms per pulse, measured cheap in the game |
+| object creation (OCL, CloudBreak grids) | 37: Blizzard and Cloud Break grids (225 objects at 5,000 units, 361 at 6,000), Blight 164, Spawn Orcs 96, Palantir Vision 74, Sauron's Bombard 65, Elven Wood / Taint 45 | no stall sample in object creation | - | not measured (estimate 0.15 ms an object, §24.3) |
+| particle systems (creation, simulation, the 4,000 cap) | 39: Blizzard 972 systems asking ~136,000 particles, Word of Power / Word of Doom ~12,000, Elven Wood, Corpse Rain | particlestats' manager render 0.1-1.4 ms a frame in the 60-s lines | - | not patched; thinning is a picture change (§24.4) |
+| weather / shroud / vision | 8: weather of the 7 weather spells; the Men/Arnor fortress Ivory Tower (vision 99,999 for 30 s) | weather readers are the renderer (§24) | a 99,999 vision is one shroud circle of ~2,500 cells' radius: ~5,000 span calls, all but the map's ~130 rows rejected at once (shroudspan) | cheap |
+
+### 25.2 Model particles: fxparamused
+
+Every W3D mesh of RotWK draws with an FX material: legacy W3D materials become DefaultW3D.fx materials
+with ~15 parameters (0x5997f0: ColorAmbient ... NumTextures, Texture_0/1). A material keeps its values
+as a D3DX parameter block and re-records the whole block on every change: 0x551f8f (material, list)
+deletes the old block (effect vt+0x130), merges the list into the effect's defaults, then
+BeginParameterBlock, per parameter GetParameterByName, **IsParameterUsed(parameter, technique)** (vt+0xf8,
+the call at 0x55207f) and the setter, then EndParameterBlock. The RenderObject particle module (particles
+that are W3D models: rocks, light shafts, vapour, skulls) changes a colour per particle per pass, in the
+main view and in the shadow-map pass, and each change is one such re-record. Wine's IsParameterUsed walks
+every state of every pass of the technique through its shader and preshader inputs (`is_parameter_used`,
+`dlls/d3dx9_36/effect.c`): 6 µs on average on DefaultW3D.fxo, 31-33 µs for the parameters its states
+read (DepthWriteEnable, BlendMode, AlphaTestEnable ...) under "Default", ~200 µs a re-record.
+
+The answer depends only on the effect's structure (Wine: which parameters the technique's pass states,
+their referenced parameters and shader / preshader inputs name; no value is read), fixed when the effect
+is created. **fxparamused** (`gamepatch/src/p_spell2fx.c`, switch `fxparamused`, on) sends the call at
+0x55207f to a cache keyed by (effect, parameter handle, technique handle); a miss asks the effect as
+before. A freed effect's address can come back for a new effect, so the cache is cleared (a generation
+count) by wrappers in the two IAT slots every effect creation of the game goes through
+(D3DXCreateEffect / D3DXCreateEffectFromFileA, 0xbd09f4/8, thunks 0xa3ed20 / 0xa3ed1a called only from
+0x551356 / 0x5513a3; the game never calls CloneEffect on its effects); the patch is skipped unless both
+slots hold d3dx9_27's own exports (the monitor's wrappers at 0x551356 / 0x5513a3 still call the thunks, so they
+reach these too). Hash check on 0x551f8f (0x231 bytes) and the call's bytes. The
+blocks, the materials and every other call are the original's; rendering only, so LAN-safe even
+against a player without it. The same cache serves every material creation (each mesh's materials at
+load and on first use), which made the same calls. Exit log line: `fxparamused` checks, answers from
+the cache, not cached, effect creations.
+
+**Proof: `gamepatch/tests/t_spell2fx.c`** (in `scripts/game-patch.sh --test`). The game's code in two
+relocated copies (one patched by the installer), Wine's real d3dx9_27 (w10) on a D3D9 device, every
+compiled effect of the game's `Shaders.big` created through the game's thunk; the exe's kernel32 /
+msvcr71 / d3dx9_27 imports filled as the loader does and the .rdata code pointers (vtables) moved to
+the unpatched copy. Engine w10, 2026-10-06, three runs (the times moved with the Mac's load, up to
+550 → 45 µs for a Default colour set in the busiest; the ratio stayed 12x):
+
+| check | result |
+|---|---|
+| [1] 13 effects, every top-level parameter x every technique, NULL parameter / technique, a technique of another effect: 2,235 pairs x 3 in shuffled order, then every effect released and created again and the same | 0 + 0 mismatches against the effect's own IsParameterUsed; the cache cleared at each of the 13 + 13 creations; 4,470 of 6,705 answers from the cache |
+| [2] the game's 0x551f8f in both copies on their own materials (the game's constructor and list code), DefaultW3D, each of its 4 techniques, 14 or 15 parameters: the material's creation, then 24 frames x 2 passes x 3 colour sets as the particle module makes them | 1,160 records: 0 mismatches in return value, parameter list (every field), texture list or recorded block (every recorded byte of Wine's parameter block) |
+| [3] sensitivity: the patched copy's site answering "ColorEmissive unused"; one wrong cached answer | both caught |
+| [4] IsParameterUsed, DefaultW3D, 55 parameters x 4 techniques | 6.0-8.3 µs direct, 0.05-0.07 µs cached |
+| [4] one colour set (list copy and merge as 0x50e040 does, then 0x551f8f), technique Default / Default_L / Default_M / _CreateShadowMap | 229-331 / 90-128 / 94-134 / 26-37 µs → 19-27 / 18-26 / 18-26 / 18-25 µs (of which the record itself 106-151 → 14-20 µs over all four) |
+
+**Expected in the game:** 85 % of the module's samples were IsParameterUsed, so a model particle drops
+from ~0.34 ms per pass (0.68 ms a frame, both passes) to ~0.05 ms (~0.1 ms a frame), 7-12x (the test's
+12x is the upper end). The four stretches of 37-52 ms per pass would be 3-7 ms per pass: frames of
+100-130 ms become ~40 ms. Not yet seen in the game; the `fxparamused` exit line gives the counts.
+Rest of the per-set cost (~20 µs): the game's list copy, merge and AsciiString work and Wine's block
+record. Next exact step there (not built): skip a re-record whose merged list, effect, technique and
+texture lookups equal the recorded block's (the shadow pass and the main view set the same values a frame
+apart), about half of what is left.
+
+### 25.3 Every spell: paths and cost, before → after
+
+Estimates per item (§24.3) except where measured: fire cells 0.5 µs each in the game (§24.2); model
+particles 0.68 ms per visible particle a frame before (10-05 particlestats), ~0.06-0.1 after (§25.2;
+only particles inside the camera's or the light's view cost); a map-wide pulse 2-4 ms (scan 1.8-2.5 ms
+measured, per-object apply estimated); objects 0.15 ms each. "live" model particles: the INI's steady
+state (BurstCount x Lifetime / BurstDelay), an upper bound. Map 5,000 units (grids x1.6 at 6,000).
+Spell-book powers not listed (Arrow Volley, Call the Horde, Cave Bats, Chill Wind, Crebain, Draft,
+Dwarven Riches, Elven Gifts, Enshrouding Mist, Eye of Sauron, Farsight, Industry, Scavenger, Tom
+Bombadil, Untamed Allegiance, War Chant, Watcher) load none of these paths beyond < 10 objects and
+< 10 particle systems.
+
+| power (MP) | engine paths | before | after |
+|---|---|---|---|
+| Avalanche (25) | fire circle r 250 + model particles + particle systems | 1963 cells, ~1.0 ms per shot; ~1029 live: 0.68 ms per visible one per frame; 14 systems | burning cells only; ~0.06-0.1 ms (fxparamused); same |
+| Earthquake (25) | model particles + particle systems | ~342 live: 0.68 ms per visible one per frame; 16 systems | ~0.06-0.1 ms (fxparamused); same |
+| ElvenWood (10) | model particles + objects + particle systems | ~227 live: 0.68 ms per visible one per frame; 45 at cast (~7 ms est.); 188 systems | ~0.06-0.1 ms (fxparamused); same; same |
+| BalrogAlly (25) | fire circle r 70 + model particles + particle systems | 153 cells, ~0.1 ms per shot; ~233 live: 0.68 ms per visible one per frame; 53 systems | same (small); ~0.06-0.1 ms (fxparamused); same |
+| FreezingBlizzard (15) | fire circle r 999999 + map-wide scan + objects + particle systems + weather | ~125 ms per shot every 2 s; 2-4 ms per pulse, 1.0 pulses/s; 228 at cast (~34 ms est.); 675 systems | ~2-3 ms (firecircle); same; same; same |
+| AwakenWyrm (15) | fire circle r 50 + model particles + particle systems | 78 cells, ~0.0 ms per shot; ~219 live: 0.68 ms per visible one per frame; 27 systems | same (small); ~0.06-0.1 ms (fxparamused); same |
+| Citadel (25) | model particles | ~200 live: 0.68 ms per visible one per frame | ~0.06-0.1 ms (fxparamused) |
+| SpecialAbilityCallFromTheDeep (WildGoblinKing) | fire circle r 210 + model particles + particle systems | 1385 cells, ~0.7 ms per shot; ~150 live: 0.68 ms per visible one per frame; 37 systems | same (small); ~0.06-0.1 ms (fxparamused); same |
+| SpecialAbilityNecroCorpseRain (AngmarNecromancerBanner) | model particles + objects + particle systems | ~120 live: 0.68 ms per visible one per frame; 16 at cast (~2 ms est.); 85 systems | ~0.06-0.1 ms (fxparamused); same; same |
+| FreezingRain (15) | fire circle r 999999 + map-wide scan + weather | ~125 ms per shot every 2 s; 2-4 ms per pulse, 0.5 pulses/s | ~2-3 ms (firecircle); same |
+| SpecialAbilityGaladrielFreezingRain (ElvenGaladriel_Custom) | fire circle r 999999 + map-wide scan + weather | ~125 ms per shot every 2 s; 2-4 ms per pulse, 0.5 pulses/s | ~2-3 ms (firecircle); same |
+| RallyingCall (5) | model particles | ~150 live: 0.68 ms per visible one per frame | ~0.06-0.1 ms (fxparamused) |
+| SummonShadeOfWolf (25) | model particles + particle systems | ~102 live: 0.68 ms per visible one per frame; 24 systems | ~0.06-0.1 ms (fxparamused); same |
+| CloudBreak (15) | model particles + map-wide scan + weather | ~11 live: 0.68 ms per visible one per frame; 2-4 ms per pulse, 31.8 pulses/s | ~0.06-0.1 ms (fxparamused); same |
+| SuperweaponSpawnOrcs (MordorSoldOfRhun) | objects + particle systems | 96 at cast (~14 ms est.); 204 systems | same; same |
+| EntAllies (15) | model particles + particle systems | ~11 live: 0.68 ms per visible one per frame; 46 systems | ~0.06-0.1 ms (fxparamused); same |
+| ArmyoftheDead (25) | model particles + objects + particle systems | ~60 live: 0.68 ms per visible one per frame; 13 at cast (~2 ms est.); 12 systems | ~0.06-0.1 ms (fxparamused); same; same |
+| SuperweaponSpawnOathbreakers (GondorAragorn) | model particles | ~60 live: 0.68 ms per visible one per frame | ~0.06-0.1 ms (fxparamused) |
+| DragonStrike (25) | particle systems | 10 systems | same |
+| Devastation (10) | model particles | ~52 live: 0.68 ms per visible one per frame | ~0.06-0.1 ms (fxparamused) |
+| SummonGiants (15) | particle systems | 45 systems | same |
+| Blight (15) | model particles + objects | ~22 live: 0.68 ms per visible one per frame; 164 at cast (~25 ms est.) | ~0.06-0.1 ms (fxparamused); same |
+| Sunflare (25) | fire circle r 200 + model particles + map-wide scan + weather | 1256 cells, ~0.6 ms per shot; ~5 live: 0.68 ms per visible one per frame; 2-4 ms per pulse, at cast | same (small); ~0.06-0.1 ms (fxparamused); same |
+| IsengardTaint (10) | model particles + objects | ~36 live: 0.68 ms per visible one per frame; 45 at cast (~7 ms est.) | ~0.06-0.1 ms (fxparamused); same |
+| Taint (5) | model particles + objects | ~36 live: 0.68 ms per visible one per frame; 45 at cast (~7 ms est.) | ~0.06-0.1 ms (fxparamused); same |
+| SpecialAbilitySauronBombard (MordorSauron_Custom) | model particles + objects + particle systems | ~25 live: 0.68 ms per visible one per frame; 65 at cast (~10 ms est.); 45 systems | ~0.06-0.1 ms (fxparamused); same; same |
+| BlizzardFX (15) | objects | 227 at cast (~34 ms est.) | same |
+| CloudBreak_Rays | model particles + objects | ~4 live: 0.68 ms per visible one per frame; 227 at cast (~34 ms est.) | ~0.06-0.1 ms (fxparamused); same |
+| SpawnLoneTower (10) | fire circle r 80 + model particles + objects + particle systems | 201 cells, ~0.1 ms per shot; ~18 live: 0.68 ms per visible one per frame; 12 at cast (~2 ms est.); 26 systems | same (small); ~0.06-0.1 ms (fxparamused); same; same |
+| SpawnLoneTowerDwarf (10) | fire circle r 80 + model particles + particle systems | 201 cells, ~0.1 ms per shot; ~18 live: 0.68 ms per visible one per frame; 27 systems | same (small); ~0.06-0.1 ms (fxparamused); same |
+| DragonAlly (25) | objects + particle systems | 11 at cast (~2 ms est.); 26 systems | same; same |
+| SpiderlingAllies (10) | objects + particle systems | 20 at cast (~3 ms est.); 140 systems | same; same |
+| Undermine (10) | model particles + particle systems | ~13 live: 0.68 ms per visible one per frame; 14 systems | ~0.06-0.1 ms (fxparamused); same |
+| SpecialAbilityMordorCatapultExpansionHumanHeads (MordorFortressCatapult) | fire circle r 80 + model particles | 201 cells, ~0.1 ms per shot; ~18 live: 0.68 ms per visible one per frame | same (small); ~0.06-0.1 ms (fxparamused) |
+| SpecialAbilityMordorCatapultHumanHeads (MordorCatapult) | fire circle r 80 + model particles | 201 cells, ~0.1 ms per shot; ~18 live: 0.68 ms per visible one per frame | same (small); ~0.06-0.1 ms (fxparamused) |
+| HobbitAllies (10) | model particles + objects + particle systems | ~4 live: 0.68 ms per visible one per frame; 14 at cast (~2 ms est.); 31 systems | ~0.06-0.1 ms (fxparamused); same; same |
+| GamblingisBad (5) | fire circle r 150 + model particles + objects + particle systems | 706 cells, ~0.4 ms per shot; ~6 live: 0.68 ms per visible one per frame; 11 at cast (~2 ms est.); 13 systems | burning cells only; ~0.06-0.1 ms (fxparamused); same; same |
+| EagleAllies (15) | fire circle r 75 + objects + particle systems | 176 cells, ~0.1 ms per shot; 25 at cast (~4 ms est.); 14 systems | same (small); same; same |
+| SpecialAbilityGaladrielElvenGrace (ElvenGaladriel) | model particles | ~12 live: 0.68 ms per visible one per frame | ~0.06-0.1 ms (fxparamused) |
+| RohanAllies (15) | model particles + objects + particle systems | ~1 live: 0.68 ms per visible one per frame; 19 at cast (~3 ms est.); 50 systems | ~0.06-0.1 ms (fxparamused); same; same |
+| SpecialAbilityIstariLight (GondorGandalf) | model particles | ~15 live: 0.68 ms per visible one per frame | ~0.06-0.1 ms (fxparamused) |
+| SpecialAbilityNecroSoulFreezeFXStarter (AngmarNecromancerHorde) | model particles | ~12 live: 0.68 ms per visible one per frame | ~0.06-0.1 ms (fxparamused) |
+| FrozenLand (10) | fire circle r 250 | 1963 cells, ~1.0 ms per shot | burning cells only |
+| Darkness (15) | map-wide scan + weather | 2-4 ms per pulse, 1.0 pulses/s | same |
+| SpecialAbilitySauronDarkness (MordorSauron) | map-wide scan + weather | 2-4 ms per pulse, 1.0 pulses/s | same |
+| WildMenAllies (10) | objects + particle systems | 18 at cast (~3 ms est.); 41 systems | same; same |
+| SummonOrcs (10) | objects + particle systems | 13 at cast (~2 ms est.); 41 systems | same; same |
+| DunedainAllies (15) | model particles + objects + particle systems | ~2 live: 0.68 ms per visible one per frame; 33 at cast (~5 ms est.); 20 systems | ~0.06-0.1 ms (fxparamused); same; same |
+| PalantirVision (5) | objects | 74 at cast (~11 ms est.) | same |
+| RainOfFire (25) | fire circle r 150 | 706 cells, ~0.4 ms per shot | same (small) |
+| Bombard (15) | model particles + objects | ~5 live: 0.68 ms per visible one per frame; 22 at cast (~3 ms est.) | ~0.06-0.1 ms (fxparamused); same |
+| EvilBombard (15) | model particles + objects | ~5 live: 0.68 ms per visible one per frame; 22 at cast (~3 ms est.) | ~0.06-0.1 ms (fxparamused); same |
+| Heal (5) | model particles | ~8 live: 0.68 ms per visible one per frame | ~0.06-0.1 ms (fxparamused) |
+| Barricade (10) | particle systems | 23 systems | same |
+| MenOfDaleAllies (15) | model particles + objects + particle systems | ~2 live: 0.68 ms per visible one per frame; 16 at cast (~2 ms est.); 16 systems | ~0.06-0.1 ms (fxparamused); same; same |
+| SummonWights (10) | particle systems | 14 systems | same |
+| FueltheFires (15) | map-wide scan | 2-4 ms per pulse, 1.1 pulses/s | same |
+| SpecialAbilitySpawnNeutralShadow (MordorFortressCitadel) | map-wide scan | 2-4 ms per pulse, 1.0 pulses/s | same |
+| Snowbind_2 (5) | fire circle r 250 | 1963 cells, ~1.0 ms per shot | burning cells only |
+| SpecialAbilityChaos  | map-wide scan | 2-4 ms per pulse, at cast | same |
+| Rebuild (5) | model particles | ~2 live: 0.68 ms per visible one per frame | ~0.06-0.1 ms (fxparamused) |
+| Flood (25) | fire circle r 100 | 7 horses x 314 cells every logic step: ~1.1 ms per step for 10 s | burning cells only |
+
+### 25.4 Not done, for Max to decide
+
+- **Map-wide modifier pulses** (Darkness, Freezing Rain / Blizzard debuff, Cloud Break, citadel auras):
+  2-4 ms per pulse, most of it the range query's 3D distance (type 3, through the table: 1.8-2.5 ms for
+  1,300 objects, against 0.1-0.3 ms for the inlined 2D types). An SSE version of the 3D distance
+  (0xa3aeb0, bit-exact in the game's FPU mode like distcalc, §19) would take ~2 ms off each pulse. Exact,
+  logic-side; worth it only if a session shows these pulses in the frame times.
+- **Object creation at cast** (Blizzard / Cloud Break grids, Blight, Spawn Orcs) and the **particle cap**
+  (Blizzard): no measurement yet. One session with logicstats on (`scripts/measure-session.sh on`) in
+  which someone casts Cloud Break or Blizzard would show the cast frame; thinning the grids stays a
+  picture change (§24.4).
+- The steady **FireWeaponUpdate ~1.2 ms per logic step** from 18:52 to 19:37 (one update a step,
+  ~1.3 ms each) is not a spell: a permanent object firing every step, likely a fortress upgrade such as
+  Angmar's spikes (`SpikeMoatRadiusWeapon`, DamageNugget r 150 every 250 ms); unconfirmed.
+
+## 26. Terrain picture switches: box-filtered tile mip levels and 8-bit tiles (2026-10-06, static + standalone tests + offline pictures; staged, OFF, not installed)
+
+Picture changes, so both are switches the player picks (`terrainbox`, `terrain32` in `gamepatch.ini`,
+default 0). Nothing here runs unless switched on; with both off the game is as in §23.
+
+**What the terrain textures are** (read from the code; §23 has the tile system). Every 16 x 16-cell
+terrain tile has two baked textures per detail level, made by `0x4ae3cd` through
+`TerrainTextureClass` (`0x4eec33` → `TextureClass(w, h, fmt, 3 mip levels, managed)`, so **3 levels**):
+- near tiles (`0x511f6b`): colour (`0x511fe1`) and normal map (`0x51204e`), 32 px a cell, 512 x 512,
+  `push $0x19` = **A1R5G5B5**;
+- far tiles (`0x514398`, all built at map load): colour 16 px a cell, 256 x 256, **DXT1** (`0x5148dd`,
+  when `0xde4388` is set; else A1R5G5B5 `0x5148f9`) and normal map A1R5G5B5 (`0x514969`).
+The format is checked in `0x4ae3cd` (`0x4ae431`: A1R5G5B5 → bake `0x4eec82`, DXT1 → `0x4eee64`, else
+"Unsupported format for terrain texture"); X8R8G8B8 does not get through unchanged.
+
+The source of every tile is the map's 24/32-bit TGA art, cut into 64 x 64 `TileData` (2 x 2 cells; on
+mp eastfarthing hills all 91 classes are exactly 64 px a tile, so no source resolution is thrown away)
+but **stored in X1R5G5B5**: the loader `0x5113b2` / `0x511299` box-averages each width and keeps
+`(v + 1) * 31 / 256` per channel. The bake copies those 16-bit pixels for an unblended cell
+(`0x4ae772`'s direct path) or, for a blended one, expands them to 8 bits (`0x4ac284`), blends in 8
+bits (`0x4ad85f`, MMX `0x4ac035`) and truncates back (`v >> 3`). The DXT1 far tiles are compressed
+from the same 5-bit-derived pixels. So every terrain texel carries 32 levels a channel (64 x 64 x 3
+colours on the tile below: 3,050 distinct against 61,761 from the 8-bit art).
+
+The terrain effect (`shaders\compiled\terrain.fxo`, parsed with Wine's effect layout): the high-quality
+technique's `BaseSampler*` and `NormalSampler*` are already **anisotropic min, linear mag, linear mip,
+MaxAnisotropy 8** (the `_L` low-quality ones bilinear, point mip); no LOD bias, no MaxMipLevel. Its
+ps_2_0 uses the colour texture's RGB only (alpha is unused: the A1R5G5B5 bake's alpha bit is 0 in
+unblended cells and 1 in blended ones, invisible) and the normal map's XY, with a `pow(N.H, 1200)`
+specular, so the 5-bit normals show as stepped lighting. EA's options expose texture reduction
+(`0xdd1e4c`: 32 px a cell halved or quartered) and the normal-map / 3-way-blend flags of
+`StaticGameLOD`; nothing for filtering.
+
+### 26.1 terrainbox: box-filtered mip levels (`p_terrainbox.c`)
+
+Wine 10's d3dx9 point-samples every mip level (§23): each level keeps the top-left texel of each 2 x 2,
+so the levels alias and sit half a texel off the level above. `terrainbox` replaces the three terrain
+call sites of D3DXFilterTexture (`0x4eee4a` 16-bit tile bake, `0x4ef148` class atlas, `0x4eefde` DXT1
+bake; mipfilter keeps the other five) with a real 2 x 2 box filter:
+- 16-bit tiles: each channel `(a + b + c + d + 2) / 4`, SSE2, 8 texels at a time (`terrainbox=1`); or
+  Wine 11's own float arithmetic to the bit (`terrainbox=2`, scalar, a 128 KB table of the 5-bit exact
+  halves its float error rounds down).
+- DXT1 far tiles: each level box-filtered from the bake's uncompressed X8R8G8B8 image (still in its
+  frame at the call; a 4-instruction stub passes `[ebp-0x18]`) and compressed by the game's own
+  D3DXLoadSurfaceFromMemory as level 0 is. No decompress-filter-recompress round trip.
+- Anything else (other sizes, formats, a palette, a failed lock) goes on to what the site called before
+  (mipfilter, else Wine). Before the first use it checks itself against its reference on every format
+  and asks the installed d3dx9 to filter one texture: if that is already a box filter (Wine 11 installed)
+  or neither, it stays off.
+
+**Proof: `gamepatch/tests/t_terrainbox.c`** (in `scripts/game-patch.sh --test`; Wine 11's d3dx9_27 from
+`wine/build-11.0` as the reference when built). 2026-10-06, Max's Mac in use (load 8-10):
+
+| check | result |
+|---|---|
+| every (a, b, c, d) of a 5-bit channel (2^20, all three channels; A1R5G5B5, X1R5G5B5, R5G6B5), every 4-bit one, 1 M random 8-bit blocks; the game's FPU mode (x87, 24-bit) | `terrainbox=2`: identical to Wine 11's D3DXFilterTexture in all 7 formats. `terrainbox=1`: identical for 4- and 8-bit channels; 5-bit channels differ by one step at exact halves (236,479 bytes of the 2 M of an exhaustive A1R5G5B5 level) |
+| the same in the default FPU mode (64-bit) | Wine 11 itself gives 0.2-0.4 M bytes different results: its box filter depends on the FPU mode |
+| first call; with Wine 11's d3dx9 behind the import | self-test passes, Wine 10 recognised as point; with Wine 11: stays off |
+| left alone: 300 x 170, a 2 x 1 level, DXT3, A8, a palette, the point filter | 5 of 5 untouched, passed on |
+| DXT1 site stub | reaches the filter with the image, stack as the original call |
+
+| ms per texture (median of 40; 3 levels) | Wine 10 | mipfilter (point) | terrainbox=1 | terrainbox=2 | Wine 11 |
+|---|---|---|---|---|---|
+| 512 x 512 A1R5G5B5 (near tile) | 2.66 | 0.052 | **0.093** | 0.91 | **403** |
+| 256 x 256 A1R5G5B5 | 0.67 | 0.015 | 0.026 | 0.24 | 102 |
+| 256 x 256 DXT1 (far tile; RMS of levels 1 / 2 against the exact box of the uncompressed image) | 3.8 (49.6 / 68.5) | | 2.2 (2.33 / 2.17) | | 109 (2.48 / 2.34) |
+
+**Wine 11's d3dx9 is not an option**: its box filter is correct but per pixel and channel through float
+conversions, 400 ms for one near tile texture (a camera jump rebuilds 30-90 of them: 12-36 s). Building
+d3dx9_27 from Wine 11 was therefore not done. terrainbox=1 costs ~0.04 ms a near texture more than
+mipfilter (~3 ms more per 75-texture camera-jump burst); the DXT1 far tiles at map load get cheaper
+(3.8 → 2.2 ms each).
+
+### 26.2 terrain32: 8 bits a channel (`p_terrain32.c`)
+
+- each TileData allocation (`0x4ab99f`, `0x4ab9db`) grows by 21,520 bytes, and the fill (`0x4abbe7`,
+  `0x4abc37` → `0x5113b2`) also keeps widths 64, 32, 16 in 8 bits there (the game's rounded box
+  averages without the 5-bit step);
+- the 16 → 32-bit tile expansion (`0x4ad882`, `0x4ae8ae` → `0x4ac284`) copies those 8-bit pixels when
+  the quadrant's first and last row quantise to the 16-bit pixels the game holds (else the original
+  runs), so blends and the DXT1 far tiles are made from 8-bit sources;
+- the near tiles' colour and normal map are created X8R8G8B8 (`0x511fe1`, `0x51204e`; `terrain32=2`
+  also `0x514969` and `0x5148f9`); the format check `0x4ae431` takes A1R5G5B5 or X8R8G8B8 (a 9-byte
+  jump to a stub), and the bake call `0x4ae44d` goes to `gp_t32_bake`: every cell as the 16-bit bake
+  takes it (a blended cell through the game's own `0x4ae772` in its 32-bit path; an unblended or cliff
+  cell its source tile alone, no 3-way blend, as the direct path copies it), written in the same
+  layout with alpha 0xff, then whatever D3DXFilterTexture the original bake's site calls.
+
+**Proof: `gamepatch/tests/t_terrain32.c`**: the game's own loader, cell fetch, blends and A1R5G5B5 bake
+run on a fake WorldHeightMap (`t_terrain_scene.c`), on a synthetic map and on **map mp eastfarthing
+hills' real terrain** (`build/terrain-preview/eastfarthing.scene`: the map's BlendTileData and its 1,068
+source tiles + normal maps cut from the TGAs as the loader `0x4af320` / `0x4ab896` does; made by a
+helper in that folder, not tracked).
+
+| check (2026-10-06) | synthetic | eastfarthing hills (6 regions) |
+|---|---|---|
+| every shadow texel through the game's 5-bit step = the game's 16-bit plane | 258,048 of 258,048 | 11,483,136 of 11,483,136 |
+| shadows made from the 16-bit pixels: terrain32's bake truncated to A1R5G5B5 vs the game's bake (colour + normal map, 32 and 16 px a cell) | 0 of 2,621,440 texels differ | 0 of 3,932,160 |
+| a shadow with wrong pixels | refused, the game's expansion runs, identical | the same |
+| real 8-bit: texels changed / mean change per channel | 99.9 % / 3.9 | 99.6 % / 4.25 of 255 |
+| distinct colours in the near colour tiles (7 bits a channel) | 6,753 → 126,838 | 3,050 → 61,761 |
+| bake + mip levels (terrainbox=1), ms per near tile, best of 5 | 1.39 → 1.71 | 1.46 → 1.47 |
+
+The same cost within the spread (the machine was loaded: load 8-10; the in-game bake is ~0.4 ms a
+texture, §23). A first version that checked every copied texel against the 16-bit one cost 2x; it now
+checks the first and last row of each quadrant.
+**Memory**: the shadows are game heap inside the 32-bit address space: 21.5 KB x (source tiles + normal
+maps), 46 MB on eastfarthing hills (2 x 1,068), against a 1,619 MB peak of 4,095; the near tile
+textures double (0.69 → 1.38 MB each, managed: outside the address space with Wine patch 0022, a system
+copy without it), +20-60 MB for the 15-45 near tiles.
+
+### 26.3 Pictures (`make -C gamepatch shots`, `build/terrain-preview/shots/`)
+
+The game's bake of region (48, 288) of mp eastfarthing hills (16 x 16 cells with 200 blends), left to
+right: now | terrainbox | both (terrainbox + terrain32), or 16-bit | terrain32:
+`near_colour_16_vs_32.png`, `near_colour_zoom.png` (x4), `near_mips_level1.png` / `_level2.png`,
+`near_light_diffuse.png` / `_specular.png` (the normal map lit as terrain.fx does), `far_dxt1_level0-2.png`,
+`distance_far_frame.png` / `distance_near_frame.png` (the tile on the ground at RTS distance, sampled as
+the GPU does: trilinear, up to 8x anisotropic, 3 levels) and `*_flicker.png` (frame-to-frame change over
+16 frames of slow camera motion, x8). Mean frame-to-frame change per channel:
+
+| tile seen at distance | now | terrainbox | both |
+|---|---|---|---|
+| far (DXT1 256) | 8.66 | 6.53 | 6.52 |
+| near (512) | 11.77 | 7.37 | 7.10 |
+
+Not changed: anisotropy (already 8x; at the RTS camera's angles the footprint stays under 8:1 except
+near the horizon), LOD bias (a negative bias sharpens and shimmers more), the 3 mip levels (enough while
+a tile covers more than ~64 px; deeper levels would only matter at the horizon), the tile resolution
+(32 px a cell = the art's 64 px a tile; higher-resolution art would need a bigger TileData).
+
+Install (after Max's pick): `terrainbox=1` and/or `terrain32=1` in the game folder's `gamepatch.ini`,
+`scripts/game-patch.sh`. In the log: `terrainbox: self-test passed …`, `terrain32: …`, and exit lines
+with the calls, levels, ms and 8-bit tile reads.
