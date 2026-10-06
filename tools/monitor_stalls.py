@@ -163,6 +163,18 @@ def lines(r, clock=None, off=0.0, top=5, most=12):
     n = sum(s["n"] for s in st)
     L.append("  all stalls, innermost exe function: " + _top(allc["exe"], top + 3, n, sym))
     L.append("  all stalls, on the call chain: " + _top(allc["incl"], top + 5, n, sym))
+    ins = [s for s in st if s["logic"] > 0]          # in a match: menu and load-screen frames left out
+    if ins and len(ins) < len(st):
+        mc = {k: collections.Counter() for k in ("exe", "incl")}
+        for s in ins:
+            for k in mc:
+                mc[k].update(s[k])
+        m = sum(s["n"] for s in ins)
+        hist = collections.Counter(min(int(s["ms"]) // 100 * 100, 1000) for s in ins)
+        L.append("  in a match (logic frame > 0): %d stalls, %d samples; frame ms: %s" % (
+            len(ins), m, ", ".join("%d-%s %d" % (b, b + 99 if b < 1000 else "", k) for b, k in sorted(hist.items()))))
+        L.append("  in a match, innermost exe function: " + _top(mc["exe"], top + 3, m, sym))
+        L.append("  in a match, on the call chain: " + _top(mc["incl"], top + 5, m, sym))
     for s in sorted(st, key=lambda s: -s["ms"])[:most]:
         when = clock(s["since"] / 1e6 + off) if clock else "%.1f s" % (s["since"] / 1e6)
         ph = [(p, k) for p, k in s["phase"].most_common() if p >= 0]
