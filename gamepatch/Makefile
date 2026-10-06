@@ -55,6 +55,15 @@ TESTS   += $(OUT)/t_path.exe
 # one terrain/road relight per building placement instead of one per lowered cell (flattenlight)
 PATCHES += src/p_flatlight.c
 TESTS   += $(OUT)/t_flatlight.exe
+# texture mip levels made as Wine's d3dx9 D3DXFilterTexture makes them, without its per-pixel path (mipfilter)
+PATCHES += src/p_mipfilter.c src/p_mipfilter_fake.c
+TESTS   += $(OUT)/t_mipfilter.exe
+$(DLL) $(TESTS): src/p_mipfilter.h
+
+# the weather spells' fire-damping circle: off-map rows and non-burning cells' terrain queries skipped (firecircle)
+PATCHES += src/p_spellfire.c
+TESTS   += $(OUT)/t_spellfire.exe
+$(DLL) $(TESTS): src/p_spell.h
 
 all: $(DLL) $(TESTS)
 $(DLL) $(TESTS): src/gp_render.h src/gp_logic.h src/p_stall.h

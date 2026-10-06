@@ -167,6 +167,10 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   unmapped one, its 1.06 address, the mapped functions it calls and its mapped neighbours. `build`
   writes `build/ext/rotwk_map.tsv` (needs `git clone --depth 1 https://github.com/Open-BFME/Open-BFME-2
   build/ext/Open-BFME-2`).
+- `tools/spellsurvey.py [--all] [--spell NAME] [--ea] [--map SIDE]` — every special power (spell book,
+  heroes, units) from the installed effective INI: objects and map-wide grids it creates, particle
+  systems and steady particles, scans over every object on the map, fire-logic cells, weather changes,
+  first-cast textures; estimated ms per cast and per frame, ranked (docs/PERFORMANCE.md §24).
 - `scripts/measure-session.sh on|sample [label]|summary [since]|off` — one measuring session played by
   you: `on` turns the game patch's diagnostics on (passtimers, renderstats, particlestats, logicstats; ~2 ms/frame),
   `sample` takes a 20 s read-only stack sample of the main thread during a fight and writes the

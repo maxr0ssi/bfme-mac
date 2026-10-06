@@ -15,7 +15,7 @@ Contents: 1 pipeline · 2 in-game measurements · 3 GL call costs · 4 synthetic
 11 d3dx9 effects · 12 per-draw FX cost · 13 first-use texture loads · 14 eight-player games ·
 15 our art's draw cost against EA's · 16 session monitor · 17 logic phase 5 · 18 spell-cast freezes ·
 19 unit-count scaling · 20 the pathfinder · 21 path searches split over logic phases ·
-22 building placement relights every road.
+22 building placement relights every road · 24 spells.
 
 Machine: MacBook Pro, Apple M3 Max (12P+4E cores, 40-core GPU), 64 GB unified memory, macOS 26.3,
 `powermode 0`. Engine `engines/w10` (Sikarugir wine-staging 10.0, new-style WoW64, x86_64 under
@@ -1606,6 +1606,16 @@ fiber pops in one run, **10 restore anomalies** (0 in every offline test).
   100,000); outside it a run passes the budget only by searches that never park (attack paths, path
   patches, the approach branch, move-away floods). This log cannot tell which; the exit log now
   keeps the two apart.
+- **2026-10-05 18:24 session** (81 min, 8 players): most fiber pops in one run 9,944 outside a
+  game's first 5 s (42,114 inside it), 206,629 requests, 5,151 parks, every one resumed, 0 restore
+  anomalies, "run whole" 0. Expected, not a budget leak (read from p_path3.c): `run_pops` counts every
+  pop the fiber makes in the run, but it can park only at a pop of the request's own findPath or
+  findClosestPath outside the approach/attack branch (`gp_ps_unsafe`); a request that starts below the
+  budget runs its other searches to their end: the approach branch's findPath (up to the 5000-cell
+  limit plus a closest-path fallback), attack paths (2500 + 2500), path patches (2000), move-away
+  floods (capped). 9,944 fits one approach-branch search with its fallback and an attack path. At
+  5-10 us a pop that is one 50-100 ms phase. Splitting the approach branch too would need the victim
+  revalidated by ID after a park; not done.
 
 Install: `scripts/game-patch.sh` (with `pathsplit=1`, `pathsplit_cells=1000` in `gamepatch.ini`);
 off: `pathsplit=0`; revert all: `scripts/game-patch.sh --revert`. Exit log line `pathsplit`:
@@ -1690,3 +1700,213 @@ lights change in between), so it is not done. Not yet seen in the game; the exit
 `flattenlight` gives flattens, relights folded and run.
 
 Install: `scripts/game-patch.sh` (`flattenlight=1` in `gamepatch.ini`); off: `flattenlight=0`.
+
+## 23. Terrain textures rebuilt 30-90 at a time after a camera jump: mipfilter (2026-10-06, the 10-05 session + static + standalone test)
+
+**The session.** `logs/sessions/20261005-182416` (2026-10-05 18:24, 81.5 min, mp eastfarthing hills,
+1 human + 7 AI, two matches; flattenlight, logicstats and the stall sampler on). Max: "the only issue
+was spells". In-match frames (logic frame > 0): 130,939, 973 over 100 ms, 155 over 200 ms, 2 over
+400 ms (max 426). `tools/monitor_stalls.py` now lists the in-match stalls apart from the menu and
+load-screen ones (which are 78 % of all samples: the DXT1 tile bake 0x4eee64 at map load and the
+4.7-12 s keyboard wait before a match). The in-match stall frames (over 150 ms), each put in the class
+that holds most of its samples:
+
+| class | frames > 150 ms | median / max ms | where |
+|---|---|---|---|
+| terrain tile textures rebuilt in a burst | 193 | 213 / 333 | the draw (phase "outside"): W3DDisplay::draw > ... > 0x4e0a73 > 0x511f6b > 0x4ae3cd > 0x4eec82 > d3dx9_27 |
+| Freezing Rain / Blizzard fire damping (§24) | 51 | 170 / 209 | logic phase 5: FireWeaponUpdate 0x88f554 > forceFireWeapon > 0x9120e6 > 0x6878d7 > 0x687059 > isUnderwater 0x67dae6 > 0x462355 > 0x46a575; one every 10 logic frames from logic frame 14,306 to 15,016 of the second match (142 s) |
+| house-colour recolour | 19 | 177 / 426 | UpgradeMux::attemptUpgrade > ... > 0x531c77 > D3DXFilterTexture: the 4 worst frames of the session (377-426 ms, the first 25 logic frames of a match) and 14 at match minute 6.5 |
+| other | 92 | 164 / 266 | spread: first-use texture loads (0x53101b, LocalFile::read), audio, AI and paths |
+
+59 % of the in-match stall samples are under 0x4e0a73, and 87 % of those inside d3dx9_27 (the rest is
+the tile bake itself, 0x4ae772 / 0x4ac284 / 0x4ac035). The frame records say the same: the 326
+in-match frames with 50 or more D3DX texture creations are 100-330 ms; over the 891 frames with 20 or
+more creations, frame ms = 16 + 2.7 x creations (least squares). The creations themselves cost ~1 ms a
+frame (the monitor's `create_us`); the effect counter is wired too (the exit log: 13 effects, all
+compiled before the first frame record), so `fx_n` = 0 in a match is real.
+
+**What the burst is** (read from the code; names from Open-BFME-2 where it has them). The terrain is
+drawn in tiles of 16 x 16 cells (the object at TheTerrainRenderObject, tile array +0x3888, 0xd4 bytes
+a tile). Every camera update (0x4e3614, vtable +0x218, from W3DView's camera transform 0x48b7b1) marks
+each tile visible or not for each camera in a list of up to three (the view's camera, the camera of
+the object at 0xdc7a38, the water's reflection camera) and gives it a detail level by its distance
+(0x511cf9). A near tile (level 2) needs two square A1R5G5B5 textures (+0x38, +0x40), baked on the CPU
+from the map's terrain tiles (0x4ae3cd: create; 0x4eec82: 32 -> 16-bit copy of each source tile,
+then `D3DXFilterTexture(tex, NULL, 0, D3DX_FILTER_BOX)` for the mip levels). A tile that is no
+longer near or visible drops both. The draw (0x4e0a73, vtable +0x34) builds waiting tiles: two a frame;
+but when a camera of the list moved more than 20 units since the last update (squared distance over
+400.0 at 0xbdbca0) or the list changed length, up to 99 in that frame. So any camera jump (a minimap
+click, a hotkey to a hero or an event, a fast zoom) rebuilds every near tile at the new spot in one
+frame: 15-45 tiles, 30-90 textures. The logs cannot tie a burst to a spell; the trigger in the code is
+the camera.
+
+**Why it costs.** The d3dx9_27 that `scripts/wine-fixes.sh` installs is built from Wine 10.0
+(`patches/d3dx9-setrawvalue`, `wine/src-d3dx10`), which has no box filter: D3DXLoadSurfaceFromSurface
+sends every filter but none, point and linear to `point_filter_argb_pixels`, which for a level of the
+same format takes source pixel (x * sw / dw, y * sh / dh) and passes it through
+`get_relevant_argb_components` / `make_argb_color`: byte loops per pixel and channel, ~20 ns a pixel,
+for what comes out as the source pixel with the bits of no channel cleared (the X bits of X1R5G5B5,
+X4R4G4B4, X8R8G8B8). A 512 x 512 tile texture: 2.0 ms. (So the terrain's distant mips are point
+sampled under Wine; Windows' d3dx9 box-filters them. Wine 11's d3dx9 has the box filter. Moving to it
+would change the picture, so it is not done; it is Max's choice.)
+
+**Fix: mipfilter** (`gamepatch/src/p_mipfilter.c`, on). The 8 call sites of the D3DXFilterTexture
+thunk 0xa3ecd2 (the tile bakes 0x4eee4a / 0x4eefde, 0x4ef148, the texture loader 0x530fea / 0x5312e7 /
+0x5313e3, the recolour 0x532198, 0x570cba) call `gp_mf_filter`. For a 2D texture in A8R8G8B8,
+X8R8G8B8, R5G6B5, X1R5G5B5, A1R5G5B5, A4R4G4B4 or X4R4G4B4 with the box filter or D3DX_DEFAULT (what
+the game passes), it makes each level as that code does, with the same locks in the same order (the
+source level read-only without a rect, then the destination with its full rect). Anything else (DXT,
+other filters: point and linear first try the device's StretchRect), or a lock that fails, runs
+Wine's function, which rewrites every level. Only with Wine's builtin d3dx9_27 (header check, the
+import slot 0xbd0a20 must be its export); before the first use it compares itself with Wine's function
+on in-memory textures of every format, square and not, and stays off on any difference (a d3dx9 with a
+real box filter turns it off instead of being imitated wrongly). Texture pixels only: no game logic,
+nothing a LAN game sees.
+
+**Proof: `gamepatch/tests/t_mipfilter.c`** (in `scripts/game-patch.sh --test`). Wine's own
+D3DXFilterTexture (the prefix's d3dx9_27, the build the game loads) against mipfilter on in-memory
+textures (`p_mipfilter_fake.c`: the texture and surface methods Wine's lock path calls, 4 spare bytes
+after each row). Engine w10, Max's Mac in use (one run):
+
+| check | result |
+|---|---|
+| the patch on a relocated copy of the exe | 8 of 8 sites call the wrapper; its original is the copy's thunk through the import slot |
+| first call | self-test passed (7 formats, 64 x 64 and 48 x 20), fast path, identical |
+| 2048 x 2048, all 12 levels, rows and padding; the sampled pixels take every 16-bit value (16-bit formats) or every byte in every channel (32-bit) | identical in all 7 formats; Wine 26-39 ms, mipfilter 1.0-1.8 ms |
+| 300 x 170, 512 x 256, 1 x 64, 64 x 1, 48 x 20, 7 x 3, srclevel 2, srclevel and filter D3DX_DEFAULT, every format | 56 of 56 identical |
+| a lock fails half way | the fast path stops with no lock open; the original then gives Wine's result |
+| point, linear, triangle filter, DXT1, A8, srclevel past the end | left to the original, not a lock or a byte touched (6 of 6) |
+| sensitivity: keeping the X bit of X1R5G5B5 / sampling the bottom-right pixel | differs from Wine in 8,291 / 16,384 of 16,384 pixels |
+
+| per texture (A1R5G5B5, terrain-like, 40 each, median) | Wine | mipfilter |
+|---|---|---|
+| 512 x 512, 10 levels | 2.01 ms (1.94-2.08) | 0.037 ms (0.036-0.047), 54x |
+| 256 x 256, 9 levels | 0.49 ms | 0.010 ms, 49x |
+
+**Expected in the game (an estimate from the frame records, not measured):** a burst of 75 textures
+loses ~150-190 ms of d3dx9 time (2.0 ms each in the test, 2.3 ms each by the in-game sample share).
+Taking 87 % of each burst frame's time over the line above off it: in-match frames over 200 ms 155 ->
+~5, over 150 ms 392 -> ~100, over 100 ms 973 -> ~380; burst frames (30 or more creations, 675) 149 ->
+~40 ms on average. The recolour frames lose their D3DXFilterTexture time too (its leaf is d3dx9), if
+their textures are among the 7 formats (the recolour copies 32-bit pixels). The exit log line
+`mipfilter` gives calls, fast calls, levels, ms in each path and lock failures; a `mipfilter:` line
+every 60 s while it filters.
+
+Left: the DXT1 tile bake (0x4eee64, 40 % of all of the session's stall samples, at map load): Wine
+decompresses, point-filters and recompresses each level (its own DXT compressor), so an exact fast
+path needs that compressor reproduced; a load-time item. Not changed either: the burst itself
+(spreading it over frames would show tiles without their near texture for those frames).
+
+Install: `scripts/game-patch.sh` (`mipfilter=1` in `gamepatch.ini`); off: `mipfilter=0`.
+
+## 24. Spells: every special power surveyed, and the Freezing Rain / Blizzard freeze (2026-10-06, static + standalone test + the 10-05 session)
+
+Max: "spells fuck up the game... angmar and the special ones from powers". Every special power the
+game can cast (spell book, heroes, units: 1,285 modules naming a `SpecialPowerTemplate`, 645 power/owner pairs) was read from
+the **installed effective INI** (our archives over EA's, first archive wins, as `sagekit/game.py`
+reads them; our packs ship `system.ini`, `fxlist.ini`, `fxparticlesystem.ini` in
+`!!!!!!!!!!!!sagekit-fx.big`, `specialpower.ini` and `commandbutton.ini` in `sagekit-heroes.big`) with
+`tools/spellsurvey.py`, which follows each power through its OCLs, weapons, created objects,
+FX lists and particle systems. Counts are exact readings; the ms are estimates from per-item costs
+(§24.3) except where marked measured.
+
+### 24.1 Ranking (map 5000 x 5000 units, "mp eastfarthing hills"; 6000-unit maps: grids x1.6)
+
+| # | power (MP points) | what it does to the engine | cost |
+|---|---|---|---|
+| 1 | **Angmar: Freezing Rain** `SpellBookFreezingRain` (15) | weather RAINY 150 s; a caster fires `ConstantFreezingRain` every 2 s: an AttributeModifierNugget over every object on the map and a **FireLogicNugget DECREASE_BURN_RATE with Radius 999999** (§24.2) | **measured: a 120-150 ms freeze every 2 s for 150 s** (75 freezes, ~10 s of frozen frames per cast) |
+| 2 | **Angmar: Blizzard** `SpellBookFreezingBlizzard` (15) | all of #1 (`ConstantBlizzard`, weather CLOUDY) plus a CloudBreak grid: one `BlizzardFXObject` every 300 units over the **whole map** (225 objects; 361 on 6000-unit maps), each with 3 particle systems (radius 2000, 1 particle/frame, 3-4 s life), an ambient sound and an AI update, for 150 s; `ConstantBlizzardSnowFX` every 2 s over every structure | the #1 freeze, plus at cast ~225 objects + 675 particle systems (est. 35-60 ms); while active the 675 systems ask for ~94,000 live particles against the 4,000 cap (est. +2-5 ms a frame) |
+| 3 | Elves: Galadriel's Freezing Rain (Ring-hero form, autocast) | the same caster and weapon as #1 | as #1 |
+| 4 | Good: Cloud Break `SpellBookCloudBreak` (15) | weather SUNNY 30 s; a grid of 225 `CloudBreakSunbeam` (1 particle system each, 5-7 s); `CloudBreak_Healing`: AutoHeal **Radius 9999999 every 100 ms** and four map-wide modifier weapons every 2-3 s for 15 s | est. 35 ms at cast; ~20 map-wide scans a second while active |
+| 5 | Mordor: Darkness `SpellBookDarkness` (15), Sauron's Darkness | weather CLOUDY 150 s; two map-wide modifier weapons every 2 s (no fire logic) | est. 2-4 ms every 2 s |
+| 6 | `SuperweaponSpawnOrcs` (MordorSoldOfRhun) | ~96 objects (units and their weapons' FX) at once | est. 15-20 ms at cast |
+| 7 | Elves: Elven Wood `SpellBookElvenWood` (10) | ~45 objects (trees, markers) | est. ~10 ms at cast |
+| 8 | Gandalf Word of Power, Sauron Word of Doom | 10-11 one-shot systems, ~12,000 particles at once (capped at 4,000) | est. 2-3 ms a frame for a few seconds |
+| 9 | Balrog, Ents, Summon Giants (Angmar too), Dragon Strike, Shade of the Wolf, Earthquake | 1-7 objects, 16-53 particle systems, 2,400-4,300 particles | est. 1-3 ms at cast, 1-2.5 ms a frame while the FX play |
+| 10 | Angmar Necromancer Corpse Rain | ~16 objects, 85 particle systems | est. ~4 ms at cast |
+
+Everything else (Angmar's Frozen Land, Chill Wind, Snowbind, Untamed Allegiance, Heirs/Summon Orcs,
+the Witch-king's, Thrall Master's and Morgomir's powers, every other hero power) is under ~3 ms at
+cast and ~1 ms a frame by this reading. **Our FX pack adds nothing:** every power's counts are the
+same with `--ea` (EA's INI only); each faction's copy (`ReplaceModule` in the faction spell books)
+replaces EA's module and starts the same number of systems, only tinted. First casts load 236
+textures over all spell-book powers (83 MB, nearly all DDS); 7 are EA TGAs with mips (4.9 MB: five
+512² normal maps of the Dwarven tower/mine/barricade, `exfire01`, `excracks`), ~10 ms each the first
+time, once per match (§13). Weather changes are cheap: the readers of the weather (0xde772c+0x10) are
+the snow/rain renderer, its weather data and the cloud code (0x4943e1-0x497e7e); none relights terrain
+or roads. The script `DIM_WORLD_LIGHTS` dimmer of Darkness is commented out in this patch's OCLs.
+
+### 24.2 The Freezing Rain / Blizzard freeze, read and seen
+
+`ConstantFreezingRain` / `ConstantBlizzard` (weapon.ini): `DelayBetweenShots 2000`, fired by the
+caster's FireWeaponUpdate (OneShot No) for `SPELL_FREEZINGRAIN_DURATION` 150000 ms, with
+`FireLogicNugget LogicType DECREASE_BURN_RATE Radius 999999 Damage 100`. The nugget (0x9120e6, type 1)
+calls the fire logic's filled circle 0x6878d7(pos, radius, -100, flag 0): radius x 0.1 =
+100,000 fire cells, a midpoint circle emitting one row per y, so 2r + 1 = **200,001 calls** of the row
+function 0x687059 (x0, x1, y, amount, flag). All but the map's ~500 rows return at once (after an
+SEH frame); a row on the map is clamped and walks all its cells. With flag 0 every cell first asks
+TheTerrainLogic->isUnderwater (vt+0x4c, 0x67dae6: ground height 0x462355 → 0x46a575 with four CRT
+floors, then the water areas' polygons 0x681f0a / 0x70e911) and only then looks at its burn rate; with
+a negative amount a cell whose rate is 0 is left as it is either way. **One shot = ~250,000 terrain
+queries for the few cells that burn.**
+
+Seen in the 10-05 8-player session (`logs/sessions/20261005-182416`, an AI Angmar's Freezing Rain at
+logic frame ~14,286, 19:33:43): a stall every 10 logic frames (2 s) from frame 14,306 to 15,016 (the
+spell's 150 s), each frame 157-190 ms against a mean of 36.5 ms, with 50-90 % of each stall's samples
+under 0x6878d7 (innermost 0x46a575, 0x4621da, 0x462355, 0x67dae6, 0x687059). The mean frame over
+the 150 s did not move (37.3 ms before, 36.5 during): the rain itself costs nothing measurable, the
+freezes are the problem. The Angmar AI recasts every `SPELL_RECHARGE_TIME_TIER_2` (360 s): up to 40 %
+of a match under the 2-s freezes per Angmar player.
+
+**Fix: firecircle** (`gamepatch/src/p_spellfire.c`, switch `firecircle`, on). Two changes that leave
+every cell, flag and set operation as before:
+- the cell loop's `cmpb $0,flag; je water` (0x6870cf): with flag 0, amount <= 0 and the cell's rate 0,
+  the next cell, without the terrain query (under water the original writes rate = 0 over 0; on land
+  `rate <= 0` skips; isUnderwater and its callees write only into their (NULL) out-parameters and
+  stack, read from the code). Every other cell takes the original path;
+- the circle's two row calls (0x6879a5, 0x6879c1): a row the row function rejects at its first tests
+  (y < 0, y >= rows, x0 >= columns, x1 < 0, signed, before it touches anything) is not called. The
+  circle's own loop is unchanged, so the called rows get the same x0, x1 in the same order.
+Hash checks on 0x687059 and 0x6878d7. No logic value changes: deterministic, LAN-safe even against a
+player without it. Other users of the circle (fire spreading, a map-script action 0x7bded5) get the
+same exact speed-up.
+
+**Proof: `gamepatch/tests/t_spellfire.c`** (in `scripts/game-patch.sh --test`). Two relocated copies of
+the exe's code, one patched by the installer; each runs the game's own 0x6878d7 and 0x687059 on its
+own fire grid from the same seed (510 columns x 470 rows of 20-byte cells as FireLogic keeps them,
+2,500 burning cells, half flagged new); stand-ins, the same in both: isUnderwater (two river bands and
+a lake, calls counted), the burning-cell key and set (every find and erase logged, "found" for half
+the keys). Engine w10, one run (2026-10-06):
+
+| check | result |
+|---|---|
+| [1] 24 weather shots (r 999999, -100, flag 0) at random places, small fires lit and fed between them (amounts > 0, flags 0/1) | grids, object and find/erase logs identical after every call; 24,591 burning cells put out |
+| [2] 20,000 random circles: radius 0-3,000 or up to 2·10⁶, centres on, near and far off the map, amounts -300..300 (0 too), flags 0/1 | 0 mismatches |
+| [3] sensitivity: the cell stub also skipping burning cells | caught |
+| [4] per shot: row-function calls / terrain queries | 200,001 → 470 (one per map row; the run printed 591, its counter then also took the small circles between shots) / 239,700 → 2,107 (the burning cells) |
+| per shot, time with the stand-in query (costs ~nothing) | 27.6 → 1.7 ms |
+
+**Expected in the game:** the in-game query costs ~0.5 µs (the ~125 ms freeze over ~250,000 cells), so
+a shot drops from ~125 ms to ~2-3 ms (the circle's loop plus ~2,000 burning cells' queries): the 75
+freezes per cast go. Not yet seen in the game; the exit log line `firecircle` gives off-map rows not
+called, rows called and cells that skipped the query.
+
+### 24.3 What the estimates use
+
+Per object created 0.15 ms, per particle system created 0.02 ms, per live particle 0.6 µs a frame
+(§13: particle manager 0.1-0.6 ms at 180-920 particles), per object visited by a map-wide nugget or
+aura 2 µs (§19: scan + modifier), per fire cell queried 0.5 µs (§24.2), 1,300 objects on the map
+(10-05 peak 1,328), particles capped at gamelod's 4,000. The OCL walk sums a random spawn's
+alternatives (an upper bound for Gambling/Wild Men style spells) and follows spawned units' weapon FX.
+
+### 24.4 Not done, for Max to decide
+
+- **Blizzard grid** (#2): 225-361 FX objects with 675-1,083 particle systems for 150 s, which ask for
+  ~25x the 4,000-particle cap, so the snow on screen is the cap's oldest-out churn. Fewer objects
+  (spacing 300 → 600: 49-81 objects) would very likely look the same, but the particles' ages (how far
+  a flake falls before it is culled) change: an image change, so only as Max's explicit choice after a
+  before/after look. Same for Cloud Break's 225 sunbeams (5-7 s).
+- **Cloud Break's heal pulse** every 100 ms over the whole map for 15 s (#4): a steady few ms a
+  second; exact speed-ups belong to the scan path (scantree, §19), nothing spell-specific.
+- The 7 EA TGA textures above could ship baked (`sagekit/texbake.py`, identical texels) in a pack:
+  ~10 ms once per texture per match; small.

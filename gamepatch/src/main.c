@@ -16,6 +16,8 @@
 #include "par_shadow.h"
 #include "gp_logic.h"
 #include "gp_scale.h"
+#include "p_spell.h"
+#include "p_mipfilter.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -123,6 +125,7 @@ static void attach(HMODULE self)
     run("animdecode", gp_patch_animdecode, &ok, 1);
     run("particlevtx", gp_patch_particlevtx, &ok, 1);
     run("flattenlight", gp_patch_flattenlight, &ok, 1);
+    run("mipfilter", gp_patch_mipfilter, &ok, 1);
     run("edgemap", gp_patch_edgemap, &ok, 1);
     run("shadowpar", gp_patch_shadowpar, &ok, 0);    /* off until tested in game: see gamepatch.ini */
     run("shadowstats", gp_patch_shadowstats, &ok, 1); /* counters only */
@@ -137,6 +140,7 @@ static void attach(HMODULE self)
     run("octile", gp_patch_octile, &ok, 1);
     run("shroudspan", gp_patch_shroudspan, &ok, 1);
     run("scantree", gp_patch_scantree, &ok, 1);
+    run("firecircle", gp_patch_firecircle, &ok, 1);
     run("pathfind", gp_patch_pathfind, &ok, 1);
     run("moveawaycap", gp_patch_moveawaycap, &ok, 1);     /* changes behaviour: same on every LAN machine */
     run("moveawayqueue", gp_patch_moveawayqueue, &ok, 1); /* changes behaviour: same on every LAN machine */
@@ -167,10 +171,12 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gp_l2_exit_log();
         gp_shroud_exit_log();
         gp_scan_exit_log();
+        gp_fc_exit_log();
         gp_pf_exit_log();
         gp_maq_exit_log();
         gp_ps_exit_log();
         gp_fl_exit_log();
+        gp_mf_exit_log();
         gp_lst_exit_log();
     }
     (void)reserved;
