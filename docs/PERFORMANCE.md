@@ -15,7 +15,7 @@ Contents: 1 pipeline · 2 in-game measurements · 3 GL call costs · 4 synthetic
 11 d3dx9 effects · 12 per-draw FX cost · 13 first-use texture loads · 14 eight-player games ·
 15 our art's draw cost against EA's · 16 session monitor · 17 logic phase 5 · 18 spell-cast freezes ·
 19 unit-count scaling · 20 the pathfinder · 21 path searches split over logic phases ·
-22 building placement relights every road · 24 spells.
+22 building placement relights every road · 24 spells · 27 map-wide pulses' 3D distance.
 
 Machine: MacBook Pro, Apple M3 Max (12P+4E cores, 40-core GPU), 64 GB unified memory, macOS 26.3,
 `powermode 0`. Engine `engines/w10` (Sikarugir wine-staging 10.0, new-style WoW64, x86_64 under
@@ -2072,6 +2072,7 @@ Bombadil, Untamed Allegiance, War Chant, Watcher) load none of these paths beyon
   1,300 objects, against 0.1-0.3 ms for the inlined 2D types). An SSE version of the 3D distance
   (0xa3aeb0, bit-exact in the game's FPU mode like distcalc, §19) would take ~2 ms off each pulse. Exact,
   logic-side; worth it only if a session shows these pulses in the frame times.
+  **Done 2026-10-06: aura3d, §27** (type 3 pulse 0.91-0.98 → 0.17 ms in t_aura).
 - **Object creation at cast** (Blizzard / Cloud Break grids, Blight, Spawn Orcs) and the **particle cap**
   (Blizzard): no measurement yet. One session with logicstats on (`scripts/measure-session.sh on`) in
   which someone casts Cloud Break or Blizzard would show the cast frame; thinning the grids stays a
@@ -2214,3 +2215,65 @@ a tile covers more than ~64 px; deeper levels would only matter at the horizon),
 Install (after Max's pick): `terrainbox=1` and/or `terrain32=1` in the game folder's `gamepatch.ini`,
 `scripts/game-patch.sh`. In the log: `terrainbox: self-test passed …`, `terrain32: …`, and exit lines
 with the calls, levels, ms and 8-bit tile reads.
+
+## 27. Map-wide spell pulses: the range scan's 3D distance in SSE, aura3d (2026-10-06, static + standalone test)
+
+Max approved the §25.4 item: make the map-wide modifier pulses' scan cheaper, exactly.
+
+**The path, read from the exe.** AttributeModifierNugget 0x90ee10 (Darkness, Freezing Rain / Blizzard,
+Cloud Break's four modifier weapons, the weather-button disablers; radius 999999 or 1e12, §24-25) calls
+the range query wrapper 0xa39300 with r = max(radius, 1.0), **distance type 3**, no filters, unsorted;
+0xa39300 calls iterateObjectsInRange 0xa3c4e0 (region and sort 0). 0xa3c4e0 turns the radius into a box
+of leaf cells with 0xa3ad30 / 0xa3ada0, which **already clamp** the cell indices to the grid (0..n-1), so a
+999999 radius walks only real cells, and only nodes with objects below them; nothing to gain there. Per
+object the walk (scantree's since §19) calls the type's function from the table 0xdbdaf8, then
+getObject and the append. With r² ~ 1e12 every object passes, so nothing can be skipped: the distance is
+appended with the object, and its getter calls are part of the original's observable sequence.
+Type 3 is 0xa3aeb0 (bounding sphere, 3D): getPosition (slot 1); dx, dy, dz0 = p - q rounded to floats
+before the next call; getGeometryInfo (slot 0) and 0xb4e370 (`flds [ecx+0x20]`, the height h);
+dz = float(h + dz0); getGeometryInfo again; d = sqrt((dy² + dx²) + dz²) - radius (+0x14); d², negated
+for d < 0. Type 2 is 0xa3a7d0 (centre, 3D): (dx² + dy²) + dz² in x87 registers. Both are reached only
+through the table (callers: 0xa3c4e0's walk, getClosestObject 0xa3bdb0), and every caller does
+`fsts d2; fcomps r2; fnstsw ax` on st0 and nothing else. scantree inlines types 0-1 only, so each object
+of a type-3 pulse ran ~25 x87 instructions with fsqrt and fnstsw (slow under Rosetta). The other
+map-wide users (DamageNugget, the auras' updates, AutoHeal) pass their type in a register; 17 call
+sites push type 3 (four of them 0xa39300 calls at 0x90ee56-0x9117ec), 4 push type 2.
+
+**Fix: aura3d** (`gamepatch/src/p_aura.c`, switch `aura3d`, on; exit log line `aura3d`). A `jmp` at
+0xa3a7d0 and 0xa3aeb0 (hash-checked with 0xb4e370) to SSE versions: the same getter calls in the same
+order with the same ecx, the same fields read at the same points, single-precision SSE, which equals the
+24-bit x87 result bit for bit unless a step overflows, underflows inexactly or meets a NaN. As in
+distcalc (§10): MXCSR flags cleared before and tested after (invalid, divide, overflow, underflow), and a
+NaN or infinite result also counts; then the original's x87 code runs from the getter results (type 2:
+its own code after the call; type 3: dx, dy, dz by its own instruction sequence into a frame laid out
+as its own, then its own tail 0xa3af04). In any other FPU mode the original runs from the top. ecx, edx,
+xmm0-1, MXCSR as the original leaves them; eax as the original except its low 16 bits after type 3's SSE
+path (the status word of its sign test: every caller overwrites ax with its own fnstsw first). Exact:
+deterministic across machines, LAN-safe even against a player without it.
+
+**Proof: `gamepatch/tests/t_aura.c`** (in `scripts/game-patch.sh --test`). Two relocated copies of the
+exe's partition code, A untouched, B patched by the installer: first aura3d alone (the original walk
+calls the new functions), then distcalc + scantree on top (as the game runs). Engine w10, 2026-10-06,
+two full runs, both PASS:
+
+| check | result |
+|---|---|
+| [1] 0xa3a7d0 / 0xa3aeb0 alone, full machine state (lm_harness), getters that clobber ecx/edx/xmm and return a different geometry block each call; map points, near points, inside the sphere, wide exponents, any bits, specials, huge, tiny | 1,000,000 calls: 0 mismatches (st0's 80 bits, registers, xmm, argument slots, object and position memory, getter sequence); 43 % ran the x87 original (5 of the 8 input kinds are odd values); 115 k negative results |
+| [1] 7 other x87 modes, 3 other MXCSR modes (FTZ, DAZ, round down) | 200,000 calls: 0 mismatches |
+| [2] range query 0xa3c4e0, t_scan's mock world (21 quadtrees built by the game's linkNode, 200-2,700 objects, a third with 1,300), types 0-3 (two thirds 2-3), radii 0 to 1e12, 0-3 filters, sorts, regions, special values; aura3d alone, then with distcalc + scantree | 2 x (100,000 + 14,000 in 7 other x87 modes) queries, 24.4 M objects returned: 0 mismatches in result vectors (objects, distance bits, order) and getter / filter call logs |
+| [3] the spells' pulses: 1,300 objects of 16 players over 5,120 units, r 999999, 1e12, 9999999, 99999, 9999, types 3 and 2, no filters, unsorted, casters anywhere | 2,000 queries, 2.04 M objects: 0 mismatches |
+| [4] sensitivity: the sum reassociated (dx² + (dy² + dz²)), a 1-ulp-sometimes bug | caught: 7,141 of 40,000 calls and 199 of 200 pulses differ |
+| [5] ms per map-wide pulse, 1,300 objects, r 999999, type 3 (the modifier nuggets) | EA's code 0.93-0.95; as installed (distcalc + scantree) 0.91-0.98; **with aura3d 0.17** (5.3x) |
+| [5] same, type 2 / the 2D type 1 for comparison | type 2: 0.45-0.46 → 0.16-0.17; type 1 (inlined by scantree): 0.06 |
+
+Today's as-installed type-3 pulse (0.91-0.98 ms) is below §25's 1.8-2.5 ms for the same shape (that
+run's load was not recorded); both are the scan only. An experiment without the two MXCSR writes per
+call gave 0.14 ms: not worth giving up the flag test. The rest of the gap to the 2D types (0.17 against
+0.06) is scantree's thunk and x87 compare per table call; inlining types 2-3 into scantree's walk would
+take ~0.1 ms more off a pulse (an edit to `p_scan.c`, not made).
+
+**Expected in the game:** ~0.75 ms less per map-wide type-3 pulse at 1,300 objects (the mock getters
+cost about what the game's do): Darkness and Freezing Rain / Blizzard 1-2 pulses every 2 s, Cloud Break's
+modifier weapons every 2-3 s. What a pulse costs beyond the scan (per object: the target check and
+0x90eaf9's modifier apply, §19 rank 5, §25's 0.03-0.08 µs store lookup) is untouched and now the larger
+part. Not yet seen in the game; the `aura3d` exit line counts the calls and x87 runs.

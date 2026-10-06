@@ -80,6 +80,10 @@ $(DLL) $(TESTS): src/p_spell.h
 PATCHES += src/p_spell2fx.c
 TESTS   += $(OUT)/t_spell2fx.exe
 $(DLL) $(TESTS): src/p_spell2.h
+# the range scans' 3D distances (map-wide spell pulses, 3D auras) in SSE, exact (aura3d)
+PATCHES += src/p_aura.c
+TESTS   += $(OUT)/t_aura.exe
+$(DLL) $(TESTS): src/p_aura.h
 
 all: $(DLL) $(TESTS)
 $(DLL) $(TESTS): src/gp_render.h src/gp_logic.h src/p_stall.h

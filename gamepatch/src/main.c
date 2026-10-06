@@ -6,7 +6,7 @@
  *
  * Switches: GAMEPATCH=0 disables every patch; GAMEPATCH_<NAME>=0/1 one patch (NAME = DXLOCK,
  * INVSQRT, NORMTAIL, HITTEST, QUATMAT, SHUTDOWN, LIMITER, FLOOR, PERFMARKER, PASSTIMERS, ANIMDEDUP,
- * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MONITOR, STALLS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2, CRTSQRT, OCTILE, SHROUDSPAN, SCANTREE,
+ * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MONITOR, STALLS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2, CRTSQRT, OCTILE, SHROUDSPAN, SCANTREE, AURA3D,
  * PATHFIND, MOVEAWAYCAP, MOVEAWAYQUEUE, PATHSPLIT, FLATTENLIGHT, TERRAINBOX, TERRAIN32,
  * LOGICSTATS, HIGHMEM); otherwise [patches] <name>=0/1 in gamepatch.ini
  * next to the DLL; default on, except limiter, passtimers, shadowpar, logicstats, highmem, terrainbox and terrain32 (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
@@ -18,6 +18,7 @@
 #include "gp_scale.h"
 #include "p_spell.h"
 #include "p_spell2.h"
+#include "p_aura.h"
 #include "p_mipfilter.h"
 #include "p_terrain.h"
 #include <stdio.h>
@@ -146,6 +147,7 @@ static void attach(HMODULE self)
     run("octile", gp_patch_octile, &ok, 1);
     run("shroudspan", gp_patch_shroudspan, &ok, 1);
     run("scantree", gp_patch_scantree, &ok, 1);
+    run("aura3d", gp_patch_aura3d, &ok, 1);
     run("firecircle", gp_patch_firecircle, &ok, 1);
     run("fxparamused", gp_patch_fxparamused, &ok, 1);
     run("pathfind", gp_patch_pathfind, &ok, 1);
@@ -178,6 +180,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gp_l2_exit_log();
         gp_shroud_exit_log();
         gp_scan_exit_log();
+        gp_au_exit_log();
         gp_fc_exit_log();
         gp_fxu_exit_log();
         gp_pf_exit_log();
