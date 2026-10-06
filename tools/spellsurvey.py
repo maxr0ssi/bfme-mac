@@ -10,6 +10,9 @@ faction and hero packs), read the way sagekit reads it (sagekit/game.py, first a
     python3 tools/spellsurvey.py --ea            EA's INI only (pristine), for comparison
     python3 tools/spellsurvey.py --map 6000      map side in world units (default 5000: mp eastfarthing
                                                  hills; the largest MP maps are 6000)
+    python3 tools/spellsurvey.py --paths         every power grouped by the engine code path it loads
+                                                 (fire-logic circle, model particles, map-wide scans,
+                                                 object creation, particle systems, weather/vision)
 
 For each power (a module with SpecialPowerTemplate in any object) it follows OCLs, weapons (OCL
 nuggets, projectiles, map-wide nuggets), created objects (their FireWeaponUpdate, OCL modules,
@@ -40,7 +43,7 @@ KINDS = {"Object": "obj", "ChildObject": "obj", "ObjectReskin": "obj", "FXList":
          "ModifierList": "mod", "SpecialPower": "sp", "Science": "sci"}
 CREATE_KEYS = {"objectnames", "payload", "transport", "sunbeamobject", "taintobject", "spawntemplatename",
                "thingtospawn", "replacewith", "initialpayload", "replacementobjectname", "projectileobject",
-               "projectiletemplatename", "objectname", "spawnobject"}
+               "projectiletemplatename", "objectname", "spawnobject", "membertemplatename"}
 SKIP_KEYS = {"commandset", "selectportrait", "buttonimage", "triggeredby", "conflictswith", "upgradetogrant",
              "grantupgrade", "requiredsciences", "prerequisitesciences", "soundambient", "voiceselect",
              "displayname", "description", "evaevent", "ailuaeventslist", "removesupgrades", "upgradename"}
@@ -149,6 +152,8 @@ class Cost:
         self.textures = set()
         self.duration = 0.0
         self.seen = set()
+        self.model_parts = 0.0      # live particles drawn as W3D models (RenderObjectDraw, §25)
+        self.paths = defaultdict(set)   # engine path -> the items (weapon/module/system) that load it
 
     def cast_ms(self):
         return ((self.objects + self.grid) * C_OBJ + self.psys * C_PSYS + self.scans_cast * OBJECTS_ON_MAP * C_SCAN
@@ -195,6 +200,7 @@ class Walker:
                 sub = self.ps_particles(self.ini.find("ps", f[k][0]), depth + 1)[0]
                 live += sub * (live if k == "perparticleattachedsystem" else 1)
         tex = f.get("particlename", [None])[0]
+        self.model = any(re.match(r"draw\s*=\s*renderobjectdraw", x, re.I) for x in ln)
         return live, tex
 
     def walk(self, kind, name, cost, mult=1.0, depth=0):
@@ -207,6 +213,9 @@ class Walker:
             live, tex = self.ps_particles(name)
             cost.psys += mult
             cost.particles += live * mult
+            if self.model:
+                cost.model_parts += live * mult
+                cost.paths["model particles"].add("%s(%s)" % (name, tex))
             if tex and re.search(r"\.(tga|dds)$", tex, re.I):
                 cost.textures.add(tex.lower())
             return
@@ -265,9 +274,11 @@ class Walker:
                 cells = min(math.pi * (r / 10) ** 2, self.cells)
                 cost.fire_cast += cells * mult
                 cost.notes.append("%s: FireLogicNugget r=%g (%d cells)" % (name, r, cells))
+                cost.paths["fire-logic circle"].add("%s r=%g" % (name, r))
             elif r >= 5000:
                 cost.scans_cast += mult
                 cost.notes.append("%s: %s r=%g (every object on the map)" % (name, nug, r))
+                cost.paths["map-wide scan + per-object apply"].add("%s %s" % (name, nug))
         cost.weapon_delay = getattr(cost, "weapon_delay", {})
         cost.weapon_delay[name] = delay
 
@@ -295,28 +306,38 @@ class Walker:
                 self.walk("obj", f["sunbeamobject"][0], cost, mult * n, depth + 1)
             if t == "fireweaponupdate":
                 w = None
-                for s in body:
+                for s in body + ["End"]:
                     k, v = kv(s)
                     if k == "weaponname" and v:
                         w = v[0]
-                    if k == "oneshot" and v and w:
+                    # a nugget's OneShot (No when the nugget leaves it out: then fired again and again)
+                    if w and ((k == "oneshot" and v) or (k is None and v and v[0].lower() == "end")):
                         before = (cost.scans_cast, cost.fire_cast)
                         self.walk("wpn", w, cost, mult, depth + 1)
-                        if v[0].lower() == "no":
+                        if k is None or v[0].lower() == "no":
                             d = getattr(cost, "weapon_delay", {}).get(self.ini.find("wpn", w) or w, 0) or 1000
                             cost.scans_ps += (cost.scans_cast - before[0]) * 1000.0 / d
                             cost.fire_ps += (cost.fire_cast - before[1]) * 1000.0 / d
                             cost.scans_cast, cost.fire_cast = before
                         w = None
-            if t == "attributemodifierauraupdate":
-                r, d = self.ini.num(f.get("range", ["0"])[0]), self.ini.num(f.get("refreshdelay", ["2000"])[0])
+            pulse = {"attributemodifierauraupdate": ("range", "refreshdelay"), "autohealbehavior": ("radius", "healingdelay"),
+                     "radiatefearupdate": ("emotionpulseradius", "emotionpulseinterval")}.get(t)
+            if pulse:
+                r, d = self.ini.num(f.get(pulse[0], ["0"])[0]), self.ini.num(f.get(pulse[1], ["2000"])[0])
                 if r >= 5000:
                     cost.scans_ps += mult * 1000.0 / max(d, 1)
-                    cost.notes.append("%s: aura r=%g every %g ms" % (name, r, d))
+                    cost.notes.append("%s: %s r=%g every %g ms" % (name, typ, r, d))
+                    cost.paths["map-wide scan + per-object apply"].add("%s %s every %g ms" % (name, typ, d))
+            if t == "cloudbreakspecialpower" and "sunbeamobject" in f:
+                cost.paths["object creation"].add("%s grid" % name)
             for k, v in f.items():
                 if k not in ("particlesysbone", "weaponname", "model"):
                     self.follow(k, v, cost, mult, depth)
         cost.duration = max(cost.duration, life)
+        for s in ln:
+            k, v = kv(s)
+            if k == "visionrange" and v and self.ini.num(v[0]) >= 5000:
+                cost.paths["weather / shroud / vision"].add("%s vision %g" % (name, self.ini.num(v[0])))
 
 
 def powers(ini):
@@ -391,6 +412,33 @@ def textures_cost(ini, texs):
     return out
 
 
+def paths_report(rows):
+    """every power under each engine path it loads (docs/PERFORMANCE.md §25): what one fix there covers"""
+    by = defaultdict(dict)
+    for power, owner, typ, c, member in rows:
+        if c.weather:
+            c.paths["weather / shroud / vision"].add("weather " + ",".join(sorted(c.weather)))
+        if c.objects + c.grid >= 10:
+            c.paths["object creation"].add("%.0f objects + grid %d per cast" % (c.objects, c.grid))
+        if c.psys >= 10:
+            c.paths["particle systems"].add("%.0f systems, %.0f particles (cap %d)" % (c.psys, c.particles, MAX_PARTICLES))
+        for path, items in c.paths.items():
+            key = power
+            if key in by[path]:
+                by[path][key][1].update(items)
+            else:
+                by[path][key] = (owner, set(items), c)
+    order = ["fire-logic circle", "model particles", "map-wide scan + per-object apply", "object creation",
+             "particle systems", "weather / shroud / vision"]
+    for path in order:
+        ents = sorted(by[path].items(), key=lambda kv: -(kv[1][2].model_parts if path == "model particles"
+                                                         else kv[1][2].spike_ms()))
+        print("== %s: %d powers" % (path, len(ents)))
+        for power, (owner, items, c) in ents:
+            extra = " ~%.0f live model particles" % c.model_parts if path == "model particles" else ""
+            print("  %-34s %-24s%s: %s" % (power[:34], owner[:24], extra, "; ".join(sorted(items))[:220]))
+
+
 def main():
     args = sys.argv[1:]
     ea = "--ea" in args
@@ -413,6 +461,9 @@ def main():
                 print("  closure: " + ", ".join("%s:%s" % kn for kn in sorted(c.seen)))
                 for t, ext, size in textures_cost(ini, c.textures | model_textures(ini, getattr(c, "models", ()))):
                     print("  texture %s %s %d KB" % (t, ext, size // 1024))
+        return
+    if "--paths" in args:
+        paths_report(rows)
         return
     rows.sort(key=lambda r: -(r[3].spike_ms() + 30 * r[3].frame_ms()))
     print("%-34s %-22s %-24s %4s %7s %6s %6s %7s %6s %8s %7s %7s %6s" %
