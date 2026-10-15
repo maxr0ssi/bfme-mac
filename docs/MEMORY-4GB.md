@@ -103,3 +103,54 @@ render thread. For a 2048² DXT5 sheet (5.3 MB, a 4.3 ms first use in PERFORMANC
   dynamic-buffer paths draw every quad of the test.
 - Not covered: cube and volume textures, and the game itself. A play session with
   `scripts/memwatch.sh` is the next step.
+
+## Growth over a match: 0022's copies in macOS's medium malloc zone (2026-10-15, session + standalone tests)
+
+**The session.** `logs/sessions/20261015-160144` (8 players, mp woody end, 98 min; 0022 installed,
+terrain32 and terrainbox on). The macOS footprint rose from ~3.0 GB when the match got going to 5.9 GB
+after 78 min (peak 6.5 GB). The game's 32-bit committed memory rose 837 -> 1369 MB over the same time,
+so ~2.3 GB of the growth was outside the 4 GB. 131,375 D3DX texture creations (53,358 terrain32 near-tile
+bakes: 512² X8R8G8B8, 3 levels, 1.31 MB each) and 2,213 file loads. Per 60 s window the footprint grew
+with the window's loads and creations; in the 23 windows without a load it barely moved (+120 MB with
+28,429 creations). The recorder had no per-region numbers, so the split inside those 2.3 GB is not known.
+
+**Mechanism** (`scripts/texchurn.sh` + `tools/texchurn.c`, engine w10 + 0022 as installed, M3 Max 64 GB,
+the near tiles' create / fill / D3DXFilterTexture / draw / release; vmmap of the test). wined3d.so took
+each stashed copy from `malloc()`. A 1.31 MB block goes to libmalloc's medium zone (32 KiB-8 MiB), which
+is only engaged on Macs with 32 GiB or more (`MEDIUM_ACTIVATION_THRESHOLD`, libmalloc `thresholds.h`).
+It returns free memory only in runs of its madvise window, which grows with the bytes the zone holds
+(1.5 MiB minimum; with ~2 GiB of copies, 256 MiB), and it has a magazine per CPU. vmmap after 45,000
+textures with 120 alive: DefaultMallocZone 1.2 GB dirty, 158.7 MB allocated, 87 % fragmentation. Not a
+leak: every copy is freed, but the zone keeps the pages.
+
+| (texchurn, 30 created and released per cycle) | stash off | 0022 installed | 0022 + fix |
+|---|---|---|---|
+| 120 alive, 21,000 textures: footprint end (MB) | 620 | 1,588 (+30 per 1000 in the second half) | 613 (0) |
+| 120 alive, 45,000 textures | | 1,850 (1,669 at 15,000) | |
+| 1,500 alive (2 GB of copies), 15,000 textures | | 5,572 (+60 per 1000) | 4,313 (0) |
+| same, cached fix, second pair | | 5,116 | 4,331 |
+| 300 alive + one texture kept per cycle (1.1 GB kept), 18,000 | | 4,285 | 3,304 |
+| installed engine with `MallocMediumZone=0` (as on a Mac under 32 GiB), 120 alive | | 626 (flat) | |
+| 32-bit committed | 232 | 108 | 108 |
+
+**Fix** (in patch 0022, `unix_gl.c`): copies of 32 KiB and more get their own anonymous mapping
+(VM tag 247, so vmmap and the recorder name them), unmapped when freed; up to 64 MiB of freed mappings
+are kept for reuse by size (a fresh mapping costs a page fault per page; every upload frees a copy and
+makes another of the same size). What the zone could keep is now bounded at 64 MiB. Built with
+`make dlls/wined3d/wined3d.so` in wine/build-0022 (wined3d.dll unchanged), staged in build/wine-0022
+(the previous `.so` kept as `build/wine-0022s/wined3d.so.prev-0022`) and build/engine-0022; not
+installed. Install: `scripts/wine-0022.sh --install`; undo: `--revert` (the series without 0022).
+- `scripts/texstash.sh`-style CRC check (2 GB, every draw after load, evict, relock, GetDC, Reset):
+  779 of 779 draws identical to `WINED3D_STASH_MANAGED=0`.
+- Speed: texchurn's wall time unchanged (43.1 vs 43.1 s, 60.9 vs 60.5 s per 15,000 textures). In texstash's
+  bulk load of large textures (4-22 MB each, mostly past the reuse cache), first draws 1.03 / 1.07 vs
+  0.93 / 0.91 ms per MB and evict redraws 0.98 / 1.03 vs 0.83 / 0.88 (two alternating pairs, machine load
+  ~5): ~0.1-0.15 ms per MB more on the render thread, from the page faults of fresh mappings.
+
+**What stays.** Every managed texture still costs its bytes twice on the host: the stashed copy and the
+GPU's (IOAccelerator) copy, as it did in 32-bit memory before 0022. On a Mac under 32 GiB (the 8 GB M1)
+the medium zone is off, so this retention never happened there; that Mac's risk is the match's real
+working set (textures x2 + the game's ~1.4 GB), around 5 GB late in an 8-player match. The copies are
+cold after their upload, so macOS compresses or swaps them without slowing the game; the GPU copies and
+the game's heap are hot. Next session: the summary's "Memory by VM tag" lines (MALLOC_MEDIUM should stay
+small, "wined3d stash" = the copies, IOAccelerator = the GPU's) split the growth for real.

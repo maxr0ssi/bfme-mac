@@ -9,7 +9,9 @@ inside the game): every host thread's CPU time, name and priority (Wine gives a 
 name to its macOS thread: wined3d's render thread is "wined3d_cs", the game patch names the game's
 main thread "bfme_main"), the process's resident memory and physical footprint. Every --gpu s (1)
 it reads the GPU's "Device Utilization %" and "Renderer Utilization %" from `ioreg` (IOAccelerator;
-the whole GPU, so other programs count too). It also reads the game log's new lines to pin the
+the whole GPU, so other programs count too). Every --regions s (30) it walks the process's memory regions
+(PROC_PIDREGIONINFO, like vmmap) and records resident / dirty / swapped MB per VM tag ("vm" in the
+sample: MALLOC_MEDIUM 12, IOAccelerator 100, Wine's own mappings 0, wined3d 0022's texture copies 247). It also reads the game log's new lines to pin the
 clock of WINEDEBUG=+timestamp (Wine's tick count) to the wall clock: the smallest
 (read time - tick) over the session is the offset, within the read interval.
 Files in --dir: samples.jsonl (one line per sample), meta.json, and the report's files.
@@ -62,6 +64,39 @@ def memory(pid):
     if _lp.proc_pid_rusage(pid, 2, buf) == 0:   # RUSAGE_INFO_V2; ri_phys_footprint at 72
         fp = struct.unpack("<Q", buf.raw[72:80])[0] / 1048576.0
     return round(rss, 1), round(fp, 1)
+
+
+# VM tags (mach/vm_statistics.h) worth naming in a game's memory
+VM_TAGS = {0: "untagged (Wine)", 1: "MALLOC", 2: "MALLOC_SMALL", 3: "MALLOC_LARGE", 7: "MALLOC_TINY",
+           8: "MALLOC_LARGE_REUSABLE", 12: "MALLOC_MEDIUM", 30: "STACK", 35: "UNSHARED_PMAP",
+           100: "IOAccelerator", 230: "Rosetta", 234: "Rosetta JIT", 247: "wined3d stash"}
+
+
+def regions(pid, min_mb=8.0):
+    """{tag: [resident MB, dirty MB, swapped MB]} over the task's regions (PROC_PIDREGIONINFO, 96 bytes:
+    pri_user_tag at 32, pages resident 36, swapped 44, dirtied 48, address 80, size 88); tags under
+    min_mb resident go into "other". Page counts are in 4 KiB pages for a Rosetta (x86_64) task."""
+    tags, addr = {}, 0
+    for _ in range(200000):
+        b = _info(pid, 7, addr, 96)
+        if len(b) < 96:
+            break
+        tag, res, _snp, swp, dirt = struct.unpack_from("<5I", b, 32)
+        a, size = struct.unpack_from("<QQ", b, 80)
+        t = tags.setdefault(tag, [0, 0, 0])
+        t[0] += res; t[1] += dirt; t[2] += swp
+        if a + size <= addr:
+            break
+        addr = a + size
+    out, other = {}, [0.0, 0.0, 0.0]
+    for tag, v in tags.items():
+        mb = [round(x * 4096 / 1048576.0, 1) for x in v]
+        if mb[0] >= min_mb or mb[2] >= min_mb:
+            out[VM_TAGS.get(tag, "tag %d" % tag)] = mb
+        else:
+            other = [o + m for o, m in zip(other, mb)]
+    out["other"] = [round(x, 1) for x in other]
+    return out
 
 
 def gpu():
@@ -129,6 +164,7 @@ def main():
         return a[a.index(name) + 1] if name in a else default
     pid, d, log = int(opt("--pid", "0")), opt("--dir"), opt("--log")
     interval, gpu_every = float(opt("--interval", "0.5")), float(opt("--gpu", "1"))
+    regions_every = float(opt("--regions", "30"))
     if not pid or not d:
         print(__doc__)
         return 2
@@ -158,7 +194,7 @@ def main():
         time.sleep(0.5)
     meta["pid"], meta["command"] = pid, command(pid)
     clock = LogClock(log)
-    prev, last_gpu, n = {}, 0.0, 0
+    prev, last_gpu, last_vm, n = {}, 0.0, 0.0, 0
     with open(os.path.join(d, "samples.jsonl"), "w") as out:
         while not stop and alive(pid):
             t0 = time.time()
@@ -177,6 +213,9 @@ def main():
                 if g:
                     rec["gpu"] = g
                 last_gpu = t0
+            if regions_every > 0 and t0 - last_vm >= regions_every:
+                rec["vm"] = regions(pid)
+                last_vm = t0
             clock.poll()
             out.write(json.dumps(rec, separators=(",", ":")) + "\n")
             n += 1

@@ -313,6 +313,12 @@ def summary(r):
                  statistics.mean(s["cs"] for s in sm), statistics.mean(s["proc"] for s in sm)))
         L.append("Memory (macOS side): resident peak %.0f MB, footprint peak %.0f MB" % (max(s["rss"] for s in sm),
                  max(s["fp"] for s in sm)))
+        vms = [json.loads(l) for l in open(os.path.join(r["dir"], "samples.jsonl")) if '"vm"' in l]
+        if vms:   # monitor_rec --regions: dirty MB per VM tag, first and last region walk
+            def tags(v):
+                return ", ".join("%s %.0f" % (k, d[1]) for k, d in sorted(v["vm"].items(), key=lambda kv: -kv[1][1])[:6])
+            L.append("Memory by VM tag (dirty MB), first walk: %s" % tags(vms[0]))
+            L.append("  last walk (%.0f min later): %s" % ((vms[-1]["t"] - vms[0]["t"]) / 60.0, tags(vms[-1])))
         g = [s["gpu"][0] for s in sm if s.get("gpu")]
         if g:
             L.append("GPU (whole Mac): device utilisation mean %.0f %%, max %d %%" % (statistics.mean(g), max(g)))

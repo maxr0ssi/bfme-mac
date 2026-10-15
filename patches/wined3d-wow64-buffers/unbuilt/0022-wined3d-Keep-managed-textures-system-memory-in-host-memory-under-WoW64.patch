@@ -19,16 +19,21 @@ stays in system memory from then on. The bytes an application reads back are the
 nothing is read back from GL. Measured: 3 GiB of 1024x1024 DXT5 managed textures in 14 MiB of
 address space. WINED3D_STASH_MANAGED=0 disables it; so does a missing wined3d.so.
 
+Copies of 32 KiB and more get their own anonymous mapping, unmapped when freed, with up to 64 MiB
+of freed mappings kept for reuse by size. Through malloc() they went to macOS's medium zone, which
+keeps freed blocks dirty on Macs with 32 GiB and more: recreating terrain-sized textures the way a
+game does on camera moves left 1.2 GiB of it dirty for 158 MiB of live copies (87 % fragmentation).
+
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  dlls/wined3d/cs.c              |   5 ++
- dlls/wined3d/device.c          |  20 +++++-
+ dlls/wined3d/device.c          |  20 ++++-
  dlls/wined3d/surface.c         |   6 +-
- dlls/wined3d/texture.c         | 144 +++++++++++++++++++++++++++++++++++++++++
- dlls/wined3d/unix_gl.c         |  43 ++++++++++++
- dlls/wined3d/unixlib.h         |  11 ++++
+ dlls/wined3d/texture.c         | 144 +++++++++++++++++++++++++++++++++
+ dlls/wined3d/unix_gl.c         | 137 +++++++++++++++++++++++++++++++
+ dlls/wined3d/unixlib.h         |  11 +++
  dlls/wined3d/wined3d_private.h |   7 ++
- 7 files changed, 234 insertions(+), 2 deletions(-)
+ 7 files changed, 328 insertions(+), 2 deletions(-)
 
 diff --git a/dlls/wined3d/cs.c b/dlls/wined3d/cs.c
 index 6babce6e395..a20d9b0c393 100644
@@ -337,34 +342,129 @@ index f74384012f6..1d91412ba40 100644
          return false;
  
 diff --git a/dlls/wined3d/unix_gl.c b/dlls/wined3d/unix_gl.c
-index 3312cecccc8..0b70681157f 100644
+index 3312cecccc8..4b891c9e179 100644
 --- a/dlls/wined3d/unix_gl.c
 +++ b/dlls/wined3d/unix_gl.c
-@@ -23,6 +23,7 @@
+@@ -23,7 +23,14 @@
  #include "config.h"
  
  #include <dlfcn.h>
++#include <pthread.h>
 +#include <stdlib.h>
  #include <string.h>
++#include <sys/mman.h>
++#include <unistd.h>
++#ifdef __APPLE__
++#include <mach/vm_statistics.h>
++#endif
  
  #include "ntstatus.h"
-@@ -78,9 +79,48 @@ static NTSTATUS buffer_write(void *args)
+ #define WIN32_NO_STATUS
+@@ -78,9 +85,136 @@ static NTSTATUS buffer_write(void *args)
      return STATUS_SUCCESS;
  }
  
 +/* Managed textures (texture.c, wined3d_texture_stash_sysmem()): the system memory copy of an
-+ * uploaded texture moves out of the process's 2 GiB into host memory, and back when it is needed. */
++ * uploaded texture moves out of the process's 2 GiB into host memory, and back when it is needed.
++ *
++ * Copies of STASH_MAP_MIN bytes and more get their own anonymous mapping, unmapped when the copy is
++ * freed. Through malloc() they landed in macOS's medium zone (32 KiB - 8 MiB, used on Macs with 32 GiB
++ * and more), which keeps freed blocks dirty: it only gives back free runs of its madvise window,
++ * which grows with the bytes the zone holds (256 MiB for ~2 GiB of textures), and has a magazine
++ * per CPU. Recreating terrain-sized textures the way a game does on camera moves left 1.2 GiB of
++ * the zone dirty for 158 MiB of live copies, growing with use. Tagged so vmmap names them.
++ * A fresh mapping costs a page fault per page on its first write, and every upload frees one copy
++ * and makes another of the same size, so up to STASH_CACHE_BYTES of freed mappings are kept for
++ * reuse by size, the oldest unmapped first: what stays dirty is bounded by that. */
++#define STASH_MAP_MIN (32 * 1024)
++#define STASH_CACHE_BYTES (64 * 1024 * 1024)
++#define STASH_CACHE_SLOTS 32
++#ifdef __APPLE__
++#define STASH_MAP_TAG VM_MAKE_TAG(VM_MEMORY_APPLICATION_SPECIFIC_1 + 7)
++#else
++#define STASH_MAP_TAG -1
++#endif
++
++static pthread_mutex_t stash_cache_lock = PTHREAD_MUTEX_INITIALIZER;
++static struct { void *p; size_t size; } stash_cache[STASH_CACHE_SLOTS];  /* oldest first */
++static unsigned int stash_cache_count;
++static size_t stash_cache_bytes;
++
++static size_t stash_map_size(UINT64 size)
++{
++    size_t page = getpagesize();
++    return (size + page - 1) & ~(page - 1);
++}
++
++static void *stash_alloc(UINT64 size)
++{
++    size_t map_size;
++    unsigned int i;
++    void *p = NULL;
++
++    if (size < STASH_MAP_MIN)
++        return malloc(size);
++    map_size = stash_map_size(size);
++    pthread_mutex_lock(&stash_cache_lock);
++    for (i = stash_cache_count; i--;)
++    {
++        if (stash_cache[i].size != map_size)
++            continue;
++        p = stash_cache[i].p;
++        stash_cache_bytes -= map_size;
++        memmove(&stash_cache[i], &stash_cache[i + 1], (--stash_cache_count - i) * sizeof(*stash_cache));
++        break;
++    }
++    pthread_mutex_unlock(&stash_cache_lock);
++    if (p)
++        return p;
++    p = mmap(NULL, map_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, STASH_MAP_TAG, 0);
++    return p == MAP_FAILED ? NULL : p;
++}
++
++static void stash_release(void *p, UINT64 size)
++{
++    size_t map_size;
++
++    if (size < STASH_MAP_MIN)
++    {
++        free(p);
++        return;
++    }
++    map_size = stash_map_size(size);
++    if (map_size <= STASH_CACHE_BYTES / 4)
++    {
++        pthread_mutex_lock(&stash_cache_lock);
++        while (stash_cache_count && (stash_cache_count == STASH_CACHE_SLOTS
++                || stash_cache_bytes + map_size > STASH_CACHE_BYTES))
++        {
++            munmap(stash_cache[0].p, stash_cache[0].size);
++            stash_cache_bytes -= stash_cache[0].size;
++            memmove(&stash_cache[0], &stash_cache[1], --stash_cache_count * sizeof(*stash_cache));
++        }
++        stash_cache[stash_cache_count].p = p;
++        stash_cache[stash_cache_count++].size = map_size;
++        stash_cache_bytes += map_size;
++        pthread_mutex_unlock(&stash_cache_lock);
++        return;
++    }
++    munmap(p, map_size);
++}
++
 +static NTSTATUS stash_put(void *args)
 +{
 +    struct wined3d_unix_stash_params *params = args;
 +    void *stash;
 +
-+    if (!(stash = malloc(params->size)))
++    if (!(stash = stash_alloc(params->size)))
 +        return STATUS_NO_MEMORY;
 +    /* The point is to free the 32-bit address space; a host allocation inside it gains nothing. */
 +    if ((ULONG_PTR)stash >> 32 == 0)
 +    {
-+        free(stash);
++        if (params->size < STASH_MAP_MIN)
++            free(stash);
++        else
++            munmap(stash, stash_map_size(params->size));
 +        return STATUS_CONFLICTING_ADDRESSES;
 +    }
 +    memcpy(stash, (const void *)(ULONG_PTR)params->data, params->size);
@@ -384,7 +484,7 @@ index 3312cecccc8..0b70681157f 100644
 +{
 +    const struct wined3d_unix_stash_params *params = args;
 +
-+    free((void *)(ULONG_PTR)params->stash);
++    stash_release((void *)(ULONG_PTR)params->stash, params->size);
 +    return STATUS_SUCCESS;
 +}
 +
@@ -397,7 +497,7 @@ index 3312cecccc8..0b70681157f 100644
  };
  
  C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == unix_funcs_count);
-@@ -91,6 +131,9 @@ C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == unix_funcs_count);
+@@ -91,6 +225,9 @@ C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == unix_funcs_count);
  const unixlib_entry_t __wine_unix_call_wow64_funcs[] =
  {
      buffer_write,

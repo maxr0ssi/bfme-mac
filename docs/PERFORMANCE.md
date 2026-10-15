@@ -1062,6 +1062,12 @@ the map and players come from `Skirmish.ini` (skirmish only); the frame line cos
 game log grows ~5 MB an hour.
 
 
+**Memory by VM tag** (2026-10-15): `monitor_rec.py` now also walks the game's memory regions every 30 s
+(PROC_PIDREGIONINFO, like vmmap; ~25 ms per 2,400 regions on another core) and the summary prints dirty MB
+per tag at the first and last walk. Why: the 2026-10-15 session's footprint grew 3.0 -> 5.9 GB while the
+32-bit space grew 0.5 GB; offline, 0022's copies in macOS's medium malloc zone kept up to 1.2 GB dirty
+for 158 MB alive ([MEMORY-4GB.md](MEMORY-4GB.md) "Growth over a match").
+
 ### 16.1 Stall sampler: the code of every long frame (2026-10-05)
 
 The 2026-10-05 session (8 players, Mordor spells) had 13 freezes of 472-1362 ms with the main thread at

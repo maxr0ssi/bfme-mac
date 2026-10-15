@@ -164,7 +164,9 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   150 ms the game patch's stall sampler (`gamepatch/src/p_stall.c`) caught, histograms of the main
   thread's functions (innermost exe function, call chain, leaf, logic phase), named from
   `build/rotwk-re/` (or a bench's COFF symbols); chains with `tools/callstacks.py`'s `Chainer`.
-- `tools/monitor_rec.py --pid P --dir D --log L [--any] [--no-report]` — the monitor's sampler (above).
+- `tools/monitor_rec.py --pid P --dir D --log L [--any] [--no-report] [--regions S]` — the monitor's sampler
+  (above); every S s (30) also resident / dirty / swapped MB per VM tag (a vmmap-style region walk, "vm" in
+  `samples.jsonl`; the summary prints the first and last walk). `docs/MEMORY-4GB.md`.
 - `tools/monitor_report.py <session dir> [--spike-ms 50]` — rebuilds a session's report and summary.
 - `tools/obfme_map.py <rotwk addr>... | --name <regex> | build` — names RotWK code from Open-BFME-2
   (byte-exact C++ of BFME2 1.06, GPLv3, read only from its git-ignored clone in `build/ext/`, never
@@ -209,6 +211,10 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   256 MB, first failure, upload and frame times, eviction, relock, GetDC and Reset, and a CRC of every
   texture drawn, compared between the two; `--reserve 1300` takes the game's own share of the address
   space first. Throwaway prefix build/prefix-texstash. `docs/MEMORY-4GB.md`.
+- `scripts/texchurn.sh [--engine DIR] [--stash 0|1] [--tag T] [--report T] [args]` + `tools/texchurn.c` — the
+  terrain tile texture churn (D3DXCreateTexture 512² 3 levels managed, fill, D3DXFilterTexture, draw,
+  release; `--live`, `--per`, `--grow`) with the macOS footprint sampled from outside: is process memory
+  flat over many cycles? Throwaway prefix build/prefix-texstash. `docs/MEMORY-4GB.md` "Growth over a match".
 - `scripts/cahrecolor.sh [--engine DIR] [--n N]` + `tools/cahrecolor.c` — the Create-a-Hero colour
   rebuild without the game: house-colour masks loaded both ways the game loads them (TGA via
   D3DXCreateTexture, DDS via D3DX), saved, drawn, then relocked, recoloured and mip-filtered as game.dat

@@ -29,7 +29,8 @@ case $1 in
 --status)
   for f in $DLL $SO; do
     s=$(md5 -q $f)
-    w=series; [[ -f $OUT/${f:t} && $s == $(md5 -q $OUT/${f:t}) ]] && w=0022
+    w=series; [[ -f $f.pre0022-$WINE_BUILD.bak && $s != $(md5 -q $f.pre0022-$WINE_BUILD.bak) ]] && w="0022, not the staged build"
+    [[ -f $OUT/${f:t} && $s == $(md5 -q $OUT/${f:t}) ]] && w=0022
     echo "${f:t}: $w ($s)"
   done ;;
 --stage)
