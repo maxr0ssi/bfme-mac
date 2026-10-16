@@ -85,6 +85,20 @@ PATCHES += src/p_aura.c
 TESTS   += $(OUT)/t_aura.exe
 $(DLL) $(TESTS): src/p_aura.h
 
+# exact speed-ups of the per-object logic (docs/PERFORMANCE.md §30): the range scans' geometry-intersection
+# distance (aigeom), the closest-object search (aiclosest); call-site timers inside the AI updates (aiprof)
+PATCHES += src/p_aigeom.c src/p_aiclose.c src/p_aiprof.c src/p_aiprof.S
+TESTS   += $(OUT)/t_aigeom.exe $(OUT)/t_aiclose.exe $(OUT)/t_aiprof.exe
+$(DLL) $(TESTS): src/p_ai.h
+
+# the FPS roadmap (docs/FPS-ROADMAP.md): per-frame time split into the monitor's records (framesplit),
+# the logic's list work spread over phases 2-6 (phasebalance; docs/PERFORMANCE.md §28-§29)
+PATCHES += src/p_framesplit.c src/p_framesplit.S src/p_phasebal.c src/p_phasebal.S
+TESTS   += $(OUT)/t_fsplit.exe $(OUT)/t_phasebal.exe
+$(DLL) $(TESTS): src/p_fps.h
+$(OUT)/t_phasebal.exe: tests/t_phasebal.c tests/t_phasebal_world.c tests/t_phasebal.h tests/orig.c $(PATCHES) | $(OUT)
+	$(CC) $(TFLAGS) -o $@ tests/t_phasebal.c tests/t_phasebal_world.c tests/orig.c $(PATCHES) -lwinmm
+
 all: $(DLL) $(TESTS)
 $(DLL) $(TESTS): src/gp_render.h src/gp_logic.h src/p_stall.h
 $(OUT)/t_logic.exe $(OUT)/t_ftol2.exe: tests/lm_harness.h

@@ -8,8 +8,8 @@
  * INVSQRT, NORMTAIL, HITTEST, QUATMAT, SHUTDOWN, LIMITER, FLOOR, PERFMARKER, PASSTIMERS, ANIMDEDUP,
  * ANIMDECODE, PARTICLEVTX, EDGEMAP, SHADOWPAR, SHADOWSTATS, RENDERSTATS, PARTICLESTATS, MONITOR, STALLS, MAT2QUAT, DISTCALC, BSPHERE, WORLDCELL, FTOL2, CRTSQRT, OCTILE, SHROUDSPAN, SCANTREE, AURA3D,
  * PATHFIND, MOVEAWAYCAP, MOVEAWAYQUEUE, PATHSPLIT, FLATTENLIGHT, TERRAINBOX, TERRAIN32,
- * LOGICSTATS, HIGHMEM); otherwise [patches] <name>=0/1 in gamepatch.ini
- * next to the DLL; default on, except limiter, passtimers, shadowpar, logicstats, highmem, terrainbox and terrain32 (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
+ * LOGICSTATS, HIGHMEM, FRAMESPLIT, PHASEBALANCE, AIGEOM, AICLOSEST, AIPROF); otherwise [patches] <name>=0/1 in gamepatch.ini
+ * next to the DLL; default on, except limiter, passtimers, shadowpar, logicstats, aiprof, highmem, terrainbox, terrain32 and phasebalance (off). Log: GAMEPATCH_LOG=<path>, else gamepatch.log next
  * to the DLL. highmem (a diagnostic, not a patch) runs in any large-address-aware exe, before the RotWK check. */
 #include "gp.h"
 #include "gp_render.h"
@@ -21,6 +21,8 @@
 #include "p_aura.h"
 #include "p_mipfilter.h"
 #include "p_terrain.h"
+#include "p_fps.h"
+#include "p_ai.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -148,6 +150,8 @@ static void attach(HMODULE self)
     run("shroudspan", gp_patch_shroudspan, &ok, 1);
     run("scantree", gp_patch_scantree, &ok, 1);
     run("aura3d", gp_patch_aura3d, &ok, 1);
+    run("aigeom", gp_patch_aigeom, &ok, 1);
+    run("aiclosest", gp_patch_aiclosest, &ok, 1);
     run("firecircle", gp_patch_firecircle, &ok, 1);
     run("fxparamused", gp_patch_fxparamused, &ok, 1);
     run("pathfind", gp_patch_pathfind, &ok, 1);
@@ -159,6 +163,9 @@ static void attach(HMODULE self)
     /* last, so its call-site writes never meet another patch's byte checks */
     run("monitor", gp_patch_monitor, &ok, 1);       /* counters only; needs GAMEPATCH_MONITOR */
     run("logicstats", gp_patch_logicstats, &ok, 0); /* diagnostic, off unless asked for */
+    run("aiprof", gp_patch_aiprof, &ok, 0);         /* diagnostic, off unless asked for */
+    run("framesplit", gp_patch_framesplit, &ok, 1); /* diagnostic, only with the monitor */
+    run("phasebalance", gp_patch_phasebalance, &ok, 0); /* changes logic timing: same on every LAN machine; after logicstats */
     gp_log("%d patches applied", ok);
 }
 
@@ -181,6 +188,9 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gp_shroud_exit_log();
         gp_scan_exit_log();
         gp_au_exit_log();
+        gp_ag_exit_log();
+        gp_ac_exit_log();
+        gp_ap_exit_log();
         gp_fc_exit_log();
         gp_fxu_exit_log();
         gp_pf_exit_log();
@@ -191,6 +201,8 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
         gp_tb_exit_log();
         gp_t32_exit_log();
         gp_lst_exit_log();
+        gp_fs_exit_log();
+        gp_pb_exit_log();
     }
     (void)reserved;
     return TRUE;

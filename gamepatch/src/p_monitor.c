@@ -25,7 +25,8 @@
  * Output (text, one record per line; us = microseconds since the monitor started):
  *   t us unix_ms tick_ms              clock pairs, every second (tick = GetTickCount, the clock of
  *                                     WINEDEBUG=+timestamp)
- *   f us logic load_n load_us create_n create_us fx_n fx_us     one per drawn frame
+ *   f us logic load_n load_us create_n create_us fx_n fx_us     one per drawn frame; with framesplit
+ *     (p_framesplit.c) 8 more: client_us draw_us present_us logic_us phases wait_us iter_us iters
  *   s us objects mode logic walk_us
  *   m us committed_mb reserved_mb free_mb largest_free_mb regions walk_us total_mb
  *   d dropped_frames                  (only if the writer fell behind)
@@ -36,6 +37,7 @@
 #include "gp_render.h"
 #include "gp_logic.h"
 #include "p_stall.h"
+#include "p_fps.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -103,10 +105,12 @@ static uint8_t *logic(void)
 }
 
 /* ---- per frame (main thread) -------------------------------------------------------------- */
-typedef struct { LONGLONG q; uint32_t logic; LONG n[K_N]; LONGLONG t[K_N]; } frec;
+typedef struct { LONGLONG q; uint32_t logic; LONG n[K_N]; LONGLONG t[K_N]; int has_sp; uint32_t sp[FS_N]; } frec;
 #define RN 4096
 static frec ring[RN];
 static volatile LONG wpos, rpos, dropped;
+int gp_mon_split_on;                    /* framesplit: a record is published with its split */
+static int pending;                     /* ring[wpos] filled, waiting for its split */
 static struct { LONGLONG q; LONG objects, mode, walk_us; uint32_t logic; } os_;
 static volatile LONG os_seq;
 static LONGLONG last_os;
@@ -130,8 +134,9 @@ static void objects_sample(LONGLONG q)
 
 void gp_mon_frame(void)
 {
-    LONG w = wpos;
     LONGLONG q = qpc();
+    if (pending) { __atomic_store_n(&wpos, wpos + 1, __ATOMIC_RELEASE); pending = 0; }  /* a second draw */
+    LONG w = wpos;
     if (w - __atomic_load_n(&rpos, __ATOMIC_ACQUIRE) >= RN) { dropped++; return; }
     frec *r = &ring[w & (RN - 1)];
     uint8_t *gl = logic();
@@ -140,10 +145,22 @@ void gp_mon_frame(void)
         r->n[k] = __atomic_load_n(&cnt[k], __ATOMIC_RELAXED);
         r->t[k] = __atomic_load_n(&tim[k], __ATOMIC_RELAXED);
     }
-    __atomic_store_n(&wpos, w + 1, __ATOMIC_RELEASE);
+    r->has_sp = 0;
+    if (gp_mon_split_on) pending = 1;   /* published by gp_mon_split at the end of the engine iteration */
+    else __atomic_store_n(&wpos, w + 1, __ATOMIC_RELEASE);
     gp_stall_last_logic = r->logic;
     __atomic_store_n(&gp_stall_last_q, q, __ATOMIC_RELAXED);
     if (q - last_os >= freq) { last_os = q; objects_sample(q); }
+}
+
+int gp_mon_split(const uint32_t v[FS_N])  /* main thread, after the frame limiter */
+{
+    if (!pending) return 0;
+    frec *r = &ring[wpos & (RN - 1)];
+    memcpy(r->sp, v, sizeof r->sp); r->has_sp = 1;
+    __atomic_store_n(&wpos, wpos + 1, __ATOMIC_RELEASE);
+    pending = 0;
+    return 1;
 }
 
 /* ---- writer ------------------------------------------------------------------------------- */
@@ -198,6 +215,12 @@ void gp_mon_flush(int final)
             n = put(n, "f %lld %lu %ld %lld %ld %lld %ld %lld\n", us(f->q - q0), (unsigned long)f->logic,
                     f->n[0] - prev.n[0], us(f->t[0] - prev.t[0]), f->n[1] - prev.n[1], us(f->t[1] - prev.t[1]),
                     f->n[2] - prev.n[2], us(f->t[2] - prev.t[2]));
+        if (have_prev && f->has_sp && n > 0 && buf[n - 1] == '\n') {   /* the frame split, on the same line */
+            int k = put(n - 1, " %lu %lu %lu %lu %lu %lu %lu %lu\n", (unsigned long)f->sp[0], (unsigned long)f->sp[1],
+                        (unsigned long)f->sp[2], (unsigned long)f->sp[3], (unsigned long)f->sp[4], (unsigned long)f->sp[5],
+                        (unsigned long)f->sp[6], (unsigned long)f->sp[7]);
+            if (k > n - 1) n = k; else buf[n - 1] = '\n';
+        }
         prev = *f; have_prev = 1;
     }
     __atomic_store_n(&rpos, r, __ATOMIC_RELEASE);

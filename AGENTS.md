@@ -6,8 +6,12 @@ Read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) before editing.
   Read `logs/` afterwards. Attach read-only probes to a session only when asked.
 - Work the plan out from code first (disassembly, Wine source, standalone benches) and get a go
   before anything needs the game. Batch game-dependent checks into one play session.
-- Game patches are bit-exact against the original in the game's FPU mode, with a test in
-  `gamepatch/tests/` that runs the game's own code original against patched.
+- Game patches are bit-exact against the original in the game's FPU mode where they can be, with
+  a test in `gamepatch/tests/` that runs the game's own code original against patched.
+- A patch may change the game logic only if it is deterministic on our build (no clock, thread
+  timing, address or machine state reaches the logic), has a switch marked CHANGES GAME LOGIC in
+  `gamepatch.ini` and `MULTIPLAYER.md`, and its test shows the same results in two memory layouts
+  and two runs. Every LAN player then runs the same build and settings.
 - No visual downgrades. Offer image-changing trade-offs as an explicit choice; never ship one.
 - Every number goes into `docs/PERFORMANCE.md` with date, build and scene. Counts only outside
   the run-to-run spread. Correct overturned claims in place and keep dead ends.

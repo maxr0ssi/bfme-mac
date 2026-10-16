@@ -43,13 +43,24 @@ that, one player copies every `*sagekit-*.big` file and `asset.dat` from their R
 copy of your own `asset.dat` first), or everyone takes them out (`python3 -m sagekit revert
 <faction>`, `python3 -m assets.<faction>.porter.install --revert`).
 
+## The game patch
+
+The RotWK game patch (`dinput8.dll` and `gamepatch.ini` in the RotWK folder, from
+`scripts/game-patch.sh`) mostly gives the game's own results, faster. A few of its switches change
+the game logic, the same way on every machine running the same build. They are marked CHANGES GAME
+LOGIC in `gamepatch.ini`: `moveawaycap`, `moveawayqueue` and `pathsplit` (on), `phasebalance`
+(off until tested). So in a LAN game everyone runs the same `dinput8.dll` with the same
+`gamepatch.ini`. A Windows player gets both from `scripts/game-patch.sh --bundle`. A player with a
+different build or settings drifts out of sync. Replays recorded before a logic switch changed
+may not play back the same.
+
 Setting up a friend's Mac by copying your installed games, so it matches yours: [docs/SECOND-MAC.md](docs/SECOND-MAC.md).
 
 To check, compare on every machine:
 
 ```sh
 cd "prefixes/w10/drive_c/Program Files (x86)/Electronic Arts/RotWK"
-shasum *sagekit-*.big '!!!!!!!!!!group-pack.big'
+shasum *sagekit-*.big '!!!!!!!!!!group-pack.big' dinput8.dll gamepatch.ini
 ```
 
 The file names and hashes must be the same everywhere. A pack built on two machines from the same

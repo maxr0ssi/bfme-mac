@@ -113,9 +113,9 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   per-pass render timers (`passtimers`) and shadow volumes built on several cores (`shadowpar`,
   which checks itself against the serial result for its first 300 frames). Every patch checks the exact original bytes first, gives bit-identical
   results (so patched and unpatched players can play together) and can be switched off in
-  `gamepatch.ini` or with `GAMEPATCH_<NAME>=0`. Exceptions: `moveawaycap`, `moveawayqueue` and `pathsplit` change
-  the game logic (the same way on every machine), so every LAN player needs them set alike
-  (`docs/PERFORMANCE.md` §20, §21). `play-rotwk.sh` loads it (`dinput8=n,b`) while
+  `gamepatch.ini` or with `GAMEPATCH_<NAME>=0`. Exceptions: `moveawaycap`, `moveawayqueue`, `pathsplit` and
+  `phasebalance` (off by default) change the game logic (the same way on every machine), so every LAN
+  player needs them set alike (`docs/PERFORMANCE.md` §20, §21, §29; `MULTIPLAYER.md`). `play-rotwk.sh` loads it (`dinput8=n,b`) while
   `gamepatch.ini` is in the game folder; log in `logs/gamepatch.log`. `--test` runs the standalone
   bit-exactness tests (`gamepatch/tests/`) in a throwaway prefix; `--bundle` makes the two files
   another player copies into their RotWK folder. Record: `docs/PERFORMANCE.md` §10.
@@ -167,7 +167,9 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
 - `tools/monitor_rec.py --pid P --dir D --log L [--any] [--no-report] [--regions S]` — the monitor's sampler
   (above); every S s (30) also resident / dirty / swapped MB per VM tag (a vmmap-style region walk, "vm" in
   `samples.jsonl`; the summary prints the first and last walk). `docs/MEMORY-4GB.md`.
-- `tools/monitor_report.py <session dir> [--spike-ms 50]` — rebuilds a session's report and summary.
+- `tools/monitor_report.py <session dir> [--spike-ms 50]` — rebuilds a session's report and summary; with
+  the game patch's `framesplit` a "Frame split" section: per logic phase, p50 / p95 of the frame, its busy
+  and spare (limiter wait) time, client pass, draw, Present and logic (PERFORMANCE.md §28).
 - `tools/obfme_map.py <rotwk addr>... | --name <regex> | build` — names RotWK code from Open-BFME-2
   (byte-exact C++ of BFME2 1.06, GPLv3, read only from its git-ignored clone in `build/ext/`, never
   copied here): their function, source file and line, and match confidence for an address; for an
@@ -335,6 +337,9 @@ build/          compiled helpers (lswin); logs/  game logs, harness captures, me
   colouring handles (A8R8G8B8/A4R4G4B4 DDS, 32-bit TGA); in `sagekit validate`. `--tint`: per part
   mesh, the share of its surface the Hair (R), Skin (G) and Paint (B) pickers colour (16 samples per
   triangle; the cah parts' Paint-only rules on it are `assets/cah/kit/attach_lint.py`). docs/CAH.md.
+- `sagekit/stringcheck.py` (in `python3 -m sagekit validate`) — string labels: the lang archive the
+  game takes `data\lotr.str` from (the last `lang\English*.big` in name order) must be ours whenever
+  ours is installed, and every label an INI block of ours adds must be in it (installed and staged).
 - `python3 -m sagekit unit <faction>/<unit> [--render|--check|--stage|--install|--revert]`
   (`sagekit/units/`, `sagekit/blender/unit_pose.py`) — unit recipes, `assets/<faction>/porter/design.py`
   (every faction's builder, installed) and `assets/<faction>/worker/design.py` (the construction

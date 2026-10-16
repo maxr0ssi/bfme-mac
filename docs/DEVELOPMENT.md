@@ -19,10 +19,18 @@ on-ramp for people. The rules apply to human contributors as well.
 
 ## Correctness
 
-- A game patch must give the same bits as the original in the game's FPU mode (24-bit x87
+- A game patch should give the same bits as the original in the game's FPU mode (24-bit x87
   precision, round-to-nearest), so patched and unpatched players stay in lockstep over LAN. Prove
   it with a test in `gamepatch/tests/` that runs the game's own code, original against patched,
-  over all inputs where feasible (2³² for single-float functions).
+  over all inputs where feasible (2³² for single-float functions). Exact stays the first choice.
+- Only LAN games between copies of our own build matter, not lockstep with EA's game. So a patch
+  may change the game logic when an exact version cannot get the gain, if every machine running
+  our build computes the same: no clock, thread timing, address or machine property may reach the
+  logic, and any order or split is fixed by the game's own data (object IDs, list indices). Its
+  switch is marked CHANGES GAME LOGIC in `gamepatch.ini` and listed in `MULTIPLAYER.md`, because
+  every LAN player then needs the same game patch build and settings. Its test runs the game's
+  own code in two memory layouts and twice and gets the same results, and matches the original
+  wherever the patch means to keep a result.
 - No visual downgrades: a trade-off that changes the picture (e.g. turning a pass off) is offered
   to the player as a separate, explicit choice, never shipped.
 - Wine changes are checked without the game: Wine's d3d9 visual tests, `tools/d3d9lockcheck.c`,
@@ -45,8 +53,8 @@ on-ramp for people. The rules apply to human contributors as well.
   `GAMEPATCH_<NAME>=0`); every install script can undo itself (`--revert`; `scripts/install.sh
   --uninstall`) and keeps `.orig` / `.bak` copies.
 - No game or Wine binaries in git. The harness blocks them with no override.
-- Everyone in a LAN game must run identical game data (the group pack and the art packs,
-  `MULTIPLAYER.md`); retail compatibility is not a goal.
+- Everyone in a LAN game must run identical game data (the group pack and the art packs) and the
+  same game patch with the same settings (`MULTIPLAYER.md`); retail compatibility is not a goal.
 
 ## The harness
 
@@ -63,7 +71,7 @@ every push and pull request, no game or Wine build needed.
 git config core.hooksPath .githooks          # once per clone
 python3 harness/harness.py diff --staged     # what pre-commit sees
 python3 harness/harness.py tree              # repo-wide invariants
-scripts/game-patch.sh --test                 # gamepatch bit-exactness tests (throwaway prefix)
+scripts/game-patch.sh --test                 # gamepatch exactness / determinism tests (throwaway prefix)
 parallel/pool/build-and-run.sh bench         # worker-pool tests, never beside a running game
 ```
 

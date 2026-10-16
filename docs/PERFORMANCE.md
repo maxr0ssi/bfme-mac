@@ -15,7 +15,8 @@ Contents: 1 pipeline · 2 in-game measurements · 3 GL call costs · 4 synthetic
 11 d3dx9 effects · 12 per-draw FX cost · 13 first-use texture loads · 14 eight-player games ·
 15 our art's draw cost against EA's · 16 session monitor · 17 logic phase 5 · 18 spell-cast freezes ·
 19 unit-count scaling · 20 the pathfinder · 21 path searches split over logic phases ·
-22 building placement relights every road · 24 spells · 27 map-wide pulses' 3D distance.
+22 building placement relights every road · 24 spells · 27 map-wide pulses' 3D distance ·
+28 per-frame time split (framesplit) · 29 logic phases evened out (phasebalance).
 
 Machine: MacBook Pro, Apple M3 Max (12P+4E cores, 40-core GPU), 64 GB unified memory, macOS 26.3,
 `powermode 0`. Engine `engines/w10` (Sikarugir wine-staging 10.0, new-style WoW64, x86_64 under
@@ -2283,3 +2284,327 @@ cost about what the game's do): Darkness and Freezing Rain / Blizzard 1-2 pulses
 modifier weapons every 2-3 s. What a pulse costs beyond the scan (per object: the target check and
 0x90eaf9's modifier apply, §19 rank 5, §25's 0.03-0.08 µs store lookup) is untouched and now the larger
 part. Not yet seen in the game; the `aura3d` exit line counts the calls and x87 runs.
+
+## 28. Where each drawn frame goes: framesplit (2026-10-15, static + standalone test; staged, not installed)
+
+Max approved the FPS roadmap on 2026-10-15 (docs/FPS-ROADMAP.md): frame timers first. Until now the
+monitor (§16) had each frame's length and the D3DX loads in it, logicstats (§14) the logic's ms per
+phase in 30 s windows, passtimers (§10) the render passes in 5 s windows. Nothing said, for one frame,
+how much was draw, logic and wait, so the headroom for more than 30 FPS (roadmap step 3) was a guess.
+
+**What it times** (`gamepatch/src/p_framesplit.c/.S`, switch `framesplit`, on; it runs only when the
+monitor runs, i.e. in `play-rotwk.sh` sessions, and writes into the monitor's records). One engine
+iteration of GameEngine::execute 0x639cf8 is one drawn frame and one logic phase (FPS-ROADMAP §2.1):
+
+| part | what is timed | hook |
+|---|---|---|
+| client | the client pass 0x632409 (GameClient::update with the draw, input, audio, network), inclusive | GameEngine vt+0x9c: slots 0xbd857c (Win32GameEngine) and 0xbfe2fc |
+| draw | W3DDisplay::draw 0x44b788, inclusive (inside the client pass) | W3DDisplay vtable slot 0xbd9c58 |
+| present | the device's Present at 0x522650 (after EndScene 0x522628; inside the draw). The wait for Wine's render thread shows here | `call` at 0x52264b (8 bytes) |
+| logic | the engine step 0x6329b0 (phase 1: the network's go, then GameLogic::update for the phase), inclusive; which phase ran, and phase 1 refused by the network (bit 7) | GameEngine vt+0x98: slots 0xbd8578, 0xbfe2f8 |
+| wait | the frame limiter, from its timeGetTime at 0x63a196 to the end of the iteration: the frame's spare time. 0 when the game does not limit (6 frames after a skipped one) | `call` at 0x63a196 (6 bytes) |
+| iter | from the end of the previous iteration to the end of this one | `call` at 0x63a21f (6 bytes) |
+
+"Other" in the report is iter - client - logic - wait: the Windows message pump, the loop's network
+pacing (0x639fef-0x63a194) and the hooks themselves. Every site is checked against its original bytes;
+the stubs hand the original every register and xmm and change no game state (only the clock is read).
+With the `limiter` patch on, the wait is its Sleep(1) loop instead of EA's spin; it is timed the same way.
+
+**Where it goes.** Each drawn frame's monitor record (`f` line in `logs/sessions/<id>/game.txt`) gets 8
+more numbers: client, draw, present, logic (µs), the phase bits, wait, iter (µs), iterations. The
+render-helper hook stores the record during the draw; the end of the iteration attaches the split and
+publishes it. An iteration without a draw (a skipped client frame in network play) carries its times
+into the next record (iterations 2). `tools/monitor_report.py` adds a **Frame split** section to the
+summary: for each logic phase, frames and p50 / p95 of the frame, busy (frame - wait), spare (wait),
+client, draw, Present, logic and other, and how many frames per phase were busy for more than 33.3 ms
+(the ones that drop below 30 FPS).
+
+**Proof: `gamepatch/tests/t_fsplit.c`** (in `scripts/game-patch.sh --test`). Engine w10, 2026-10-15, PASS:
+
+| check | result |
+|---|---|
+| [1] without the monitor | refused (nothing written) |
+| [1] after the monitor, on the original bytes | 5 vtable slots and 3 call sites point at the stubs, continuations at the originals |
+| [2] client pass, engine step (phase argument, ret 4), draw | the original sees the caller's eax, ecx, edx and argument; the caller gets the original's eax, ecx, edx with ebx, esi, edi, ebp and esp as the original leaves them |
+| [2] Present, limiter, iteration end | Present gets (device, ebx x 4) through vt+0x44; the limiter stub returns timeGetTime's value; ecx = [0xde42f8] |
+| [3] scripted iterations: a 2 ms client pass with a 1 ms draw and a 0.5 ms Present inside, a 3 ms phase 4, a 4 ms wait; then one without a draw and one with a refused phase 1 | records: client 3502 µs, draw 1502, present 500, logic 2999, phases 0x10, wait 4000, iter 10505; then client 4499, logic 1499, phases 0xa0 (5 and refused 1), wait 1999, iterations 2 |
+| [4] cost of one iteration's ten marks and its record (with the test's fake parts) | 3.7 µs, ~0.01 % of a 33 ms frame |
+
+`t_monitor`, `t_rstats` and `t_lstats` pass unchanged with it (frame records without a split keep their
+8 numbers).
+
+**Next:** one measuring session with it (Max's normal play; the monitor already runs). The report's
+section gives, per phase, the spare time that the extra frames of roadmap step 3 can use, and shows
+whether the phase-5 drops are logic, draw or the render thread (Present).
+
+## 29. The logic phases evened out: phasebalance (2026-10-15, static + standalone test; staged, OFF, not installed)
+
+Roadmap step 1, approved by Max on 2026-10-15 with his rule (memory "multiplayer-scope", now in
+docs/DEVELOPMENT.md): LAN only ever runs his identical build, so logic changes are fine when they are
+deterministic across machines running that build; bit-identity with EA is not required.
+
+**What GameLogic::update does with a step's work, read again from the exe** (adds to §14 and §17; the
+addresses are those of FPS-ROADMAP §4):
+- The list loop 0x62e9d4-0x62eb5d runs list 0 in phases 3 [0, n/2) and 4 [n/2, n), lists 1-2 in phase 5,
+  list 3 in phase 6. Each list's last pass ends with the clean-up 0x62eae5: from the end down, modules
+  asleep for good (wake 0x3fffffff) are swapped with the last one and moved to the sleep list +0xf8.
+- **Modules leave a list only there and in the destroy list 0x62a2c9**, which runs once per step, inside
+  phase 5's subsystem block after TheShroudManager (the other three callers are resets). Modules join
+  at the end: setWakeFrame 0x62b921 moves a module from the sleep list to the end of its list
+  (getUpdatePhase, primary vtable +0x30), new objects register at the end (0x62bab4). So between two
+  passes of list 0, 1 or 2 the indices already visited never change; a pass can resume where the
+  previous one stopped.
+- **EA's own half split loses modules.** Phase 3 stops at n/2 re-read each element; phase 4 starts at
+  n/2 of its own start. A module that joins list 0 in between (woken from the sleep list by the pathfind
+  queue at the top of phase 4 or by 0x629da6 at the end of phase 3) moves phase 4's start: k modules
+  joining move it up by k/2, and the k/2 modules at the old middle are not updated in that step (they
+  run one step later; never twice: a module that ran has its wake frame past the logic frame, 0x62ea40).
+- 0x629da6, called at the end of every call, is the pass over the objects that changed cell during the
+  phase (+0x164, filled by 0x62abc7 from 0x69264d;
+  each one goes through 0x69675c, the pathfinder's 0x6ee6dd and 0x6964fd). Each call's prologue erases
+  that vector (0x5ff9d3 at 0x62e5a7), so what phase 5's subsystems add after its 0x629da6 is dropped.
+- TheAI's update 0x6fec63 is the pathfind queue again plus ThePlayerList's update (§17).
+- Update-list membership by class (primary vtable +0x30, from each class's constructor): list 0 =
+  AIUpdateInterface, AnimalAIUpdate, HordeAIUpdate, WorkerAIUpdate, DozerAIUpdate, EmotionTrackerUpdate;
+  list 1 = HordeContain; list 2 = FireWeaponUpdate, AISpecialPowerUpdate, LargeGroupAudioUpdate,
+  0xc67e2c (update 0x8a1b9f), 0xc585f8 (0x85f28a), CastleBehavior 0xc30e08 and the rest; list 3 = 0xc11f18
+  (update 0x690053, ~94 calls a step, 0.03 ms).
+
+**The profiles.** The 10-05 session folder is no longer on disk; its per-phase numbers are FPS-ROADMAP
+§1's. A second 8-player profile exists: `logs/sessions/20261015-160144` (2026-10-15 16:01, 98 min, mp
+woody end, 1 human + 7 AI, up to 1,010 objects, game patch of 10-06 with logicstats, monitor; M3 Max),
+183 logicstats windows of 30 s with ≥ 100 steps, steps-weighted:
+
+| ms per logic step | phase 1 | 2 | 3 | 4 | 5 | 6 | sum |
+|---|---|---|---|---|---|---|---|
+| 10-05 mean (FPS-ROADMAP §1) | 2.1 | 1.9 | 6.6 | 8.6 | 12.0 | 1.4 | 32.5 |
+| 10-15 mean | 1.55 | 1.11 | 3.98 | 5.89 | 7.69 | 0.52 | 20.7 |
+| 10-15 heaviest quarter of windows | 3.07 | 1.61 | 6.52 | 10.07 | 11.30 | 0.71 | 33.3 |
+
+10-15 phase 5 = modules 4.27 (HordeContain 2.29, so list 2 ~2.0) + subsystems (TheShroudManager 1.13,
+0xde4938 0.77, TheAI 0.36, 0xde3be8 0.30, ...). The update modules' 4.92 ms in phase 4 against 3.86 in
+phase 3: list 0's second half is the heavier.
+
+**The plan** (`gamepatch/src/p_phasebal.c/.S`, switch `phasebalance`, OFF by default). The step's work
+after phase 2's own is one sequence, list 0, list 1, list 2, TheAI, the subsystem block, list 3; the
+phases cut it elsewhere:
+
+| phase | EA | balanced |
+|---|---|---|
+| 1 | frame +1, scripts, commands, CRC | same |
+| 2 | its subsystems and per-object loop | same, then list 0 [0, 36 %) |
+| 3 | list 0 [0, n/2) | list 0 [36 %, 74 %) |
+| 4 | list 0 [n/2, n), clean-up | list 0 [74 %, end), clean-up, list 1 [0, 30 %) |
+| 5 | lists 1, 2, TheAI, 0x629da6, the subsystem block | list 1 [30 %, end), list 2, TheAI, 0x629da6 |
+| 6 | list 3, 0x629da6 | the subsystem block, list 3, 0x629da6 |
+
+Percentages are of the list's size when its first pass of the step began (1/1024 steps: 369, 758,
+307), chosen with the cost model below to make the heaviest phase as light as possible on both
+profiles; the roadmap's first idea (list 0 in thirds, list 2 split, the subsystems before list 3) gave
+~7.5 ms. A pass resumes at the index where the previous one stopped. 0x629da6 still ends every phase
+and follows TheAI as in EA; in phase 6 the objects the subsystem block added are dropped before list 3
+(the pending vector cut back to its size before the block), as EA's phase-6 prologue drops them. The
+cut points are fixed constants, not settings: they must be equal on every LAN machine.
+
+What runs is the game's own code: seven sites in GameLogic::update become jumps to small stubs (the
+dispatch 0x62e982, the start index 0x62e9d4, the stop test 0x62ea09, the clean-up test 0x62eadf, the
+TheAI test 0x62eb63, the subsystem test 0x62eb7b, and 0x62ec10, where list 3 gets a second round of the
+game's list loop after the subsystems). The module calls, the clean-up, the subsystems are unchanged
+code. The whole function is checked by hash first, with logicstats' call sites read as their original
+bytes, so `phasebalance` applies after `logicstats` (main.c order) and logicstats then reports the new
+per-phase split directly.
+
+**Deterministic:** the decisions read only the phase, the logic frame and the lists' sizes; no clock,
+address or machine property. Every module is visited once per step in list order. **What changes in
+the game:** the logic does the same work in the same order; the pathfind queue (top of every phase)
+and 0x629da6 (end of every phase) now fall between other chunks than in EA (EA already runs them
+between list 0's halves), and the client pass and draw run between other chunks. So a path result or a
+cell-change check can land a few modules earlier or later than in EA: gameplay is unchanged in kind,
+not bit for bit. The CRC check (getCRC 0x625886 in phase 1) still sees the state after a whole step.
+Every LAN player needs the same setting (`MULTIPLAYER.md`).
+
+**Proof: `gamepatch/tests/t_phasebal.c`** with `t_phasebal_world.c`: the exe's GameLogic::update runs
+phases 2-6 on a synthetic world of objects and update modules in four lists: the game's list loop,
+clean-up, setWakeFrame, vector push_back and disabled-module test; stood in only at their entry: the
+pathfind queue (it wakes sleeping modules: lists grow between passes), 0x629da6 (logs the pending
+objects), the destroy list (removes a destroyed object's modules as the game does), the phase-2
+per-object update, setFPMode, the erase, and 15 subsystem objects. Modules log each update, return a
+sleep from a hash of (seed, id, frame) and, in the mutating world, wake others, destroy objects, create
+objects (registered at the end of their lists) and mark cell changes. Engine w10, 2026-10-15, 3,000
+objects (6,011 modules), 120 steps per run, PASS:
+
+| check | result |
+|---|---|
+| [1] on the original bytes | applied; 7 jumps, 118 bytes of the function changed |
+| [2] EA's split re-expressed by the hooks (mode 2) against the original code, static and mutating world, two memory layouts | 2.39 M events identical, phase labels included |
+| [3] balanced, second run and second memory layout (addresses moved) | identical events |
+| [3] balanced: modules due at a step's start not updated in it / updated twice / out of list order | 0 / 0 / 0 (static and mutating world) |
+| [3] EA's split, mutating world | 9 due modules waited a step (the half-split loss above), 0 twice |
+| [4] balanced against the original, static world | the same 587,374 module updates, subsystem calls and phase-2 work in the same order; queue runs 600 / 600, 0x629da6 passes 600 / 600 |
+| [4] share of each list's updates per phase | phase 2: list 0 36 %; 3: 38 %; 4: 26 % + list 1 29 %; 5: list 1 71 %, list 2 100 %; 6: list 3 |
+| [5] pending objects the subsystem block adds | processed by neither (960 cut-backs); those modules add: processed in both |
+| [6] logicstats applied first | both apply, events identical, logicstats timed 207,182 module updates |
+| [7] the hooks' cost, static world, 3,038 modules in lists | 132 µs a step original, 125 balanced: within the noise |
+
+**Expected ms per logic step and phase** (test [7]: the profiles' costs laid on the plan; list 0's cost
+density linear in the index, fitted to its measured halves; queue 0.1-0.2 ms a phase):
+
+| profile | phases 1-6, EA | heaviest | phases 1-6, balanced | heaviest |
+|---|---|---|---|---|
+| 10-05 mean | 2.1 / 1.9 / 6.8 / 8.8 / 12.0 / 1.6 | 12.0 | 2.1 / 6.5 / 6.1 / 5.6 / 6.4 / 6.5 | **6.5** |
+| 10-05 heaviest quarter | 2.7 / 2.8 / 8.1 / 11.3 / 17.0 / 2.4 | 17.0 | 2.7 / 8.2 / 7.7 / 7.3 / 8.8 / 9.6 | **9.6** |
+| 10-15 mean | 1.6 / 1.1 / 4.1 / 6.0 / 7.7 / 0.6 | 7.7 | 1.6 / 3.8 / 4.0 / 4.1 / 4.0 / 3.6 | **4.1** |
+| 10-15 heaviest quarter | 3.1 / 1.6 / 6.6 / 10.2 / 11.3 / 0.8 | 11.3 | 3.1 / 6.0 / 6.7 / 6.8 / 5.9 / 5.3 | **6.8** |
+
+(The model reproduces the measured EA rows within 0.2 ms.) In the 10-05 battle the phase-5 frame loses
+~5.5 ms of logic on average and ~7.5 ms in the heaviest quarter; frames that drop because of one heavy
+phase should mostly stop dropping. Limits: the subsystem block (shroud, the destroy list, ...) is one
+piece, so phase 6 is the heaviest in the worst windows (9.6 ms); cutting inside it needs a hook between
+its calls, where logicstats checks bytes (a later step). Not yet seen in the game.
+
+**For Max's test:** `phasebalance=1` and `logicstats=1` in the RotWK folder's gamepatch.ini (after the
+install), an 8-player skirmish. The `logicstats:` lines should read ~2 / 6 / 6 / 6 / 6 / 6 ms instead of
+2 / 2 / 7 / 9 / 12 / 1.5, the `exit: phasebalance:` line counts the steps; play feels the same.
+
+## 30. The animals, the units' AI and FireWeaponUpdate: two exact speed-ups and a timer for the rest (2026-10-15, static + standalone tests; staged, not installed)
+
+Roadmap step 2 (`docs/FPS-ROADMAP.md`): the update-module classes that logicstats ranks highest in
+8-player battles. The 10-05 figures are the roadmap's §1 table (that session's log is no longer in
+`logs/`); the 10-15 ones are today's session (`logs/sessions/20261015-160144`, mp woody end, 1 human + 7 AI,
+up to 1,010 objects), aggregated from `logs/gamepatch.log` over its 168 windows of 30 s with >= 100 logic
+steps, steps-weighted (a class counts only in the windows where it is in logicstats' top 12):
+
+| class (update fn) | 10-05 ms / step, calls / step, µs / call | 10-15 |
+|---|---|---|
+| AIUpdateInterface 0x66e58f | 5.31, 303, 17.5 | 4.71, 258, 18.3 |
+| AnimalAIUpdate 0x882058 | 3.61, 321, 11.2 | 1.16, 89, 13.1 |
+| FireWeaponUpdate 0x88f554 | 1.49, 1.0, 1,460 | 0.02, 0.1, 259 (windows with it: 0.10-0.37 ms a step at 0.2-1.1 calls: 0.5-1.2 ms a call) |
+
+### 30.1 Where the time goes, from the code
+
+- **AnimalAIUpdate::update 0x882058** runs AIUpdateInterface::update first and returns 1 whatever that
+  answers, so every animal is updated every logic step (321 a step on eastfarthing hills); then
+  `isReachableLayer` 0x881fcc → TerrainLogic::getLayerForDestination 0x680a75 (ground height, CRT fabs,
+  the bridges, the pathfinder's bridge and 14 wall-layer checks) every step; every `UpdateTimer` steps
+  (10-11 in the INI, some 10000) a flee scan, getClosestObject 0xa3bdb0 through 0xa39090 with radius
+  `FleeRange` (200-350), distance type 0, a relationship and a kind filter; when idle a
+  `WanderPercentage` (5 %) roll of the logic RNG, and on success a scan for an emitter (getClosestObject
+  again), then a wander point (Sin, Cos, two more RNG draws) and a move order (a command into its AI:
+  state change, path request). The idle AI state sleeps (StateMachine 0x8db6d5 skips the state until
+  its wake frame), so a resting animal's base update is the bookkeeping around it; a walking animal
+  costs what any walking unit costs.
+- **AIUpdateInterface::update 0x66e58f**: two object-event-map lookups 0x756cd7, two setStatus calls,
+  the main update 0x6695ef (the state machine's update, 0x6658d3, 0x663e32 ...), 0x665921, 0x66217e.
+  Idle units sleep, so the 258-303 updates a step are the moving and fighting units: locomotion, path
+  following, target scans (scantree, §19) and weapon fire. A splash weapon's DamageNugget runs the scan
+  below. Which state costs what cannot be read from the code: **aiprof** (30.4) measures it.
+- **FireWeaponUpdate 0x88f554** only calls Weapon::forceFireWeapon; the time is its weapon's nuggets.
+  DamageNugget's hit scan 0x90def0 asks iterateObjectsInRange for **distance type 4** whenever its radius
+  is 10 or more (type 3, aura3d §27, below 10 or when the source has two particular kind bits and +0x258
+  set; type 1 when the nugget's flag +0x1c0 is set).
+  Type 4 is 0xa3c7d0, an exact geometry intersection per object in the scan's cells: per object it
+  recomputes the bounds of its static sphere (calcBoundingStuff, ~200 x87 instructions with five fsqrt),
+  then GeometryInfo::bfmeIntersects 0xad2ce0: per shape a fsin/fcos rotation, two AsciiString copies
+  under the string lock, z ranges and a 2D test. Measured below: 0.86 ms for a scan of 237 objects around
+  a fortress, the order of 10-05's 1.46 ms call. The permanent objects that fire such a weapon every
+  250 ms (about one update a step) are the fortress spikes, `SpikeMoatRadiusWeapon` and
+  `RazorSpinesBasicWeapon` (r 150); which one 10-05 had is not known. Every splash, cleave and crush hit
+  of radius >= 10 in a battle runs the same scan.
+
+### 30.2 aigeom: distance type 4 without the work that cannot change its answer
+
+`gamepatch/src/p_aigeom.c`, switch `aigeom`, on; exit log line `aigeom`. A `jmp` at 0xa3c7d0 (hash-checked
+with bfmeIntersects, calcBoundingStuff and its helpers, the shape position and the two 2D tests):
+- the static sphere's radius fsqrt and its calcBoundingStuff run only when its bytes (struct and shape
+  array) or the x87 control word differ from right after the last run: calcBoundingStuff reads only the
+  geometry and constants, so the skipped call would write what is already there;
+- the three getter calls as the original (geometry, angle, position), then **"apart" without the
+  intersection test** when, for every shape of type 0-2, the 2D distance from the query point to the
+  object exceeds 1.001 x (the offset's length + the shape's reach: |major| for circles, whose test is
+  d <= |a + r|; the half diagonal for boxes) + the sphere's radius + 0.01 + 1e-4 x the magnitudes
+  (the x87 original's rounding is ~1e-7 relative; any value non-finite or over 1e7, an angle over 1e6:
+  no shortcut);
+- otherwise the **intersection test inline**: per active shape its world position by the original's own
+  0xad22f0 (fsin/fcos), the two z-range tests and circle-circle in SSE (operands kept where SSE single
+  equals the x87 24-bit result, else the original runs), box-circle by the original's 0xad4870, without
+  the shape copies and the sphere's own rotation (offset 0, angle 0);
+- the static not yet built, or another FPU mode: the original from its top.
+Exact: deterministic across machines, LAN-safe even against a player without it.
+
+**Proof: `gamepatch/tests/t_aigeom.c`** (in `scripts/game-patch.sh --test`): two relocated copies of the
+exe's partition and geometry code (the pages of a call-graph closure), A untouched, B patched (with
+scantree as installed). Object geometries by the game's own GeometryInfo constructor plus extra shapes
+(offsets, mixed types, inactive ones, odd sizes, other types, none). Engine w10, 2026-10-15, two runs of 1 M
+calls, PASS:
+
+| check | result |
+|---|---|
+| [1] single calls in batches (B, then A on the same inputs): result bits, getter log, the static sphere's bytes; units, spheres, buildings, multi-shape and odd geometries, any angle, points at the reach boundary, radii repeated and changed | 1,000,000 calls: 0 mismatches (423 k answered apart, 517 k tested inline) |
+| [2] 7 other x87 modes, 3 other MXCSR modes (FTZ + DAZ, round down, DAZ) | 499,840 calls: 0 mismatches |
+| [3] whole range queries 0xa3c4e0 with type 4, r 10-3,000, 0-2 filters, worlds of 300-2,500 objects | 20,000 queries, 2.20 M objects returned: 0 mismatches (vectors and getter / filter logs) |
+| [4] sensitivity: shape offsets forgotten / bounds never recalculated / inline test without its second z test | caught: 1,997 / 249,984 / 2,598 of 249,984 calls differ |
+| [4] the exact reach without the rounding margin | 2 and 0 of 249,984 calls differ in two runs: the margin is needed, rarely |
+| [5] two memory layouts (geometries and shape arrays copied elsewhere) | 8,000 calls: 0 mismatches, 0 results that moved |
+| [6] the fortress spikes' scan, r 150 at a fortress area of 200 objects (40 boxes, 160 cylinders) in a 1,300-object world: 228-237 candidates, 159-166 apart, 60-62 hits | **0.83-0.86 → 0.19-0.21 ms** per scan |
+| [6] a splash hit, r 40, inside a battle of 1,000 units: 114-119 candidates, 106-112 apart, 4 hits | **0.49-0.50 → 0.08-0.10 ms** per scan |
+
+### 30.3 aiclosest: the closest-object search
+
+`gamepatch/src/p_aiclose.c`, switch `aiclosest`, on; exit log line `aiclosest`. getClosestObject 0xa3bdb0
+(102 call sites: the animals' flee and emitter scans, the emotion tracker, the AI's closest target and
+repulsor) is a search over the 21 quadtrees with a function-static STLport heap of 24-byte elements — a
+max-heap on the cell distance, so the farthest node is popped first and the search stops when the top is
+beyond the bound — the table's distance per object, an x87 compare against the best so far (equal
+distances: the later object wins), and four CRT floors per improvement. The replacement (a `jmp` at
+0xa3bdb0, hash-checked with its heap, cell and filter functions) does the same search in the same order
+with STLport's push/adjust algorithm on its own array, the same getter, filter and mask calls in the same
+order, the 2D distances inline in SSE where every square is a normal float (else x87 replicas, as
+scantree), and the improvement bound by the original's x87 sequences and the same CRT floor and
+0xa3ada0 calls. Another FPU mode or an odd grid: the original runs. Exact, LAN-safe.
+
+**Proof: `gamepatch/tests/t_aiclose.c`**: t_scan's world (21 quadtrees built by the game's linkNode, mock
+objects and filters that log every call), A untouched, B with aiclosest, distcalc, scantree and aura3d.
+Engine w10, 2026-10-15, two runs, PASS:
+
+| check | result |
+|---|---|
+| [1] searches: types 0-3 and invalid, 0-3 filters, regions, radius 0 to 1e7, ties (a sixth of the objects on another's point), clustered armies, special values | 1,000,000 searches (679 k found an object, 120 candidates each): 0 mismatches in the object and the call log |
+| [2] 7 other x87 modes, 3 other MXCSR modes | 500,000: 0 mismatches |
+| [3] two memory layouts of the same worlds | 16,000: 0 mismatches, 0 results that moved |
+| [4] sensitivity: ties keep the first object | caught: 3,019 and 3,855 of 50,000 differ (two runs) |
+| [5] µs per search, 1,500-object world with a 1,000-unit battle: flee scan (r 250, 2 filters) away from it / inside it, map-wide | EA 8.3-10.2 / 24.9-26.6 / 38.8-40.0; as installed (distcalc) 4.5-5.5 / 14.0-14.6 / 25.1-26.1; **aiclosest 1.3-1.5 / 5.2-5.3 / 12.8-14.0** (two runs) |
+
+### 30.4 aiprof: the calls inside, measured in the next session
+
+`gamepatch/src/p_aiprof.c/.S`, switch `aiprof`, **off** (a diagnostic, like logicstats). 20 call sites
+become calls to stubs that time the original target inclusively (rdtsc; the arguments copied, the
+caller's eax/ecx/edx passed, the target's eax/edx returned, its argument pops kept): in AnimalAIUpdate
+its AI update, isReachableLayer, the flee and emitter scans, the move order; in AIUpdateInterface::update
+its main updates, 0x665921, 0x664f93, 0x66217e, the event-map lookups and setStatus calls; in its main
+update 0x663e32, 0x6658d3 and the state machine's update; FireWeaponUpdate's two weapon fires and
+DamageNugget's scan. And StateMachine's call of the current state's update (0x8db70b), timed per state
+class (named from the state's getName). An `aiprof:` line every 30 s with ms and calls per logic step per
+site, and one with the 12 most expensive AI states. Test `t_aiprof` (PASS): every site applies to the
+original bytes; 200,000 calls through the stubs with random registers and arguments for each signature
+(0-6 arguments, popped by the target or not): the target sees what the caller passed and the caller gets
+what the target returned, esp as after the original call, ebx/esi/edi/ebp kept; the state and state
+machine stubs likewise; the checks see a planted wrong edx or argument; **~15 ns per timed call**.
+
+### 30.5 Expected, and what is not done
+
+Expected in the game (estimates from the tests' costs; the mock getters cost about what the game's do):
+the fortress spikes ~0.65 ms less per shot (~0.5 ms a logic step while such a fortress stands), and a
+splash, cleave or crush hit with radius >= 10 ~0.4 ms less each inside a battle (how many a step:
+`aiprof`'s damage-scan count). The animals' scans ~4 µs (away from fighting) to ~9 µs (in it) less each
+against today's build: on eastfarthing hills' 321 animals ~30-40 scans a step, ~0.2-0.4 ms a step; the
+emotion tracker's and the AI's closest searches likewise. The exit lines count the calls.
+
+Not done: the rest of AnimalAIUpdate (its base AI update, the every-step layer check, the move orders)
+and AIUpdateInterface's own sub-costs could not be ranked from the code — a resting animal's update is
+bookkeeping, a walking one is locomotion — so they wait for `aiprof` numbers. getLayerForDestination
+cannot be cached exactly per animal (bridges and walls change). The box shapes' 2D test still runs the
+original (0xad4870), and hits on objects of several shapes cost a world position per shape.
+
+**For Max's next session:** `logicstats=1` and `aiprof=1` in the RotWK folder's gamepatch.ini (after the
+install), an 8-player skirmish: the `aiprof:` lines name what the AI and animal updates spend their time
+on, and the `exit: aigeom` / `exit: aiclosest` lines show both ran.

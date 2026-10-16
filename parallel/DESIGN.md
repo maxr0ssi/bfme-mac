@@ -228,6 +228,10 @@ byte for byte, and a mismatch switches it off.
   region, or accept serial for regions under ~200 µs.
 - **Main-thread replay cost** (0.11 µs/record) comes off the gain. Regions that emit one record per
   vertex will not pay off; record per item or per batch.
-- **Game restrictions:** D3D stays on main (wined3d is not created MULTITHREADED). Nothing
-  lockstep-relevant may be parallelised: client-side only, so patched and unpatched players stay
-  in sync.
+- **Game restrictions:** D3D stays on main (wined3d is not created MULTITHREADED). Client-side
+  work is free to parallelise (with the self-check above). Lockstep-relevant work only if every
+  machine running our build gets the same result: a fixed merge order from the game's own data
+  (object ID, list index), nothing from thread timing or addresses reaching the logic, a test
+  comparing serial and parallel (the game's own getCRC 0x625886 covers the logic state). Such a
+  switch changes the game logic: every LAN player needs the same build and setting
+  (`MULTIPLAYER.md`, docs/DEVELOPMENT.md).

@@ -2,8 +2,15 @@
 
 Max's two goals: more than 30 FPS ("the big one"), and using more than one core. This is the
 design, written 2026-10-06 from the exe (RotWK 2.02, `build/rotwk-re`), the logicstats data of the
-10-05 8-player match and the existing patches. Nothing here is built or installed. Open-BFME-1/2 and
-EA's Zero Hour source were read for understanding only; nothing of theirs is copied.
+10-05 8-player match and the existing patches. Open-BFME-1/2 and EA's Zero Hour source were read for
+understanding only; nothing of theirs is copied.
+
+**Status 2026-10-15.** Max approved the roadmap (frame timers, phase balancing, exact speed-ups, then 60
+fps) and the rule for logic changes (§6, decision 1; now in docs/DEVELOPMENT.md and MULTIPLAYER.md).
+Step 0, **framesplit**, and step 1, **phasebalance**, are built and tested offline, staged, not
+installed (docs/PERFORMANCE.md §28, §29). phasebalance stays off until Max has tried it; its model
+puts the 10-05 battle's heaviest phase at 6.5 ms instead of 12.0 (9.6 instead of 17.0 in the heaviest
+quarter of windows). Next: one session with framesplit, then Max's phasebalance test.
 
 **In short**
 - The game draws one frame per logic *phase*: 6 phases per logic step, 5 steps a second, hence 30
@@ -345,8 +352,8 @@ installed before Max's review, Max tests in game.
 
 | # | step | gain | risk | effort | logic / LAN |
 |---|---|---|---|---|---|
-| 0 | **framesplit**: per-frame timing of the client pass, the draw, the logic phase, Present and the limiter wait | none; tells us the real headroom for 1-3 | none (diagnostic) | S | client only |
-| 1 | **phasebalance**: spread the six phases evenly | heaviest phase 12 → ~7.5 ms mean, 17 → ~10-11 heaviest quarter, ~26 → ~14 worst; most 8p drops below 30 go | low | S-M | changes when the pathfind queue runs relative to modules; deterministic; every LAN player needs the same switch |
+| 0 | **framesplit** (built, PERFORMANCE.md §28): per-frame timing of the client pass, the draw, the logic phase, Present and the limiter wait | none; tells us the real headroom for 1-3 | none (diagnostic) | S | client only |
+| 1 | **phasebalance** (built, §29): spread the six phases evenly | heaviest phase 12 → ~6.5 ms mean, 17 → ~9.6 heaviest quarter (model, §29); most 8p drops below 30 go | low | S-M | changes when the pathfind queue runs relative to modules; deterministic; every LAN player needs the same switch |
 | 2 | **exact speed-ups of the new top classes**: AnimalAIUpdate, AIUpdateInterface, Horde*, FireWeaponUpdate's 1.5 ms single call, getClosestObject | 2-6 ms a step (0.3-1 ms a frame, more on phase 3-5 frames) | low | M (one per class) | exact: none |
 | 3 | **fps60**: extra interpolated frames between phases (§2.4) | small: 30 → 60 FPS; 8p: 30 → ~35-45, more after 1 | medium (visual glitches, never logic) | M | client only, LAN-safe |
 | 4 | parallel client work: particle simulation, pose evaluation, drawable updates (§3.2) | 1-3 ms a frame in big fights | medium | M | client only |
@@ -357,6 +364,10 @@ installed before Max's review, Max tests in game.
 
 ### Step 0: framesplit (first prototype, a day)
 
+*Built 2026-10-15 (PERFORMANCE.md §28): the times go into the monitor's per-frame records and the
+session report's "Frame split" section (p50 / p95 per phase) instead of a 30 s log line; Present is
+timed at its call 0x522650, the wait from 0x63a196 to the iteration's end 0x63a21f; test `t_fsplit`.*
+
 Timers (rdtsc, converted per window as renderstats does) around: the client pass call at 0x6325cf
 (vt+0x9c → 0x632409), inside it GameClient::update 0x64849e and W3DDisplay::draw; the engine step
 calls at 0x6326c6 / 0x6326f0 (vt+0x98 → 0x6329b0); Present (the DX8Wrapper end-scene path); and the
@@ -366,6 +377,15 @@ limiter's wait 0x63a196-0x63a1f8. Per frame into the monitor's frame record (`p_
 the headroom table that decides how much step 3 can show.
 
 ### Step 1: phasebalance
+
+*Built 2026-10-15 (PERFORMANCE.md §29) with a different cut than the table below: phase 2 + list 0
+[0, 36 %), list 0 [36, 74 %), list 0 to its end + list 1 [0, 30 %), the rest of list 1 + list 2 +
+TheAI, then the subsystem block + list 3 in phase 6 (model: heaviest phase 6.5 ms, not ~7.5). Reading the
+exe again: the destroy list 0x62a2c9 runs once per step inside the subsystem block (0x629da6, at every
+phase's end, is the pass over objects that changed cell), and nothing removes modules from lists 0-2
+between their passes, so a pass resumes where the last one stopped; EA's own n/2 recomputation loses
+the modules that join between its halves. The test runs the game's own GameLogic::update on a synthetic
+world (`t_phasebal`).*
 
 GameLogic::update's dispatch (0x62e97e-0x62e9be) maps phase → lists [first, end): 3-4 → list 0
 (split by index at size/2, 0x62e9d4-0x62ea1e), 5 → lists 1-2, 6 → list 3; the twelve phase-5
@@ -401,6 +421,10 @@ table per class) — never by measured time, which would differ between machines
 - **FireWeaponUpdate 0x88f554**: one call a step costing 1.46 ms (§25.4 suspects a fortress
   upgrade firing a DamageNugget every 250 ms): the 3D distance through the table (0xa3aeb0) in SSE.
 - **getClosestObject 0xa3bdb0**: the next scan after scantree (§19).
+- **Done 2026-10-15 (PERFORMANCE.md §30, staged):** aigeom (DamageNugget's type-4 geometry scan: the
+  fortress spikes 0.85 → 0.2 ms a shot, splash hits 0.5 → 0.1 ms), aiclosest (getClosestObject 3-4x
+  against today's build), both exact; aiprof, a diagnostic that times the calls inside AnimalAIUpdate,
+  AIUpdateInterface and FireWeaponUpdate and each AI state's update, for the next session.
 
 ### Step 3: fps60 (§2.4)
 
@@ -499,7 +523,9 @@ files too. Tests stay the same pattern: the game's code in a relocated copy agai
 
 ## 6. Decisions for Max
 
-1. **Logic-order changes.** Phase balancing (step 1) and the pass-start scans (step 6) change the
+1. **Logic-order changes.** *Answered 2026-10-15: yes, with every LAN player on the same build and
+   settings; AGENTS.md, docs/DEVELOPMENT.md, parallel/DESIGN.md and MULTIPLAYER.md now say so.*
+   Phase balancing (step 1) and the pass-start scans (step 6) change the
    logic deterministically, not bit for bit against EA. Your 10-05 rule allows that, but AGENTS.md,
    docs/DEVELOPMENT.md ("bit-exact against the original") and parallel/DESIGN.md ("nothing
    lockstep-relevant may be parallelised") still say otherwise, and MULTIPLAYER.md would need a line:
