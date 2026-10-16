@@ -68,7 +68,8 @@ def load_game(path):
         t = f[0] / 1e6 + off
         if prev is not None and f[0] > prev:
             fr.append({"t": t, "ms": (f[0] - prev) / 1000.0, "logic": f[1], "loads": f[2] + f[4] + f[6],
-                       "tex": f[2], "load_ms": (f[3] + f[5] + f[7]) / 1000.0, "create": f[4], "fx": f[6]})
+                       "tex": f[2], "load_ms": (f[3] + f[5] + f[7]) / 1000.0, "create": f[4], "fx": f[6],
+                       "split": f[8:16] if len(f) >= 16 else None})   # framesplit, see headroom_lines
         prev = f[0]
     out["frames"] = fr
     out["objects"] = [(s[0] / 1e6 + off, s[1], s[2], s[3]) for s in g["s"]]
@@ -350,6 +351,7 @@ def summary(r):
         for c in sorted(sp, key=lambda c: -c["ms"])[:10]:
             L.append("  " + moment(c))
     L += stall_lines(r)
+    L += headroom_lines(r)
     if r["wins"]:
         L.append("Slowest 10 s stretches (FPS, mean / p95 ms, main / render thread %):")
         for w in sorted(r["wins"], key=lambda w: w["fps"])[:5]:
@@ -369,6 +371,44 @@ def stall_lines(r):
         return monitor_stalls.lines(monitor_stalls.analyse(p), clock, r["game"]["off"])
     except Exception as e:   # noqa: BLE001 - the rest of the report still matters
         return ["Stalls: could not be analysed (%s: %s)" % (type(e).__name__, e)]
+
+
+SPLIT = ("client", "draw", "present", "logic", "phases", "wait", "iter", "iters")
+
+
+def headroom_lines(r):
+    """framesplit (game patch): where each drawn frame's time went, by the logic phase it ran; 'spare' is the
+    frame limiter's wait, 'busy' the rest of the frame, 'other' what none of the timers covers"""
+    gm = r["game"]
+    rows = [dict(zip(SPLIT, f["split"])) for f in (gm["frames"] if gm else []) if f.get("split") and f["logic"] > 0]
+    if not rows:
+        return []
+    by = {}
+    for x in rows:
+        ph = [p for p in range(1, 7) if x["phases"] >> p & 1]
+        key = ph[0] if x["iters"] == 1 and len(ph) == 1 else "-"
+        by.setdefault(key, []).append(x)
+    ms = lambda v: v / 1000.0
+    def cell(xs, f):
+        v = sorted(ms(f(x)) for x in xs)
+        return "%5.1f / %5.1f" % (pct(v, 50), pct(v, 95))
+    target = 1000.0 / 30
+    L = ["Frame split (framesplit; %d drawn frames in a match; ms, p50 / p95; spare = the limiter's wait):" % len(rows),
+         "  phase  frames   frame          busy           spare          client         draw           present"
+         "        logic          other"]
+    for key in [1, 2, 3, 4, 5, 6, "-"]:
+        xs = by.get(key)
+        if not xs:
+            continue
+        L.append("  %-5s %7d  %s  %s  %s  %s  %s  %s  %s  %s" % (
+            key, len(xs), cell(xs, lambda x: x["iter"]), cell(xs, lambda x: x["iter"] - x["wait"]),
+            cell(xs, lambda x: x["wait"]), cell(xs, lambda x: x["client"]), cell(xs, lambda x: x["draw"]),
+            cell(xs, lambda x: x["present"]), cell(xs, lambda x: x["logic"]),
+            cell(xs, lambda x: max(0, x["iter"] - x["client"] - x["logic"] - x["wait"]))))
+    over = {k: sum(ms(x["iter"] - x["wait"]) > target + 1 for x in xs) for k, xs in by.items()}
+    L.append("  busy over %.1f ms (the frames that drop below 30 FPS): %s" % (target, ", ".join(
+        "phase %s %d (%.1f %%)" % (k, over[k], 100.0 * over[k] / len(by[k])) for k in [1, 2, 3, 4, 5, 6, "-"] if k in by)))
+    return L
 
 
 def run(d, spike_ms=50.0):
