@@ -31,6 +31,10 @@ MATS = {
     "steel": dict(base=(0.42, 0.42, 0.44), metal=1.0, rough=0.13, grime=0.55, wear=0.6, wear_col=(0.95, 0.95, 0.97)),
     "gold": dict(base=(1.0, 0.70, 0.27), metal=1.0, rough=0.16, grime=0.45, grime_col=(0.35, 0.2, 0.05), wear=0.3,
                  wear_col=(1.0, 0.92, 0.7)),
+    # the Dwarven crest's gold: warmer and a little rougher than "gold", so its broad flat tops take a
+    # gradient from the soft box instead of one flat reflection, and match the frame's painted gold
+    "gold_erebor": dict(base=(0.98, 0.62, 0.20), metal=1.0, rough=0.3, grime=0.6, grime_col=(0.3, 0.16, 0.04),
+                        wear=0.45, wear_col=(1.0, 0.9, 0.62), var=0.15),
     "silver": dict(base=(0.90, 0.92, 0.95), metal=1.0, rough=0.12, grime=0.4, grime_col=(0.3, 0.32, 0.36)),
     "stone_white": dict(base=(0.86, 0.85, 0.80), rough=0.6, grime=0.6, grime_col=(0.4, 0.38, 0.34), var=0.15),
     "enamel_blue": dict(base=(0.015, 0.05, 0.24), rough=0.3, coat=0.15),
@@ -39,6 +43,8 @@ MATS = {
                 ior=1.31),
     "sapphire": dict(base=(0.04, 0.18, 0.9), rough=0.03, coat=1.0, emit=(0.08, 0.25, 1.0), emit_s=0.6),
     "arken": dict(base=(0.92, 0.96, 1.0), rough=0.02, coat=1.0, emit=(0.7, 0.85, 1.0), emit_s=0.9),
+    # the Dwarves' large Arkenstone: less glow than the small "arken" bezels, so its facets read
+    "arkenstone": dict(base=(0.74, 0.84, 1.0), rough=0.03, coat=1.0, emit=(0.45, 0.62, 1.0), emit_s=0.3),
     "white_glow": dict(base=(0.96, 0.97, 1.0), rough=0.35, emit=(0.55, 0.72, 1.0), emit_s=0.8),
     "white_hand": dict(base=(0.95, 0.95, 0.93), rough=0.4, ss=0.1, grime=0.5, emit=(1, 1, 1), emit_s=0.15),
     "ember": dict(base=(0.1, 0.02, 0.0), emit=(1.0, 0.35, 0.04), emit_s=4.0),
@@ -53,6 +59,25 @@ def bezel(at, r, gem_mat, rim_mat="gold"):
     x, y = at
     return [("both", dict(kind="disc", at=[x, y], r=r + 1.3, h=1.4, bevel=0.6, mat=rim_mat)),
             ("both", dict(kind="gem", at=[x, y, 1.3], r=r, mat=gem_mat))]
+
+
+def crest(x, tiers):
+    """A stepped crest: per tier (y, width, height off the page) a bevelled gold block 7.4 px tall; the
+    lower tiers carry a blue enamel band with the citadel's gold triangles, alternately up and down."""
+    out = []
+    for i, (y, w, h) in enumerate(tiers):
+        out.append(("double", dict(kind="box", at=[x, y], size=[w, 7.4], h=h, bevel=0.9, mat="gold_erebor")))
+        if i == len(tiers) - 1:
+            continue
+        bw = w - 6
+        out.append(("double", dict(kind="box", at=[x, y], size=[bw, 3.4], z=h, h=0.35, bevel=0.2, mat="enamel_blue")))
+        n = int(bw // 3.2)
+        for k in range(n):
+            cx, up = x - bw / 2 + (k + 0.5) * bw / n, k % 2 == 0
+            t, b = (y - 1.2, y + 1.2) if up else (y + 1.2, y - 1.2)
+            out.append(("double", dict(kind="prism", poly=[(cx, t), (cx + 1.3, b), (cx - 1.3, b)],
+                                       z=h + 0.35, h=0.3, bevel=0.12, segments=2, mat="gold_erebor")))
+    return out
 
 
 def icicles(x0, step, y, lengths, r):
@@ -120,10 +145,12 @@ PIECES = {
         *bezel(BR, 2.8, "arken", "silver"),
     ],
     "dwarves": [
-        ("double", dict(kind="prism", poly=[(229, 56), (255, 56), (255, 49), (251, 49), (251, 42), (247, 42),
-                                            (247, 35), (237, 35), (237, 42), (233, 42), (233, 49), (229, 49)],
-                        h=3.5, bevel=0.7, mat="gold")),
-        *[("double", p) for _, p in bezel((242, 30), 4.4, "arken")],
+        # the stepped crest over the joint, as the citadel's gate tower: three gold tiers, each higher off
+        # the page (one flat extrusion seen from the front read as a flat beige cut-out in game,
+        # 2026-10-15), the triangle frieze inlaid in blue enamel on the lower two, the Arkenstone on top
+        *crest(242, [(52.5, 27, 2.4), (45.5, 19, 3.6), (38.5, 11, 4.8)]),
+        ("double", dict(kind="disc", at=[242, 30], r=5.5, z=3.4, h=1.6, bevel=0.6, mat="gold_erebor")),
+        ("double", dict(kind="gem", at=[242, 30, 4.9], r=4.2, mat="arkenstone")),
         ("both", T([[45, 43, 3], [34, 30, 5], [26, 19, 5]], [3.6, 2.4, 0.02], "gold", "blade", 0.4)),
         *[("both", p) for _, p in bezel((24, 16), 2.6, "sapphire")],
         *bezel(TOP, 4.0, "sapphire"),

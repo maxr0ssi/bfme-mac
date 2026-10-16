@@ -1,7 +1,8 @@
 """python3 -m sagekit <command>
 
     list                               every building under assets/
-    validate                           load every building; taxonomy, names, budget rules, the upgrade limit
+    validate                           load every building; taxonomy, names, budget rules, the upgrade limit,
+                                       string labels (sagekit/stringcheck.py)
     inventory <faction/building>       its lifecycle as the game defines it, and what exists
     budget [faction]                   memory the own textures take, per faction
     build <faction/building> [--from STEP] [--to STEP]
@@ -109,6 +110,8 @@ def cmd_validate(a):
     bad += texture_reach()                      # staged packs: no texture level the closest camera never samples
     from .housecheck import validate as house_colour
     bad += house_colour()                       # our housecolor lines filed in asset.dat, masks colourable
+    from .stringcheck import validate as string_labels
+    bad += string_labels()                      # our string table wins the lang folder and has every label we add
     bad += cmd_budget(a)
     return 1 if bad else 0
 

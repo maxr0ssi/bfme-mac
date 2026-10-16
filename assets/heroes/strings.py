@@ -1,16 +1,25 @@
 """The heroes pack's names and tooltips: 2.02's English string table with our labels added.
 
-The game reads data\\lotr.str from lang\\English*.big before any root archive (exe 0xa14419: lang
-first, then the root *.big; the first archive to file a member wins, 0xa18384). So the strings
-ship in their own lang archive, named to load before English.big and englishpatch202.big
-(STRINGS_ARCHIVE): a copy of 2.02's table (the live one: 2.02's own units are named only there)
-plus our labels. Every other label keeps 2.02's text; the few EA labels we correct are listed.
+How RotWK 2.02 picks its string table (game.dat 2.01, read 2026-10-15): the BIG file system's init
+(0xa1766d, vtable 0xc9341c slot 1) loads lang\\English*.big with overwrite on
+(loadBigFilesFromDirectory, slot 8 = 0xa17fb0, `push 1`), before EnglishAudio and the root *.big
+(overwrite off). The directory listing is a set sorted with _memicmp (0xa1858f -> 0xa18b2e ->
+0x42c33b -> 0x405324), case-insensitive byte order, and loadIntoDirectoryTree (0xa1829c) replaces a
+member already filed only when overwrite is on (0xa18384). So among lang\\English*.big the LAST
+name in that order provides data\\lotr.str: englishpatch202.big for EA. (The BFME2 folder's
+lang\\English*.big comes through 0xa14419 with overwrite off and never replaces RotWK's.)
+Until 2026-10-15 the archive was named English!!!!!!!!!!!sagekit-heroes.big, which sorts FIRST:
+englishpatch202.big replaced its table and our labels showed as MISSING in game.
+
+The whole table ships (one lotr.str wins, there is no merge): 2.02's live table plus our labels.
+Every other label keeps 2.02's text; the few EA labels we correct are listed.
 """
 import re
 
 from . import ea
 
-STRINGS_ARCHIVE = "English!!!!!!!!!!!sagekit-heroes.big"      # lang\; sorts before English.big either way
+STRINGS_ARCHIVE = "EnglishZZsagekit-heroes.big"      # lang\\; sorts after englishpatch202.big ('z' > 'p'): ours wins
+LEGACY_ARCHIVES = ("English!!!!!!!!!!!sagekit-heroes.big",)  # sorted first and lost to englishpatch202.big
 MEMBER = "data\\lotr.str"
 
 

@@ -193,7 +193,12 @@ with edge wear, polished gold and silver, ice, gems). `sagekit/hud/pieces.py` re
 `sagekit/blender/hudpieces.py` (Cycles, one `blender_slot()`, cached by a hash of the spec and the
 script) at the painter's 4x. The pieces are lit from the top left like EA's frame, metals reflect
 three hidden studio panels, and a shadow catcher adds contact and drop shadows to the alpha. The
-painter composites the render over the frame inside a feathered `frame.safe()`. The repeated
+painter composites the render over the frame inside a feathered `frame.safe()`. The Dwarves' crest over the joint
+was one flat gold extrusion seen face-on, its Arkenstone emitting nearly white: in game (2026-10-15)
+it read as a flat beige cut-out with a white oval. It is now three gold tiers, each higher off the
+page, the citadel's triangle frieze inlaid in blue enamel on the lower two, and a faceted Arkenstone
+that glows less (`crest`, `gold_erebor`, `arkenstone` in `pieces.py`); review
+`build/assets/_review_finish/hud_faction/dwarves_crest_before_after.jpg`. The repeated
 stamps on the rings (the Goblins' skulls and ribs, Angmar's crystals and tines, the Dwarves' gems)
 are gone, and the ring surfaces are calmer (`soft`: a coarser mip of the swatch). The portrait's
 button rings (`libInGameImagesMain_1`, one sheet for every side) are toned from the pack's bronze to

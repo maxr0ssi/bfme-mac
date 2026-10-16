@@ -8,8 +8,9 @@ Erebor, Aragorn's level-8 armour; staged, installed and reverted like the cah pa
 
     RotWK/!!!!!!!!!!!sagekit-heroes.big           our models, sheets, masks, portraits and icons; EA's
                                                   2.02 INI files with our heroes composed in (12 members)
-    RotWK/lang/English!!!!!!!!!!!sagekit-heroes.big   2.02's English string table plus our labels (the
-                                                  game reads data\\lotr.str from lang\\English*.big first)
+    RotWK/lang/EnglishZZsagekit-heroes.big        2.02's English string table plus our labels (the last
+                                                  lang\\English*.big in name order provides data\\lotr.str;
+                                                  assets/heroes/strings.py)
     RotWK/!!!!!!!!!!!!!sagekit-units.big          the shared housecolor.ini (sagekit/units/install.py)
     asset.dat                                     our three models filed under their own names, our
                                                   textures registered; EA's records untouched
@@ -47,6 +48,17 @@ def lang_path():
     return live_dir() / "lang" / STRINGS_ARCHIVE
 
 
+def legacy_paths():
+    """Where earlier builds put the string table (English!!!...: sorted first, so 2.02's table won)."""
+    from assets.heroes.strings import LEGACY_ARCHIVES
+    return [live_dir() / "lang" / n for n in LEGACY_ARCHIVES]
+
+
+def installed_lang():
+    """The string table this pack installed: today's name, else a legacy one, else today's."""
+    return next((p for p in [lang_path()] + legacy_paths() if p.exists()), lang_path())
+
+
 def built():
     """{member: bytes} of the root archive, and the string table's bytes (from assets.heroes.build)."""
     out = Path(paths.BUILD) / "heroes" / "pack"
@@ -81,7 +93,7 @@ def model_source(files):
 
 
 def owned(u, b):
-    dest, lang = live_dir() / u.archive, lang_path()
+    dest, lang = live_dir() / u.archive, installed_lang()
     if not dest.exists() and not lang.exists():
         return False
     receipt = b.stage / "unit.json"
@@ -158,10 +170,17 @@ def install(dry=False):
     dest, data, lang_dest, lang_data = live_dir() / u.archive, archive.read_bytes(), lang_path(), lang.read_bytes()
     updates = {}
     expected = {dest: read(dest), lang_dest: read(lang_dest), live_dir() / SHARED: read(live_dir() / SHARED)}
+    expected.update({p: read(p) for p in legacy_paths()})
     if owned(u, b):
-        if dest.read_bytes() != data or lang_dest.read_bytes() != lang_data:
+        if dest.read_bytes() != data:
             raise SystemExit("heroes: another build of the pack is installed; --revert it first")
-        print("The heroes pack is installed already; composing the shared house-colour INI.")
+        if installed_lang() != lang_dest or lang_dest.read_bytes() != lang_data:
+            # the same pack with a new string table (or its legacy name): only the table moves
+            updates[lang_dest] = lang_data
+            updates.update({p: None for p in legacy_paths()})
+            print("The heroes pack is installed already; replacing its string table (%s)." % lang_dest.name)
+        else:
+            print("The heroes pack is installed already; composing the shared house-colour INI.")
     else:
         updates[dest], updates[lang_dest] = data, lang_data
         for live, ops in routed.items():
@@ -187,14 +206,15 @@ def revert(dry=False):
     if game_running():
         raise SystemExit("Close the game before reverting.")
     u, b = recipe()
-    dest, lang_dest = live_dir() / u.archive, lang_path()
+    dest, lang_dest = live_dir() / u.archive, installed_lang()
     if not owned(u, b):
         raise SystemExit("The heroes pack is not installed.")
     shipped = Archive(str(dest))
     files = {n: shipped.read(n) for n in shipped.index()}
     ops = cache_ops(files)
-    updates = {dest: None, lang_dest: None}
-    expected = {dest: read(dest), lang_dest: read(lang_dest), live_dir() / SHARED: read(live_dir() / SHARED)}
+    updates = {dest: None, lang_dest: None, **{p: None for p in legacy_paths() + [lang_path()]}}
+    expected = {p: read(p) for p in updates}
+    expected[live_dir() / SHARED] = read(live_dir() / SHARED)
     for live, cops in Install().route_cache_ops(ops).items():
         cache, pristine = AssetCache(live), AssetCache(live + ".orig")
         expected[Path(live)] = cache.data

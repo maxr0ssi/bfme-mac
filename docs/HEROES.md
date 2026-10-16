@@ -91,10 +91,16 @@ sub-object on the same bones (`assets/heroes/gamling_model.py`, `SKGamling_SKN`)
   beside them (the Captain against Dain, Gamling against Boromir), on pages of our own
   (`SKHeroUI_*.tga`, `SKHI*.tga`); their MappedImages are appended to EA's `heroui.ini` and
   `heroselecticons.ini`.
-- **Strings.** The game reads `data\lotr.str` from `lang\English*.big` before the root archives
-  (exe 0xa14419), and the first archive to file a member wins (0xa18384). So the pack ships 2.02's
+- **Strings.** RotWK loads `lang\English*.big` with overwrite on, in case-insensitive name order, so
+  the LAST name provides `data\lotr.str` (game.dat: init 0xa1766d `push 1`; sorted listing 0xa18b2e,
+  _memicmp; overwrite 0xa18384; addresses in `assets/heroes/strings.py`). The pack ships 2.02's
   English table plus 18 labels of ours (and two EA labels corrected: Gamling's revive text read
-  "Revive Gaming", his hotkey label was missing) as `lang\English!!!!!!!!!!!sagekit-heroes.big`.
+  "Revive Gaming", his hotkey label was missing) as `lang\EnglishZZsagekit-heroes.big`, after
+  `englishpatch202.big`. **Corrected 2026-10-15:** this note said the first archive wins and the table
+  shipped as `English!!!!!!!!!!!sagekit-heroes.big`, which sorts first; 2.02's table replaced it and
+  in game the Captain's recruit button read "MISSING: 'CONTROLBAR:SagekitEreborCaptainRecruit'".
+  `--install` over that build moves the table to the new name. `sagekit validate` checks the load
+  order and every label (`sagekit/stringcheck.py`).
 - **Upgrades.** None added (EA 1027 + cah 43 = 1070 of 1152). The lint fails on any Upgrade block
   beyond EA's; `python3 -m sagekit validate` counts the staged pack.
 
@@ -118,6 +124,6 @@ never granted, a missing command set.
 ## Not checked without the game
 
 The radial hero menu now holds 13 buttons on the Men's fortress (EA's 10); whether the palantir lays
-them all out; the string archive's load order (if it lost, the new names would show as MISSING);
+them all out;
 the copied powers' animations on their new rigs (Train Allies asks for an unpacking animation Dain's
 Draw lacks and plays his idle).
